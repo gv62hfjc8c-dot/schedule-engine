@@ -39,7 +39,7 @@ Estado: **fechado**
 
 ## Ponto 3 — Disponibilidade
 
-Estado: **em validação**
+Estado: **fechado**
 
 - [x] disponibilidade semanal por pessoa;
 - [x] zero intervalos significa indisponível;
@@ -69,4 +69,4 @@ Estado: **em validação**
 
 ## Próximo ponto
 
-A definir depois de validarmos o Ponto 3 na aplicação.
+A definir antes de iniciar o Ponto 4.
