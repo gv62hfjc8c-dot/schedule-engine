@@ -70,7 +70,17 @@ Uma exceção por data substitui o padrão semanal dessa pessoa.
 
 `src/utils/availability.ts` resolve a disponibilidade efetiva e permite verificar se um intervalo pedido está totalmente contido num intervalo disponível.
 
-Disponibilidade é uma hard constraint: um horário futuro não poderá atribuir trabalho fora destes intervalos.
+Disponibilidade é uma hard constraint, mas não existe isoladamente do calendário operacional.
+
+O tempo efetivamente escalável numa data é:
+
+```text
+calendário operacional ∩ disponibilidade da pessoa
+```
+
+Se a operação estiver fechada, ninguém é escalável nessa data, mesmo que existam dados de disponibilidade antigos ou incoerentes. Se a operação estiver aberta apenas num subintervalo, a disponibilidade efetiva é limitada a esse subintervalo.
+
+A interface aplica a mesma regra: dias fechados ficam bloqueados e as horas selecionáveis ficam limitadas ao funcionamento da operação.
 
 ### Persistência da aplicação
 
