@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-10-22 — Persistência automática local
+
+- criada uma porta assíncrona de persistência independente do motor;
+- implementado adaptador versionado de `localStorage`;
+- calendário, exceções e pessoas são carregados automaticamente no arranque;
+- alterações são guardadas automaticamente com debounce;
+- adicionado indicador visual de estado da gravação;
+- estrutura preparada para substituição futura por API/base de dados;
+- adicionados testes do adaptador de persistência.
+
 ## 2026-10-22 — Separação por áreas
 
 - calendário operacional e pessoas passam a existir em separadores próprios;
