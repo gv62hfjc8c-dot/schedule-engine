@@ -77,6 +77,39 @@ export function getRequiredPeopleAt(
   return matches[0].minimumPeople;
 }
 
+export function getRequiredPeopleForOperationAt(
+  date: string,
+  time: string,
+  weeklyCoverage: WeeklyCoverage,
+  coverageExceptions: CoverageException[],
+  weeklyOperatingHours: WeeklyOperatingHours,
+  operatingExceptions: OperatingHoursException[]
+): number | null {
+  const minute = timeToMinutes(time);
+
+  const operationOpen = getOperatingIntervalsForDate(
+    date,
+    weeklyOperatingHours,
+    operatingExceptions
+  ).some((interval) => {
+    const start = timeToMinutes(interval.start);
+    const end = timeToMinutes(interval.end);
+
+    return minute >= start && minute < end;
+  });
+
+  if (!operationOpen) {
+    return null;
+  }
+
+  return getRequiredPeopleAt(
+    date,
+    time,
+    weeklyCoverage,
+    coverageExceptions
+  );
+}
+
 export function isCoverageRequirementValid(
   requirement: CoverageRequirement
 ): boolean {
