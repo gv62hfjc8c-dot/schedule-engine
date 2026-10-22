@@ -1,32 +1,11 @@
 import type {
   OperatingHoursException,
-  SchedulePeriod,
   WeeklyOperatingHours,
 } from "./types";
 import {
-  getDatesInPeriod,
   getOperatingIntervalsForDate,
+  getWeekday,
 } from "./utils/operatingCalendar";
-
-const period: SchedulePeriod = {
-  startDate: "2026-10-26",
-  endDate: "2026-11-01",
-};
-
-const dates = getDatesInPeriod(period);
-
-if (dates.length !== 7) {
-  throw new Error(
-    `Período deveria conter 7 dias, recebeu ${dates.length}`
-  );
-}
-
-if (
-  dates[0] !== "2026-10-26" ||
-  dates[6] !== "2026-11-01"
-) {
-  throw new Error("Datas do período não foram calculadas corretamente");
-}
 
 const weeklyOperatingHours: WeeklyOperatingHours = {
   monday: [{ start: "09:00", end: "18:00" }],
@@ -51,6 +30,10 @@ const exceptions: OperatingHoursException[] = [
     intervals: [{ start: "10:00", end: "14:00" }],
   },
 ];
+
+if (getWeekday("2026-10-26") !== "monday") {
+  throw new Error("Dia da semana não foi calculado corretamente");
+}
 
 const monday = getOperatingIntervalsForDate(
   "2026-10-26",
@@ -93,19 +76,16 @@ if (
   throw new Error("Exceção não abriu corretamente um dia normalmente fechado");
 }
 
-let invalidPeriodRejected = false;
+let invalidDateRejected = false;
 
 try {
-  getDatesInPeriod({
-    startDate: "2026-11-02",
-    endDate: "2026-11-01",
-  });
+  getWeekday("2026-02-31");
 } catch {
-  invalidPeriodRejected = true;
+  invalidDateRejected = true;
 }
 
-if (!invalidPeriodRejected) {
-  throw new Error("Período invertido deveria ser rejeitado");
+if (!invalidDateRejected) {
+  throw new Error("Data inválida deveria ser rejeitada");
 }
 
 console.log("Operating Calendar V0: todos os testes passaram.");
