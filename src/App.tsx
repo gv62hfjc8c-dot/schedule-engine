@@ -12,8 +12,12 @@ import { appStateRepository } from "./persistence/appStateRepository";
 import { APP_STATE_VERSION } from "./persistence/stateRepository";
 import {
   createPersonAvailability,
+  intersectIntervals,
 } from "./utils/availability";
-import { WEEKDAYS } from "./utils/operatingCalendar";
+import {
+  getOperatingIntervalsForDate,
+  WEEKDAYS,
+} from "./utils/operatingCalendar";
 import {
   createPerson,
   getActivePeople,
@@ -69,6 +73,36 @@ function closingOptionsAfter(start: string): string[] {
   return closingOptions.filter(
     (time) => timeToMinutes(time) > startMinutes
   );
+}
+
+function openingOptionsWithin(
+  interval: OperatingInterval
+): string[] {
+  const start = timeToMinutes(interval.start);
+  const end = timeToMinutes(interval.end);
+
+  return openingOptions.filter((time) => {
+    const minutes = timeToMinutes(time);
+
+    return minutes >= start && minutes < end;
+  });
+}
+
+function closingOptionsWithin(
+  start: string,
+  interval: OperatingInterval
+): string[] {
+  const startMinutes = timeToMinutes(start);
+  const operationEnd = timeToMinutes(interval.end);
+
+  return closingOptions.filter((time) => {
+    const minutes = timeToMinutes(time);
+
+    return (
+      minutes > startMinutes &&
+      minutes <= operationEnd
+    );
+  });
 }
 
 function normalizeEnd(start: string, end: string): string {
@@ -272,11 +306,14 @@ export default function App() {
     return {
       availableDays: WEEKDAYS.filter(
         (weekday) =>
-          selectedAvailability.weeklyAvailability[weekday].length > 0
+          intersectIntervals(
+            selectedAvailability.weeklyAvailability[weekday],
+            weeklyHours[weekday]
+          ).length > 0
       ).length,
       exceptions: selectedAvailability.exceptions.length,
     };
-  }, [selectedAvailability]);
+  }, [selectedAvailability, weeklyHours]);
 
   const updateDayInterval = (
     weekday: Weekday,
@@ -464,23 +501,27 @@ export default function App() {
   const toggleAvailabilityDay = (weekday: Weekday) => {
     if (!selectedAvailability) return;
 
+    const operatingIntervals = weeklyHours[weekday];
+    const defaultInterval = operatingIntervals[0];
+
+    if (!defaultInterval) return;
+
     const currentIntervals =
       selectedAvailability.weeklyAvailability[weekday];
 
-    const defaultInterval =
-      weeklyHours[weekday][0] ?? {
-        start: "09:00",
-        end: "18:00",
-      };
+    const currentlyAvailable =
+      intersectIntervals(
+        currentIntervals,
+        operatingIntervals
+      ).length > 0;
 
     upsertAvailability({
       ...selectedAvailability,
       weeklyAvailability: {
         ...selectedAvailability.weeklyAvailability,
-        [weekday]:
-          currentIntervals.length === 0
-            ? [{ ...defaultInterval }]
-            : [],
+        [weekday]: currentlyAvailable
+          ? []
+          : [{ ...defaultInterval }],
       },
     });
   };
@@ -492,20 +533,31 @@ export default function App() {
   ) => {
     if (!selectedAvailability) return;
 
-    const existing =
-      selectedAvailability.weeklyAvailability[weekday][0] ?? {
-        start: "09:00",
-        end: "18:00",
-      };
+    const operatingInterval = weeklyHours[weekday][0];
+
+    if (!operatingInterval) return;
+
+    const effectiveExisting =
+      intersectIntervals(
+        selectedAvailability.weeklyAvailability[weekday],
+        [operatingInterval]
+      )[0] ?? operatingInterval;
 
     const next =
       field === "start"
         ? {
             start: value,
-            end: normalizeEnd(value, existing.end),
+            end:
+              timeToMinutes(effectiveExisting.end) >
+              timeToMinutes(value)
+                ? effectiveExisting.end
+                : closingOptionsWithin(
+                    value,
+                    operatingInterval
+                  )[0] ?? operatingInterval.end,
           }
         : {
-            start: existing.start,
+            start: effectiveExisting.start,
             end: value,
           };
 
@@ -554,19 +606,36 @@ export default function App() {
     field: "start" | "end",
     value: string
   ) => {
-    const existing = exception.intervals[0] ?? {
-      start: "09:00",
-      end: "18:00",
-    };
+    const operatingInterval =
+      getOperatingIntervalsForDate(
+        exception.date,
+        weeklyHours,
+        exceptions
+      )[0];
+
+    if (!operatingInterval) return;
+
+    const effectiveExisting =
+      intersectIntervals(
+        exception.intervals,
+        [operatingInterval]
+      )[0] ?? operatingInterval;
 
     const nextInterval =
       field === "start"
         ? {
             start: value,
-            end: normalizeEnd(value, existing.end),
+            end:
+              timeToMinutes(effectiveExisting.end) >
+              timeToMinutes(value)
+                ? effectiveExisting.end
+                : closingOptionsWithin(
+                    value,
+                    operatingInterval
+                  )[0] ?? operatingInterval.end,
           }
         : {
-            start: existing.start,
+            start: effectiveExisting.start,
             end: value,
           };
 
