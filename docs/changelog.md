@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-22 — Separação por áreas
+
+- calendário operacional e pessoas passam a existir em separadores próprios;
+- cada separador mostra apenas os indicadores relevantes para o seu contexto;
+- removido o empilhamento das áreas na mesma página;
+- alteração limitada à interface, sem mudança no domínio.
+
 ## 2026-10-22 — Ponto 2: Pessoas
 
 - introduzido modelo mínimo de pessoa com `id`, `name` e `active`;
