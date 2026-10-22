@@ -7,8 +7,10 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "typecheck": "tsc -b",
-    "test": "tsx src/operatingCalendarTest.ts",
-    "preview": "vite preview"
+    "test": "npm run test:calendar && npm run test:people",
+    "preview": "vite preview",
+    "test:calendar": "tsx src/operatingCalendarTest.ts",
+    "test:people": "tsx src/peopleTest.ts"
   },
   "dependencies": {
     "react": "^18.3.1",
