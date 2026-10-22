@@ -17,7 +17,7 @@ Estado: **fechado**
 
 - múltiplos intervalos por dia na interface;
 - validação adicional de intervalos inválidos ou sobrepostos;
-- persistência da configuração;
+- [x] persistência automática da configuração através da aplicação;
 - controlo de permissões na aplicação consumidora.
 
 ## Ponto 2 — Pessoas
@@ -34,7 +34,8 @@ Estado: **em validação**
 - [x] reativação;
 - [x] filtro de pessoas ativas;
 - [x] testes básicos;
-- [x] interface de gestão.
+- [x] interface de gestão;
+- [x] persistência automática de pessoas.
 
 ### Fora do Ponto 2
 
