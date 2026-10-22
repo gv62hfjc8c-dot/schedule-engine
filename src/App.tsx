@@ -1256,12 +1256,19 @@ export default function App() {
                       </div>
 
                       {WEEKDAYS.map((weekday) => {
-                        const intervals =
-                          selectedAvailability
-                            .weeklyAvailability[weekday];
+                        const configuredIntervals =
+                          selectedAvailability.weeklyAvailability[weekday];
+                        const operatingIntervals = weeklyHours[weekday];
+                        const operatingInterval = operatingIntervals[0];
+                        const operationClosed =
+                          operatingIntervals.length === 0;
+                        const effectiveIntervals = intersectIntervals(
+                          configuredIntervals,
+                          operatingIntervals
+                        );
                         const unavailable =
-                          intervals.length === 0;
-                        const interval = intervals[0];
+                          effectiveIntervals.length === 0;
+                        const interval = effectiveIntervals[0];
 
                         return (
                           <div
@@ -1269,13 +1276,13 @@ export default function App() {
                             className={`schedule-row ${unavailable ? "is-closed" : ""}`}
                           >
                             <div className="day-name">
-                              <strong>
-                                {weekdayLabels[weekday]}
-                              </strong>
+                              <strong>{weekdayLabels[weekday]}</strong>
                               <span>
-                                {formatAvailabilityIntervals(
-                                  intervals
-                                )}
+                                {operationClosed
+                                  ? "Empresa fechada"
+                                  : formatAvailabilityIntervals(
+                                      effectiveIntervals
+                                    )}
                               </span>
                             </div>
 
@@ -1283,23 +1290,31 @@ export default function App() {
                               type="button"
                               className={`state-button ${unavailable ? "closed" : "open"}`}
                               onClick={() =>
-                                toggleAvailabilityDay(
-                                  weekday
-                                )
+                                toggleAvailabilityDay(weekday)
+                              }
+                              disabled={operationClosed}
+                              title={
+                                operationClosed
+                                  ? "O calendário operacional está fechado neste dia."
+                                  : undefined
                               }
                             >
                               <span className="state-dot" />
-                              {unavailable
-                                ? "Indisponível"
-                                : "Disponível"}
+                              {operationClosed
+                                ? "Empresa fechada"
+                                : unavailable
+                                  ? "Indisponível"
+                                  : "Disponível"}
                             </button>
 
-                            {!unavailable && interval ? (
+                            {!operationClosed &&
+                            !unavailable &&
+                            interval &&
+                            operatingInterval ? (
                               <>
                                 <label className="select-field">
                                   <span className="sr-only">
-                                    Início de{" "}
-                                    {weekdayLabels[weekday]}
+                                    Início de {weekdayLabels[weekday]}
                                   </span>
                                   <select
                                     value={interval.start}
@@ -1311,23 +1326,19 @@ export default function App() {
                                       )
                                     }
                                   >
-                                    {openingOptions.map(
-                                      (time) => (
-                                        <option
-                                          key={time}
-                                          value={time}
-                                        >
-                                          {time}
-                                        </option>
-                                      )
-                                    )}
+                                    {openingOptionsWithin(
+                                      operatingInterval
+                                    ).map((time) => (
+                                      <option key={time} value={time}>
+                                        {time}
+                                      </option>
+                                    ))}
                                   </select>
                                 </label>
 
                                 <label className="select-field">
                                   <span className="sr-only">
-                                    Fim de{" "}
-                                    {weekdayLabels[weekday]}
+                                    Fim de {weekdayLabels[weekday]}
                                   </span>
                                   <select
                                     value={interval.end}
@@ -1339,13 +1350,11 @@ export default function App() {
                                       )
                                     }
                                   >
-                                    {closingOptionsAfter(
-                                      interval.start
+                                    {closingOptionsWithin(
+                                      interval.start,
+                                      operatingInterval
                                     ).map((time) => (
-                                      <option
-                                        key={time}
-                                        value={time}
-                                      >
+                                      <option key={time} value={time}>
                                         {time}
                                       </option>
                                     ))}
@@ -1354,7 +1363,9 @@ export default function App() {
                               </>
                             ) : (
                               <div className="closed-span">
-                                Não pode ser escalada
+                                {operationClosed
+                                  ? "Sem funcionamento nesse dia"
+                                  : "Não pode ser escalada"}
                               </div>
                             )}
                           </div>
