@@ -2,10 +2,11 @@
 
 ## Estado atual
 
-O Schedule Engine tem agora duas fundações independentes do algoritmo de geração:
+O Schedule Engine tem agora três fundações independentes do algoritmo de geração:
 
 1. calendário operacional contínuo;
-2. pessoas que podem participar em horários.
+2. pessoas que podem participar em horários;
+3. disponibilidade temporal de cada pessoa.
 
 ### Calendário operacional
 
@@ -42,6 +43,35 @@ interface Person {
 
 Uma pessoa arquivada continua a existir no domínio. Apenas deixa de ser considerada para horários futuros.
 
+### Disponibilidade
+
+A disponibilidade usa o mesmo conceito genérico de intervalo temporal do calendário operacional:
+
+```ts
+interface TimeInterval {
+  start: string;
+  end: string;
+}
+```
+
+Cada pessoa tem um padrão semanal e exceções por data:
+
+```ts
+interface PersonAvailability {
+  personId: string;
+  weeklyAvailability: Record<Weekday, TimeInterval[]>;
+  exceptions: AvailabilityException[];
+}
+```
+
+Zero intervalos num dia significa indisponível.
+
+Uma exceção por data substitui o padrão semanal dessa pessoa.
+
+`src/utils/availability.ts` resolve a disponibilidade efetiva e permite verificar se um intervalo pedido está totalmente contido num intervalo disponível.
+
+Disponibilidade é uma hard constraint: um horário futuro não poderá atribuir trabalho fora destes intervalos.
+
 ### Persistência da aplicação
 
 A persistência não pertence ao núcleo do Schedule Engine.
@@ -61,9 +91,10 @@ O estado persistido inclui:
 
 - horário semanal;
 - exceções de calendário;
-- pessoas.
+- pessoas;
+- disponibilidades.
 
-O formato é versionado. A aplicação carrega automaticamente no arranque e grava automaticamente quando estes dados mudam.
+O formato é versionado. A versão 2 introduz disponibilidades e migra automaticamente dados guardados na versão 1. A aplicação carrega automaticamente no arranque e grava automaticamente quando estes dados mudam.
 
 Uma futura persistência por API/base de dados deverá implementar o mesmo contrato, sem introduzir dependências de storage no domínio.
 
@@ -77,7 +108,6 @@ A UI não define o domínio e não deve introduzir regras de scheduling.
 
 Ainda não existem:
 
-- disponibilidade;
 - cobertura;
 - turnos;
 - contratos;
