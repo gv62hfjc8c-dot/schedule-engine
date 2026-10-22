@@ -6,38 +6,31 @@ Projeto dedicado à construção de um motor de horários reutilizável e indepe
 
 Estamos a reconstruir o motor desde a base.
 
-Neste momento o projeto contém apenas a fundação temporal necessária para qualquer sistema de horários:
+Neste momento o projeto contém apenas o calendário operacional contínuo:
 
-1. **período de planeamento**;
-2. **horário semanal de funcionamento**;
-3. **exceções por data**;
-4. **calendário operacional resultante**.
+1. **horário semanal de funcionamento**;
+2. **dias fechados**;
+3. **exceções por data**.
 
 Ainda não existem pessoas, turnos de trabalho, cobertura, disponibilidade, folgas ou geração automática de horários. Esses conceitos serão introduzidos um a um.
 
 ## Princípio
 
-O motor não assume horários fixos nem dias úteis específicos.
+O motor não está preso a uma janela temporal de planeamento.
 
-Uma empresa pode funcionar:
+A empresa define um padrão semanal contínuo e pode acrescentar exceções em datas específicas. Quando, no futuro, outro componente pedir um horário para uma semana, mês ou qualquer intervalo, essa janela será apenas uma consulta sobre esta configuração contínua.
+
+O motor não assume:
 
 - segunda a sexta;
-- sete dias por semana;
-- apenas alguns dias;
-- com horários diferentes por dia;
-- com dias fechados;
-- com exceções pontuais.
-
-A autorização para editar esta configuração pertence à aplicação que utilizar o motor. O núcleo apenas recebe os dados.
+- horários fixos;
+- dias úteis específicos;
+- uma duração padrão de semana;
+- uma data inicial ou final global.
 
 ## Modelo atual
 
 ```ts
-interface SchedulePeriod {
-  startDate: string;
-  endDate: string;
-}
-
 interface OperatingInterval {
   start: string;
   end: string;
@@ -52,9 +45,20 @@ interface OperatingHoursException {
   date: string;
   intervals: OperatingInterval[];
 }
+
+interface OperatingCalendarConfiguration {
+  weeklyOperatingHours: WeeklyOperatingHours;
+  exceptions: OperatingHoursException[];
+}
 ```
 
 Um array vazio de intervalos significa que o dia está fechado.
+
+## Autorização
+
+Quem pode editar esta configuração pertence à aplicação que utiliza o motor.
+
+O Schedule Engine apenas recebe e utiliza os dados.
 
 ## Executar
 
@@ -73,4 +77,4 @@ npm run build
 
 ## Próximo passo
 
-Só depois de fecharmos esta base temporal avançaremos para o próximo conceito do domínio.
+Só depois de validarmos esta fundação na aplicação decidiremos o próximo conceito do domínio.
