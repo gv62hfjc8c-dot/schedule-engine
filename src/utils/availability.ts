@@ -1,19 +1,17 @@
 import type {
   AvailabilityException,
+  OperatingHoursException,
   PersonAvailability,
   TimeInterval,
   Weekday,
   WeeklyAvailability,
+  WeeklyOperatingHours,
 } from "../types";
 import {
   getOperatingIntervalsForDate,
   getWeekday,
   WEEKDAYS,
 } from "./operatingCalendar";
-import type {
-  OperatingHoursException,
-  WeeklyOperatingHours,
-} from "../types";
 
 export function createEmptyWeeklyAvailability(): WeeklyAvailability {
   return WEEKDAYS.reduce(
