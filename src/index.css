@@ -116,6 +116,14 @@ h2 {
   line-height: 1.55;
 }
 
+.header-statuses {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .status-badge {
   display: inline-flex;
   align-items: center;
@@ -135,6 +143,43 @@ h2 {
   height: 8px;
   border-radius: 50%;
   background: #68788f;
+}
+
+.save-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 36px;
+  border: 1px solid #dfe5ec;
+  border-radius: 999px;
+  background: #fff;
+  padding: 0 12px;
+  color: #6f7b8d;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.save-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.save-status.saved {
+  color: #557363;
+}
+
+.save-status.saving,
+.save-status.loading {
+  color: #7b8493;
+}
+
+.save-status.error {
+  border-color: #ead6d6;
+  background: #fdf8f8;
+  color: #995151;
 }
 
 .overview-bar {
@@ -572,6 +617,10 @@ h2 {
 
   .page-header {
     flex-direction: column;
+  }
+
+  .header-statuses {
+    justify-content: flex-start;
   }
 
   .workspace-tabs {
