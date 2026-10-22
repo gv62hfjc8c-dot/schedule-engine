@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-10-22 — Ponto 2: Pessoas
+
+- introduzido modelo mínimo de pessoa com `id`, `name` e `active`;
+- adicionadas funções puras para criar, renomear, arquivar, reativar e filtrar pessoas;
+- adicionados testes do domínio de pessoas;
+- adicionada gestão visual de pessoas à aplicação;
+- arquivo preserva a entidade em vez de a eliminar;
+- mantidos fora do modelo cargos, contratos, disponibilidade, folgas e turnos.
+
 ## 2026-10-22 — Ponto 1 fechado
 
 - calendário operacional considerado funcionalmente concluído;
