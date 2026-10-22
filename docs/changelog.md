@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-10-22 — Ponto 3: Disponibilidade
+
+- introduzida disponibilidade semanal por pessoa;
+- zero intervalos representa indisponibilidade;
+- adicionadas exceções de disponibilidade por data;
+- adicionada resolução da disponibilidade efetiva;
+- adicionada validação de intervalos totalmente contidos;
+- disponibilidade definida como hard constraint;
+- criado separador próprio na interface;
+- pessoas arquivadas preservam os dados mas deixam de ser selecionáveis;
+- persistência atualizada para versão 2;
+- migração automática preserva calendário e pessoas guardados na versão 1;
+- adicionados testes de disponibilidade e migração.
+
 ## 2026-10-22 — Persistência automática local
 
 - criada uma porta assíncrona de persistência independente do motor;
