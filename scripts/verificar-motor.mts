@@ -1,109 +1,44 @@
-import { generateWeekSchedule, weekAlerts } from "../src/utils/autoSchedule";
-import { COVERAGE_CONFIG } from "../src/constants";
-import { mondayOf, addDays, dateKey } from "../src/utils/dates";
-import type { Colaborador, Schedule } from "../src/types";
+import type { Pessoa } from "../src/types";
+import { generateSchedule } from "../src/utils/generateSchedule";
+import { validateSchedule } from "../src/utils/validateSchedule";
 
-const STAFF: Colaborador[] = [
-  { id: "1", nome: "Ana", equipa: "vendas" },
-  { id: "2", nome: "Bruno", equipa: "vendas" },
-  { id: "3", nome: "Carla", equipa: "vendas" },
-  { id: "4", nome: "Diogo", equipa: "caixa" },
-  { id: "5", nome: "Eva", equipa: "caixa" },
-  { id: "6", nome: "Filipe", equipa: "caixa" },
+const WEEK_START = "2026-09-14";
+
+const pessoas: Pessoa[] = [
+  { id: "1", nome: "Ana" },
+  { id: "2", nome: "Bruno", eligibleShiftIds: ["A", "C"] },
+  { id: "3", nome: "Carla" },
+  { id: "4", nome: "Duarte", eligibleShiftIds: ["B"] },
+  { id: "5", nome: "Eva" },
+  { id: "6", nome: "Filipe" },
 ];
 
-const monday = mondayOf(2026, 8, 7);
-const schedule: Schedule = {};
-
-const result = generateWeekSchedule(
-  monday,
-  STAFF,
-  COVERAGE_CONFIG,
-  schedule
+const schedule = generateSchedule(pessoas, WEEK_START);
+const validation = validateSchedule(
+  pessoas,
+  schedule,
+  WEEK_START
 );
 
-const dates = Array.from({ length: 5 }, (_, i) => addDays(monday, i));
+console.log("\n=== SCHEDULE ENGINE V0 ===\n");
 
-console.log("\n=== HORÁRIOS GERADOS ===\n");
-
-for (const date of dates) {
-  const k = dateKey(date.getFullYear(), date.getMonth(), date.getDate());
+for (const pessoa of pessoas) {
+  const mondayShift =
+    schedule[`${pessoa.id}::${WEEK_START}`]?.shift ?? "—";
 
   console.log(
-    `${k} (${["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"][date.getDay()]})`
+    `${pessoa.nome}: turno ${mondayShift}`
   );
-
-  for (const person of STAFF) {
-    const cell = result.schedule[`${person.nome}-${k}`];
-
-    if (!cell) {
-      console.log(`  ${person.nome}: —`);
-      continue;
-    }
-
-    if (cell.type === "Folga") {
-      console.log(`  ${person.nome}: FOLGA`);
-    } else {
-      console.log(
-        `  ${person.nome}: ${cell.entry} → ${cell.lunchStart} → ${cell.lunchEnd} → ${cell.exit}`
-      );
-    }
-  }
-
-  console.log();
 }
 
-console.log("=== COBERTURA ===\n");
+console.log("\n=== VALIDAÇÃO ===\n");
 
-const alerts = weekAlerts(dates, result.schedule, STAFF, COVERAGE_CONFIG);
-
-if (alerts.length === 0) {
-  console.log("Sem défices de cobertura.");
-} else {
-  for (const alert of alerts) {
-    console.log(
-      `${dateKey(
-        alert.date.getFullYear(),
-        alert.date.getMonth(),
-        alert.date.getDate()
-      )} | ${alert.team} | ${alert.inicio}-${alert.fim} | ${alert.have}/${alert.need}`
-    );
+if (!validation.valid) {
+  for (const error of validation.errors) {
+    console.error(`- ${error}`);
   }
-}
 
-console.log("\n=== AVISOS DO GERADOR ===\n");
-
-console.log(result.avisos);
-
-console.log("\n=== VERIFICAÇÃO DO CALENDÁRIO ===\n");
-
-const saturday = addDays(monday, 5);
-const sunday = addDays(monday, 6);
-
-const saturdayKey = dateKey(
-  saturday.getFullYear(),
-  saturday.getMonth(),
-  saturday.getDate()
-);
-
-const sundayKey = dateKey(
-  sunday.getFullYear(),
-  sunday.getMonth(),
-  sunday.getDate()
-);
-
-const weekendCells = Object.keys(result.schedule).filter((key) => {
-  return key.endsWith(`-${saturdayKey}`) || key.endsWith(`-${sundayKey}`);
-});
-
-if (weekendCells.length === 0) {
-  console.log("OK — não existem células geradas para sábado ou domingo.");
-} else {
-  console.error(
-    `ERRO — existem ${weekendCells.length} células no fim de semana:`
-  );
-  console.error(weekendCells);
   process.exitCode = 1;
+} else {
+  console.log("OK — horário válido segundo as hard constraints V0.");
 }
-
-console.log("\n=== FIM ===\n");
