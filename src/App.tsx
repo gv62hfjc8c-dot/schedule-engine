@@ -1,195 +1,494 @@
-import { useState } from "react";
-import type { Pessoa } from "./types";
-import { generateSchedule } from "./utils/generateSchedule";
-import { validateSchedule } from "./utils/validateSchedule";
+import { useMemo, useState } from "react";
+import type {
+  OperatingHoursException,
+  OperatingInterval,
+  Weekday,
+  WeeklyOperatingHours,
+} from "./types";
+import { WEEKDAYS } from "./utils/operatingCalendar";
 
-const initialPessoas: Pessoa[] = [
-  { id: "1", nome: "Pessoa 1" },
-  { id: "2", nome: "Pessoa 2" },
-  { id: "3", nome: "Pessoa 3" },
-];
+const weekdayLabels: Record<Weekday, string> = {
+  monday: "Segunda",
+  tuesday: "Terça",
+  wednesday: "Quarta",
+  thursday: "Quinta",
+  friday: "Sexta",
+  saturday: "Sábado",
+  sunday: "Domingo",
+};
 
-const dias = [
-  "Segunda",
-  "Terça",
-  "Quarta",
-  "Quinta",
-  "Sexta",
-];
+const initialWeeklyOperatingHours: WeeklyOperatingHours = {
+  monday: [{ start: "09:00", end: "18:00" }],
+  tuesday: [{ start: "09:00", end: "18:00" }],
+  wednesday: [{ start: "09:00", end: "18:00" }],
+  thursday: [{ start: "09:00", end: "18:00" }],
+  friday: [{ start: "09:00", end: "18:00" }],
+  saturday: [{ start: "09:00", end: "13:00" }],
+  sunday: [],
+};
 
-const WEEK_START = "2026-09-14";
+function minutesToTime(minutes: number): string {
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
 
-const datas = [
-  "2026-09-14",
-  "2026-09-15",
-  "2026-09-16",
-  "2026-09-17",
-  "2026-09-18",
-];
+  return `${String(hours).padStart(2, "0")}:${String(mins).padStart(2, "0")}`;
+}
 
-export default function App() {
-  const [pessoas, setPessoas] = useState<Pessoa[]>(initialPessoas);
+function timeToMinutes(time: string): number {
+  const [hours, minutes] = time.split(":").map(Number);
+  return hours * 60 + minutes;
+}
 
-  const [nome, setNome] = useState("");
+const openingOptions = Array.from(
+  { length: 96 },
+  (_, index) => minutesToTime(index * 15)
+);
 
-  const schedule = generateSchedule(pessoas, WEEK_START);
+const closingOptions = Array.from(
+  { length: 96 },
+  (_, index) => minutesToTime((index + 1) * 15)
+);
 
-  const validation = validateSchedule(
-    pessoas,
-    schedule,
-    WEEK_START
+function closingOptionsAfter(start: string): string[] {
+  const startMinutes = timeToMinutes(start);
+
+  return closingOptions.filter(
+    (time) => timeToMinutes(time) > startMinutes
+  );
+}
+
+function normalizeEnd(start: string, end: string): string {
+  if (timeToMinutes(end) > timeToMinutes(start)) {
+    return end;
+  }
+
+  return minutesToTime(
+    Math.min(timeToMinutes(start) + 15, 24 * 60)
+  );
+}
+
+function formatIntervals(intervals: OperatingInterval[]): string {
+  if (intervals.length === 0) return "Fechado";
+
+  return intervals
+    .map((interval) => `${interval.start}–${interval.end}`)
+    .join(" · ");
+}
+
+function todayKey(): string {
+  const now = new Date();
+  const local = new Date(
+    now.getTime() - now.getTimezoneOffset() * 60_000
   );
 
-  const adicionarPessoa = () => {
-    const nomeNormalizado = nome.trim();
+  return local.toISOString().slice(0, 10);
+}
 
-    if (!nomeNormalizado) return;
+export default function App() {
+  const [weeklyHours, setWeeklyHours] =
+    useState<WeeklyOperatingHours>(initialWeeklyOperatingHours);
+  const [exceptions, setExceptions] = useState<
+    OperatingHoursException[]
+  >([]);
 
-    const pessoa: Pessoa = {
-      id: crypto.randomUUID(),
-      nome: nomeNormalizado,
+  const summary = useMemo(() => {
+    const openDays = WEEKDAYS.filter(
+      (weekday) => weeklyHours[weekday].length > 0
+    ).length;
+
+    const totalWeeklyMinutes = WEEKDAYS.reduce((total, weekday) => {
+      return (
+        total +
+        weeklyHours[weekday].reduce(
+          (dayTotal, interval) =>
+            dayTotal +
+            timeToMinutes(interval.end) -
+            timeToMinutes(interval.start),
+          0
+        )
+      );
+    }, 0);
+
+    return {
+      openDays,
+      closedDays: 7 - openDays,
+      weeklyHours: Math.round((totalWeeklyMinutes / 60) * 10) / 10,
     };
+  }, [weeklyHours]);
 
-    setPessoas((prev) => [...prev, pessoa]);
-    setNome("");
+  const updateDayInterval = (
+    weekday: Weekday,
+    field: "start" | "end",
+    value: string
+  ) => {
+    setWeeklyHours((current) => {
+      const existing = current[weekday][0] ?? {
+        start: "09:00",
+        end: "18:00",
+      };
+
+      const next =
+        field === "start"
+          ? {
+              start: value,
+              end: normalizeEnd(value, existing.end),
+            }
+          : {
+              start: existing.start,
+              end: value,
+            };
+
+      return {
+        ...current,
+        [weekday]: [next],
+      };
+    });
   };
 
-  const removerPessoa = (id: string) => {
-    setPessoas((prev) => prev.filter((pessoa) => pessoa.id !== id));
+  const toggleClosed = (weekday: Weekday) => {
+    setWeeklyHours((current) => ({
+      ...current,
+      [weekday]:
+        current[weekday].length === 0
+          ? [{ start: "09:00", end: "18:00" }]
+          : [],
+    }));
+  };
+
+  const addException = () => {
+    setExceptions((current) => [
+      ...current,
+      {
+        date: todayKey(),
+        intervals: [],
+      },
+    ]);
+  };
+
+  const updateException = (
+    index: number,
+    next: OperatingHoursException
+  ) => {
+    setExceptions((current) =>
+      current.map((exception, currentIndex) =>
+        currentIndex === index ? next : exception
+      )
+    );
+  };
+
+  const updateExceptionInterval = (
+    index: number,
+    exception: OperatingHoursException,
+    field: "start" | "end",
+    value: string
+  ) => {
+    const existing = exception.intervals[0] ?? {
+      start: "09:00",
+      end: "18:00",
+    };
+
+    const nextInterval =
+      field === "start"
+        ? {
+            start: value,
+            end: normalizeEnd(value, existing.end),
+          }
+        : {
+            start: existing.start,
+            end: value,
+          };
+
+    updateException(index, {
+      ...exception,
+      intervals: [nextInterval],
+    });
+  };
+
+  const removeException = (index: number) => {
+    setExceptions((current) =>
+      current.filter((_, currentIndex) => currentIndex !== index)
+    );
   };
 
   return (
-    <main
-      style={{
-        maxWidth: 1000,
-        margin: "0 auto",
-        padding: 32,
-        fontFamily: "Arial, sans-serif",
-      }}
-    >
-      <h1>Schedule Engine</h1>
-
-      <p>
-        V0 — Segunda a sexta · 08:30–19:00 · 8h/dia · 40h/semana
-      </p>
-
-      <section
-        style={{
-          marginTop: 32,
-          padding: 20,
-          border: "1px solid #ddd",
-          borderRadius: 8,
-        }}
-      >
-        <h2>Pessoas</h2>
-
-        <div style={{ display: "flex", gap: 8 }}>
-          <input
-            value={nome}
-            onChange={(event) => setNome(event.target.value)}
-            placeholder="Nome da pessoa"
-          />
-
-          <button onClick={adicionarPessoa}>
-            Adicionar
-          </button>
+    <main className="app-shell">
+      <header className="page-header">
+        <div>
+          <p className="eyebrow">Configuração operacional</p>
+          <h1>Schedule Engine</h1>
+          <p className="page-subtitle">
+            Define quando a operação está aberta. Esta base será usada
+            continuamente pelo motor, independentemente da empresa.
+          </p>
         </div>
 
-        <ul>
-          {pessoas.map((pessoa) => (
-            <li key={pessoa.id} style={{ marginTop: 8 }}>
-              {pessoa.nome}
+        <div className="status-badge">
+          <span className="status-dot" />
+          Fundação V0
+        </div>
+      </header>
 
-              <button
-                onClick={() => removerPessoa(pessoa.id)}
-                style={{ marginLeft: 8 }}
-              >
-                Remover
-              </button>
-            </li>
-          ))}
-        </ul>
+      <section className="overview-bar" aria-label="Resumo">
+        <div className="overview-item">
+          <span>Semana padrão</span>
+          <strong>{summary.openDays} dias abertos</strong>
+        </div>
+        <div className="overview-divider" />
+        <div className="overview-item">
+          <span>Funcionamento</span>
+          <strong>{summary.weeklyHours}h / semana</strong>
+        </div>
+        <div className="overview-divider" />
+        <div className="overview-item">
+          <span>Encerrados</span>
+          <strong>{summary.closedDays} dias</strong>
+        </div>
+        <div className="overview-divider" />
+        <div className="overview-item">
+          <span>Datas especiais</span>
+          <strong>{exceptions.length} exceções</strong>
+        </div>
       </section>
 
-      <section
-        style={{
-          marginTop: 32,
-          padding: 20,
-          border: "1px solid #ddd",
-          borderRadius: 8,
-        }}
-      >
-        <h2>Horário</h2>
+      <div className="dashboard-grid">
+        <section className="panel schedule-panel">
+          <div className="panel-header">
+            <div>
+              <p className="section-kicker">Padrão semanal</p>
+              <h2>Horário de funcionamento</h2>
+            </div>
+            <p className="panel-help">
+              Configuração recorrente de segunda a domingo.
+            </p>
+          </div>
 
-        <p>
-          Horário gerado automaticamente pelo Generator V0.
-        </p>
+          <div className="schedule-table">
+            <div className="schedule-head" aria-hidden="true">
+              <span>Dia</span>
+              <span>Estado</span>
+              <span>Abertura</span>
+              <span>Fecho</span>
+            </div>
 
-        <p>
-          Estado: {validation.valid ? "Válido" : "Inválido"}
-        </p>
+            {WEEKDAYS.map((weekday) => {
+              const intervals = weeklyHours[weekday];
+              const closed = intervals.length === 0;
+              const interval = intervals[0];
 
-        {validation.errors.length > 0 && (
-          <ul>
-            {validation.errors.map((error) => (
-              <li key={error}>{error}</li>
-            ))}
-          </ul>
-        )}
-
-        <table
-          style={{
-            width: "100%",
-            borderCollapse: "collapse",
-            marginTop: 16,
-          }}
-        >
-          <thead>
-            <tr>
-              <th style={{ textAlign: "left", padding: 8 }}>
-                Pessoa
-              </th>
-
-              {dias.map((dia) => (
-                <th
-                  key={dia}
-                  style={{ textAlign: "center", padding: 8 }}
+              return (
+                <div
+                  key={weekday}
+                  className={`schedule-row ${closed ? "is-closed" : ""}`}
                 >
-                  {dia}
-                </th>
-              ))}
-            </tr>
-          </thead>
+                  <div className="day-name">
+                    <strong>{weekdayLabels[weekday]}</strong>
+                    <span>{formatIntervals(intervals)}</span>
+                  </div>
 
-          <tbody>
-            {pessoas.map((pessoa) => (
-              <tr key={pessoa.id}>
-                <td style={{ padding: 8 }}>
-                  {pessoa.nome}
-                </td>
+                  <button
+                    type="button"
+                    className={`state-button ${closed ? "closed" : "open"}`}
+                    onClick={() => toggleClosed(weekday)}
+                    aria-label={`${weekdayLabels[weekday]}: ${closed ? "fechado" : "aberto"}. Alterar estado.`}
+                  >
+                    <span className="state-dot" />
+                    {closed ? "Fechado" : "Aberto"}
+                  </button>
 
-                {datas.map((date) => {
-                  const scheduleKey = `${pessoa.id}::${date}`;
-                  const cell = schedule[scheduleKey];
+                  {!closed && interval ? (
+                    <>
+                      <label className="select-field">
+                        <span className="sr-only">
+                          Abertura de {weekdayLabels[weekday]}
+                        </span>
+                        <select
+                          value={interval.start}
+                          onChange={(event) =>
+                            updateDayInterval(
+                              weekday,
+                              "start",
+                              event.target.value
+                            )
+                          }
+                        >
+                          {openingOptions.map((time) => (
+                            <option key={time} value={time}>
+                              {time}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
 
-                  return (
-                    <td
-                      key={date}
-                      style={{
-                        textAlign: "center",
-                        padding: 8,
-                        border: "1px solid #ddd",
-                      }}
-                    >
-                      {cell?.shift ?? "—"}
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </section>
+                      <label className="select-field">
+                        <span className="sr-only">
+                          Fecho de {weekdayLabels[weekday]}
+                        </span>
+                        <select
+                          value={interval.end}
+                          onChange={(event) =>
+                            updateDayInterval(
+                              weekday,
+                              "end",
+                              event.target.value
+                            )
+                          }
+                        >
+                          {closingOptionsAfter(interval.start).map(
+                            (time) => (
+                              <option key={time} value={time}>
+                                {time}
+                              </option>
+                            )
+                          )}
+                        </select>
+                      </label>
+                    </>
+                  ) : (
+                    <div className="closed-span">
+                      Sem horário de funcionamento
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        <aside className="panel exceptions-panel">
+          <div className="panel-header compact">
+            <div>
+              <p className="section-kicker">Datas especiais</p>
+              <h2>Exceções</h2>
+            </div>
+            <button
+              type="button"
+              className="primary-button"
+              onClick={addException}
+            >
+              <span>+</span>
+              Adicionar
+            </button>
+          </div>
+
+          <p className="section-description">
+            Feriados, encerramentos ou horários diferentes do padrão.
+          </p>
+
+          {exceptions.length === 0 ? (
+            <div className="empty-state">
+              <div className="empty-icon">◎</div>
+              <strong>Nenhuma exceção definida</strong>
+              <p>
+                O padrão semanal aplica-se a todas as datas.
+              </p>
+            </div>
+          ) : (
+            <div className="exception-list">
+              {exceptions.map((exception, index) => {
+                const closed = exception.intervals.length === 0;
+                const interval = exception.intervals[0] ?? {
+                  start: "09:00",
+                  end: "18:00",
+                };
+
+                return (
+                  <article className="exception-card" key={index}>
+                    <div className="exception-topline">
+                      <input
+                        className="date-input"
+                        type="date"
+                        value={exception.date}
+                        onChange={(event) =>
+                          updateException(index, {
+                            ...exception,
+                            date: event.target.value,
+                          })
+                        }
+                      />
+
+                      <button
+                        type="button"
+                        className="icon-button"
+                        onClick={() => removeException(index)}
+                        aria-label="Remover exceção"
+                        title="Remover exceção"
+                      >
+                        ×
+                      </button>
+                    </div>
+
+                    <div className="exception-controls">
+                      <button
+                        type="button"
+                        className={`state-button ${closed ? "closed" : "open"}`}
+                        onClick={() =>
+                          updateException(index, {
+                            ...exception,
+                            intervals: closed
+                              ? [{ start: "09:00", end: "18:00" }]
+                              : [],
+                          })
+                        }
+                      >
+                        <span className="state-dot" />
+                        {closed ? "Fechado" : "Aberto"}
+                      </button>
+
+                      {!closed && (
+                        <div className="exception-time-grid">
+                          <label className="select-field">
+                            <span>Abertura</span>
+                            <select
+                              value={interval.start}
+                              onChange={(event) =>
+                                updateExceptionInterval(
+                                  index,
+                                  exception,
+                                  "start",
+                                  event.target.value
+                                )
+                              }
+                            >
+                              {openingOptions.map((time) => (
+                                <option key={time} value={time}>
+                                  {time}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+
+                          <label className="select-field">
+                            <span>Fecho</span>
+                            <select
+                              value={interval.end}
+                              onChange={(event) =>
+                                updateExceptionInterval(
+                                  index,
+                                  exception,
+                                  "end",
+                                  event.target.value
+                                )
+                              }
+                            >
+                              {closingOptionsAfter(interval.start).map(
+                                (time) => (
+                                  <option key={time} value={time}>
+                                    {time}
+                                  </option>
+                                )
+                              )}
+                            </select>
+                          </label>
+                        </div>
+                      )}
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </aside>
+      </div>
     </main>
   );
 }

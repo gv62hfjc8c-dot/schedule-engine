@@ -6,8 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "test:generator": "tsx src/generatorTest.ts",
-    "lint": "eslint .",
+    "typecheck": "tsc -b",
+    "test": "tsx src/operatingCalendarTest.ts",
     "preview": "vite preview"
   },
   "dependencies": {
