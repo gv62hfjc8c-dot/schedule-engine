@@ -59,3 +59,15 @@ Uma pessoa que deixe de participar em horários futuros permanece identificável
 `active: false` retira-a de novas escalas sem destruir a entidade.
 
 Datas de entrada/saída poderão substituir este booleano no futuro se o histórico exigir maior precisão.
+
+## D009 — Persistência é uma porta da aplicação
+
+**Estado:** aceite
+
+O Schedule Engine não lê nem escreve diretamente em `localStorage`, bases de dados ou APIs.
+
+A aplicação depende de um contrato assíncrono de persistência.
+
+A implementação inicial usa `localStorage`, mas pode ser substituída por uma implementação remota sem alterar o domínio.
+
+O estado persistido é versionado para permitir evolução controlada do formato.
