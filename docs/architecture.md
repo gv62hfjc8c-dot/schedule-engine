@@ -42,6 +42,31 @@ interface Person {
 
 Uma pessoa arquivada continua a existir no domínio. Apenas deixa de ser considerada para horários futuros.
 
+### Persistência da aplicação
+
+A persistência não pertence ao núcleo do Schedule Engine.
+
+`src/persistence/stateRepository.ts` define uma porta assíncrona:
+
+```ts
+interface StateRepository {
+  load(): Promise<PersistedAppState | null>;
+  save(state: PersistedAppState): Promise<void>;
+}
+```
+
+A implementação atual usa `localStorage` através de `localStorageStateRepository.ts`.
+
+O estado persistido inclui:
+
+- horário semanal;
+- exceções de calendário;
+- pessoas.
+
+O formato é versionado. A aplicação carrega automaticamente no arranque e grava automaticamente quando estes dados mudam.
+
+Uma futura persistência por API/base de dados deverá implementar o mesmo contrato, sem introduzir dependências de storage no domínio.
+
 ### Interface
 
 `src/App.tsx` é uma ferramenta visual para configurar estes conceitos.
@@ -59,7 +84,7 @@ Ainda não existem:
 - horas de trabalho;
 - geração de horários.
 
-Autenticação, permissões e persistência continuam fora do núcleo.
+Autenticação, permissões e persistência continuam fora do núcleo. A persistência local atual pertence apenas à aplicação.
 
 ## Regra arquitetural
 
