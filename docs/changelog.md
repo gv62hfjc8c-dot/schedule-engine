@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-22 — Ponto 3 fechado
+
+- disponibilidade validada funcionalmente na aplicação;
+- integração com calendário operacional confirmada;
+- testes de calendário, pessoas, disponibilidade e persistência aprovados localmente;
+- typecheck aprovado localmente;
+- Ponto 3 considerado concluído.
+
 ## 2026-10-22 — Disponibilidade respeita calendário operacional
 
 - tempo escalável passa a ser a interseção entre funcionamento e disponibilidade;
