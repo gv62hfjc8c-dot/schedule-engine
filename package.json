@@ -7,11 +7,12 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "typecheck": "tsc -b",
-    "test": "npm run test:calendar && npm run test:people && npm run test:persistence",
+    "test": "npm run test:calendar && npm run test:people && npm run test:availability && npm run test:persistence",
     "preview": "vite preview",
     "test:calendar": "tsx src/operatingCalendarTest.ts",
     "test:people": "tsx src/peopleTest.ts",
-    "test:persistence": "tsx src/persistenceTest.ts"
+    "test:persistence": "tsx src/persistenceTest.ts",
+    "test:availability": "tsx src/availabilityTest.ts"
   },
   "dependencies": {
     "react": "^18.3.1",
