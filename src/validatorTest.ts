@@ -257,7 +257,7 @@ if (noEligibleShiftsResult.valid) {
 }
 
 const expectedNoEligibleShiftsError =
-  "p1::2026-09-14: turno A não elegível para p1";
+  "p1::2026-09-14: célula em falta";
 
 if (
   !noEligibleShiftsResult.errors.includes(
@@ -269,7 +269,20 @@ if (
   );
 }
 
-console.log("✓ lista vazia significa nenhum turno elegível");
+const expectedNoEligibleWeeklyError =
+  "p1: total semanal de 0 minutos, esperado 2400";
+
+if (
+  !noEligibleShiftsResult.errors.includes(
+    expectedNoEligibleWeeklyError
+  )
+) {
+  throw new Error(
+    `Erro semanal esperado para pessoa sem turnos elegíveis não encontrado. Recebido: ${noEligibleShiftsResult.errors.join(", ")}`
+  );
+}
+
+console.log("✓ lista vazia deixa a pessoa sem atribuição e invalida o horário");
 
 const pessoasWithExplicitEligibility: Pessoa[] = [
   {
