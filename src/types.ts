@@ -1,26 +1,34 @@
-export type ShiftId = "A" | "B" | "C";
+export type Weekday =
+  | "monday"
+  | "tuesday"
+  | "wednesday"
+  | "thursday"
+  | "friday"
+  | "saturday"
+  | "sunday";
 
-export interface Pessoa {
-  id: string;
-  nome: string;
-  eligibleShiftIds?: ShiftId[];
+export interface SchedulePeriod {
+  startDate: string;
+  endDate: string;
 }
 
-export interface Shift {
-  id: ShiftId;
-  entry: string;
-  lunchStart: string;
-  lunchEnd: string;
-  exit: string;
+export interface OperatingInterval {
+  start: string;
+  end: string;
 }
 
-export interface ScheduleCell {
-  shift: ShiftId;
+export type WeeklyOperatingHours = Record<
+  Weekday,
+  OperatingInterval[]
+>;
+
+export interface OperatingHoursException {
+  date: string;
+  intervals: OperatingInterval[];
 }
 
-export type Schedule = Record<string, ScheduleCell>;
-
-export interface ValidationResult {
-  valid: boolean;
-  errors: string[];
+export interface ScheduleConfiguration {
+  period: SchedulePeriod;
+  weeklyOperatingHours: WeeklyOperatingHours;
+  exceptions: OperatingHoursException[];
 }
