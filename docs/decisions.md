@@ -41,3 +41,21 @@ O Schedule Engine recebe a configuração e trabalha com ela.
 **Estado:** aceite
 
 Só introduzir novos conceitos quando o anterior estiver implementado e compreendido.
+
+## D007 — Pessoa começa com um modelo mínimo
+
+**Estado:** aceite
+
+Uma pessoa contém apenas `id`, `name` e `active`.
+
+Função, contrato, disponibilidade e restantes atributos não entram no modelo antes de existir uma necessidade concreta do motor.
+
+## D008 — Pessoas são arquivadas, não eliminadas como fluxo normal
+
+**Estado:** aceite
+
+Uma pessoa que deixe de participar em horários futuros permanece identificável no sistema.
+
+`active: false` retira-a de novas escalas sem destruir a entidade.
+
+Datas de entrada/saída poderão substituir este booleano no futuro se o histórico exigir maior precisão.
