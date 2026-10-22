@@ -103,3 +103,15 @@ Calendário operacional e disponibilidade usam o mesmo conceito base, evitando d
 A introdução de novos dados persistidos não deve fazer desaparecer dados existentes.
 
 A versão 2 do estado adiciona disponibilidades e migra automaticamente o formato v1.
+
+## D014 — Disponibilidade é limitada pelo calendário operacional
+
+**Estado:** aceite
+
+Disponibilidade da pessoa e funcionamento da operação são hard constraints independentes.
+
+O intervalo efetivamente escalável é a interseção entre ambos.
+
+Uma pessoa nunca pode ser escalada num dia em que a operação está fechada, nem fora do horário operacional.
+
+A UI impede configurações obviamente impossíveis, mas o núcleo também aplica a interseção para garantir correção perante dados antigos ou incoerentes.
