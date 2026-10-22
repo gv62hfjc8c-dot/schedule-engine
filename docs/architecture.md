@@ -2,60 +2,39 @@
 
 ## Estado atual
 
-O Schedule Engine está deliberadamente numa arquitetura mínima.
+O Schedule Engine está intencionalmente reduzido à fundação temporal do domínio.
 
-### Domínio
+### Tipos
 
-`src/types.ts` contém os tipos do núcleo:
+`src/types.ts` contém:
 
-- `Pessoa`
-- `Shift`
-- `ScheduleCell`
-- `Schedule`
-- `ValidationResult`
+- `SchedulePeriod`
+- `OperatingInterval`
+- `WeeklyOperatingHours`
+- `OperatingHoursException`
+- `ScheduleConfiguration`
 
-### Catálogo de turnos
+### Calendário operacional
 
-`src/utils/shifts.ts` define os turnos disponíveis no V0.
+`src/utils/operatingCalendar.ts` contém funções puras para:
 
-### Gerador
-
-`src/utils/generateSchedule.ts` é uma função pura que recebe pessoas e a data inicial da semana e devolve um horário.
-
-O algoritmo V0 é determinístico e simples: usa uma rotação A/B/C e procura o primeiro turno elegível a partir da posição base de cada pessoa.
-
-### Validador
-
-`src/utils/validateSchedule.ts` valida o resultado independentemente do gerador.
-
-Esta separação é intencional: um horário só é considerado válido porque satisfaz as constraints verificadas pelo validador, e não simplesmente porque foi produzido pelo gerador.
+- expandir um período em datas;
+- descobrir o dia da semana de uma data;
+- resolver o horário efetivo de uma data;
+- aplicar exceções sobre o horário semanal padrão.
 
 ### Interface
 
-`src/App.tsx` é um cliente de demonstração. React não faz parte do domínio do motor.
+`src/App.tsx` é apenas uma ferramenta visual para editar e observar esta configuração.
 
-## Fronteiras arquiteturais
+A UI não é o motor.
 
-O motor não deve depender de:
+## Limites
 
-- React;
-- browser;
-- localStorage;
-- uma empresa ou equipa específica;
-- backend/API;
-- base de dados.
+O núcleo não decide quem pode editar a configuração.
 
-Essas integrações poderão existir em camadas externas.
+Permissões, autenticação e papéis de utilizador pertencem à aplicação que consumir o Schedule Engine.
 
-## Próxima evolução
+## Regra arquitetural
 
-Antes de introduzir um solver ou algoritmo de otimização, o domínio deve ganhar conceitos explícitos para:
-
-1. período/dia;
-2. disponibilidade;
-3. necessidade de cobertura;
-4. constraints identificáveis;
-5. violações estruturadas;
-6. qualidade/score para soft constraints.
-
-A prioridade é correção e explicabilidade, não sofisticação algorítmica.
+Não adicionar o próximo conceito do domínio antes de o atual estar claro, testado e utilizável.
