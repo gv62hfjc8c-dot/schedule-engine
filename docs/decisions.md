@@ -71,3 +71,35 @@ A aplicação depende de um contrato assíncrono de persistência.
 A implementação inicial usa `localStorage`, mas pode ser substituída por uma implementação remota sem alterar o domínio.
 
 O estado persistido é versionado para permitir evolução controlada do formato.
+
+## D010 — Disponibilidade é uma hard constraint
+
+**Estado:** aceite
+
+Uma pessoa não poderá ser escalada fora dos intervalos em que está disponível.
+
+Zero intervalos num dia significa indisponível nesse dia.
+
+## D011 — Disponibilidade segue padrão semanal com exceções
+
+**Estado:** aceite
+
+Cada pessoa pode ter um padrão semanal recorrente.
+
+Uma exceção por data substitui integralmente o padrão semanal nessa data.
+
+## D012 — Intervalos temporais são um conceito genérico
+
+**Estado:** aceite
+
+`TimeInterval` representa um intervalo temporal reutilizável.
+
+Calendário operacional e disponibilidade usam o mesmo conceito base, evitando duplicação de modelos equivalentes.
+
+## D013 — Evolução de persistência exige migração
+
+**Estado:** aceite
+
+A introdução de novos dados persistidos não deve fazer desaparecer dados existentes.
+
+A versão 2 do estado adiciona disponibilidades e migra automaticamente o formato v1.
