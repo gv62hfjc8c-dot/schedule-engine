@@ -1,11 +1,13 @@
 import type {
+  CoverageException,
   OperatingHoursException,
   Person,
   PersonAvailability,
+  WeeklyCoverage,
   WeeklyOperatingHours,
 } from "../types";
 
-export const APP_STATE_VERSION = 2 as const;
+export const APP_STATE_VERSION = 3 as const;
 
 export interface PersistedAppState {
   version: typeof APP_STATE_VERSION;
@@ -13,6 +15,8 @@ export interface PersistedAppState {
   exceptions: OperatingHoursException[];
   people: Person[];
   availabilities: PersonAvailability[];
+  weeklyCoverage: WeeklyCoverage;
+  coverageExceptions: CoverageException[];
 }
 
 export interface StateRepository {
