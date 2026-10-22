@@ -1,9 +1,14 @@
-import type { KeyValueStorage } from "./persistence/localStorageStateRepository";
+import type {
+  KeyValueStorage,
+} from "./persistence/localStorageStateRepository";
 import {
   createLocalStorageStateRepository,
+  LEGACY_LOCAL_STORAGE_KEY_V1,
   LOCAL_STORAGE_KEY,
 } from "./persistence/localStorageStateRepository";
-import { APP_STATE_VERSION } from "./persistence/stateRepository";
+import {
+  APP_STATE_VERSION,
+} from "./persistence/stateRepository";
 
 class MemoryStorage implements KeyValueStorage {
   private values = new Map<string, string>();
@@ -20,9 +25,7 @@ class MemoryStorage implements KeyValueStorage {
 const storage = new MemoryStorage();
 const repository = createLocalStorageStateRepository(storage);
 
-const initialLoad = await repository.load();
-
-if (initialLoad !== null) {
+if ((await repository.load()) !== null) {
   throw new Error("Repositório vazio deveria devolver null");
 }
 
@@ -50,6 +53,21 @@ await repository.save({
       active: true,
     },
   ],
+  availabilities: [
+    {
+      personId: "p1",
+      weeklyAvailability: {
+        monday: [{ start: "09:00", end: "18:00" }],
+        tuesday: [],
+        wednesday: [],
+        thursday: [],
+        friday: [],
+        saturday: [],
+        sunday: [],
+      },
+      exceptions: [],
+    },
+  ],
 });
 
 const loaded = await repository.load();
@@ -58,29 +76,67 @@ if (
   !loaded ||
   loaded.version !== APP_STATE_VERSION ||
   loaded.people[0]?.name !== "Ana Silva" ||
-  loaded.exceptions[0]?.date !== "2026-12-25"
+  loaded.availabilities[0]?.personId !== "p1"
 ) {
-  throw new Error("Estado persistido não foi recuperado corretamente");
+  throw new Error("Estado v2 não foi recuperado corretamente");
 }
 
-storage.setItem(LOCAL_STORAGE_KEY, "{invalid json");
+const migrationStorage = new MemoryStorage();
 
-if ((await repository.load()) !== null) {
-  throw new Error("JSON inválido deveria ser ignorado");
-}
-
-storage.setItem(
-  LOCAL_STORAGE_KEY,
+migrationStorage.setItem(
+  LEGACY_LOCAL_STORAGE_KEY_V1,
   JSON.stringify({
-    version: 999,
-    weeklyOperatingHours: {},
+    version: 1,
+    weeklyOperatingHours: {
+      monday: [{ start: "09:00", end: "18:00" }],
+      tuesday: [],
+      wednesday: [],
+      thursday: [],
+      friday: [],
+      saturday: [],
+      sunday: [],
+    },
     exceptions: [],
-    people: [],
+    people: [
+      {
+        id: "legacy-person",
+        name: "Pessoa Existente",
+        active: true,
+      },
+    ],
   })
 );
 
-if ((await repository.load()) !== null) {
-  throw new Error("Versão incompatível deveria ser ignorada");
+const migrationRepository =
+  createLocalStorageStateRepository(migrationStorage);
+
+const migrated = await migrationRepository.load();
+
+if (
+  !migrated ||
+  migrated.version !== APP_STATE_VERSION ||
+  migrated.people[0]?.id !== "legacy-person" ||
+  migrated.availabilities[0]?.personId !== "legacy-person" ||
+  Object.values(
+    migrated.availabilities[0].weeklyAvailability
+  ).some((intervals) => intervals.length > 0)
+) {
+  throw new Error("Migração v1 para v2 falhou");
+}
+
+if (!migrationStorage.getItem(LOCAL_STORAGE_KEY)) {
+  throw new Error("Migração deveria gravar o estado v2");
+}
+
+const invalidStorage = new MemoryStorage();
+invalidStorage.setItem(LOCAL_STORAGE_KEY, "{invalid json");
+
+if (
+  (await createLocalStorageStateRepository(
+    invalidStorage
+  ).load()) !== null
+) {
+  throw new Error("JSON inválido deveria ser ignorado");
 }
 
 console.log("Persistence V0: todos os testes passaram.");

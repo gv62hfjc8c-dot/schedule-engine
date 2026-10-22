@@ -7,19 +7,21 @@ export type Weekday =
   | "saturday"
   | "sunday";
 
-export interface OperatingInterval {
+export interface TimeInterval {
   start: string;
   end: string;
 }
 
+export type OperatingInterval = TimeInterval;
+
 export type WeeklyOperatingHours = Record<
   Weekday,
-  OperatingInterval[]
+  TimeInterval[]
 >;
 
 export interface OperatingHoursException {
   date: string;
-  intervals: OperatingInterval[];
+  intervals: TimeInterval[];
 }
 
 export interface OperatingCalendarConfiguration {
@@ -31,4 +33,20 @@ export interface Person {
   id: string;
   name: string;
   active: boolean;
+}
+
+export type WeeklyAvailability = Record<
+  Weekday,
+  TimeInterval[]
+>;
+
+export interface AvailabilityException {
+  date: string;
+  intervals: TimeInterval[];
+}
+
+export interface PersonAvailability {
+  personId: string;
+  weeklyAvailability: WeeklyAvailability;
+  exceptions: AvailabilityException[];
 }

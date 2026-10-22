@@ -11,18 +11,18 @@ Estado: **fechado**
 - [x] calendário contínuo sem janela global;
 - [x] testes básicos;
 - [x] interface em formato de painel;
-- [x] seleção de horas por dropdown.
+- [x] seleção de horas por dropdown;
+- [x] persistência automática através da aplicação.
 
 ### Melhorias futuras não bloqueantes
 
 - múltiplos intervalos por dia na interface;
 - validação adicional de intervalos inválidos ou sobrepostos;
-- [x] persistência automática da configuração através da aplicação;
 - controlo de permissões na aplicação consumidora.
 
 ## Ponto 2 — Pessoas
 
-Estado: **em validação**
+Estado: **fechado**
 
 - [x] modelo mínimo `Person`;
 - [x] identificador estável;
@@ -35,21 +35,38 @@ Estado: **em validação**
 - [x] filtro de pessoas ativas;
 - [x] testes básicos;
 - [x] interface de gestão;
-- [x] persistência automática de pessoas.
+- [x] persistência automática.
 
-### Fora do Ponto 2
+## Ponto 3 — Disponibilidade
 
-- funções/cargos;
-- equipas;
-- contratos;
-- horas semanais;
-- disponibilidades;
-- folgas;
+Estado: **fechado**
+
+- [x] disponibilidade semanal por pessoa;
+- [x] zero intervalos significa indisponível;
+- [x] exceções por data;
+- [x] resolução da disponibilidade efetiva de uma data;
+- [x] verificação se um intervalo está totalmente dentro da disponibilidade;
+- [x] disponibilidade tratada como hard constraint;
+- [x] interseção com o calendário operacional;
+- [x] bloqueio de disponibilidade em dias de operação fechada;
+- [x] horas de disponibilidade limitadas ao horário operacional;
+- [x] interface em separador próprio;
+- [x] seleção de pessoa ativa;
+- [x] persistência automática;
+- [x] migração automática do estado persistido v1 para v2;
+- [x] testes básicos.
+
+### Fora do Ponto 3
+
+- férias;
+- baixas;
+- ausências tipificadas;
+- horas semanais máximas;
+- descanso entre períodos;
 - preferências;
-- turnos permitidos.
-
-Esses conceitos só serão adicionados quando tiverem um papel explícito no motor.
+- cobertura necessária;
+- geração de horários.
 
 ## Próximo ponto
 
-A definir depois de validarmos o Ponto 2 na aplicação.
+A definir antes de iniciar o Ponto 4.

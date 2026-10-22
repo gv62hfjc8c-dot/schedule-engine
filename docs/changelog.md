@@ -1,5 +1,35 @@
 # Changelog
 
+## 2026-10-22 — Ponto 3 fechado
+
+- disponibilidade validada funcionalmente na aplicação;
+- integração com calendário operacional confirmada;
+- testes de calendário, pessoas, disponibilidade e persistência aprovados localmente;
+- typecheck aprovado localmente;
+- Ponto 3 considerado concluído.
+
+## 2026-10-22 — Disponibilidade respeita calendário operacional
+
+- tempo escalável passa a ser a interseção entre funcionamento e disponibilidade;
+- dias fechados no calendário operacional ficam bloqueados na disponibilidade semanal;
+- exceções de disponibilidade respeitam o funcionamento efetivo da respetiva data;
+- seletores de horas ficam limitados ao intervalo operacional;
+- adicionados testes para operação fechada, limites horários e abertura excecional.
+
+## 2026-10-22 — Ponto 3: Disponibilidade
+
+- introduzida disponibilidade semanal por pessoa;
+- zero intervalos representa indisponibilidade;
+- adicionadas exceções de disponibilidade por data;
+- adicionada resolução da disponibilidade efetiva;
+- adicionada validação de intervalos totalmente contidos;
+- disponibilidade definida como hard constraint;
+- criado separador próprio na interface;
+- pessoas arquivadas preservam os dados mas deixam de ser selecionáveis;
+- persistência atualizada para versão 2;
+- migração automática preserva calendário e pessoas guardados na versão 1;
+- adicionados testes de disponibilidade e migração.
+
 ## 2026-10-22 — Persistência automática local
 
 - criada uma porta assíncrona de persistência independente do motor;
