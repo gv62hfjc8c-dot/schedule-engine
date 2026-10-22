@@ -47,6 +47,9 @@ Estado: **em validação**
 - [x] resolução da disponibilidade efetiva de uma data;
 - [x] verificação se um intervalo está totalmente dentro da disponibilidade;
 - [x] disponibilidade tratada como hard constraint;
+- [x] interseção com o calendário operacional;
+- [x] bloqueio de disponibilidade em dias de operação fechada;
+- [x] horas de disponibilidade limitadas ao horário operacional;
 - [x] interface em separador próprio;
 - [x] seleção de pessoa ativa;
 - [x] persistência automática;
