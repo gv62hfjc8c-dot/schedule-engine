@@ -412,6 +412,18 @@ h2 {
   color: #7e8897;
 }
 
+.state-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+.operation-closed-note {
+  margin: 0;
+  color: #8d96a4;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .state-dot {
   width: 7px;
   height: 7px;
