@@ -26,3 +26,9 @@ export interface OperatingCalendarConfiguration {
   weeklyOperatingHours: WeeklyOperatingHours;
   exceptions: OperatingHoursException[];
 }
+
+export interface Person {
+  id: string;
+  name: string;
+  active: boolean;
+}

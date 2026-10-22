@@ -1,5 +1,31 @@
 # Changelog
 
+## 2026-10-22 — Persistência automática local
+
+- criada uma porta assíncrona de persistência independente do motor;
+- implementado adaptador versionado de `localStorage`;
+- calendário, exceções e pessoas são carregados automaticamente no arranque;
+- alterações são guardadas automaticamente com debounce;
+- adicionado indicador visual de estado da gravação;
+- estrutura preparada para substituição futura por API/base de dados;
+- adicionados testes do adaptador de persistência.
+
+## 2026-10-22 — Separação por áreas
+
+- calendário operacional e pessoas passam a existir em separadores próprios;
+- cada separador mostra apenas os indicadores relevantes para o seu contexto;
+- removido o empilhamento das áreas na mesma página;
+- alteração limitada à interface, sem mudança no domínio.
+
+## 2026-10-22 — Ponto 2: Pessoas
+
+- introduzido modelo mínimo de pessoa com `id`, `name` e `active`;
+- adicionadas funções puras para criar, renomear, arquivar, reativar e filtrar pessoas;
+- adicionados testes do domínio de pessoas;
+- adicionada gestão visual de pessoas à aplicação;
+- arquivo preserva a entidade em vez de a eliminar;
+- mantidos fora do modelo cargos, contratos, disponibilidade, folgas e turnos.
+
 ## 2026-10-22 — Ponto 1 fechado
 
 - calendário operacional considerado funcionalmente concluído;

@@ -54,6 +54,14 @@ interface OperatingCalendarConfiguration {
 
 Um array vazio de intervalos significa que o dia está fechado.
 
+## Persistência
+
+A aplicação guarda automaticamente o calendário operacional, exceções e pessoas no `localStorage` do browser.
+
+O acesso ao armazenamento está isolado atrás de um contrato assíncrono de persistência. Isto permite substituir o `localStorage` por uma API/base de dados no futuro sem alterar o núcleo do Schedule Engine.
+
+O formato guardado é versionado.
+
 ## Autorização
 
 Quem pode editar esta configuração pertence à aplicação que utiliza o motor.
