@@ -1,38 +1,60 @@
 # Schedule Engine
 
-Motor de geração e validação de horários, desenvolvido como sistema independente e reutilizável.
+Projeto dedicado à construção de um motor de horários reutilizável e independente de qualquer empresa específica.
 
-A interface React existente serve apenas para demonstrar e exercitar o núcleo. O objetivo do projeto é evoluir o motor de scheduling sem o acoplar a uma empresa, interface, backend ou tecnologia de persistência específica.
+## Estado atual
 
-## Estado atual — V0
+Estamos a reconstruir o motor desde a base.
 
-O `main` atual é um reset deliberado para um núcleo pequeno e verificável.
+Neste momento o projeto contém apenas a fundação temporal necessária para qualquer sistema de horários:
 
-O V0 suporta:
+1. **período de planeamento**;
+2. **horário semanal de funcionamento**;
+3. **exceções por data**;
+4. **calendário operacional resultante**.
 
-- pessoas com identificador e nome;
-- três turnos fixos (`A`, `B`, `C`);
-- elegibilidade opcional de cada pessoa por turno;
-- geração determinística de segunda a sexta;
-- 8 horas efetivas por dia;
-- 40 horas efetivas por semana;
-- manutenção do mesmo turno durante toda a semana;
-- validação independente do gerador.
+Ainda não existem pessoas, turnos de trabalho, cobertura, disponibilidade, folgas ou geração automática de horários. Esses conceitos serão introduzidos um a um.
 
-Ainda **não** suporta cobertura, equipas, disponibilidades, folgas, férias, fins de semana, preferências, fairness, histórico ou otimização. Essas capacidades existiram no protótipo anterior, mas não fazem parte do núcleo V0 atual.
+## Princípio
 
-## Hard constraints V0
+O motor não assume horários fixos nem dias úteis específicos.
 
-O validador verifica atualmente:
+Uma empresa pode funcionar:
 
-1. existência de uma célula por pessoa e dia útil;
-2. existência do turno atribuído;
-3. elegibilidade da pessoa para o turno;
-4. 480 minutos efetivos por turno/dia;
-5. consistência do turno durante a semana;
-6. 2400 minutos efetivos por semana.
+- segunda a sexta;
+- sete dias por semana;
+- apenas alguns dias;
+- com horários diferentes por dia;
+- com dias fechados;
+- com exceções pontuais.
 
-O gerador não deve produzir deliberadamente uma atribuição que viole uma hard constraint. Se uma pessoa tiver uma lista explícita de turnos elegíveis vazia, não é atribuída a nenhum turno; o validador independente identifica então o horário como incompleto.
+A autorização para editar esta configuração pertence à aplicação que utilizar o motor. O núcleo apenas recebe os dados.
+
+## Modelo atual
+
+```ts
+interface SchedulePeriod {
+  startDate: string;
+  endDate: string;
+}
+
+interface OperatingInterval {
+  start: string;
+  end: string;
+}
+
+type WeeklyOperatingHours = Record<
+  Weekday,
+  OperatingInterval[]
+>;
+
+interface OperatingHoursException {
+  date: string;
+  intervals: OperatingInterval[];
+}
+```
+
+Um array vazio de intervalos significa que o dia está fechado.
 
 ## Executar
 
@@ -41,43 +63,14 @@ npm install
 npm run dev
 ```
 
-## Verificações
+## Verificar
 
 ```bash
 npm run typecheck
 npm test
-npm run verify:engine
 npm run build
 ```
 
-- `npm test` executa os testes do gerador e do validador.
-- `npm run verify:engine` executa um cenário integrado simples sem abrir o browser.
-- `npm run build` confirma também a integração com a aplicação React/Vite.
+## Próximo passo
 
-## Estrutura principal
-
-```
-src/
-  types.ts
-  utils/
-    shifts.ts
-    generateSchedule.ts
-    validateSchedule.ts
-  generatorTest.ts
-  validatorTest.ts
-  App.tsx
-docs/
-  architecture.md
-  conventions.md
-  decisions.md
-  roadmap.md
-  changelog.md
-```
-
-## Direção
-
-A prioridade é manter o ciclo:
-
-**decisão → implementação → teste → validação → próxima decisão**
-
-O próximo passo do motor não é reconstruir de imediato todas as funcionalidades do protótipo anterior. Primeiro deve ser formalizado um modelo mínimo de disponibilidade e necessidade de cobertura, distinguindo hard constraints de soft constraints e mantendo o validador independente do algoritmo de geração.
+Só depois de fecharmos esta base temporal avançaremos para o próximo conceito do domínio.
