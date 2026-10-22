@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-10-22 — Ponto 4: Cobertura necessária
+
+- introduzidos requisitos de cobertura com intervalo e mínimo de pessoas;
+- suportados vários períodos de cobertura no mesmo dia;
+- cobertura ausente passa a ser distinta de mínimo explícito zero;
+- adicionadas exceções por data;
+- adicionada deteção de buracos e sobreposições;
+- cobertura efetiva respeita o calendário operacional;
+- criada interface própria com validação visual;
+- persistência atualizada para versão 3;
+- migração automática v2 → v3 preserva os dados existentes;
+- adicionados testes do domínio de cobertura e persistência.
+
 ## 2026-10-22 — Ponto 3 fechado
 
 - disponibilidade validada funcionalmente na aplicação;
