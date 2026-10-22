@@ -50,3 +50,22 @@ export interface PersonAvailability {
   weeklyAvailability: WeeklyAvailability;
   exceptions: AvailabilityException[];
 }
+
+export interface CoverageRequirement extends TimeInterval {
+  minimumPeople: number;
+}
+
+export type WeeklyCoverage = Record<
+  Weekday,
+  CoverageRequirement[]
+>;
+
+export interface CoverageException {
+  date: string;
+  requirements: CoverageRequirement[];
+}
+
+export interface CoverageConfiguration {
+  weeklyCoverage: WeeklyCoverage;
+  exceptions: CoverageException[];
+}
