@@ -625,7 +625,7 @@ h2 {
 
   .workspace-tabs {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(3, 1fr);
     width: 100%;
   }
 
@@ -943,5 +943,36 @@ h2 {
 
   .form-error {
     margin-inline: 18px;
+  }
+}
+
+
+.availability-person-picker {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 20px;
+}
+
+.availability-person-picker .select-field {
+  width: min(100%, 360px);
+}
+
+.availability-empty-panel {
+  overflow: hidden;
+}
+
+@media (max-width: 700px) {
+  .availability-person-picker {
+    justify-content: stretch;
+  }
+
+  .availability-person-picker .select-field {
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .workspace-tabs {
+    grid-template-columns: 1fr;
   }
 }
