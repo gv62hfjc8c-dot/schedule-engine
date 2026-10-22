@@ -2,10 +2,17 @@ import { useMemo, useState } from "react";
 import type {
   OperatingHoursException,
   OperatingInterval,
+  Person,
   Weekday,
   WeeklyOperatingHours,
 } from "./types";
 import { WEEKDAYS } from "./utils/operatingCalendar";
+import {
+  createPerson,
+  getActivePeople,
+  renamePerson,
+  setPersonActive,
+} from "./utils/people";
 
 const weekdayLabels: Record<Weekday, string> = {
   monday: "Segunda",
@@ -84,12 +91,28 @@ function todayKey(): string {
   return local.toISOString().slice(0, 10);
 }
 
+function getInitials(name: string): string {
+  return name
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("");
+}
+
 export default function App() {
   const [weeklyHours, setWeeklyHours] =
     useState<WeeklyOperatingHours>(initialWeeklyOperatingHours);
   const [exceptions, setExceptions] = useState<
     OperatingHoursException[]
   >([]);
+  const [people, setPeople] = useState<Person[]>([]);
+  const [newPersonName, setNewPersonName] = useState("");
+  const [editingPersonId, setEditingPersonId] = useState<string | null>(
+    null
+  );
+  const [editingPersonName, setEditingPersonName] = useState("");
+  const [personError, setPersonError] = useState("");
 
   const summary = useMemo(() => {
     const openDays = WEEKDAYS.filter(
@@ -115,6 +138,11 @@ export default function App() {
       weeklyHours: Math.round((totalWeeklyMinutes / 60) * 10) / 10,
     };
   }, [weeklyHours]);
+
+  const activePeople = useMemo(
+    () => getActivePeople(people),
+    [people]
+  );
 
   const updateDayInterval = (
     weekday: Weekday,
@@ -210,6 +238,70 @@ export default function App() {
     );
   };
 
+  const addPerson = () => {
+    try {
+      const person = createPerson(
+        crypto.randomUUID(),
+        newPersonName
+      );
+
+      setPeople((current) => [...current, person]);
+      setNewPersonName("");
+      setPersonError("");
+    } catch (error) {
+      setPersonError(
+        error instanceof Error ? error.message : "Nome inválido."
+      );
+    }
+  };
+
+  const startEditingPerson = (person: Person) => {
+    setEditingPersonId(person.id);
+    setEditingPersonName(person.name);
+    setPersonError("");
+  };
+
+  const cancelEditingPerson = () => {
+    setEditingPersonId(null);
+    setEditingPersonName("");
+    setPersonError("");
+  };
+
+  const savePersonName = (person: Person) => {
+    try {
+      const renamed = renamePerson(person, editingPersonName);
+
+      setPeople((current) =>
+        current.map((candidate) =>
+          candidate.id === person.id ? renamed : candidate
+        )
+      );
+
+      cancelEditingPerson();
+    } catch (error) {
+      setPersonError(
+        error instanceof Error ? error.message : "Nome inválido."
+      );
+    }
+  };
+
+  const changePersonActive = (
+    person: Person,
+    active: boolean
+  ) => {
+    setPeople((current) =>
+      current.map((candidate) =>
+        candidate.id === person.id
+          ? setPersonActive(candidate, active)
+          : candidate
+      )
+    );
+
+    if (editingPersonId === person.id) {
+      cancelEditingPerson();
+    }
+  };
+
   return (
     <main className="app-shell">
       <header className="page-header">
@@ -217,8 +309,8 @@ export default function App() {
           <p className="eyebrow">Configuração operacional</p>
           <h1>Schedule Engine</h1>
           <p className="page-subtitle">
-            Define quando a operação está aberta. Esta base será usada
-            continuamente pelo motor, independentemente da empresa.
+            Define a base que o motor irá usar continuamente:
+            funcionamento da operação e pessoas que podem ser escaladas.
           </p>
         </div>
 
@@ -233,20 +325,21 @@ export default function App() {
           <span>Semana padrão</span>
           <strong>{summary.openDays} dias abertos</strong>
         </div>
-        <div className="overview-divider" />
         <div className="overview-item">
           <span>Funcionamento</span>
           <strong>{summary.weeklyHours}h / semana</strong>
         </div>
-        <div className="overview-divider" />
-        <div className="overview-item">
-          <span>Encerrados</span>
-          <strong>{summary.closedDays} dias</strong>
-        </div>
-        <div className="overview-divider" />
         <div className="overview-item">
           <span>Datas especiais</span>
           <strong>{exceptions.length} exceções</strong>
+        </div>
+        <div className="overview-item">
+          <span>Pessoas ativas</span>
+          <strong>{activePeople.length}</strong>
+        </div>
+        <div className="overview-item">
+          <span>Arquivadas</span>
+          <strong>{people.length - activePeople.length}</strong>
         </div>
       </section>
 
@@ -254,7 +347,7 @@ export default function App() {
         <section className="panel schedule-panel">
           <div className="panel-header">
             <div>
-              <p className="section-kicker">Padrão semanal</p>
+              <p className="section-kicker">Ponto 1</p>
               <h2>Horário de funcionamento</h2>
             </div>
             <p className="panel-help">
@@ -378,9 +471,7 @@ export default function App() {
             <div className="empty-state">
               <div className="empty-icon">◎</div>
               <strong>Nenhuma exceção definida</strong>
-              <p>
-                O padrão semanal aplica-se a todas as datas.
-              </p>
+              <p>O padrão semanal aplica-se a todas as datas.</p>
             </div>
           ) : (
             <div className="exception-list">
@@ -489,6 +580,178 @@ export default function App() {
           )}
         </aside>
       </div>
+
+      <section className="panel people-panel">
+        <div className="panel-header people-header">
+          <div>
+            <p className="section-kicker">Ponto 2</p>
+            <h2>Pessoas</h2>
+            <p className="people-description">
+              Pessoas ativas podem participar em horários futuros.
+              Arquivar mantém a pessoa no sistema sem a considerar para
+              novas escalas.
+            </p>
+          </div>
+
+          <div className="people-count">
+            <strong>{activePeople.length}</strong>
+            <span>ativas</span>
+          </div>
+        </div>
+
+        <form
+          className="person-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            addPerson();
+          }}
+        >
+          <label className="text-field">
+            <span>Nome</span>
+            <input
+              type="text"
+              value={newPersonName}
+              onChange={(event) => {
+                setNewPersonName(event.target.value);
+                setPersonError("");
+              }}
+              placeholder="Nome da pessoa"
+            />
+          </label>
+
+          <button className="primary-button add-person-button" type="submit">
+            <span>+</span>
+            Adicionar pessoa
+          </button>
+        </form>
+
+        {personError && (
+          <p className="form-error" role="alert">
+            {personError}
+          </p>
+        )}
+
+        {people.length === 0 ? (
+          <div className="people-empty">
+            <div className="empty-icon">◎</div>
+            <strong>Ainda não existem pessoas</strong>
+            <p>
+              Adiciona a primeira pessoa que poderá ser usada pelo motor.
+            </p>
+          </div>
+        ) : (
+          <div className="people-table">
+            <div className="people-head" aria-hidden="true">
+              <span>Pessoa</span>
+              <span>Estado</span>
+              <span>Ações</span>
+            </div>
+
+            {[...people]
+              .sort(
+                (a, b) =>
+                  Number(b.active) - Number(a.active) ||
+                  a.name.localeCompare(b.name)
+              )
+              .map((person) => {
+                const editing = editingPersonId === person.id;
+
+                return (
+                  <div
+                    className={`person-row ${person.active ? "" : "is-archived"}`}
+                    key={person.id}
+                  >
+                    <div className="person-identity">
+                      <div className="person-avatar" aria-hidden="true">
+                        {getInitials(person.name)}
+                      </div>
+
+                      {editing ? (
+                        <input
+                          className="inline-name-input"
+                          type="text"
+                          value={editingPersonName}
+                          onChange={(event) => {
+                            setEditingPersonName(event.target.value);
+                            setPersonError("");
+                          }}
+                          autoFocus
+                        />
+                      ) : (
+                        <div>
+                          <strong>{person.name}</strong>
+                          <span>ID {person.id.slice(0, 8)}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div>
+                      <span
+                        className={`person-status ${person.active ? "active" : "archived"}`}
+                      >
+                        <span />
+                        {person.active ? "Ativa" : "Arquivada"}
+                      </span>
+                    </div>
+
+                    <div className="person-actions">
+                      {editing ? (
+                        <>
+                          <button
+                            type="button"
+                            className="secondary-button"
+                            onClick={cancelEditingPerson}
+                          >
+                            Cancelar
+                          </button>
+                          <button
+                            type="button"
+                            className="primary-button"
+                            onClick={() => savePersonName(person)}
+                          >
+                            Guardar
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            className="secondary-button"
+                            onClick={() => startEditingPerson(person)}
+                          >
+                            Editar
+                          </button>
+
+                          {person.active ? (
+                            <button
+                              type="button"
+                              className="secondary-button"
+                              onClick={() =>
+                                changePersonActive(person, false)
+                              }
+                            >
+                              Arquivar
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              className="secondary-button"
+                              onClick={() =>
+                                changePersonActive(person, true)
+                              }
+                            >
+                              Reativar
+                            </button>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+        )}
+      </section>
     </main>
   );
 }
