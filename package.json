@@ -7,10 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "typecheck": "tsc -b",
-    "test": "npm run test:generator && npm run test:validator",
-    "test:generator": "tsx src/generatorTest.ts",
-    "test:validator": "tsx src/validatorTest.ts",
-    "verify:engine": "tsx scripts/verificar-motor.mts",
+    "test": "tsx src/operatingCalendarTest.ts",
     "preview": "vite preview"
   },
   "dependencies": {
