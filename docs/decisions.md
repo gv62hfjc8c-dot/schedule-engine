@@ -6,11 +6,13 @@
 
 Horários de funcionamento e regras específicas entram como dados/configuração.
 
-## D002 — O período de planeamento é explícito
+## D002 — O calendário operacional é contínuo
 
 **Estado:** aceite
 
-O motor não assume automaticamente uma semana, cinco dias úteis ou um mês.
+Não existe uma janela global de planeamento no núcleo.
+
+O padrão semanal e as exceções existem ao longo do tempo. Quando for necessário gerar ou consultar um horário para um intervalo específico, essa janela será fornecida pela operação que fizer o pedido.
 
 ## D003 — O horário de funcionamento é configuração
 
