@@ -637,7 +637,7 @@ h2 {
 
   .workspace-tabs {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(2, 1fr);
     width: 100%;
   }
 
@@ -986,5 +986,230 @@ h2 {
 @media (max-width: 480px) {
   .workspace-tabs {
     grid-template-columns: 1fr;
+  }
+}
+
+
+.coverage-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(360px, 0.85fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.coverage-panel,
+.coverage-exceptions-panel {
+  overflow: hidden;
+}
+
+.coverage-days {
+  display: grid;
+  border-top: 1px solid #edf0f4;
+}
+
+.coverage-day {
+  padding: 18px 24px;
+  border-top: 1px solid #edf0f4;
+}
+
+.coverage-day:first-child {
+  border-top: 0;
+}
+
+.coverage-day-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.coverage-day-header strong {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 14px;
+}
+
+.coverage-day-header span,
+.coverage-operation-label {
+  color: #8a94a4;
+  font-size: 12px;
+}
+
+.coverage-editor {
+  display: grid;
+  gap: 12px;
+}
+
+.coverage-validation {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  border-radius: 9px;
+  padding: 8px 10px;
+  font-size: 11px;
+}
+
+.coverage-validation strong {
+  font-size: 11px;
+}
+
+.coverage-validation span {
+  color: inherit;
+  opacity: 0.82;
+}
+
+.coverage-validation.is-complete {
+  background: #f1f6f3;
+  color: #4e6d5f;
+}
+
+.coverage-validation.is-incomplete {
+  background: #faf6ef;
+  color: #876b3f;
+}
+
+.coverage-empty {
+  border: 1px dashed #dbe1e8;
+  border-radius: 10px;
+  background: #fbfcfd;
+  padding: 12px;
+  color: #8791a1;
+  font-size: 12px;
+}
+
+.coverage-requirements {
+  display: grid;
+  gap: 8px;
+}
+
+.coverage-requirement-row {
+  display: grid;
+  grid-template-columns: minmax(105px, 1fr) minmax(105px, 1fr) 90px 38px;
+  gap: 8px;
+  align-items: end;
+}
+
+.coverage-number-field {
+  display: grid;
+  gap: 6px;
+}
+
+.coverage-number-field > span {
+  color: #8791a1;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.coverage-number-field input {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid #d8dee8;
+  border-radius: 10px;
+  background: #fff;
+  padding: 0 10px;
+  color: #172033;
+}
+
+.coverage-remove {
+  align-self: end;
+}
+
+.coverage-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.coverage-actions span {
+  color: #9099a7;
+  font-size: 11px;
+}
+
+.coverage-actions .secondary-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.coverage-closed-state {
+  display: grid;
+  gap: 5px;
+  border: 1px solid #e4e7ec;
+  border-radius: 10px;
+  background: #f8f9fb;
+  padding: 12px;
+  color: #7e8897;
+  font-size: 12px;
+}
+
+.coverage-closed-state strong {
+  color: #667182;
+}
+
+.coverage-closed-state .secondary-button {
+  justify-self: start;
+  margin-top: 6px;
+}
+
+.coverage-exceptions-panel {
+  padding-bottom: 20px;
+}
+
+.coverage-exception-list {
+  display: grid;
+  gap: 12px;
+  padding: 0 22px;
+}
+
+.coverage-exception-card {
+  border: 1px solid #e3e7ed;
+  border-radius: 13px;
+  background: #fcfdfe;
+  padding: 14px;
+}
+
+.coverage-operation-label {
+  margin: -2px 0 12px;
+}
+
+@media (max-width: 1040px) {
+  .coverage-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 700px) {
+  .coverage-day {
+    padding-inline: 18px;
+  }
+
+  .coverage-requirement-row {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .coverage-number-field {
+    grid-column: 1;
+  }
+
+  .coverage-remove {
+    grid-column: 2;
+    justify-self: start;
+  }
+}
+
+@media (max-width: 480px) {
+  .coverage-requirement-row {
+    grid-template-columns: 1fr;
+  }
+
+  .coverage-number-field,
+  .coverage-remove {
+    grid-column: auto;
+  }
+
+  .coverage-exception-list {
+    padding-inline: 18px;
   }
 }
