@@ -113,6 +113,9 @@ export default function App() {
   );
   const [editingPersonName, setEditingPersonName] = useState("");
   const [personError, setPersonError] = useState("");
+  const [activeSection, setActiveSection] = useState<
+    "calendar" | "people"
+  >("calendar");
 
   const summary = useMemo(() => {
     const openDays = WEEKDAYS.filter(
@@ -320,30 +323,46 @@ export default function App() {
         </div>
       </header>
 
-      <section className="overview-bar" aria-label="Resumo">
-        <div className="overview-item">
-          <span>Semana padrão</span>
-          <strong>{summary.openDays} dias abertos</strong>
-        </div>
-        <div className="overview-item">
-          <span>Funcionamento</span>
-          <strong>{summary.weeklyHours}h / semana</strong>
-        </div>
-        <div className="overview-item">
-          <span>Datas especiais</span>
-          <strong>{exceptions.length} exceções</strong>
-        </div>
-        <div className="overview-item">
-          <span>Pessoas ativas</span>
-          <strong>{activePeople.length}</strong>
-        </div>
-        <div className="overview-item">
-          <span>Arquivadas</span>
-          <strong>{people.length - activePeople.length}</strong>
-        </div>
-      </section>
+      <nav className="workspace-tabs" aria-label="Áreas de configuração">
+        <button
+          type="button"
+          className={`workspace-tab ${activeSection === "calendar" ? "active" : ""}`}
+          onClick={() => setActiveSection("calendar")}
+          aria-current={activeSection === "calendar" ? "page" : undefined}
+        >
+          <span>Calendário operacional</span>
+          <small>Ponto 1</small>
+        </button>
 
-      <div className="dashboard-grid">
+        <button
+          type="button"
+          className={`workspace-tab ${activeSection === "people" ? "active" : ""}`}
+          onClick={() => setActiveSection("people")}
+          aria-current={activeSection === "people" ? "page" : undefined}
+        >
+          <span>Pessoas</span>
+          <small>Ponto 2</small>
+        </button>
+      </nav>
+
+      {activeSection === "calendar" && (
+        <>
+          <section className="overview-bar" aria-label="Resumo do calendário">
+            <div className="overview-item">
+              <span>Semana padrão</span>
+              <strong>{summary.openDays} dias abertos</strong>
+            </div>
+            <div className="overview-item">
+              <span>Funcionamento</span>
+              <strong>{summary.weeklyHours}h / semana</strong>
+            </div>
+            <div className="overview-item">
+              <span>Datas especiais</span>
+              <strong>{exceptions.length} exceções</strong>
+            </div>
+          </section>
+
+          <div className="dashboard-grid">
         <section className="panel schedule-panel">
           <div className="panel-header">
             <div>
@@ -579,9 +598,28 @@ export default function App() {
             </div>
           )}
         </aside>
-      </div>
+          </div>
+        </>
+      )}
 
-      <section className="panel people-panel">
+      {activeSection === "people" && (
+        <>
+          <section className="overview-bar" aria-label="Resumo de pessoas">
+            <div className="overview-item">
+              <span>Total</span>
+              <strong>{people.length}</strong>
+            </div>
+            <div className="overview-item">
+              <span>Ativas</span>
+              <strong>{activePeople.length}</strong>
+            </div>
+            <div className="overview-item">
+              <span>Arquivadas</span>
+              <strong>{people.length - activePeople.length}</strong>
+            </div>
+          </section>
+
+          <section className="panel people-panel">
         <div className="panel-header people-header">
           <div>
             <p className="section-kicker">Ponto 2</p>
@@ -751,7 +789,9 @@ export default function App() {
               })}
           </div>
         )}
-      </section>
+          </section>
+        </>
+      )}
     </main>
   );
 }
