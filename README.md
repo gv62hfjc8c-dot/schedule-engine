@@ -1,72 +1,46 @@
 # Schedule Engine
 
-Projeto dedicado à construção de um motor de horários reutilizável e independente de qualquer empresa específica.
+Motor de geração automática de horários, independente de qualquer empresa específica.
 
 ## Estado atual
 
-Estamos a reconstruir o motor desde a base.
+A fundação do domínio é construída incrementalmente.
 
-Neste momento o projeto contém apenas o calendário operacional contínuo:
+Estão implementados:
 
-1. **horário semanal de funcionamento**;
-2. **dias fechados**;
-3. **exceções por data**.
+1. **calendário operacional contínuo** — quando a operação funciona;
+2. **pessoas** — quem pode participar em horários;
+3. **disponibilidade** — quando cada pessoa pode trabalhar;
+4. **cobertura necessária** — quantas pessoas são necessárias em cada período.
 
-Ainda não existem pessoas, turnos de trabalho, cobertura, disponibilidade, folgas ou geração automática de horários. Esses conceitos serão introduzidos um a um.
+Ainda não existe geração automática de horários.
 
-## Princípio
+## Princípios atuais
 
-O motor não está preso a uma janela temporal de planeamento.
+O motor não está preso a uma janela global de planeamento.
 
-A empresa define um padrão semanal contínuo e pode acrescentar exceções em datas específicas. Quando, no futuro, outro componente pedir um horário para uma semana, mês ou qualquer intervalo, essa janela será apenas uma consulta sobre esta configuração contínua.
+Calendário, disponibilidade e cobertura usam padrões semanais contínuos com exceções por data.
 
-O motor não assume:
+Disponibilidade e cobertura são limitadas pelo calendário operacional.
 
-- segunda a sexta;
-- horários fixos;
-- dias úteis específicos;
-- uma duração padrão de semana;
-- uma data inicial ou final global.
+O tempo em que uma pessoa é efetivamente escalável é a interseção entre funcionamento e disponibilidade.
 
-## Modelo atual
-
-```ts
-interface OperatingInterval {
-  start: string;
-  end: string;
-}
-
-type WeeklyOperatingHours = Record<
-  Weekday,
-  OperatingInterval[]
->;
-
-interface OperatingHoursException {
-  date: string;
-  intervals: OperatingInterval[];
-}
-
-interface OperatingCalendarConfiguration {
-  weeklyOperatingHours: WeeklyOperatingHours;
-  exceptions: OperatingHoursException[];
-}
-```
-
-Um array vazio de intervalos significa que o dia está fechado.
+Cobertura ausente não significa zero pessoas. Um período operacional sem cobertura definida é configuração incompleta.
 
 ## Persistência
 
-A aplicação guarda automaticamente o calendário operacional, exceções e pessoas no `localStorage` do browser.
+A aplicação guarda automaticamente:
 
-O acesso ao armazenamento está isolado atrás de um contrato assíncrono de persistência. Isto permite substituir o `localStorage` por uma API/base de dados no futuro sem alterar o núcleo do Schedule Engine.
+- calendário operacional;
+- exceções de calendário;
+- pessoas;
+- disponibilidades;
+- cobertura;
+- exceções de cobertura.
 
-O formato guardado é versionado.
+O armazenamento atual usa `localStorage`, isolado atrás de um contrato assíncrono de persistência.
 
-## Autorização
-
-Quem pode editar esta configuração pertence à aplicação que utiliza o motor.
-
-O Schedule Engine apenas recebe e utiliza os dados.
+O formato é versionado e suporta migração automática entre as versões já introduzidas.
 
 ## Executar
 
@@ -83,6 +57,12 @@ npm test
 npm run build
 ```
 
-## Próximo passo
+## Desenvolvimento
 
-Só depois de validarmos esta fundação na aplicação decidiremos o próximo conceito do domínio.
+A regra de evolução é:
+
+```text
+decisão → implementação → teste → validação → próxima decisão
+```
+
+O núcleo do scheduling deve permanecer independente da UI, persistência e aplicação consumidora.
