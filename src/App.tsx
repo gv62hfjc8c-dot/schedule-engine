@@ -1,13 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type {
+  AvailabilityException,
   OperatingHoursException,
   OperatingInterval,
   Person,
+  PersonAvailability,
   Weekday,
   WeeklyOperatingHours,
 } from "./types";
 import { appStateRepository } from "./persistence/appStateRepository";
 import { APP_STATE_VERSION } from "./persistence/stateRepository";
+import {
+  createPersonAvailability,
+} from "./utils/availability";
 import { WEEKDAYS } from "./utils/operatingCalendar";
 import {
   createPerson,
@@ -84,6 +89,16 @@ function formatIntervals(intervals: OperatingInterval[]): string {
     .join(" · ");
 }
 
+function formatAvailabilityIntervals(
+  intervals: OperatingInterval[]
+): string {
+  if (intervals.length === 0) return "Indisponível";
+
+  return intervals
+    .map((interval) => `${interval.start}–${interval.end}`)
+    .join(" · ");
+}
+
 function todayKey(): string {
   const now = new Date();
   const local = new Date(
@@ -109,6 +124,9 @@ export default function App() {
     OperatingHoursException[]
   >([]);
   const [people, setPeople] = useState<Person[]>([]);
+  const [availabilities, setAvailabilities] = useState<
+    PersonAvailability[]
+  >([]);
   const [newPersonName, setNewPersonName] = useState("");
   const [editingPersonId, setEditingPersonId] = useState<string | null>(
     null
@@ -116,8 +134,12 @@ export default function App() {
   const [editingPersonName, setEditingPersonName] = useState("");
   const [personError, setPersonError] = useState("");
   const [activeSection, setActiveSection] = useState<
-    "calendar" | "people"
+    "calendar" | "people" | "availability"
   >("calendar");
+  const [
+    selectedAvailabilityPersonId,
+    setSelectedAvailabilityPersonId,
+  ] = useState<string | null>(null);
   const [persistenceReady, setPersistenceReady] = useState(false);
   const [persistenceStatus, setPersistenceStatus] = useState<
     "loading" | "saving" | "saved" | "error"
@@ -137,6 +159,7 @@ export default function App() {
           setWeeklyHours(persisted.weeklyOperatingHours);
           setExceptions(persisted.exceptions);
           setPeople(persisted.people);
+          setAvailabilities(persisted.availabilities);
         }
 
         setPersistenceReady(true);
@@ -169,6 +192,7 @@ export default function App() {
           weeklyOperatingHours: weeklyHours,
           exceptions,
           people,
+          availabilities,
         })
         .then(() => {
           if (requestId === saveRequestId.current) {
@@ -190,6 +214,7 @@ export default function App() {
     weeklyHours,
     exceptions,
     people,
+    availabilities,
   ]);
 
   const summary = useMemo(() => {
@@ -221,6 +246,37 @@ export default function App() {
     () => getActivePeople(people),
     [people]
   );
+
+  const selectedAvailabilityPerson =
+    activePeople.find(
+      (person) => person.id === selectedAvailabilityPersonId
+    ) ??
+    activePeople[0] ??
+    null;
+
+  const selectedAvailability = selectedAvailabilityPerson
+    ? availabilities.find(
+        (availability) =>
+          availability.personId === selectedAvailabilityPerson.id
+      ) ?? createPersonAvailability(selectedAvailabilityPerson.id)
+    : null;
+
+  const availabilitySummary = useMemo(() => {
+    if (!selectedAvailability) {
+      return {
+        availableDays: 0,
+        exceptions: 0,
+      };
+    }
+
+    return {
+      availableDays: WEEKDAYS.filter(
+        (weekday) =>
+          selectedAvailability.weeklyAvailability[weekday].length > 0
+      ).length,
+      exceptions: selectedAvailability.exceptions.length,
+    };
+  }, [selectedAvailability]);
 
   const updateDayInterval = (
     weekday: Weekday,
@@ -324,6 +380,10 @@ export default function App() {
       );
 
       setPeople((current) => [...current, person]);
+      setAvailabilities((current) => [
+        ...current,
+        createPersonAvailability(person.id),
+      ]);
       setNewPersonName("");
       setPersonError("");
     } catch (error) {
@@ -380,6 +440,153 @@ export default function App() {
     }
   };
 
+  const upsertAvailability = (
+    nextAvailability: PersonAvailability
+  ) => {
+    setAvailabilities((current) => {
+      const exists = current.some(
+        (availability) =>
+          availability.personId === nextAvailability.personId
+      );
+
+      if (!exists) {
+        return [...current, nextAvailability];
+      }
+
+      return current.map((availability) =>
+        availability.personId === nextAvailability.personId
+          ? nextAvailability
+          : availability
+      );
+    });
+  };
+
+  const toggleAvailabilityDay = (weekday: Weekday) => {
+    if (!selectedAvailability) return;
+
+    const currentIntervals =
+      selectedAvailability.weeklyAvailability[weekday];
+
+    const defaultInterval =
+      weeklyHours[weekday][0] ?? {
+        start: "09:00",
+        end: "18:00",
+      };
+
+    upsertAvailability({
+      ...selectedAvailability,
+      weeklyAvailability: {
+        ...selectedAvailability.weeklyAvailability,
+        [weekday]:
+          currentIntervals.length === 0
+            ? [{ ...defaultInterval }]
+            : [],
+      },
+    });
+  };
+
+  const updateAvailabilityInterval = (
+    weekday: Weekday,
+    field: "start" | "end",
+    value: string
+  ) => {
+    if (!selectedAvailability) return;
+
+    const existing =
+      selectedAvailability.weeklyAvailability[weekday][0] ?? {
+        start: "09:00",
+        end: "18:00",
+      };
+
+    const next =
+      field === "start"
+        ? {
+            start: value,
+            end: normalizeEnd(value, existing.end),
+          }
+        : {
+            start: existing.start,
+            end: value,
+          };
+
+    upsertAvailability({
+      ...selectedAvailability,
+      weeklyAvailability: {
+        ...selectedAvailability.weeklyAvailability,
+        [weekday]: [next],
+      },
+    });
+  };
+
+  const addAvailabilityException = () => {
+    if (!selectedAvailability) return;
+
+    upsertAvailability({
+      ...selectedAvailability,
+      exceptions: [
+        ...selectedAvailability.exceptions,
+        {
+          date: todayKey(),
+          intervals: [],
+        },
+      ],
+    });
+  };
+
+  const updateAvailabilityException = (
+    index: number,
+    next: AvailabilityException
+  ) => {
+    if (!selectedAvailability) return;
+
+    upsertAvailability({
+      ...selectedAvailability,
+      exceptions: selectedAvailability.exceptions.map(
+        (exception, currentIndex) =>
+          currentIndex === index ? next : exception
+      ),
+    });
+  };
+
+  const updateAvailabilityExceptionInterval = (
+    index: number,
+    exception: AvailabilityException,
+    field: "start" | "end",
+    value: string
+  ) => {
+    const existing = exception.intervals[0] ?? {
+      start: "09:00",
+      end: "18:00",
+    };
+
+    const nextInterval =
+      field === "start"
+        ? {
+            start: value,
+            end: normalizeEnd(value, existing.end),
+          }
+        : {
+            start: existing.start,
+            end: value,
+          };
+
+    updateAvailabilityException(index, {
+      ...exception,
+      intervals: [nextInterval],
+    });
+  };
+
+  const removeAvailabilityException = (index: number) => {
+    if (!selectedAvailability) return;
+
+    upsertAvailability({
+      ...selectedAvailability,
+      exceptions: selectedAvailability.exceptions.filter(
+        (_, currentIndex) => currentIndex !== index
+      ),
+    });
+  };
+
   return (
     <main className="app-shell">
       <header className="page-header">
@@ -388,7 +595,7 @@ export default function App() {
           <h1>Schedule Engine</h1>
           <p className="page-subtitle">
             Define a base que o motor irá usar continuamente:
-            funcionamento da operação e pessoas que podem ser escaladas.
+            funcionamento, pessoas e respetiva disponibilidade.
           </p>
         </div>
 
@@ -430,6 +637,18 @@ export default function App() {
         >
           <span>Pessoas</span>
           <small>Ponto 2</small>
+        </button>
+
+        <button
+          type="button"
+          className={`workspace-tab ${activeSection === "availability" ? "active" : ""}`}
+          onClick={() => setActiveSection("availability")}
+          aria-current={
+            activeSection === "availability" ? "page" : undefined
+          }
+        >
+          <span>Disponibilidade</span>
+          <small>Ponto 3</small>
         </button>
       </nav>
 
@@ -878,6 +1097,387 @@ export default function App() {
           </div>
         )}
           </section>
+        </>
+      )}
+
+      {activeSection === "availability" && (
+        <>
+          {activePeople.length === 0 ? (
+            <section className="panel availability-empty-panel">
+              <div className="people-empty">
+                <div className="empty-icon">◎</div>
+                <strong>Não existem pessoas ativas</strong>
+                <p>
+                  Adiciona ou reativa uma pessoa antes de configurar
+                  disponibilidade.
+                </p>
+              </div>
+            </section>
+          ) : (
+            <>
+              <section
+                className="overview-bar"
+                aria-label="Resumo de disponibilidade"
+              >
+                <div className="overview-item">
+                  <span>Pessoa</span>
+                  <strong>
+                    {selectedAvailabilityPerson?.name ?? "—"}
+                  </strong>
+                </div>
+                <div className="overview-item">
+                  <span>Dias disponíveis</span>
+                  <strong>
+                    {availabilitySummary.availableDays} / 7
+                  </strong>
+                </div>
+                <div className="overview-item">
+                  <span>Exceções</span>
+                  <strong>{availabilitySummary.exceptions}</strong>
+                </div>
+              </section>
+
+              <div className="availability-person-picker">
+                <label className="select-field">
+                  <span>Pessoa</span>
+                  <select
+                    value={
+                      selectedAvailabilityPerson?.id ?? ""
+                    }
+                    onChange={(event) =>
+                      setSelectedAvailabilityPersonId(
+                        event.target.value
+                      )
+                    }
+                  >
+                    {activePeople.map((person) => (
+                      <option
+                        key={person.id}
+                        value={person.id}
+                      >
+                        {person.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              {selectedAvailability && (
+                <div className="dashboard-grid">
+                  <section className="panel schedule-panel">
+                    <div className="panel-header">
+                      <div>
+                        <p className="section-kicker">Ponto 3</p>
+                        <h2>Disponibilidade semanal</h2>
+                      </div>
+                      <p className="panel-help">
+                        Quando esta pessoa pode ser escalada.
+                      </p>
+                    </div>
+
+                    <div className="schedule-table">
+                      <div
+                        className="schedule-head"
+                        aria-hidden="true"
+                      >
+                        <span>Dia</span>
+                        <span>Estado</span>
+                        <span>Início</span>
+                        <span>Fim</span>
+                      </div>
+
+                      {WEEKDAYS.map((weekday) => {
+                        const intervals =
+                          selectedAvailability
+                            .weeklyAvailability[weekday];
+                        const unavailable =
+                          intervals.length === 0;
+                        const interval = intervals[0];
+
+                        return (
+                          <div
+                            key={weekday}
+                            className={`schedule-row ${unavailable ? "is-closed" : ""}`}
+                          >
+                            <div className="day-name">
+                              <strong>
+                                {weekdayLabels[weekday]}
+                              </strong>
+                              <span>
+                                {formatAvailabilityIntervals(
+                                  intervals
+                                )}
+                              </span>
+                            </div>
+
+                            <button
+                              type="button"
+                              className={`state-button ${unavailable ? "closed" : "open"}`}
+                              onClick={() =>
+                                toggleAvailabilityDay(
+                                  weekday
+                                )
+                              }
+                            >
+                              <span className="state-dot" />
+                              {unavailable
+                                ? "Indisponível"
+                                : "Disponível"}
+                            </button>
+
+                            {!unavailable && interval ? (
+                              <>
+                                <label className="select-field">
+                                  <span className="sr-only">
+                                    Início de{" "}
+                                    {weekdayLabels[weekday]}
+                                  </span>
+                                  <select
+                                    value={interval.start}
+                                    onChange={(event) =>
+                                      updateAvailabilityInterval(
+                                        weekday,
+                                        "start",
+                                        event.target.value
+                                      )
+                                    }
+                                  >
+                                    {openingOptions.map(
+                                      (time) => (
+                                        <option
+                                          key={time}
+                                          value={time}
+                                        >
+                                          {time}
+                                        </option>
+                                      )
+                                    )}
+                                  </select>
+                                </label>
+
+                                <label className="select-field">
+                                  <span className="sr-only">
+                                    Fim de{" "}
+                                    {weekdayLabels[weekday]}
+                                  </span>
+                                  <select
+                                    value={interval.end}
+                                    onChange={(event) =>
+                                      updateAvailabilityInterval(
+                                        weekday,
+                                        "end",
+                                        event.target.value
+                                      )
+                                    }
+                                  >
+                                    {closingOptionsAfter(
+                                      interval.start
+                                    ).map((time) => (
+                                      <option
+                                        key={time}
+                                        value={time}
+                                      >
+                                        {time}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </label>
+                              </>
+                            ) : (
+                              <div className="closed-span">
+                                Não pode ser escalada
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </section>
+
+                  <aside className="panel exceptions-panel">
+                    <div className="panel-header compact">
+                      <div>
+                        <p className="section-kicker">
+                          Datas específicas
+                        </p>
+                        <h2>Exceções</h2>
+                      </div>
+                      <button
+                        type="button"
+                        className="primary-button"
+                        onClick={addAvailabilityException}
+                      >
+                        <span>+</span>
+                        Adicionar
+                      </button>
+                    </div>
+
+                    <p className="section-description">
+                      Altera a disponibilidade apenas numa data.
+                    </p>
+
+                    {selectedAvailability.exceptions
+                      .length === 0 ? (
+                      <div className="empty-state">
+                        <div className="empty-icon">◎</div>
+                        <strong>
+                          Nenhuma exceção definida
+                        </strong>
+                        <p>
+                          Aplica-se a disponibilidade
+                          semanal.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="exception-list">
+                        {selectedAvailability.exceptions.map(
+                          (exception, index) => {
+                            const unavailable =
+                              exception.intervals
+                                .length === 0;
+                            const interval =
+                              exception.intervals[0] ?? {
+                                start: "09:00",
+                                end: "18:00",
+                              };
+
+                            return (
+                              <article
+                                className="exception-card"
+                                key={index}
+                              >
+                                <div className="exception-topline">
+                                  <input
+                                    className="date-input"
+                                    type="date"
+                                    value={exception.date}
+                                    onChange={(event) =>
+                                      updateAvailabilityException(
+                                        index,
+                                        {
+                                          ...exception,
+                                          date: event.target
+                                            .value,
+                                        }
+                                      )
+                                    }
+                                  />
+
+                                  <button
+                                    type="button"
+                                    className="icon-button"
+                                    onClick={() =>
+                                      removeAvailabilityException(
+                                        index
+                                      )
+                                    }
+                                    aria-label="Remover exceção de disponibilidade"
+                                  >
+                                    ×
+                                  </button>
+                                </div>
+
+                                <div className="exception-controls">
+                                  <button
+                                    type="button"
+                                    className={`state-button ${unavailable ? "closed" : "open"}`}
+                                    onClick={() =>
+                                      updateAvailabilityException(
+                                        index,
+                                        {
+                                          ...exception,
+                                          intervals:
+                                            unavailable
+                                              ? [
+                                                  {
+                                                    start:
+                                                      "09:00",
+                                                    end:
+                                                      "18:00",
+                                                  },
+                                                ]
+                                              : [],
+                                        }
+                                      )
+                                    }
+                                  >
+                                    <span className="state-dot" />
+                                    {unavailable
+                                      ? "Indisponível"
+                                      : "Disponível"}
+                                  </button>
+
+                                  {!unavailable && (
+                                    <div className="exception-time-grid">
+                                      <label className="select-field">
+                                        <span>Início</span>
+                                        <select
+                                          value={
+                                            interval.start
+                                          }
+                                          onChange={(event) =>
+                                            updateAvailabilityExceptionInterval(
+                                              index,
+                                              exception,
+                                              "start",
+                                              event.target
+                                                .value
+                                            )
+                                          }
+                                        >
+                                          {openingOptions.map(
+                                            (time) => (
+                                              <option
+                                                key={time}
+                                                value={time}
+                                              >
+                                                {time}
+                                              </option>
+                                            )
+                                          )}
+                                        </select>
+                                      </label>
+
+                                      <label className="select-field">
+                                        <span>Fim</span>
+                                        <select
+                                          value={interval.end}
+                                          onChange={(event) =>
+                                            updateAvailabilityExceptionInterval(
+                                              index,
+                                              exception,
+                                              "end",
+                                              event.target
+                                                .value
+                                            )
+                                          }
+                                        >
+                                          {closingOptionsAfter(
+                                            interval.start
+                                          ).map((time) => (
+                                            <option
+                                              key={time}
+                                              value={time}
+                                            >
+                                              {time}
+                                            </option>
+                                          ))}
+                                        </select>
+                                      </label>
+                                    </div>
+                                  )}
+                                </div>
+                              </article>
+                            );
+                          }
+                        )}
+                      </div>
+                    )}
+                  </aside>
+                </div>
+              )}
+            </>
+          )}
         </>
       )}
     </main>
