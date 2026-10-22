@@ -7,11 +7,6 @@ export type Weekday =
   | "saturday"
   | "sunday";
 
-export interface SchedulePeriod {
-  startDate: string;
-  endDate: string;
-}
-
 export interface OperatingInterval {
   start: string;
   end: string;
@@ -27,8 +22,7 @@ export interface OperatingHoursException {
   intervals: OperatingInterval[];
 }
 
-export interface ScheduleConfiguration {
-  period: SchedulePeriod;
+export interface OperatingCalendarConfiguration {
   weeklyOperatingHours: WeeklyOperatingHours;
   exceptions: OperatingHoursException[];
 }
