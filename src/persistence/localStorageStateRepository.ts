@@ -1,11 +1,14 @@
 import type {
   AvailabilityException,
+  CoverageException,
+  CoverageRequirement,
   OperatingHoursException,
   Person,
   PersonAvailability,
   TimeInterval,
   Weekday,
   WeeklyAvailability,
+  WeeklyCoverage,
   WeeklyOperatingHours,
 } from "../types";
 import {
@@ -40,6 +43,14 @@ interface LegacyAppStateV1 {
   weeklyOperatingHours: WeeklyOperatingHours;
   exceptions: OperatingHoursException[];
   people: Person[];
+}
+
+interface LegacyAppStateV2 {
+  version: 2;
+  weeklyOperatingHours: WeeklyOperatingHours;
+  exceptions: OperatingHoursException[];
+  people: Person[];
+  availabilities: PersonAvailability[];
 }
 
 function isTimeInterval(
@@ -119,6 +130,54 @@ function isPersonAvailability(
   );
 }
 
+function isCoverageRequirement(
+  value: unknown
+): value is CoverageRequirement {
+  if (!isTimeInterval(value)) return false;
+
+  const requirement = value as unknown as Record<
+    string,
+    unknown
+  >;
+
+  return (
+    typeof requirement.minimumPeople === "number" &&
+    Number.isInteger(requirement.minimumPeople) &&
+    requirement.minimumPeople >= 0
+  );
+}
+
+function isWeeklyCoverage(
+  value: unknown
+): value is WeeklyCoverage {
+  if (!value || typeof value !== "object") return false;
+
+  const coverage = value as Record<string, unknown>;
+
+  return WEEKDAYS.every((weekday) => {
+    const requirements = coverage[weekday];
+
+    return (
+      Array.isArray(requirements) &&
+      requirements.every(isCoverageRequirement)
+    );
+  });
+}
+
+function isCoverageException(
+  value: unknown
+): value is CoverageException {
+  if (!value || typeof value !== "object") return false;
+
+  const exception = value as Record<string, unknown>;
+
+  return (
+    typeof exception.date === "string" &&
+    Array.isArray(exception.requirements) &&
+    exception.requirements.every(isCoverageRequirement)
+  );
+}
+
 function isLegacyAppStateV1(
   value: unknown
 ): value is LegacyAppStateV1 {
@@ -133,6 +192,25 @@ function isLegacyAppStateV1(
     state.exceptions.every(isOperatingException) &&
     Array.isArray(state.people) &&
     state.people.every(isPerson)
+  );
+}
+
+function isLegacyAppStateV2(
+  value: unknown
+): value is LegacyAppStateV2 {
+  if (!value || typeof value !== "object") return false;
+
+  const state = value as Record<string, unknown>;
+
+  return (
+    state.version === 2 &&
+    isWeeklyIntervals(state.weeklyOperatingHours) &&
+    Array.isArray(state.exceptions) &&
+    state.exceptions.every(isOperatingException) &&
+    Array.isArray(state.people) &&
+    state.people.every(isPerson) &&
+    Array.isArray(state.availabilities) &&
+    state.availabilities.every(isPersonAvailability)
   );
 }
 
@@ -151,7 +229,10 @@ export function isPersistedAppState(
     Array.isArray(state.people) &&
     state.people.every(isPerson) &&
     Array.isArray(state.availabilities) &&
-    state.availabilities.every(isPersonAvailability)
+    state.availabilities.every(isPersonAvailability) &&
+    isWeeklyCoverage(state.weeklyCoverage) &&
+    Array.isArray(state.coverageExceptions) &&
+    state.coverageExceptions.every(isCoverageException)
   );
 }
 
@@ -162,6 +243,16 @@ function emptyWeeklyAvailability(): WeeklyAvailability {
       return availability;
     },
     {} as WeeklyAvailability
+  );
+}
+
+function emptyWeeklyCoverage(): WeeklyCoverage {
+  return WEEKDAYS.reduce(
+    (coverage, weekday) => {
+      coverage[weekday] = [];
+      return coverage;
+    },
+    {} as WeeklyCoverage
   );
 }
 
@@ -178,6 +269,22 @@ function migrateV1(
       weeklyAvailability: emptyWeeklyAvailability(),
       exceptions: [],
     })),
+    weeklyCoverage: emptyWeeklyCoverage(),
+    coverageExceptions: [],
+  };
+}
+
+function migrateV2(
+  state: LegacyAppStateV2
+): PersistedAppState {
+  return {
+    version: APP_STATE_VERSION,
+    weeklyOperatingHours: state.weeklyOperatingHours,
+    exceptions: state.exceptions,
+    people: state.people,
+    availabilities: state.availabilities,
+    weeklyCoverage: emptyWeeklyCoverage(),
+    coverageExceptions: [],
   };
 }
 
@@ -199,7 +306,22 @@ export function createLocalStorageStateRepository(
       if (currentRaw) {
         const parsed = parseJson(currentRaw);
 
-        return isPersistedAppState(parsed) ? parsed : null;
+        if (isPersistedAppState(parsed)) {
+          return parsed;
+        }
+
+        if (isLegacyAppStateV2(parsed)) {
+          const migrated = migrateV2(parsed);
+
+          storage.setItem(
+            LOCAL_STORAGE_KEY,
+            JSON.stringify(migrated)
+          );
+
+          return migrated;
+        }
+
+        return null;
       }
 
       const legacyRaw = storage.getItem(
