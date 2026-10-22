@@ -2,7 +2,7 @@
 
 ## Ponto 1 — Calendário operacional
 
-Estado: **em validação**
+Estado: **fechado**
 
 - [x] horário semanal editável;
 - [x] dias fechados;
@@ -10,13 +10,18 @@ Estado: **em validação**
 - [x] resolução do horário efetivo de uma data;
 - [x] calendário contínuo sem janela global;
 - [x] testes básicos;
-- [x] interface reorganizada em formato de painel;
-- [ ] suportar múltiplos intervalos por dia na interface;
-- [ ] validar intervalos inválidos ou sobrepostos;
-- [ ] decidir persistência da configuração.
+- [x] interface em formato de painel;
+- [x] seleção de horas por dropdown.
+
+### Melhorias futuras não bloqueantes
+
+- múltiplos intervalos por dia na interface;
+- validação adicional de intervalos inválidos ou sobrepostos;
+- persistência da configuração;
+- controlo de permissões na aplicação consumidora.
+
+Estas melhorias não fazem parte do critério de conclusão do Ponto 1.
 
 ## Próximo ponto
 
-Não definido ainda.
-
-Será decidido apenas depois de validarmos o Ponto 1 na aplicação.
+A definir antes de nova implementação.
