@@ -2,11 +2,12 @@
 
 ## Estado atual
 
-O Schedule Engine tem agora três fundações independentes do algoritmo de geração:
+O Schedule Engine tem agora quatro fundações independentes do algoritmo de geração:
 
 1. calendário operacional contínuo;
 2. pessoas que podem participar em horários;
-3. disponibilidade temporal de cada pessoa.
+3. disponibilidade temporal de cada pessoa;
+4. cobertura mínima necessária da operação.
 
 ### Calendário operacional
 
@@ -82,6 +83,42 @@ Se a operação estiver fechada, ninguém é escalável nessa data, mesmo que ex
 
 A interface aplica a mesma regra: dias fechados ficam bloqueados e as horas selecionáveis ficam limitadas ao funcionamento da operação.
 
+### Cobertura necessária
+
+A cobertura define quantas pessoas são necessárias em cada período operacional:
+
+```ts
+interface CoverageRequirement extends TimeInterval {
+  minimumPeople: number;
+}
+
+type WeeklyCoverage = Record<
+  Weekday,
+  CoverageRequirement[]
+>;
+
+interface CoverageException {
+  date: string;
+  requirements: CoverageRequirement[];
+}
+```
+
+A cobertura semanal pode ter vários períodos no mesmo dia.
+
+Cobertura ausente não significa zero pessoas. `minimumPeople: 0` é uma decisão explícita; ausência de requisito durante um período operacional significa configuração incompleta.
+
+Os requisitos devem estar integralmente dentro do calendário operacional e não se devem sobrepor.
+
+`src/utils/coverage.ts` permite:
+
+- resolver requisitos por data;
+- consultar o mínimo de pessoas numa hora;
+- impedir cobertura efetiva quando a operação está fechada;
+- detetar sobreposições;
+- detetar períodos operacionais sem cobertura.
+
+As exceções por data substituem a cobertura semanal nessa data.
+
 ### Persistência da aplicação
 
 A persistência não pertence ao núcleo do Schedule Engine.
@@ -102,9 +139,11 @@ O estado persistido inclui:
 - horário semanal;
 - exceções de calendário;
 - pessoas;
-- disponibilidades.
+- disponibilidades;
+- cobertura semanal;
+- exceções de cobertura.
 
-O formato é versionado. A versão 2 introduz disponibilidades e migra automaticamente dados guardados na versão 1. A aplicação carrega automaticamente no arranque e grava automaticamente quando estes dados mudam.
+O formato é versionado. A versão 3 introduz cobertura e migra automaticamente estados v2; a migração v1 continua suportada. A aplicação carrega automaticamente no arranque e grava automaticamente quando estes dados mudam.
 
 Uma futura persistência por API/base de dados deverá implementar o mesmo contrato, sem introduzir dependências de storage no domínio.
 
@@ -118,7 +157,6 @@ A UI não define o domínio e não deve introduzir regras de scheduling.
 
 Ainda não existem:
 
-- cobertura;
 - turnos;
 - contratos;
 - horas de trabalho;
