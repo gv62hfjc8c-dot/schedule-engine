@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type {
   OperatingHoursException,
   OperatingInterval,
@@ -6,6 +6,8 @@ import type {
   Weekday,
   WeeklyOperatingHours,
 } from "./types";
+import { appStateRepository } from "./persistence/appStateRepository";
+import { APP_STATE_VERSION } from "./persistence/stateRepository";
 import { WEEKDAYS } from "./utils/operatingCalendar";
 import {
   createPerson,
@@ -116,6 +118,79 @@ export default function App() {
   const [activeSection, setActiveSection] = useState<
     "calendar" | "people"
   >("calendar");
+  const [persistenceReady, setPersistenceReady] = useState(false);
+  const [persistenceStatus, setPersistenceStatus] = useState<
+    "loading" | "saving" | "saved" | "error"
+  >("loading");
+  const saveRequestId = useRef(0);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadPersistedState() {
+      try {
+        const persisted = await appStateRepository.load();
+
+        if (cancelled) return;
+
+        if (persisted) {
+          setWeeklyHours(persisted.weeklyOperatingHours);
+          setExceptions(persisted.exceptions);
+          setPeople(persisted.people);
+        }
+
+        setPersistenceReady(true);
+        setPersistenceStatus("saved");
+      } catch {
+        if (cancelled) return;
+
+        setPersistenceReady(true);
+        setPersistenceStatus("error");
+      }
+    }
+
+    void loadPersistedState();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!persistenceReady) return;
+
+    const requestId = ++saveRequestId.current;
+    setPersistenceStatus("saving");
+
+    const timeoutId = window.setTimeout(() => {
+      void appStateRepository
+        .save({
+          version: APP_STATE_VERSION,
+          weeklyOperatingHours: weeklyHours,
+          exceptions,
+          people,
+        })
+        .then(() => {
+          if (requestId === saveRequestId.current) {
+            setPersistenceStatus("saved");
+          }
+        })
+        .catch(() => {
+          if (requestId === saveRequestId.current) {
+            setPersistenceStatus("error");
+          }
+        });
+    }, 250);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [
+    persistenceReady,
+    weeklyHours,
+    exceptions,
+    people,
+  ]);
 
   const summary = useMemo(() => {
     const openDays = WEEKDAYS.filter(
@@ -317,9 +392,22 @@ export default function App() {
           </p>
         </div>
 
-        <div className="status-badge">
-          <span className="status-dot" />
-          Fundação V0
+        <div className="header-statuses">
+          <div className="status-badge">
+            <span className="status-dot" />
+            Fundação V0
+          </div>
+
+          <div
+            className={`save-status ${persistenceStatus}`}
+            title="Estado da gravação local"
+          >
+            <span className="save-status-dot" />
+            {persistenceStatus === "loading" && "A carregar"}
+            {persistenceStatus === "saving" && "A guardar"}
+            {persistenceStatus === "saved" && "Guardado"}
+            {persistenceStatus === "error" && "Erro ao guardar"}
+          </div>
         </div>
       </header>
 
