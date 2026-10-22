@@ -3,6 +3,7 @@ import {
   getCoverageGaps,
   getCoverageGapsForDate,
   getRequiredPeopleAt,
+  getRequiredPeopleForOperationAt,
   hasOverlappingCoverage,
   isCoverageRequirementWithinOperation,
   setWeeklyCoverage,
@@ -186,6 +187,48 @@ if (
 ) {
   throw new Error(
     "Exceções de cobertura deveriam respeitar a operação efetiva"
+  );
+}
+
+const staleTuesdayCoverage = setWeeklyCoverage(
+  weeklyCoverage,
+  "tuesday",
+  [
+    {
+      start: "10:00",
+      end: "12:00",
+      minimumPeople: 4,
+    },
+  ]
+);
+
+if (
+  getRequiredPeopleForOperationAt(
+    "2026-10-27",
+    "11:00",
+    staleTuesdayCoverage,
+    [],
+    weeklyOperatingHours,
+    []
+  ) !== null
+) {
+  throw new Error(
+    "Não deve existir cobertura efetiva quando a operação está fechada"
+  );
+}
+
+if (
+  getRequiredPeopleForOperationAt(
+    "2026-10-26",
+    "13:00",
+    weeklyCoverage,
+    [],
+    weeklyOperatingHours,
+    []
+  ) !== 3
+) {
+  throw new Error(
+    "Cobertura efetiva deveria respeitar operação e configuração"
   );
 }
 
