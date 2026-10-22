@@ -1,13 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type {
   AvailabilityException,
+  CoverageException,
   OperatingHoursException,
   OperatingInterval,
   Person,
   PersonAvailability,
   Weekday,
+  WeeklyCoverage,
   WeeklyOperatingHours,
 } from "./types";
+import CoveragePanel from "./components/CoveragePanel";
 import { appStateRepository } from "./persistence/appStateRepository";
 import { APP_STATE_VERSION } from "./persistence/stateRepository";
 import {
@@ -18,6 +21,9 @@ import {
   getOperatingIntervalsForDate,
   WEEKDAYS,
 } from "./utils/operatingCalendar";
+import {
+  createEmptyWeeklyCoverage,
+} from "./utils/coverage";
 import {
   createPerson,
   getActivePeople,
@@ -161,6 +167,12 @@ export default function App() {
   const [availabilities, setAvailabilities] = useState<
     PersonAvailability[]
   >([]);
+  const [weeklyCoverage, setWeeklyCoverage] =
+    useState<WeeklyCoverage>(createEmptyWeeklyCoverage);
+  const [
+    coverageExceptions,
+    setCoverageExceptions,
+  ] = useState<CoverageException[]>([]);
   const [newPersonName, setNewPersonName] = useState("");
   const [editingPersonId, setEditingPersonId] = useState<string | null>(
     null
@@ -168,7 +180,7 @@ export default function App() {
   const [editingPersonName, setEditingPersonName] = useState("");
   const [personError, setPersonError] = useState("");
   const [activeSection, setActiveSection] = useState<
-    "calendar" | "people" | "availability"
+    "calendar" | "people" | "availability" | "coverage"
   >("calendar");
   const [
     selectedAvailabilityPersonId,
@@ -194,6 +206,10 @@ export default function App() {
           setExceptions(persisted.exceptions);
           setPeople(persisted.people);
           setAvailabilities(persisted.availabilities);
+          setWeeklyCoverage(persisted.weeklyCoverage);
+          setCoverageExceptions(
+            persisted.coverageExceptions
+          );
         }
 
         setPersistenceReady(true);
@@ -227,6 +243,8 @@ export default function App() {
           exceptions,
           people,
           availabilities,
+          weeklyCoverage,
+          coverageExceptions,
         })
         .then(() => {
           if (requestId === saveRequestId.current) {
@@ -249,6 +267,8 @@ export default function App() {
     exceptions,
     people,
     availabilities,
+    weeklyCoverage,
+    coverageExceptions,
   ]);
 
   const summary = useMemo(() => {
@@ -664,7 +684,7 @@ export default function App() {
           <h1>Schedule Engine</h1>
           <p className="page-subtitle">
             Define a base que o motor irá usar continuamente:
-            funcionamento, pessoas e respetiva disponibilidade.
+            funcionamento, pessoas, disponibilidade e cobertura necessária.
           </p>
         </div>
 
@@ -718,6 +738,18 @@ export default function App() {
         >
           <span>Disponibilidade</span>
           <small>Ponto 3</small>
+        </button>
+
+        <button
+          type="button"
+          className={`workspace-tab ${activeSection === "coverage" ? "active" : ""}`}
+          onClick={() => setActiveSection("coverage")}
+          aria-current={
+            activeSection === "coverage" ? "page" : undefined
+          }
+        >
+          <span>Cobertura</span>
+          <small>Ponto 4</small>
         </button>
       </nav>
 
@@ -1589,6 +1621,19 @@ export default function App() {
             </>
           )}
         </>
+      )}
+
+      {activeSection === "coverage" && (
+        <CoveragePanel
+          weeklyOperatingHours={weeklyHours}
+          operatingExceptions={exceptions}
+          weeklyCoverage={weeklyCoverage}
+          coverageExceptions={coverageExceptions}
+          onWeeklyCoverageChange={setWeeklyCoverage}
+          onCoverageExceptionsChange={
+            setCoverageExceptions
+          }
+        />
       )}
     </main>
   );
