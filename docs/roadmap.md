@@ -67,6 +67,36 @@ Estado: **fechado**
 - cobertura necessária;
 - geração de horários.
 
+## Ponto 4 — Cobertura necessária
+
+Estado: **em validação**
+
+- [x] cobertura semanal recorrente;
+- [x] múltiplos períodos de cobertura por dia;
+- [x] mínimo de pessoas por período;
+- [x] zero pessoas explícito distinto de cobertura ausente;
+- [x] exceções por data;
+- [x] cobertura limitada ao calendário operacional;
+- [x] deteção de períodos operacionais sem cobertura;
+- [x] deteção de sobreposições;
+- [x] consulta de cobertura efetiva por data e hora;
+- [x] interface em separador próprio;
+- [x] persistência automática;
+- [x] migração automática do estado v2 para v3;
+- [x] testes básicos.
+
+### Fora do Ponto 4
+
+- cargos ou competências;
+- cobertura por função;
+- limites máximos de pessoas;
+- contratos;
+- horas semanais;
+- descanso entre períodos;
+- preferências;
+- turnos;
+- geração automática.
+
 ## Próximo ponto
 
-A definir antes de iniciar o Ponto 4.
+A definir depois de validarmos o Ponto 4 na aplicação.
