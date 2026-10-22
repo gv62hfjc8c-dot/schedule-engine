@@ -92,4 +92,25 @@ if (p2Shift !== "C") {
 
 console.log("✓ generator respeita elegibilidade de turno");
 
+const pessoasWithoutEligibleShifts: Pessoa[] = [
+  {
+    id: "p1",
+    nome: "Pessoa 1",
+    eligibleShiftIds: [],
+  },
+];
+
+const noEligibleSchedule = generateSchedule(
+  pessoasWithoutEligibleShifts,
+  WEEK_START
+);
+
+if (Object.keys(noEligibleSchedule).length !== 0) {
+  throw new Error(
+    "Pessoa sem turnos elegíveis não deveria receber qualquer atribuição"
+  );
+}
+
+console.log("✓ generator não viola elegibilidade quando não existe solução");
+
 console.log("Generator V0: todos os testes passaram.");
