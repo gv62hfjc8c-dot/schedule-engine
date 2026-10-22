@@ -1,7 +1,6 @@
 import type {
   OperatingHoursException,
   OperatingInterval,
-  SchedulePeriod,
   Weekday,
   WeeklyOperatingHours,
 } from "../types";
@@ -37,29 +36,6 @@ function parseDate(date: string): Date {
   }
 
   return parsed;
-}
-
-export function getDatesInPeriod(
-  period: SchedulePeriod
-): string[] {
-  const start = parseDate(period.startDate);
-  const end = parseDate(period.endDate);
-
-  if (end < start) {
-    throw new Error(
-      "A data final do período não pode ser anterior à data inicial."
-    );
-  }
-
-  const dates: string[] = [];
-  const current = new Date(start);
-
-  while (current <= end) {
-    dates.push(current.toISOString().slice(0, 10));
-    current.setUTCDate(current.getUTCDate() + 1);
-  }
-
-  return dates;
 }
 
 export function getWeekday(date: string): Weekday {
