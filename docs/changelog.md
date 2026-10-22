@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-22 — Disponibilidade respeita calendário operacional
+
+- tempo escalável passa a ser a interseção entre funcionamento e disponibilidade;
+- dias fechados no calendário operacional ficam bloqueados na disponibilidade semanal;
+- exceções de disponibilidade respeitam o funcionamento efetivo da respetiva data;
+- seletores de horas ficam limitados ao intervalo operacional;
+- adicionados testes para operação fechada, limites horários e abertura excecional.
+
 ## 2026-10-22 — Ponto 3: Disponibilidade
 
 - introduzida disponibilidade semanal por pessoa;
