@@ -1,7 +1,9 @@
 import {
   createPersonAvailability,
   getAvailabilityIntervalsForDate,
+  getSchedulableIntervalsForDate,
   isAvailableForInterval,
+  isSchedulableForInterval,
   setAvailabilityExceptions,
   setWeeklyAvailability,
 } from "./utils/availability";
@@ -98,6 +100,94 @@ if (
   )
 ) {
   throw new Error("Fora da exceção deveria ser indisponível");
+}
+
+const weeklyOperatingHours = {
+  monday: [{ start: "10:00", end: "17:00" }],
+  tuesday: [{ start: "09:00", end: "18:00" }],
+  wednesday: [],
+  thursday: [],
+  friday: [],
+  saturday: [],
+  sunday: [],
+};
+
+const operationAwareAvailability = setWeeklyAvailability(
+  createPersonAvailability("p2"),
+  "monday",
+  [{ start: "09:00", end: "18:00" }]
+);
+
+const schedulableMonday = getSchedulableIntervalsForDate(
+  "2026-10-26",
+  operationAwareAvailability,
+  weeklyOperatingHours,
+  []
+);
+
+if (
+  schedulableMonday.length !== 1 ||
+  schedulableMonday[0]?.start !== "10:00" ||
+  schedulableMonday[0]?.end !== "17:00"
+) {
+  throw new Error(
+    "Tempo escalável deveria ser a interseção com o calendário operacional"
+  );
+}
+
+if (
+  isSchedulableForInterval(
+    "2026-10-26",
+    { start: "09:00", end: "10:00" },
+    operationAwareAvailability,
+    weeklyOperatingHours,
+    []
+  )
+) {
+  throw new Error(
+    "Não deveria ser escalável fora do horário operacional"
+  );
+}
+
+const sundayAvailability = setWeeklyAvailability(
+  createPersonAvailability("p3"),
+  "sunday",
+  [{ start: "09:00", end: "18:00" }]
+);
+
+if (
+  isSchedulableForInterval(
+    "2026-11-01",
+    { start: "10:00", end: "12:00" },
+    sundayAvailability,
+    weeklyOperatingHours,
+    []
+  )
+) {
+  throw new Error(
+    "Pessoa não pode ser escalada num dia em que a operação está fechada"
+  );
+}
+
+const sundayOpeningException = [
+  {
+    date: "2026-11-01",
+    intervals: [{ start: "10:00", end: "14:00" }],
+  },
+];
+
+if (
+  !isSchedulableForInterval(
+    "2026-11-01",
+    { start: "11:00", end: "13:00" },
+    sundayAvailability,
+    weeklyOperatingHours,
+    sundayOpeningException
+  )
+) {
+  throw new Error(
+    "Exceção operacional aberta deveria permitir interseção com disponibilidade"
+  );
 }
 
 console.log("Availability V0: todos os testes passaram.");
