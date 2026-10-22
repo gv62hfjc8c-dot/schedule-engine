@@ -2,15 +2,10 @@ import { useMemo, useState } from "react";
 import type {
   OperatingHoursException,
   OperatingInterval,
-  SchedulePeriod,
   Weekday,
   WeeklyOperatingHours,
 } from "./types";
-import {
-  getDatesInPeriod,
-  getOperatingIntervalsForDate,
-  WEEKDAYS,
-} from "./utils/operatingCalendar";
+import { WEEKDAYS } from "./utils/operatingCalendar";
 
 const weekdayLabels: Record<Weekday, string> = {
   monday: "Segunda",
@@ -20,11 +15,6 @@ const weekdayLabels: Record<Weekday, string> = {
   friday: "Sexta",
   saturday: "Sábado",
   sunday: "Domingo",
-};
-
-const initialPeriod: SchedulePeriod = {
-  startDate: "2026-10-26",
-  endDate: "2026-11-01",
 };
 
 const initialWeeklyOperatingHours: WeeklyOperatingHours = {
@@ -46,20 +36,44 @@ function formatIntervals(intervals: OperatingInterval[]): string {
 }
 
 export default function App() {
-  const [period, setPeriod] = useState<SchedulePeriod>(initialPeriod);
   const [weeklyHours, setWeeklyHours] =
     useState<WeeklyOperatingHours>(initialWeeklyOperatingHours);
   const [exceptions, setExceptions] = useState<
     OperatingHoursException[]
   >([]);
 
-  const dates = useMemo(() => {
-    try {
-      return getDatesInPeriod(period);
-    } catch {
-      return [];
-    }
-  }, [period]);
+  const summary = useMemo(() => {
+    const openDays = WEEKDAYS.filter(
+      (weekday) => weeklyHours[weekday].length > 0
+    ).length;
+
+    const totalWeeklyMinutes = WEEKDAYS.reduce((total, weekday) => {
+      return (
+        total +
+        weeklyHours[weekday].reduce((dayTotal, interval) => {
+          const [startHour, startMinute] = interval.start
+            .split(":")
+            .map(Number);
+          const [endHour, endMinute] = interval.end
+            .split(":")
+            .map(Number);
+
+          return (
+            dayTotal +
+            endHour * 60 +
+            endMinute -
+            (startHour * 60 + startMinute)
+          );
+        }, 0)
+      );
+    }, 0);
+
+    return {
+      openDays,
+      closedDays: 7 - openDays,
+      weeklyHours: Math.round((totalWeeklyMinutes / 60) * 10) / 10,
+    };
+  }, [weeklyHours]);
 
   const updateDayInterval = (
     weekday: Weekday,
@@ -74,12 +88,7 @@ export default function App() {
 
       return {
         ...current,
-        [weekday]: [
-          {
-            ...existing,
-            [field]: value,
-          },
-        ],
+        [weekday]: [{ ...existing, [field]: value }],
       };
     });
   };
@@ -95,14 +104,10 @@ export default function App() {
   };
 
   const addException = () => {
-    const firstDate = dates[0];
-
-    if (!firstDate) return;
-
     setExceptions((current) => [
       ...current,
       {
-        date: firstDate,
+        date: new Date().toISOString().slice(0, 10),
         intervals: [],
       },
     ]);
@@ -126,297 +131,223 @@ export default function App() {
   };
 
   return (
-    <main
-      style={{
-        maxWidth: 1040,
-        margin: "0 auto",
-        padding: 32,
-        fontFamily: "Arial, sans-serif",
-      }}
-    >
-      <h1>Schedule Engine</h1>
-
-      <p>
-        Fundação V0 — período de planeamento e horário de funcionamento.
-      </p>
-
-      <section style={sectionStyle}>
-        <h2>1. Período de planeamento</h2>
-
-        <div style={rowStyle}>
-          <label>
-            Data inicial
-            <input
-              type="date"
-              value={period.startDate}
-              onChange={(event) =>
-                setPeriod((current) => ({
-                  ...current,
-                  startDate: event.target.value,
-                }))
-              }
-              style={inputStyle}
-            />
-          </label>
-
-          <label>
-            Data final
-            <input
-              type="date"
-              value={period.endDate}
-              onChange={(event) =>
-                setPeriod((current) => ({
-                  ...current,
-                  endDate: event.target.value,
-                }))
-              }
-              style={inputStyle}
-            />
-          </label>
-        </div>
-
-        {dates.length === 0 ? (
-          <p style={{ color: "#a00" }}>
-            O período definido não é válido.
+    <main className="app-shell">
+      <header className="page-header">
+        <div>
+          <p className="eyebrow">Configuração</p>
+          <h1>Schedule Engine</h1>
+          <p className="page-subtitle">
+            Define o calendário operacional base. O motor usa esta
+            configuração continuamente ao longo do tempo.
           </p>
-        ) : (
-          <p>{dates.length} dia(s) no período.</p>
-        )}
+        </div>
+
+        <div className="status-badge">Fundação V0</div>
+      </header>
+
+      <section className="summary-grid" aria-label="Resumo">
+        <article className="summary-card">
+          <span>Dias abertos</span>
+          <strong>{summary.openDays}</strong>
+        </article>
+        <article className="summary-card">
+          <span>Dias fechados</span>
+          <strong>{summary.closedDays}</strong>
+        </article>
+        <article className="summary-card">
+          <span>Horas semanais</span>
+          <strong>{summary.weeklyHours}h</strong>
+        </article>
+        <article className="summary-card">
+          <span>Exceções</span>
+          <strong>{exceptions.length}</strong>
+        </article>
       </section>
 
-      <section style={sectionStyle}>
-        <h2>2. Horário semanal padrão</h2>
+      <div className="dashboard-grid">
+        <section className="panel">
+          <div className="panel-header">
+            <div>
+              <p className="section-kicker">Padrão semanal</p>
+              <h2>Horário de funcionamento</h2>
+            </div>
+            <p className="panel-help">
+              Cada dia pode estar aberto ou fechado.
+            </p>
+          </div>
 
-        <p>
-          Esta configuração pertence à empresa/aplicação. O motor apenas a
-          recebe e utiliza.
-        </p>
+          <div className="week-list">
+            {WEEKDAYS.map((weekday) => {
+              const intervals = weeklyHours[weekday];
+              const closed = intervals.length === 0;
+              const interval = intervals[0];
 
-        <div style={{ display: "grid", gap: 12 }}>
-          {WEEKDAYS.map((weekday) => {
-            const intervals = weeklyHours[weekday];
-            const closed = intervals.length === 0;
-            const interval = intervals[0];
-
-            return (
-              <div
-                key={weekday}
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "120px 100px 1fr",
-                  gap: 12,
-                  alignItems: "center",
-                }}
-              >
-                <strong>{weekdayLabels[weekday]}</strong>
-
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={closed}
-                    onChange={() => toggleClosed(weekday)}
-                  />{" "}
-                  Fechado
-                </label>
-
-                {!closed && interval && (
-                  <div style={rowStyle}>
-                    <input
-                      type="time"
-                      value={interval.start}
-                      onChange={(event) =>
-                        updateDayInterval(
-                          weekday,
-                          "start",
-                          event.target.value
-                        )
-                      }
-                    />
-                    <span>até</span>
-                    <input
-                      type="time"
-                      value={interval.end}
-                      onChange={(event) =>
-                        updateDayInterval(
-                          weekday,
-                          "end",
-                          event.target.value
-                        )
-                      }
-                    />
+              return (
+                <div
+                  key={weekday}
+                  className={`day-row ${closed ? "is-closed" : ""}`}
+                >
+                  <div className="day-name">
+                    <strong>{weekdayLabels[weekday]}</strong>
+                    <span>{formatIntervals(intervals)}</span>
                   </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </section>
 
-      <section style={sectionStyle}>
-        <h2>3. Exceções por data</h2>
-
-        <p>
-          Uma exceção substitui o horário semanal dessa data. Por agora,
-          pode marcar o dia como fechado ou definir um único intervalo.
-        </p>
-
-        <button onClick={addException} disabled={dates.length === 0}>
-          Adicionar exceção
-        </button>
-
-        <div style={{ display: "grid", gap: 12, marginTop: 16 }}>
-          {exceptions.map((exception, index) => {
-            const closed = exception.intervals.length === 0;
-            const interval = exception.intervals[0] ?? {
-              start: "09:00",
-              end: "18:00",
-            };
-
-            return (
-              <div
-                key={index}
-                style={{
-                  display: "flex",
-                  gap: 10,
-                  alignItems: "center",
-                  flexWrap: "wrap",
-                }}
-              >
-                <input
-                  type="date"
-                  value={exception.date}
-                  onChange={(event) =>
-                    updateException(index, {
-                      ...exception,
-                      date: event.target.value,
-                    })
-                  }
-                />
-
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={closed}
-                    onChange={() =>
-                      updateException(index, {
-                        ...exception,
-                        intervals: closed
-                          ? [{ start: "09:00", end: "18:00" }]
-                          : [],
-                      })
-                    }
-                  />{" "}
-                  Fechado
-                </label>
-
-                {!closed && (
-                  <>
+                  <label className="closed-toggle">
                     <input
-                      type="time"
-                      value={interval.start}
-                      onChange={(event) =>
-                        updateException(index, {
-                          ...exception,
-                          intervals: [
-                            {
-                              ...interval,
-                              start: event.target.value,
-                            },
-                          ],
-                        })
-                      }
+                      type="checkbox"
+                      checked={closed}
+                      onChange={() => toggleClosed(weekday)}
                     />
-                    <span>até</span>
-                    <input
-                      type="time"
-                      value={interval.end}
-                      onChange={(event) =>
-                        updateException(index, {
-                          ...exception,
-                          intervals: [
-                            {
-                              ...interval,
-                              end: event.target.value,
-                            },
-                          ],
-                        })
-                      }
-                    />
-                  </>
-                )}
+                    Fechado
+                  </label>
 
-                <button onClick={() => removeException(index)}>
-                  Remover
-                </button>
-              </div>
-            );
-          })}
-        </div>
-      </section>
+                  <div className="time-editor">
+                    {!closed && interval ? (
+                      <>
+                        <input
+                          type="time"
+                          value={interval.start}
+                          onChange={(event) =>
+                            updateDayInterval(
+                              weekday,
+                              "start",
+                              event.target.value
+                            )
+                          }
+                        />
+                        <span>—</span>
+                        <input
+                          type="time"
+                          value={interval.end}
+                          onChange={(event) =>
+                            updateDayInterval(
+                              weekday,
+                              "end",
+                              event.target.value
+                            )
+                          }
+                        />
+                      </>
+                    ) : (
+                      <span className="closed-label">
+                        Sem funcionamento
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
 
-      <section style={sectionStyle}>
-        <h2>Calendário operacional resultante</h2>
+        <aside className="panel exceptions-panel">
+          <div className="panel-header">
+            <div>
+              <p className="section-kicker">Datas especiais</p>
+              <h2>Exceções</h2>
+            </div>
+            <button className="primary-button" onClick={addException}>
+              + Adicionar
+            </button>
+          </div>
 
-        {dates.length > 0 && (
-          <table
-            style={{
-              width: "100%",
-              borderCollapse: "collapse",
-            }}
-          >
-            <thead>
-              <tr>
-                <th style={cellStyle}>Data</th>
-                <th style={cellStyle}>Funcionamento</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {dates.map((date) => {
-                const intervals = getOperatingIntervalsForDate(
-                  date,
-                  weeklyHours,
-                  exceptions
-                );
+          {exceptions.length === 0 ? (
+            <div className="empty-state">
+              <strong>Sem exceções</strong>
+              <p>
+                Usa exceções para feriados, encerramentos ou horários
+                especiais.
+              </p>
+            </div>
+          ) : (
+            <div className="exception-list">
+              {exceptions.map((exception, index) => {
+                const closed = exception.intervals.length === 0;
+                const interval = exception.intervals[0] ?? {
+                  start: "09:00",
+                  end: "18:00",
+                };
 
                 return (
-                  <tr key={date}>
-                    <td style={cellStyle}>{date}</td>
-                    <td style={cellStyle}>
-                      {formatIntervals(intervals)}
-                    </td>
-                  </tr>
+                  <article className="exception-card" key={index}>
+                    <div className="exception-topline">
+                      <input
+                        type="date"
+                        value={exception.date}
+                        onChange={(event) =>
+                          updateException(index, {
+                            ...exception,
+                            date: event.target.value,
+                          })
+                        }
+                      />
+
+                      <button
+                        className="ghost-button"
+                        onClick={() => removeException(index)}
+                      >
+                        Remover
+                      </button>
+                    </div>
+
+                    <label className="closed-toggle">
+                      <input
+                        type="checkbox"
+                        checked={closed}
+                        onChange={() =>
+                          updateException(index, {
+                            ...exception,
+                            intervals: closed
+                              ? [{ start: "09:00", end: "18:00" }]
+                              : [],
+                          })
+                        }
+                      />
+                      Fechado
+                    </label>
+
+                    {!closed && (
+                      <div className="exception-times">
+                        <input
+                          type="time"
+                          value={interval.start}
+                          onChange={(event) =>
+                            updateException(index, {
+                              ...exception,
+                              intervals: [
+                                {
+                                  ...interval,
+                                  start: event.target.value,
+                                },
+                              ],
+                            })
+                          }
+                        />
+                        <span>até</span>
+                        <input
+                          type="time"
+                          value={interval.end}
+                          onChange={(event) =>
+                            updateException(index, {
+                              ...exception,
+                              intervals: [
+                                {
+                                  ...interval,
+                                  end: event.target.value,
+                                },
+                              ],
+                            })
+                          }
+                        />
+                      </div>
+                    )}
+                  </article>
                 );
               })}
-            </tbody>
-          </table>
-        )}
-      </section>
+            </div>
+          )}
+        </aside>
+      </div>
     </main>
   );
 }
-
-const sectionStyle = {
-  marginTop: 28,
-  padding: 20,
-  border: "1px solid #ddd",
-  borderRadius: 8,
-};
-
-const rowStyle = {
-  display: "flex",
-  gap: 12,
-  alignItems: "center",
-  flexWrap: "wrap" as const,
-};
-
-const inputStyle = {
-  display: "block",
-  marginTop: 6,
-};
-
-const cellStyle = {
-  border: "1px solid #ddd",
-  padding: 10,
-  textAlign: "left" as const,
-};
