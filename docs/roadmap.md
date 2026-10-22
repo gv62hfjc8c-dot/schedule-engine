@@ -1,16 +1,16 @@
 # Roadmap
 
-## Ponto 1 — Fundação temporal
+## Ponto 1 — Calendário operacional
 
-Estado: **em implementação**
+Estado: **em validação**
 
-- [x] período de planeamento;
-- [x] datas de calendário explícitas;
 - [x] horário semanal editável;
 - [x] dias fechados;
 - [x] exceções por data;
-- [x] resolução do calendário operacional;
+- [x] resolução do horário efetivo de uma data;
+- [x] calendário contínuo sem janela global;
 - [x] testes básicos;
+- [x] interface reorganizada em formato de painel;
 - [ ] suportar múltiplos intervalos por dia na interface;
 - [ ] validar intervalos inválidos ou sobrepostos;
 - [ ] decidir persistência da configuração.
