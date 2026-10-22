@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-10-22 — Refinamento visual e seleção de horas
+
+- substituída a introdução manual de horas por dropdowns em intervalos de 15 minutos;
+- fecho disponível apenas depois da hora de abertura;
+- seleção automática de um fecho válido quando a abertura muda;
+- reorganizada a grelha semanal em colunas Dia / Estado / Abertura / Fecho;
+- simplificados os indicadores de resumo;
+- refinado o painel de exceções e os estados aberto/fechado.
+
 ## 2026-10-22 — Calendário operacional contínuo
 
 - removido o conceito de período de planeamento global;
