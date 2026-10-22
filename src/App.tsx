@@ -1412,14 +1412,25 @@ export default function App() {
                       <div className="exception-list">
                         {selectedAvailability.exceptions.map(
                           (exception, index) => {
+                            const operatingIntervals =
+                              getOperatingIntervalsForDate(
+                                exception.date,
+                                weeklyHours,
+                                exceptions
+                              );
+                            const operatingInterval =
+                              operatingIntervals[0];
+                            const operationClosed =
+                              operatingIntervals.length === 0;
+                            const effectiveIntervals =
+                              intersectIntervals(
+                                exception.intervals,
+                                operatingIntervals
+                              );
                             const unavailable =
-                              exception.intervals
-                                .length === 0;
+                              effectiveIntervals.length === 0;
                             const interval =
-                              exception.intervals[0] ?? {
-                                start: "09:00",
-                                end: "18:00",
-                              };
+                              effectiveIntervals[0];
 
                             return (
                               <article
@@ -1436,8 +1447,7 @@ export default function App() {
                                         index,
                                         {
                                           ...exception,
-                                          date: event.target
-                                            .value,
+                                          date: event.target.value,
                                         }
                                       )
                                     }
@@ -1461,19 +1471,23 @@ export default function App() {
                                   <button
                                     type="button"
                                     className={`state-button ${unavailable ? "closed" : "open"}`}
+                                    disabled={operationClosed}
+                                    title={
+                                      operationClosed
+                                        ? "A operação está fechada nesta data."
+                                        : undefined
+                                    }
                                     onClick={() =>
                                       updateAvailabilityException(
                                         index,
                                         {
                                           ...exception,
                                           intervals:
-                                            unavailable
+                                            unavailable &&
+                                            operatingInterval
                                               ? [
                                                   {
-                                                    start:
-                                                      "09:00",
-                                                    end:
-                                                      "18:00",
+                                                    ...operatingInterval,
                                                   },
                                                 ]
                                               : [],
@@ -1482,39 +1496,84 @@ export default function App() {
                                     }
                                   >
                                     <span className="state-dot" />
-                                    {unavailable
-                                      ? "Indisponível"
-                                      : "Disponível"}
+                                    {operationClosed
+                                      ? "Empresa fechada"
+                                      : unavailable
+                                        ? "Indisponível"
+                                        : "Disponível"}
                                   </button>
 
-                                  {!unavailable && (
-                                    <div className="exception-time-grid">
-                                      <label className="select-field">
-                                        <span>Início</span>
-                                        <select
-                                          value={
-                                            interval.start
-                                          }
-                                          onChange={(event) =>
-                                            updateAvailabilityExceptionInterval(
-                                              index,
-                                              exception,
-                                              "start",
-                                              event.target
-                                                .value
-                                            )
-                                          }
-                                        >
-                                          {openingOptions.map(
-                                            (time) => (
+                                  {operationClosed && (
+                                    <p className="operation-closed-note">
+                                      O calendário operacional não permite
+                                      trabalho nesta data.
+                                    </p>
+                                  )}
+
+                                  {!operationClosed &&
+                                    !unavailable &&
+                                    interval &&
+                                    operatingInterval && (
+                                      <div className="exception-time-grid">
+                                        <label className="select-field">
+                                          <span>Início</span>
+                                          <select
+                                            value={interval.start}
+                                            onChange={(event) =>
+                                              updateAvailabilityExceptionInterval(
+                                                index,
+                                                exception,
+                                                "start",
+                                                event.target.value
+                                              )
+                                            }
+                                          >
+                                            {openingOptionsWithin(
+                                              operatingInterval
+                                            ).map((time) => (
                                               <option
                                                 key={time}
                                                 value={time}
                                               >
                                                 {time}
                                               </option>
-                                            )
-                                          )}
+                                            ))}
+                                          </select>
+                                        </label>
+
+                                        <label className="select-field">
+                                          <span>Fim</span>
+                                          <select
+                                            value={interval.end}
+                                            onChange={(event) =>
+                                              updateAvailabilityExceptionInterval(
+                                                index,
+                                                exception,
+                                                "end",
+                                                event.target.value
+                                              )
+                                            }
+                                          >
+                                            {closingOptionsWithin(
+                                              interval.start,
+                                              operatingInterval
+                                            ).map((time) => (
+                                              <option
+                                                key={time}
+                                                value={time}
+                                              >
+                                                {time}
+                                              </option>
+                                            ))}
+                                          </select>
+                                        </label>
+                                      </div>
+                                    )}
+                                </div>
+                              </article>
+                            );
+                          }
+                        )}
                                         </select>
                                       </label>
 
