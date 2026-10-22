@@ -2,30 +2,32 @@
 
 ## Estado atual
 
-O Schedule Engine está intencionalmente reduzido à fundação temporal do domínio.
+O Schedule Engine está intencionalmente reduzido ao calendário operacional contínuo.
 
 ### Tipos
 
 `src/types.ts` contém:
 
-- `SchedulePeriod`
 - `OperatingInterval`
 - `WeeklyOperatingHours`
 - `OperatingHoursException`
-- `ScheduleConfiguration`
+- `OperatingCalendarConfiguration`
 
 ### Calendário operacional
 
 `src/utils/operatingCalendar.ts` contém funções puras para:
 
-- expandir um período em datas;
 - descobrir o dia da semana de uma data;
 - resolver o horário efetivo de uma data;
-- aplicar exceções sobre o horário semanal padrão.
+- aplicar exceções sobre o padrão semanal.
+
+Não existe um período global de planeamento.
+
+A configuração existe continuamente ao longo do tempo. Um intervalo temporal futuro será responsabilidade da operação que consultar ou gerar horários, não da configuração base do motor.
 
 ### Interface
 
-`src/App.tsx` é apenas uma ferramenta visual para editar e observar esta configuração.
+`src/App.tsx` é uma ferramenta visual para editar e observar esta configuração.
 
 A UI não é o motor.
 
