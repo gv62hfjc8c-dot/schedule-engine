@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-22 — Ponto 1 fechado
+
+- calendário operacional considerado funcionalmente concluído;
+- melhorias de múltiplos intervalos, validação adicional e persistência passam para backlog;
+- próximo conceito do motor será definido antes de nova implementação.
+
 ## 2026-10-22 — Refinamento visual e seleção de horas
 
 - substituída a introdução manual de horas por dropdowns em intervalos de 15 minutos;
