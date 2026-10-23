@@ -48,12 +48,16 @@ export default function WorkRulesPanel({
   const duration =
     workRules.standardShiftDurationMinutes;
 
-  const configured =
-    isValidShiftDurationMinutes(duration);
+  const validDuration =
+    isValidShiftDurationMinutes(duration)
+      ? duration
+      : null;
+  const configured = validDuration !== null;
 
-  const durationHours = configured
-    ? duration / 60
-    : "";
+  const durationHours =
+    validDuration !== null
+      ? validDuration / 60
+      : "";
 
   const setDurationHours = (
     rawValue: string
@@ -90,11 +94,11 @@ export default function WorkRulesPanel({
         return (
           createOpeningShift(
             intervals,
-            duration
+            validDuration
           ) !== null &&
           createClosingShift(
             intervals,
-            duration
+            validDuration
           ) !== null
         );
       })
@@ -110,7 +114,7 @@ export default function WorkRulesPanel({
           <span>Duração padrão</span>
           <strong>
             {configured
-              ? formatDuration(duration)
+              ? formatDuration(validDuration)
               : "Não configurada"}
           </strong>
         </div>
@@ -235,12 +239,12 @@ export default function WorkRulesPanel({
                 const opening =
                   createOpeningShift(
                     intervals,
-                    duration
+                    validDuration
                   );
                 const closing =
                   createClosingShift(
                     intervals,
-                    duration
+                    validDuration
                   );
 
                 const compatible =
