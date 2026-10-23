@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-10-23 — Ponto 4 fechado
+
+- regras de trabalho validadas funcionalmente na aplicação;
+- turnos contínuos confirmados;
+- ajuste automático em dias mais curtos confirmado;
+- testes de calendário, pessoas, disponibilidade, regras de trabalho e persistência aprovados localmente;
+- typecheck aprovado localmente;
+- Ponto 4 considerado concluído.
+
 ## 2026-10-23 — Ajuste de duração em dias curtos
 
 - duração padrão passa a representar a duração normal pretendida;
