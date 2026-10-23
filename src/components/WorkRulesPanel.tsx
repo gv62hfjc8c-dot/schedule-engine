@@ -53,6 +53,8 @@ export default function WorkRulesPanel({
       ? duration
       : null;
   const configured = validDuration !== null;
+  const durationForPreview =
+    validDuration ?? 0;
 
   const durationHours =
     validDuration !== null
@@ -94,11 +96,11 @@ export default function WorkRulesPanel({
         return (
           createOpeningShift(
             intervals,
-            validDuration
+            durationForPreview
           ) !== null &&
           createClosingShift(
             intervals,
-            validDuration
+            durationForPreview
           ) !== null
         );
       })
@@ -114,7 +116,7 @@ export default function WorkRulesPanel({
           <span>Duração padrão</span>
           <strong>
             {configured
-              ? formatDuration(validDuration)
+              ? formatDuration(durationForPreview)
               : "Não configurada"}
           </strong>
         </div>
@@ -239,12 +241,12 @@ export default function WorkRulesPanel({
                 const opening =
                   createOpeningShift(
                     intervals,
-                    validDuration
+                    durationForPreview
                   );
                 const closing =
                   createClosingShift(
                     intervals,
-                    validDuration
+                    durationForPreview
                   );
 
                 const compatible =
