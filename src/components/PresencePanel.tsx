@@ -1,5 +1,7 @@
 import type {
   OperatingHoursException,
+  Person,
+  PersonAvailability,
   PresenceException,
   PresenceRequirement,
   Weekday,
@@ -7,11 +9,17 @@ import type {
   WeeklyPresenceRequirements,
 } from "../types";
 import { getOperatingIntervalsForDate, getWeekday, WEEKDAYS } from "../utils/operatingCalendar";
-import { isPresenceRequirementValid } from "../utils/presence";
+import {
+  checkPresenceAvailabilityCapacity,
+  isPresenceRequirementValid,
+} from "../utils/presence";
+import { getAvailabilityIntervalsForDate } from "../utils/availability";
 
 interface PresencePanelProps {
   weeklyOperatingHours: WeeklyOperatingHours;
   operatingExceptions: OperatingHoursException[];
+  people: Person[];
+  availabilities: PersonAvailability[];
   weeklyRequirements: WeeklyPresenceRequirements;
   exceptions: PresenceException[];
   onWeeklyChange: (next: WeeklyPresenceRequirements) => void;
@@ -121,11 +129,18 @@ function safeOperationalIntervals(
 export default function PresencePanel({
   weeklyOperatingHours,
   operatingExceptions,
+  people,
+  availabilities,
   weeklyRequirements,
   exceptions,
   onWeeklyChange,
   onExceptionsChange,
 }: PresencePanelProps) {
+  const activePeople = people.filter((person) => person.active);
+  const availabilityById = new Map(
+    availabilities.map((availability) => [availability.personId, availability])
+  );
+
   const openDays = WEEKDAYS.filter(
     (day) => weeklyOperatingHours[day].length > 0
   );
@@ -208,6 +223,16 @@ export default function PresencePanel({
             const requirement = weeklyRequirements[day];
             const valid = requirement !== null &&
               isPresenceRequirementValid(requirement);
+            const capacity = valid && activePeople.length > 0
+              ? checkPresenceAvailabilityCapacity(
+                  weeklyOperatingHours[day],
+                  requirement!,
+                  activePeople.map((person) =>
+                    availabilityById.get(person.id)?.weeklyAvailability[day] ?? []
+                  )
+                )
+              : null;
+            const shortage = capacity?.shortages[0];
 
             return (
               <article className={`presence-day ${closed ? "is-closed" : ""}`} key={day}>
@@ -259,6 +284,15 @@ export default function PresencePanel({
                       <p className="presence-validation" role="alert">
                         Abertura e fecho devem ser iguais ou superiores
                         ao mínimo durante a operação.
+                      </p>
+                    )}
+                    {shortage && (
+                      <p className="presence-capacity-note">
+                        Disponibilidade insuficiente entre
+                        {" "}{shortage.interval.start}–{shortage.interval.end}:
+                        {" "}{shortage.actual} elegíveis para
+                        {" "}{shortage.required} necessários.
+                        Verificação preliminar, não é uma simulação de turnos.
                       </p>
                     )}
                     {valid && requirement.minimumAtOpening === 0 &&
@@ -315,6 +349,24 @@ export default function PresencePanel({
               const closed = operatingIntervals?.length === 0;
               const validRequirement = exception.requirements !== null &&
                 isPresenceRequirementValid(exception.requirements);
+              const capacity = validRequirement &&
+                operatingIntervals !== null &&
+                operatingIntervals.length > 0 &&
+                activePeople.length > 0
+                  ? checkPresenceAvailabilityCapacity(
+                      operatingIntervals,
+                      exception.requirements!,
+                      activePeople.map((person) => {
+                        const availability = availabilityById.get(person.id);
+                        return availability
+                          ? getAvailabilityIntervalsForDate(
+                              exception.date, availability
+                            )
+                          : [];
+                      })
+                    )
+                  : null;
+              const shortage = capacity?.shortages[0];
               return (
                 <article className="presence-exception" key={index}>
                   <div className="presence-exception-top">
@@ -388,6 +440,15 @@ export default function PresencePanel({
                             Abertura e fecho não podem ficar abaixo do mínimo operacional.
                           </p>
                         )}
+                        {shortage && (
+                          <p className="presence-capacity-note">
+                            Disponibilidade insuficiente entre
+                            {" "}{shortage.interval.start}–{shortage.interval.end}:
+                            {" "}{shortage.actual} elegíveis para
+                            {" "}{shortage.required} necessários.
+                            Verificação preliminar.
+                          </p>
+                        )}
                         <button
                           className="presence-text-button"
                           type="button"
@@ -408,8 +469,9 @@ export default function PresencePanel({
       </section>
       <p className="presence-disclaimer">
         Configurar mínimos não significa que já exista um horário viável.
-        A verificação de disponibilidades, regras de trabalho e
-        atribuições concretas será integrada no gerador.
+        A verificação preliminar de disponibilidade só deteta
+        insuficiências evidentes; não demonstra viabilidade de turnos.
+        A validação integral será integrada no gerador.
       </p>
     </>
   );
