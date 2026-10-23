@@ -1071,26 +1071,23 @@ h2 {
 
 .work-preview-list {
   display: grid;
-  border-top: 1px solid #edf0f4;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  padding: 0 22px 20px;
 }
 
 .work-preview-row {
   display: grid;
   gap: 10px;
-  padding: 14px 22px;
-  border-top: 1px solid #edf0f4;
-}
-
-.work-preview-row:first-child {
-  border-top: 0;
+  min-width: 0;
+  border: 1px solid #e3e7ed;
+  border-radius: 12px;
+  background: #fcfdfe;
+  padding: 12px;
 }
 
 .work-preview-row.is-closed {
   background: #fcfcfd;
-}
-
-.work-preview-row.is-invalid {
-  background: #fdfaf5;
 }
 
 .work-preview-day strong {
@@ -1109,6 +1106,10 @@ h2 {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
+}
+
+.work-preview-shifts.is-single {
+  grid-template-columns: 1fr;
 }
 
 .work-preview-shifts > span {
@@ -1155,6 +1156,10 @@ h2 {
 
   .work-duration-field {
     width: 100%;
+  }
+
+  .work-preview-list {
+    grid-template-columns: 1fr;
   }
 }
 
