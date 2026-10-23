@@ -69,7 +69,7 @@ Estado: **fechado**
 
 ## Ponto 4 — Regras de trabalho e turnos contínuos
 
-Estado: **em validação**
+Estado: **fechado**
 
 - [x] duração padrão de turno configurável;
 - [x] ausência de duração tratada como configuração incompleta;
