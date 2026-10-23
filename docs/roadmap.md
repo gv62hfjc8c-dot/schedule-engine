@@ -80,6 +80,7 @@ Estado: **em validação**
 - [x] validação contra o calendário operacional;
 - [x] validação contra disponibilidade da pessoa;
 - [x] operação com interrupções não pode ser atravessada por um turno contínuo;
+- [x] dias mais curtos do que a duração padrão ajustam o turno ao funcionamento disponível;
 - [x] interface própria;
 - [x] persistência automática;
 - [x] migração automática v2 → v3;
