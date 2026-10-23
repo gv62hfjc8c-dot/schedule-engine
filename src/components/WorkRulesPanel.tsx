@@ -88,23 +88,30 @@ export default function WorkRulesPanel({
       weeklyOperatingHours[weekday].length > 0
   );
 
-  const compatibleDays = configured
+  const shortenedDays = configured
     ? openDays.filter((weekday) => {
         const intervals =
           weeklyOperatingHours[weekday];
+        const opening = createOpeningShift(
+          intervals,
+          durationForPreview
+        );
+
+        if (!opening) return false;
+
+        const [startHours, startMinutes] =
+          opening.start.split(":").map(Number);
+        const [endHours, endMinutes] =
+          opening.end.split(":").map(Number);
 
         return (
-          createOpeningShift(
-            intervals,
-            durationForPreview
-          ) !== null &&
-          createClosingShift(
-            intervals,
-            durationForPreview
-          ) !== null
+          endHours * 60 +
+            endMinutes -
+            (startHours * 60 + startMinutes) <
+          durationForPreview
         );
-      })
-    : [];
+      }).length
+    : 0;
 
   return (
     <>
@@ -127,10 +134,10 @@ export default function WorkRulesPanel({
         </div>
 
         <div className="overview-item">
-          <span>Dias compatíveis</span>
+          <span>Dias ajustados</span>
           <strong>
             {configured
-              ? `${compatibleDays.length} / ${openDays.length}`
+              ? shortenedDays
               : "—"}
           </strong>
         </div>
@@ -158,8 +165,9 @@ export default function WorkRulesPanel({
                   Duração padrão do turno
                 </strong>
                 <p>
-                  Esta duração será usada para construir
-                  turnos de abertura, intermédios e fecho.
+                  Esta é a duração normal do turno. Se o
+                  funcionamento do dia for mais curto, o
+                  turno ajusta-se a esse período.
                 </p>
               </div>
 
@@ -249,13 +257,17 @@ export default function WorkRulesPanel({
                     durationForPreview
                   );
 
-                const compatible =
+                const available =
                   opening !== null &&
                   closing !== null;
+                const sameShift =
+                  available &&
+                  opening.start === closing.start &&
+                  opening.end === closing.end;
 
                 return (
                   <div
-                    className={`work-preview-row ${compatible ? "" : "is-invalid"}`}
+                    className="work-preview-row"
                     key={weekday}
                   >
                     <div className="work-preview-day">
@@ -273,7 +285,17 @@ export default function WorkRulesPanel({
                       </span>
                     </div>
 
-                    {compatible ? (
+                    {available && sameShift ? (
+                      <div className="work-preview-shifts is-single">
+                        <span>
+                          Turno do dia
+                          <strong>
+                            {opening.start}–
+                            {opening.end}
+                          </strong>
+                        </span>
+                      </div>
+                    ) : available ? (
                       <div className="work-preview-shifts">
                         <span>
                           Abre{" "}
@@ -292,8 +314,8 @@ export default function WorkRulesPanel({
                       </div>
                     ) : (
                       <span className="work-preview-warning">
-                        A duração não cabe num período
-                        contínuo de funcionamento.
+                        Não existe um período operacional
+                        contínuo válido.
                       </span>
                     )}
                   </div>
