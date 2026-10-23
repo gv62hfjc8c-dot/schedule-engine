@@ -257,3 +257,115 @@ export function checkPresenceForAssignments(
 
   return { valid: shortages.length === 0, issues: [], shortages };
 }
+
+/**
+ * Necessary-condition check, not a scheduling feasibility proof:
+ * at every instant of operation, enough distinct people must be available.
+ * A successful result does NOT prove that valid continuous shifts exist.
+ * Each entry in availabilityByPerson belongs to one distinct active person.
+ */
+export function checkPresenceAvailabilityCapacity(
+  operatingIntervals: TimeInterval[],
+  requirements: PresenceRequirement,
+  availabilityByPerson: TimeInterval[][]
+): PresenceCheckResult {
+  const issues: string[] = [];
+  if (!isPresenceRequirementValid(requirements)) {
+    issues.push("Requisitos de presença inválidos.");
+  }
+
+  const operation = operatingIntervals.map(parseInterval);
+  if (operation.some((item) => item === null)) {
+    issues.push("Operação contém intervalos inválidos.");
+  }
+  const validOperation = operation.filter(
+    (item): item is NumericInterval => item !== null
+  ).sort((a, b) => a.start - b.start);
+
+  if (validOperation.length === 0) {
+    issues.push("Não existe operação aberta a verificar.");
+  }
+  for (let index = 1; index < validOperation.length; index++) {
+    if (validOperation[index].start < validOperation[index - 1].end) {
+      issues.push("Os intervalos operacionais sobrepõem-se.");
+      break;
+    }
+  }
+
+  const available = availabilityByPerson.map((intervals) =>
+    intervals.map(parseInterval)
+  );
+
+  if (available.some((intervals) => intervals.some((item) => item === null))) {
+    issues.push("Uma disponibilidade contém um intervalo inválido.");
+  }
+
+  if (issues.length > 0) {
+    return { valid: false, issues, shortages: [] };
+  }
+
+  const numericAvailability: NumericInterval[][] = available.map(
+    (intervals) => intervals.filter(
+      (item): item is NumericInterval => item !== null
+    )
+  );
+  const shortages: PresenceShortage[] = [];
+  const firstStart = validOperation[0].start;
+  const lastEnd = validOperation[validOperation.length - 1].end;
+
+  for (const interval of validOperation) {
+    const edges = new Set<number>([interval.start, interval.end]);
+
+    for (const personIntervals of numericAvailability) {
+      for (const availableInterval of personIntervals) {
+        if (availableInterval.start > interval.start &&
+            availableInterval.start < interval.end) {
+          edges.add(availableInterval.start);
+        }
+        if (availableInterval.end > interval.start &&
+            availableInterval.end < interval.end) {
+          edges.add(availableInterval.end);
+        }
+      }
+    }
+
+    const sortedEdges = [...edges].sort((a, b) => a - b);
+    for (let i = 0; i < sortedEdges.length - 1; i++) {
+      const start = sortedEdges[i];
+      const end = sortedEdges[i + 1];
+      const actual = numericAvailability.filter(
+        (personIntervals) => personIntervals.some(
+          (availableInterval) =>
+            availableInterval.start <= start &&
+            availableInterval.end >= end
+        )
+      ).length;
+
+      let required = requirements.minimumDuringOperation;
+      let phase: PresencePhase = "operation";
+
+      if (start === firstStart &&
+          requirements.minimumAtOpening > required) {
+        required = requirements.minimumAtOpening;
+        phase = "opening";
+      }
+
+      if (end === lastEnd &&
+          requirements.minimumAtClosing > required) {
+        required = requirements.minimumAtClosing;
+        phase = "closing";
+      }
+
+      if (actual < required) {
+        shortages.push({
+          phase,
+          interval: { start: time(start), end: time(end) },
+          required,
+          actual,
+        });
+      }
+    }
+  }
+
+  return { valid: shortages.length === 0, issues: [], shortages };
+}
