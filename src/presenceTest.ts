@@ -5,6 +5,7 @@ import type {
 } from "./types";
 import {
   checkPresenceForAssignments,
+  checkPresenceAvailabilityCapacity,
   createEmptyWeeklyPresenceRequirements,
   isPresenceRequirementValid,
   resolvePresenceForDate,
@@ -137,6 +138,61 @@ assert(
 assert(
   !checkPresenceForAssignments([{ start: "foo", end: "20:00" }], requirements, []).valid,
   "Horas inválidas devem ser recusadas."
+);
+
+
+const capacityOpeningShort = checkPresenceAvailabilityCapacity(
+  operating.monday,
+  requirements,
+  [
+    [{ start: "08:00", end: "16:00" }],
+    [{ start: "08:00", end: "16:00" }],
+    [{ start: "12:00", end: "20:00" }],
+    [{ start: "12:00", end: "20:00" }],
+    [{ start: "12:00", end: "20:00" }],
+  ]
+);
+assert(
+  !capacityOpeningShort.valid &&
+  capacityOpeningShort.shortages.some((item) => item.phase === "opening" && item.actual === 2),
+  "Capacidade insuficiente na abertura deve ser detetada."
+);
+
+const capacityMiddleShort = checkPresenceAvailabilityCapacity(
+  operating.monday,
+  requirements,
+  [
+    [{ start: "08:00", end: "10:00" }],
+    [{ start: "08:00", end: "10:00" }],
+    [{ start: "08:00", end: "10:00" }],
+    [{ start: "18:00", end: "20:00" }],
+    [{ start: "18:00", end: "20:00" }],
+    [{ start: "18:00", end: "20:00" }],
+  ]
+);
+assert(
+  !capacityMiddleShort.valid &&
+  capacityMiddleShort.shortages.some((item) => item.phase === "operation"),
+  "Capacidade insuficiente no período central deve ser detetada."
+);
+
+const capacityDayShort = checkPresenceAvailabilityCapacity(
+  operating.tuesday,
+  weekly.tuesday!,
+  [
+    [{ start: "09:00", end: "13:00" }],
+    [{ start: "09:00", end: "11:00" }, { start: "11:00", end: "13:00" }],
+  ]
+);
+assert(
+  capacityDayShort.valid,
+  "Pessoas disponíveis em todo o dia curto podem cobrir os extremos sem duplicar contagem."
+);
+assert(
+  !checkPresenceAvailabilityCapacity(operating.tuesday, weekly.tuesday!, [
+    [{ start: "09:00", end: "13:00" }],
+  ]).valid,
+  "Uma só pessoa não pode satisfazer mínimo de duas em simultâneo."
 );
 
 console.log("Presence V0: todos os testes passaram.");
