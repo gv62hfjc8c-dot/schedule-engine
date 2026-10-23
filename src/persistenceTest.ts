@@ -79,6 +79,29 @@ await repository.save({
   workRules: {
     standardShiftDurationMinutes: 480,
   },
+  weeklyPresenceRequirements: {
+    monday: {
+      minimumAtOpening: 2,
+      minimumDuringOperation: 1,
+      minimumAtClosing: 2,
+    },
+    tuesday: null,
+    wednesday: null,
+    thursday: null,
+    friday: null,
+    saturday: null,
+    sunday: null,
+  },
+  presenceExceptions: [
+    {
+      date: "2026-12-25",
+      requirements: {
+        minimumAtOpening: 0,
+        minimumDuringOperation: 0,
+        minimumAtClosing: 0,
+      },
+    },
+  ],
 });
 
 const loaded = await repository.load();
@@ -87,11 +110,47 @@ if (
   !loaded ||
   loaded.version !== APP_STATE_VERSION ||
   loaded.people[0]?.name !== "Ana Silva" ||
-  loaded.workRules.standardShiftDurationMinutes !== 480
+  loaded.workRules.standardShiftDurationMinutes !== 480 ||
+  loaded.weeklyPresenceRequirements.monday?.minimumAtOpening !== 2 ||
+  loaded.presenceExceptions[0]?.date !== "2026-12-25"
 ) {
   throw new Error(
     "Estado v3 não foi recuperado corretamente"
   );
+}
+
+const v3Storage = new MemoryStorage();
+
+v3Storage.setItem(
+  LOCAL_STORAGE_KEY,
+  JSON.stringify({
+    version: 3,
+    weeklyOperatingHours: {
+      ...emptyWeek(),
+      monday: [{ start: "09:00", end: "18:00" }],
+    },
+    exceptions: [],
+    people: [{ id: "existing-v3", name: "Pessoa V3", active: true }],
+    availabilities: [{
+      personId: "existing-v3",
+      weeklyAvailability: emptyWeek(),
+      exceptions: [],
+    }],
+    workRules: { standardShiftDurationMinutes: 480 },
+  })
+);
+
+const migratedV3 = await createLocalStorageStateRepository(v3Storage).load();
+
+if (
+  !migratedV3 ||
+  migratedV3.version !== APP_STATE_VERSION ||
+  migratedV3.people[0]?.id !== "existing-v3" ||
+  migratedV3.workRules.standardShiftDurationMinutes !== 480 ||
+  migratedV3.weeklyPresenceRequirements.monday !== null ||
+  migratedV3.presenceExceptions.length !== 0
+) {
+  throw new Error("Migração v3 para v4 não preservou os dados ou criou mínimos fictícios.");
 }
 
 const v2Storage = new MemoryStorage();
@@ -136,7 +195,8 @@ if (
   !migratedV2 ||
   migratedV2.version !== APP_STATE_VERSION ||
   migratedV2.people[0]?.id !== "existing-person" ||
-  migratedV2.workRules.standardShiftDurationMinutes !== null
+  migratedV2.workRules.standardShiftDurationMinutes !== null ||
+  migratedV2.weeklyPresenceRequirements.monday !== null
 ) {
   throw new Error(
     "Migração v2 para v3 falhou"
@@ -180,11 +240,28 @@ if (
   migratedV1.people[0]?.id !== "legacy-person" ||
   migratedV1.availabilities[0]?.personId !==
     "legacy-person" ||
-  migratedV1.workRules.standardShiftDurationMinutes !== null
+  migratedV1.workRules.standardShiftDurationMinutes !== null ||
+  migratedV1.weeklyPresenceRequirements.monday !== null
 ) {
   throw new Error(
     "Migração v1 para v3 falhou"
   );
+}
+
+const zeroStorage = new MemoryStorage();
+zeroStorage.setItem(
+  LOCAL_STORAGE_KEY,
+  JSON.stringify({
+    ...loaded,
+    weeklyPresenceRequirements: {
+      ...loaded!.weeklyPresenceRequirements,
+      monday: { minimumAtOpening: 0, minimumDuringOperation: 0, minimumAtClosing: 0 },
+    },
+  })
+);
+const zeroLoaded = await createLocalStorageStateRepository(zeroStorage).load();
+if (!zeroLoaded || zeroLoaded.weeklyPresenceRequirements.monday?.minimumDuringOperation !== 0) {
+  throw new Error("Mínimo zero explícito deve sobreviver à persistência.");
 }
 
 const invalidStorage = new MemoryStorage();
