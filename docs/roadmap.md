@@ -67,6 +67,35 @@ Estado: **fechado**
 - cobertura necessária;
 - geração de horários.
 
+## Ponto 4 — Regras de trabalho e turnos contínuos
+
+Estado: **em validação**
+
+- [x] duração padrão de turno configurável;
+- [x] ausência de duração tratada como configuração incompleta;
+- [x] um turno diário é um único intervalo contínuo;
+- [x] turnos repartidos ficam fora do modelo atual;
+- [x] cálculo de turno de abertura;
+- [x] cálculo de turno de fecho;
+- [x] validação contra o calendário operacional;
+- [x] validação contra disponibilidade da pessoa;
+- [x] operação com interrupções não pode ser atravessada por um turno contínuo;
+- [x] interface própria;
+- [x] persistência automática;
+- [x] migração automática v2 → v3;
+- [x] testes básicos.
+
+### Fora do Ponto 4
+
+- número mínimo de pessoas na abertura;
+- número mínimo de pessoas no fecho;
+- cobertura ao longo do dia;
+- contratos e horas semanais;
+- pausas;
+- descanso entre dias;
+- preferências;
+- geração automática de horários.
+
 ## Próximo ponto
 
-A definir antes de iniciar o Ponto 4.
+Depois de validarmos o Ponto 4, definir requisitos de presença na abertura e no fecho.
