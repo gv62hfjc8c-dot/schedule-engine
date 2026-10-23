@@ -221,7 +221,8 @@ h2 {
 
 
 .workspace-tabs {
-  display: inline-flex;
+  display: flex;
+  flex-wrap: wrap;
   gap: 6px;
   margin-bottom: 20px;
   border: 1px solid #dfe5ec;
@@ -232,7 +233,7 @@ h2 {
 
 .workspace-tab {
   display: flex;
-  min-width: 190px;
+  min-width: 175px;
   min-height: 48px;
   align-items: center;
   justify-content: space-between;
@@ -985,7 +986,12 @@ h2 {
 
 @media (max-width: 480px) {
   .workspace-tabs {
-    grid-template-columns: 1fr;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+  .workspace-tab {
+    min-width: 0;
+    gap: 6px;
   }
 }
 
@@ -1170,5 +1176,186 @@ h2 {
 
   .work-preview-shifts {
     grid-template-columns: 1fr;
+  }
+}
+
+
+/* Ponto 5 — mínimos de presença */
+.presence-panel {
+  margin-bottom: 20px;
+  overflow: hidden;
+}
+
+.presence-panel .section-description {
+  margin: 0;
+  padding: 0 24px 20px;
+  line-height: 1.5;
+}
+
+.presence-week-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  padding: 0 24px 24px;
+}
+
+.presence-day,
+.presence-exception {
+  min-width: 0;
+  border: 1px solid #e1e6ed;
+  border-radius: 12px;
+  background: #fcfdfe;
+  padding: 16px;
+}
+
+.presence-day.is-closed {
+  background: #f7f9fb;
+}
+
+.presence-day-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 9px;
+  margin-bottom: 15px;
+}
+
+.presence-day-head strong {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 14px;
+}
+
+.presence-day-head span {
+  display: block;
+  color: #8a94a4;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.presence-fields {
+  display: grid;
+  gap: 10px;
+}
+
+.presence-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 9px;
+}
+
+.presence-field span {
+  font-size: 12px;
+  line-height: 1.35;
+  color: #667389;
+}
+
+.presence-field input {
+  width: 76px;
+  min-height: 38px;
+  flex: 0 0 auto;
+  border: 1px solid #d8dee8;
+  border-radius: 9px;
+  padding: 0 7px;
+  background: #fff;
+  color: #172033;
+  font: inherit;
+  text-align: center;
+}
+
+.presence-field input:focus-visible {
+  outline: 2px solid #40536d;
+  outline-offset: 2px;
+}
+
+.presence-unconfigured {
+  display: grid;
+  gap: 10px;
+}
+
+.presence-unconfigured p,
+.presence-muted {
+  margin: 0;
+  color: #8a94a4;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.presence-day .presence-muted {
+  margin-top: 10px;
+}
+
+.presence-unconfigured .secondary-button {
+  width: fit-content;
+  min-height: 35px;
+}
+
+.presence-text-button {
+  border: 0;
+  padding: 4px 0;
+  background: transparent;
+  color: #65758c;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.presence-text-button:hover {
+  text-decoration: underline;
+}
+
+.presence-validation {
+  margin: 10px 0 0;
+  color: #9e573f;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.presence-exceptions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  padding: 0 24px 24px;
+}
+
+.presence-exception-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 15px;
+  align-items: flex-start;
+  margin-bottom: 16px;
+}
+
+.presence-exception-top .select-field {
+  flex: 1;
+  max-width: 280px;
+}
+
+.presence-exception .presence-text-button {
+  margin-top: 12px;
+}
+
+.presence-disclaimer {
+  color: #7d899a;
+  line-height: 1.55;
+  font-size: 12px;
+  margin: 0;
+}
+
+@media (max-width: 1050px) {
+  .presence-week-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 700px) {
+  .presence-week-grid,
+  .presence-exceptions {
+    grid-template-columns: 1fr;
+    padding: 0 18px 18px;
+  }
+  .presence-panel .section-description {
+    padding-inline: 18px;
   }
 }
