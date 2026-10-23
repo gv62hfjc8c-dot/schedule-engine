@@ -110,10 +110,12 @@ Estado: **em validação**
 - [x] exceções duplicadas e requisitos incoerentes detetados;
 - [x] validador de presença sobre turnos contínuos propostos;
 - [x] validador percorre a operação completa e deteta lacunas intermédias;
+- [x] pré-verificação de pessoas disponíveis em cada parte do dia, sem afirmar viabilidade global;
 - [x] mesmas pessoas podem satisfazer abertura e fecho num dia curto;
 - [x] interface em cartões compactos;
 - [x] persistência v4 com migração dos estados v1, v2 e v3;
-- [x] testes básicos de domínio e persistência.
+- [x] testes básicos de domínio e persistência;
+- [x] CI de testes, typecheck e build nos PRs.
 
 ### Fora do Ponto 5
 
