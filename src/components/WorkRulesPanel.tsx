@@ -257,11 +257,26 @@ export default function WorkRulesPanel({
                     durationForPreview
                   );
 
-                const available =
-                  opening !== null &&
-                  closing !== null;
+                if (!opening || !closing) {
+                  return (
+                    <div
+                      className="work-preview-row"
+                      key={weekday}
+                    >
+                      <div className="work-preview-day">
+                        <strong>
+                          {weekdayLabels[weekday]}
+                        </strong>
+                      </div>
+                      <span className="work-preview-warning">
+                        Não existe um período operacional
+                        contínuo válido.
+                      </span>
+                    </div>
+                  );
+                }
+
                 const sameShift =
-                  available &&
                   opening.start === closing.start &&
                   opening.end === closing.end;
 
@@ -285,7 +300,7 @@ export default function WorkRulesPanel({
                       </span>
                     </div>
 
-                    {available && sameShift ? (
+                    {sameShift ? (
                       <div className="work-preview-shifts is-single">
                         <span>
                           Turno do dia
@@ -295,7 +310,7 @@ export default function WorkRulesPanel({
                           </strong>
                         </span>
                       </div>
-                    ) : available ? (
+                    ) : (
                       <div className="work-preview-shifts">
                         <span>
                           Abre{" "}
@@ -312,11 +327,6 @@ export default function WorkRulesPanel({
                           </strong>
                         </span>
                       </div>
-                    ) : (
-                      <span className="work-preview-warning">
-                        Não existe um período operacional
-                        contínuo válido.
-                      </span>
                     )}
                   </div>
                 );
