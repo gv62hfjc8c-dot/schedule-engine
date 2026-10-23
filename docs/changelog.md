@@ -10,6 +10,8 @@
 - dias curtos e operações partidas tratados sem duplicar pessoas;
 - interface semanal compacta e exceções;
 - persistência atualizada para v4 com migrações v1–v3;
+- adicionada pré-verificação necessária de capacidade baseada em disponibilidade;
+- criada CI para testes, TypeScript e build;
 - adicionados testes do domínio e da persistência;
 - Ponto 5 permanece em validação, sem gerador nem curva horária.
 
