@@ -239,10 +239,7 @@ function isLegacyAppStateV3(value: unknown): value is LegacyAppStateV3 {
     state.people.every(isPerson) &&
     Array.isArray(state.availabilities) &&
     state.availabilities.every(isPersonAvailability) &&
-    isWorkRulesConfiguration(state.workRules) &&
-    isWeeklyPresenceRequirements(state.weeklyPresenceRequirements) &&
-    Array.isArray(state.presenceExceptions) &&
-    state.presenceExceptions.every(isPresenceException)
+    isWorkRulesConfiguration(state.workRules)
   );
 }
 
@@ -262,7 +259,10 @@ export function isPersistedAppState(
     state.people.every(isPerson) &&
     Array.isArray(state.availabilities) &&
     state.availabilities.every(isPersonAvailability) &&
-    isWorkRulesConfiguration(state.workRules)
+    isWorkRulesConfiguration(state.workRules) &&
+    isWeeklyPresenceRequirements(state.weeklyPresenceRequirements) &&
+    Array.isArray(state.presenceExceptions) &&
+    state.presenceExceptions.every(isPresenceException)
   );
 }
 
