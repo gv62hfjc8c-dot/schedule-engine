@@ -96,10 +96,12 @@ export function createClosingShift(
     return null;
   }
 
-  const lastInterval = [...operatingIntervals].sort(
+  const sortedIntervals = [...operatingIntervals].sort(
     (a, b) =>
       timeToMinutes(a.end) - timeToMinutes(b.end)
-  ).at(-1);
+  );
+  const lastInterval =
+    sortedIntervals[sortedIntervals.length - 1];
 
   if (!lastInterval) {
     return null;
