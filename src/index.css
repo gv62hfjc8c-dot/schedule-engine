@@ -637,7 +637,7 @@ h2 {
 
   .workspace-tabs {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(2, 1fr);
     width: 100%;
   }
 
@@ -985,6 +985,185 @@ h2 {
 
 @media (max-width: 480px) {
   .workspace-tabs {
+    grid-template-columns: 1fr;
+  }
+}
+
+
+.work-rules-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(380px, 0.9fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.work-rules-panel,
+.work-preview-panel {
+  overflow: hidden;
+}
+
+.work-rules-content {
+  display: grid;
+  gap: 12px;
+  padding: 0 24px 24px;
+}
+
+.work-rule-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 20px;
+  align-items: center;
+  border: 1px solid #e3e7ed;
+  border-radius: 13px;
+  background: #fcfdfe;
+  padding: 16px;
+}
+
+.work-rule-card strong {
+  display: block;
+  margin-bottom: 5px;
+  font-size: 14px;
+}
+
+.work-rule-card p {
+  max-width: 560px;
+  margin: 0;
+  color: #8791a1;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.work-duration-field {
+  display: grid;
+  gap: 6px;
+  width: 130px;
+}
+
+.work-duration-field span {
+  color: #8791a1;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.work-duration-field input {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid #d8dee8;
+  border-radius: 10px;
+  background: #fff;
+  padding: 0 11px;
+  color: #172033;
+}
+
+.work-rule-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  border: 1px solid #dce2e9;
+  border-radius: 999px;
+  background: #f7f9fb;
+  padding: 0 11px;
+  color: #657286;
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.work-preview-list {
+  display: grid;
+  border-top: 1px solid #edf0f4;
+}
+
+.work-preview-row {
+  display: grid;
+  gap: 10px;
+  padding: 14px 22px;
+  border-top: 1px solid #edf0f4;
+}
+
+.work-preview-row:first-child {
+  border-top: 0;
+}
+
+.work-preview-row.is-closed {
+  background: #fcfcfd;
+}
+
+.work-preview-row.is-invalid {
+  background: #fdfaf5;
+}
+
+.work-preview-day strong {
+  display: block;
+  margin-bottom: 3px;
+  font-size: 13px;
+}
+
+.work-preview-day span,
+.work-preview-row.is-closed span {
+  color: #8a94a4;
+  font-size: 11px;
+}
+
+.work-preview-shifts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.work-preview-shifts > span {
+  border: 1px solid #e1e6ed;
+  border-radius: 9px;
+  background: #fff;
+  padding: 9px 10px;
+  color: #7d8796;
+  font-size: 11px;
+}
+
+.work-preview-shifts strong {
+  display: block;
+  margin-top: 3px;
+  color: #2f3a4c;
+  font-size: 12px;
+}
+
+.work-preview-warning {
+  color: #8a6c3f;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.work-preview-note {
+  margin: 0;
+  padding: 16px 22px 20px;
+  border-top: 1px solid #edf0f4;
+  color: #8a94a4;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+@media (max-width: 980px) {
+  .work-rules-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 700px) {
+  .work-rule-card {
+    grid-template-columns: 1fr;
+  }
+
+  .work-duration-field {
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .work-rules-content {
+    padding-inline: 18px;
+  }
+
+  .work-preview-shifts {
     grid-template-columns: 1fr;
   }
 }
