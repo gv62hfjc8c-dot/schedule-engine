@@ -1647,6 +1647,8 @@ export default function App() {
         <PresencePanel
           weeklyOperatingHours={weeklyHours}
           operatingExceptions={exceptions}
+          people={people}
+          availabilities={availabilities}
           weeklyRequirements={weeklyPresenceRequirements}
           exceptions={presenceExceptions}
           onWeeklyChange={setWeeklyPresenceRequirements}
