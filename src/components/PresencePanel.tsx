@@ -223,7 +223,7 @@ export default function PresencePanel({
             const requirement = weeklyRequirements[day];
             const valid = requirement !== null &&
               isPresenceRequirementValid(requirement);
-            const capacity = valid && activePeople.length > 0
+            const capacity = valid
               ? checkPresenceAvailabilityCapacity(
                   weeklyOperatingHours[day],
                   requirement!,
@@ -351,8 +351,7 @@ export default function PresencePanel({
                 isPresenceRequirementValid(exception.requirements);
               const capacity = validRequirement &&
                 operatingIntervals !== null &&
-                operatingIntervals.length > 0 &&
-                activePeople.length > 0
+                operatingIntervals.length > 0
                   ? checkPresenceAvailabilityCapacity(
                       operatingIntervals,
                       exception.requirements!,
