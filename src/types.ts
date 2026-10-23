@@ -54,3 +54,36 @@ export interface PersonAvailability {
 export interface WorkRulesConfiguration {
   standardShiftDurationMinutes: number | null;
 }
+
+/**
+ * Minimum simultaneous presence at the boundaries and throughout an
+ * operating day. All three values are hard minimums, never targets or maxima.
+ */
+export interface PresenceRequirement {
+  minimumDuringOperation: number;
+  minimumAtOpening: number;
+  minimumAtClosing: number;
+}
+
+/** null means explicitly unconfigured, unlike an all-zero requirement. */
+export type WeeklyPresenceRequirements = Record<
+  Weekday,
+  PresenceRequirement | null
+>;
+
+export interface PresenceException {
+  date: string;
+  /** Replaces that date's weekly rule; null means unconfigured. */
+  requirements: PresenceRequirement | null;
+}
+
+export interface PresenceConfiguration {
+  weeklyPresenceRequirements: WeeklyPresenceRequirements;
+  presenceExceptions: PresenceException[];
+}
+
+/** One continuous assignment for a person on a given day. */
+export interface PresenceAssignment {
+  personId: string;
+  interval: TimeInterval;
+}
