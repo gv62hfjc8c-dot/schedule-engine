@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-10-23 — Ponto 5: Requisitos mínimos de presença
+
+- três mínimos independentes: abertura, operação e fecho;
+- padrão semanal e exceções por data;
+- ausência de configuração distinta de mínimo zero;
+- validação de mínimos e exceções duplicadas;
+- validador puro de presença sobre turnos propostos com varrimento de intervalos;
+- dias curtos e operações partidas tratados sem duplicar pessoas;
+- interface semanal compacta e exceções;
+- persistência atualizada para v4 com migrações v1–v3;
+- adicionados testes do domínio e da persistência;
+- Ponto 5 permanece em validação, sem gerador nem curva horária.
+
 ## 2026-10-23 — Ponto 4 fechado
 
 - regras de trabalho validadas funcionalmente na aplicação;
