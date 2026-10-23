@@ -132,6 +132,8 @@ O motor não assume uma duração diária por defeito.
 
 Enquanto a duração padrão não estiver configurada, operações que dependam dela devem considerar a configuração incompleta.
 
+A duração padrão representa a duração normal pretendida, não uma duração mínima obrigatória. Se um período operacional contínuo for mais curto, o turno ajusta-se à duração disponível desse período.
+
 ## D017 — Abertura e fecho são posições ancoradas ao calendário operacional
 
 **Estado:** aceite
@@ -140,7 +142,7 @@ Um turno de abertura começa no início do primeiro período operacional e prolo
 
 Um turno de fecho termina no fim do último período operacional e recua pela duração configurada.
 
-Se a duração não couber integralmente num período contínuo de funcionamento, esse turno é impossível.
+Se o período contínuo de funcionamento for mais curto do que a duração padrão, o turno usa todo esse período sem atravessar um fecho operacional.
 
 ## D018 — Turnos respeitam operação e disponibilidade
 
