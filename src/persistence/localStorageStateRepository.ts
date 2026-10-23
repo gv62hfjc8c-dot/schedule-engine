@@ -3,12 +3,16 @@ import type {
   OperatingHoursException,
   Person,
   PersonAvailability,
+  PresenceException,
+  PresenceRequirement,
+  WeeklyPresenceRequirements,
   TimeInterval,
   Weekday,
   WeeklyAvailability,
   WeeklyOperatingHours,
   WorkRulesConfiguration,
 } from "../types";
+import { createEmptyWeeklyPresenceRequirements } from "../utils/presence";
 import {
   APP_STATE_VERSION,
   type PersistedAppState,
@@ -49,6 +53,11 @@ interface LegacyAppStateV2 {
   exceptions: OperatingHoursException[];
   people: Person[];
   availabilities: PersonAvailability[];
+}
+
+interface LegacyAppStateV3 extends Omit<LegacyAppStateV2, "version"> {
+  version: 3;
+  workRules: WorkRulesConfiguration;
 }
 
 function isTimeInterval(
@@ -147,6 +156,41 @@ function isWorkRulesConfiguration(
   );
 }
 
+function isPresenceRequirement(
+  value: unknown
+): value is PresenceRequirement {
+  if (!value || typeof value !== "object") return false;
+  const requirement = value as Record<string, unknown>;
+  return (
+    typeof requirement.minimumDuringOperation === "number" &&
+    typeof requirement.minimumAtOpening === "number" &&
+    typeof requirement.minimumAtClosing === "number" &&
+    Number.isFinite(requirement.minimumDuringOperation) &&
+    Number.isFinite(requirement.minimumAtOpening) &&
+    Number.isFinite(requirement.minimumAtClosing)
+  );
+}
+
+function isWeeklyPresenceRequirements(
+  value: unknown
+): value is WeeklyPresenceRequirements {
+  if (!value || typeof value !== "object") return false;
+  const weekly = value as Record<string, unknown>;
+  return WEEKDAYS.every(
+    (day) => weekly[day] === null || isPresenceRequirement(weekly[day])
+  );
+}
+
+function isPresenceException(value: unknown): value is PresenceException {
+  if (!value || typeof value !== "object") return false;
+  const exception = value as Record<string, unknown>;
+  return (
+    typeof exception.date === "string" &&
+    (exception.requirements === null ||
+      isPresenceRequirement(exception.requirements))
+  );
+}
+
 function isLegacyAppStateV1(
   value: unknown
 ): value is LegacyAppStateV1 {
@@ -183,6 +227,22 @@ function isLegacyAppStateV2(
   );
 }
 
+function isLegacyAppStateV3(value: unknown): value is LegacyAppStateV3 {
+  if (!value || typeof value !== "object") return false;
+  const state = value as Record<string, unknown>;
+  return (
+    state.version === 3 &&
+    isWeeklyIntervals(state.weeklyOperatingHours) &&
+    Array.isArray(state.exceptions) &&
+    state.exceptions.every(isOperatingException) &&
+    Array.isArray(state.people) &&
+    state.people.every(isPerson) &&
+    Array.isArray(state.availabilities) &&
+    state.availabilities.every(isPersonAvailability) &&
+    isWorkRulesConfiguration(state.workRules)
+  );
+}
+
 export function isPersistedAppState(
   value: unknown
 ): value is PersistedAppState {
@@ -199,7 +259,10 @@ export function isPersistedAppState(
     state.people.every(isPerson) &&
     Array.isArray(state.availabilities) &&
     state.availabilities.every(isPersonAvailability) &&
-    isWorkRulesConfiguration(state.workRules)
+    isWorkRulesConfiguration(state.workRules) &&
+    isWeeklyPresenceRequirements(state.weeklyPresenceRequirements) &&
+    Array.isArray(state.presenceExceptions) &&
+    state.presenceExceptions.every(isPresenceException)
   );
 }
 
@@ -233,6 +296,8 @@ function migrateV1(
       exceptions: [],
     })),
     workRules: emptyWorkRules(),
+    weeklyPresenceRequirements: createEmptyWeeklyPresenceRequirements(),
+    presenceExceptions: [],
   };
 }
 
@@ -246,6 +311,17 @@ function migrateV2(
     people: state.people,
     availabilities: state.availabilities,
     workRules: emptyWorkRules(),
+    weeklyPresenceRequirements: createEmptyWeeklyPresenceRequirements(),
+    presenceExceptions: [],
+  };
+}
+
+function migrateV3(state: LegacyAppStateV3): PersistedAppState {
+  return {
+    ...state,
+    version: APP_STATE_VERSION,
+    weeklyPresenceRequirements: createEmptyWeeklyPresenceRequirements(),
+    presenceExceptions: [],
   };
 }
 
@@ -269,6 +345,12 @@ export function createLocalStorageStateRepository(
 
         if (isPersistedAppState(parsed)) {
           return parsed;
+        }
+
+        if (isLegacyAppStateV3(parsed)) {
+          const migrated = migrateV3(parsed);
+          storage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(migrated));
+          return migrated;
         }
 
         if (isLegacyAppStateV2(parsed)) {

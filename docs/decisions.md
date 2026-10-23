@@ -157,3 +157,35 @@ Um turno só é elegível para uma pessoa se estiver integralmente dentro do cal
 A versão 3 do estado persistido adiciona `WorkRulesConfiguration`.
 
 Estados v2 são migrados preservando calendário, pessoas e disponibilidades, com duração de turno não configurada.
+
+## D020 — Presença usa três mínimos independentes
+
+**Estado:** aceite para o Ponto 5
+
+Abertura, durante a operação e fecho são mínimos obrigatórios, não objetivos exatos. Abertura e fecho não podem ser inferiores ao mínimo durante a operação.
+
+## D021 — Requisitos seguem padrão semanal e exceções
+
+**Estado:** aceite para o Ponto 5
+
+Uma exceção por data substitui totalmente o padrão semanal. Num dia fechado não existe exigência de presença. Exceções duplicadas para a mesma data são inválidas.
+
+## D022 — Não configurado não equivale a zero
+
+**Estado:** aceite para o Ponto 5
+
+`null` significa que os requisitos não estão configurados. Uma regra com mínimos zero é explícita e tecnicamente válida, mas não exige presença.
+
+## D023 — Presença e viabilidade global são conceitos distintos
+
+**Estado:** aceite para o Ponto 5
+
+O validador de presença pode identificar falta de pessoas na abertura, durante a operação e no fecho de atribuições propostas. Não certifica disponibilidade, descanso, contratos nem qualidade do horário.
+
+Uma mesma pessoa pode cumprir abertura e fecho de um dia curto com um único turno contínuo.
+
+## D024 — Sobreposição central fica para a otimização
+
+**Estado:** adiado para geração
+
+O motor deverá favorecer sobreposição apropriada durante a operação, sem exigir ao operador que defina curvas de afluência ou cobertura por hora. O objetivo só pode ser quantificado quando existirem regras de carga de trabalho e um gerador.

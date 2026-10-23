@@ -97,6 +97,35 @@ Estado: **fechado**
 - preferências;
 - geração automática de horários.
 
+## Ponto 5 — Requisitos mínimos de presença
+
+Estado: **em validação**
+
+- [x] três mínimos obrigatórios: abertura, durante a operação, fecho;
+- [x] mínimos inteiros não negativos, com abertura e fecho ≥ mínimo operacional;
+- [x] mínimos são limites inferiores, nunca tetos nem objetivos de pessoal exato;
+- [x] padrão semanal com dias fechados isentos de exigência;
+- [x] exceções por data substituem integralmente o padrão;
+- [x] zero explícito é diferente de não configurado;
+- [x] exceções duplicadas e requisitos incoerentes detetados;
+- [x] validador de presença sobre turnos contínuos propostos;
+- [x] validador percorre a operação completa e deteta lacunas intermédias;
+- [x] pré-verificação de pessoas disponíveis em cada parte do dia, sem afirmar viabilidade global;
+- [x] mesmas pessoas podem satisfazer abertura e fecho num dia curto;
+- [x] interface em cartões compactos;
+- [x] persistência v4 com migração dos estados v1, v2 e v3;
+- [x] testes básicos de domínio e persistência;
+- [x] CI de testes, typecheck e build nos PRs.
+
+### Fora do Ponto 5
+
+- estudo de afluência;
+- curva de cobertura por intervalos horários;
+- maximização da sobreposição no período central;
+- geração de turnos e atribuições;
+- contratos, horas semanais e pausas;
+- validação integral de viabilidade do horário.
+
 ## Próximo ponto
 
-Depois de validarmos o Ponto 4, definir requisitos de presença na abertura e no fecho.
+Validar o Ponto 5 em casos reais antes de escolher a próxima regra de scheduling.

@@ -11,7 +11,8 @@ Estão implementados:
 1. **calendário operacional** — quando a operação funciona;
 2. **pessoas** — quem pode participar em horários;
 3. **disponibilidade** — quando cada pessoa pode trabalhar;
-4. **regras de trabalho** — duração padrão e turnos diários contínuos.
+4. **regras de trabalho** — duração padrão e turnos diários contínuos;
+5. **requisitos mínimos de presença** — abertura, operação e fecho.
 
 Ainda não existe geração automática de horários.
 
@@ -27,6 +28,10 @@ Um turno diário é um único intervalo contínuo. Turnos repartidos não fazem 
 
 A duração padrão do turno é configuração explícita; o motor não assume uma duração quando ela ainda não foi definida.
 
+Os mínimos de presença são hard constraints configuráveis por dia e exceção. Não modelam a afluência horária nem limitam o número máximo de pessoas escaladas.
+
+O núcleo dispõe de um validador da presença em atribuições contínuas propostas e de uma pré-verificação de disponibilidade. Nenhum destes dois mecanismos gera horários ou garante viabilidade integral.
+
 ## Persistência
 
 A aplicação guarda automaticamente:
@@ -35,7 +40,8 @@ A aplicação guarda automaticamente:
 - exceções de calendário;
 - pessoas;
 - disponibilidades;
-- regras de trabalho.
+- regras de trabalho;
+- requisitos mínimos de presença e exceções.
 
 O armazenamento atual usa `localStorage`, isolado atrás de um contrato assíncrono de persistência.
 
@@ -55,6 +61,8 @@ npm run typecheck
 npm test
 npm run build
 ```
+
+O mesmo conjunto de verificações é executado automaticamente em pull requests.
 
 ## Desenvolvimento
 
