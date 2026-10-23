@@ -76,11 +76,16 @@ export function createOpeningShift(
   }
 
   const start = timeToMinutes(firstInterval.start);
-  const end = start + durationMinutes;
+  const intervalEnd = timeToMinutes(firstInterval.end);
 
-  if (end > timeToMinutes(firstInterval.end)) {
+  if (intervalEnd <= start) {
     return null;
   }
+
+  const end = Math.min(
+    start + durationMinutes,
+    intervalEnd
+  );
 
   return {
     start: firstInterval.start,
@@ -107,12 +112,19 @@ export function createClosingShift(
     return null;
   }
 
+  const intervalStart = timeToMinutes(
+    lastInterval.start
+  );
   const end = timeToMinutes(lastInterval.end);
-  const start = end - durationMinutes;
 
-  if (start < timeToMinutes(lastInterval.start)) {
+  if (end <= intervalStart) {
     return null;
   }
+
+  const start = Math.max(
+    end - durationMinutes,
+    intervalStart
+  );
 
   return {
     start: minutesToTime(start),
