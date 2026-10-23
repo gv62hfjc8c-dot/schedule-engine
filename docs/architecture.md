@@ -2,12 +2,13 @@
 
 ## Estado atual
 
-O Schedule Engine tem agora quatro fundações independentes do algoritmo de geração:
+O Schedule Engine tem agora cinco fundações independentes do algoritmo de geração:
 
 1. calendário operacional contínuo;
 2. pessoas que podem participar em horários;
 3. disponibilidade temporal de cada pessoa;
-4. regras mínimas para construir turnos contínuos.
+4. regras mínimas para construir turnos contínuos;
+5. requisitos mínimos de presença.
 
 ### Calendário operacional
 
@@ -110,6 +111,20 @@ Um turno diário é representado como um único `TimeInterval`, portanto é cont
 
 Um turno contínuo não pode atravessar uma interrupção do calendário operacional. Em operações com vários períodos, abertura e fecho ajustam-se aos respetivos períodos extremos.
 
+### Requisitos mínimos de presença
+
+O Ponto 5 introduz `PresenceRequirement` com três mínimos inteiros e não negativos: abertura, durante a operação e fecho. Abertura e fecho não podem exigir menos do que o mínimo durante a operação.
+
+Os requisitos não determinam o número exato de colaboradores, nem codificam picos de procura. São hard constraints.
+
+`WeeklyPresenceRequirements` guarda uma regra ou `null` para cada dia; `null` significa por configurar e não é equivalente a uma regra com três zeros. `PresenceException` substitui a regra semanal numa data específica. Datas fechadas não exigem presença. Exceções duplicadas são inválidas.
+
+`src/utils/presence.ts` resolve os requisitos efetivos de uma data e valida a presença simultânea num conjunto de atribuições contínuas já proposto.
+
+Na verificação das atribuições, os intervalos são semiabertos `[início, fim)`. A abertura corresponde ao início do primeiro intervalo operacional; o fecho ao instante imediatamente anterior ao fim do último. Durante interrupções operacionais não é exigida presença. Cada pessoa pode ter apenas uma atribuição diária; uma mesma pessoa pode cumprir ambos os extremos num dia curto.
+
+Este validador verifica **apenas presença**, não disponibilidade, contratos, carga horária ou viabilidade global.
+
 ### Persistência da aplicação
 
 A persistência não pertence ao núcleo do Schedule Engine.
@@ -131,9 +146,10 @@ O estado persistido inclui:
 - exceções de calendário;
 - pessoas;
 - disponibilidades;
-- regras de trabalho.
+- regras de trabalho;
+- requisitos mínimos de presença.
 
-O formato é versionado. A versão 3 introduz regras de trabalho e migra automaticamente estados v2 sem inventar uma duração de turno. A migração v1 continua suportada.
+O formato é versionado. A versão 4 introduz requisitos de presença e migra automaticamente estados v3 sem inventar mínimos. As migrações v1 e v2 continuam suportadas.
 
 Uma futura persistência por API/base de dados deverá implementar o mesmo contrato, sem introduzir dependências de storage no domínio.
 
@@ -147,7 +163,7 @@ A UI não define o domínio e não deve introduzir regras de scheduling.
 
 Ainda não existem:
 
-- requisitos mínimos de presença;
+- gerador de horários e otimização;
 - contratos;
 - horas semanais;
 - geração de horários.
