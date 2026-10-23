@@ -72,14 +72,25 @@ if (
   );
 }
 
+const shortOpeningShift = createOpeningShift(
+  operation,
+  13 * 60
+);
+const shortClosingShift = createClosingShift(
+  operation,
+  13 * 60
+);
+
 if (
-  createOpeningShift(operation, 13 * 60) !==
-    null ||
-  createClosingShift(operation, 13 * 60) !==
-    null
+  !shortOpeningShift ||
+  !shortClosingShift ||
+  shortOpeningShift.start !== "08:00" ||
+  shortOpeningShift.end !== "20:00" ||
+  shortClosingShift.start !== "08:00" ||
+  shortClosingShift.end !== "20:00"
 ) {
   throw new Error(
-    "Turno maior do que o período operacional deveria ser impossível"
+    "Num dia mais curto do que a duração padrão, o turno deveria ajustar-se ao período operacional"
   );
 }
 
@@ -94,14 +105,25 @@ const splitOperation = [
   },
 ];
 
+const splitOpeningShift = createOpeningShift(
+  splitOperation,
+  8 * 60
+);
+const splitClosingShift = createClosingShift(
+  splitOperation,
+  8 * 60
+);
+
 if (
-  createOpeningShift(splitOperation, 8 * 60) !==
-    null ||
-  createClosingShift(splitOperation, 8 * 60) !==
-    null
+  !splitOpeningShift ||
+  splitOpeningShift.start !== "08:00" ||
+  splitOpeningShift.end !== "12:00" ||
+  !splitClosingShift ||
+  splitClosingShift.start !== "14:00" ||
+  splitClosingShift.end !== "20:00"
 ) {
   throw new Error(
-    "Turno contínuo não pode atravessar um período em que a operação está fechada"
+    "Turnos contínuos devem ajustar-se ao respetivo período operacional sem atravessar fechos"
   );
 }
 
