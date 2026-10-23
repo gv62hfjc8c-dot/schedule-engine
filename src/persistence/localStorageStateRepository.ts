@@ -7,6 +7,7 @@ import type {
   Weekday,
   WeeklyAvailability,
   WeeklyOperatingHours,
+  WorkRulesConfiguration,
 } from "../types";
 import {
   APP_STATE_VERSION,
@@ -40,6 +41,14 @@ interface LegacyAppStateV1 {
   weeklyOperatingHours: WeeklyOperatingHours;
   exceptions: OperatingHoursException[];
   people: Person[];
+}
+
+interface LegacyAppStateV2 {
+  version: 2;
+  weeklyOperatingHours: WeeklyOperatingHours;
+  exceptions: OperatingHoursException[];
+  people: Person[];
+  availabilities: PersonAvailability[];
 }
 
 function isTimeInterval(
@@ -119,6 +128,25 @@ function isPersonAvailability(
   );
 }
 
+function isWorkRulesConfiguration(
+  value: unknown
+): value is WorkRulesConfiguration {
+  if (!value || typeof value !== "object") return false;
+
+  const workRules = value as Record<string, unknown>;
+  const duration =
+    workRules.standardShiftDurationMinutes;
+
+  return (
+    duration === null ||
+    (
+      typeof duration === "number" &&
+      Number.isInteger(duration) &&
+      duration > 0
+    )
+  );
+}
+
 function isLegacyAppStateV1(
   value: unknown
 ): value is LegacyAppStateV1 {
@@ -133,6 +161,25 @@ function isLegacyAppStateV1(
     state.exceptions.every(isOperatingException) &&
     Array.isArray(state.people) &&
     state.people.every(isPerson)
+  );
+}
+
+function isLegacyAppStateV2(
+  value: unknown
+): value is LegacyAppStateV2 {
+  if (!value || typeof value !== "object") return false;
+
+  const state = value as Record<string, unknown>;
+
+  return (
+    state.version === 2 &&
+    isWeeklyIntervals(state.weeklyOperatingHours) &&
+    Array.isArray(state.exceptions) &&
+    state.exceptions.every(isOperatingException) &&
+    Array.isArray(state.people) &&
+    state.people.every(isPerson) &&
+    Array.isArray(state.availabilities) &&
+    state.availabilities.every(isPersonAvailability)
   );
 }
 
@@ -151,7 +198,8 @@ export function isPersistedAppState(
     Array.isArray(state.people) &&
     state.people.every(isPerson) &&
     Array.isArray(state.availabilities) &&
-    state.availabilities.every(isPersonAvailability)
+    state.availabilities.every(isPersonAvailability) &&
+    isWorkRulesConfiguration(state.workRules)
   );
 }
 
@@ -163,6 +211,12 @@ function emptyWeeklyAvailability(): WeeklyAvailability {
     },
     {} as WeeklyAvailability
   );
+}
+
+function emptyWorkRules(): WorkRulesConfiguration {
+  return {
+    standardShiftDurationMinutes: null,
+  };
 }
 
 function migrateV1(
@@ -178,6 +232,20 @@ function migrateV1(
       weeklyAvailability: emptyWeeklyAvailability(),
       exceptions: [],
     })),
+    workRules: emptyWorkRules(),
+  };
+}
+
+function migrateV2(
+  state: LegacyAppStateV2
+): PersistedAppState {
+  return {
+    version: APP_STATE_VERSION,
+    weeklyOperatingHours: state.weeklyOperatingHours,
+    exceptions: state.exceptions,
+    people: state.people,
+    availabilities: state.availabilities,
+    workRules: emptyWorkRules(),
   };
 }
 
@@ -199,7 +267,22 @@ export function createLocalStorageStateRepository(
       if (currentRaw) {
         const parsed = parseJson(currentRaw);
 
-        return isPersistedAppState(parsed) ? parsed : null;
+        if (isPersistedAppState(parsed)) {
+          return parsed;
+        }
+
+        if (isLegacyAppStateV2(parsed)) {
+          const migrated = migrateV2(parsed);
+
+          storage.setItem(
+            LOCAL_STORAGE_KEY,
+            JSON.stringify(migrated)
+          );
+
+          return migrated;
+        }
+
+        return null;
       }
 
       const legacyRaw = storage.getItem(
