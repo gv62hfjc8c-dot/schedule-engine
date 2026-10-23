@@ -123,7 +123,9 @@ Os requisitos não determinam o número exato de colaboradores, nem codificam pi
 
 Na verificação das atribuições, os intervalos são semiabertos `[início, fim)`. A abertura corresponde ao início do primeiro intervalo operacional; o fecho ao instante imediatamente anterior ao fim do último. Durante interrupções operacionais não é exigida presença. Cada pessoa pode ter apenas uma atribuição diária; uma mesma pessoa pode cumprir ambos os extremos num dia curto.
 
-Este validador verifica **apenas presença**, não disponibilidade, contratos, carga horária ou viabilidade global.
+O validador de atribuições verifica **apenas presença**, não disponibilidade, contratos, carga horária ou viabilidade global.
+
+`checkPresenceAvailabilityCapacity` faz também uma pré-verificação necessária: conta pessoas distintas disponíveis ao longo de todo o período operacional, incluindo as horas de abertura e fecho. Uma falta de pessoas disponíveis torna a cobertura impossível; a inexistência de faltas **não prova** que existam turnos contínuos viáveis.
 
 ### Persistência da aplicação
 
@@ -165,8 +167,7 @@ Ainda não existem:
 
 - gerador de horários e otimização;
 - contratos;
-- horas semanais;
-- geração de horários.
+- horas semanais.
 
 Autenticação, permissões e persistência continuam fora do núcleo. A persistência local atual pertence apenas à aplicação.
 
