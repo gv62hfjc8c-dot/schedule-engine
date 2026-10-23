@@ -95,6 +95,8 @@ interface WorkRulesConfiguration {
 
 `null` significa que a duração ainda não foi configurada. O motor não assume silenciosamente uma duração.
 
+A duração configurada é a duração normal pretendida. Quando o período operacional contínuo de um dia é mais curto, o turno é reduzido ao tamanho desse período em vez de tornar o dia inválido.
+
 Um turno diário é representado como um único `TimeInterval`, portanto é contínuo por construção. Turnos repartidos não fazem parte do modelo atual.
 
 `src/utils/workRules.ts` permite:
@@ -106,7 +108,7 @@ Um turno diário é representado como um único `TimeInterval`, portanto é cont
 - construir um turno de fecho ancorado ao fim da operação;
 - validar se uma pessoa pode fazer esse turno considerando operação e disponibilidade.
 
-Um turno contínuo não pode atravessar uma interrupção do calendário operacional.
+Um turno contínuo não pode atravessar uma interrupção do calendário operacional. Em operações com vários períodos, abertura e fecho ajustam-se aos respetivos períodos extremos.
 
 ### Persistência da aplicação
 
