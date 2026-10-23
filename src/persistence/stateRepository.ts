@@ -2,11 +2,13 @@ import type {
   OperatingHoursException,
   Person,
   PersonAvailability,
+  PresenceException,
+  WeeklyPresenceRequirements,
   WeeklyOperatingHours,
   WorkRulesConfiguration,
 } from "../types";
 
-export const APP_STATE_VERSION = 3 as const;
+export const APP_STATE_VERSION = 4 as const;
 
 export interface PersistedAppState {
   version: typeof APP_STATE_VERSION;
@@ -15,6 +17,8 @@ export interface PersistedAppState {
   people: Person[];
   availabilities: PersonAvailability[];
   workRules: WorkRulesConfiguration;
+  weeklyPresenceRequirements: WeeklyPresenceRequirements;
+  presenceExceptions: PresenceException[];
 }
 
 export interface StateRepository {
