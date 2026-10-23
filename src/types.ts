@@ -50,3 +50,7 @@ export interface PersonAvailability {
   weeklyAvailability: WeeklyAvailability;
   exceptions: AvailabilityException[];
 }
+
+export interface WorkRulesConfiguration {
+  standardShiftDurationMinutes: number | null;
+}

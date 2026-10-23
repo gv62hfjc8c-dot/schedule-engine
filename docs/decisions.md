@@ -115,3 +115,45 @@ O intervalo efetivamente escalável é a interseção entre ambos.
 Uma pessoa nunca pode ser escalada num dia em que a operação está fechada, nem fora do horário operacional.
 
 A UI impede configurações obviamente impossíveis, mas o núcleo também aplica a interseção para garantir correção perante dados antigos ou incoerentes.
+
+## D015 — Um turno diário é contínuo
+
+**Estado:** aceite
+
+Uma atribuição de trabalho de uma pessoa num dia é representada por um único intervalo contínuo.
+
+Turnos repartidos não fazem parte do modelo atual. Se forem necessários no futuro, terão de ser introduzidos explicitamente como nova capacidade.
+
+## D016 — A duração padrão de turno é configuração explícita
+
+**Estado:** aceite
+
+O motor não assume uma duração diária por defeito.
+
+Enquanto a duração padrão não estiver configurada, operações que dependam dela devem considerar a configuração incompleta.
+
+A duração padrão representa a duração normal pretendida, não uma duração mínima obrigatória. Se um período operacional contínuo for mais curto, o turno ajusta-se à duração disponível desse período.
+
+## D017 — Abertura e fecho são posições ancoradas ao calendário operacional
+
+**Estado:** aceite
+
+Um turno de abertura começa no início do primeiro período operacional e prolonga-se pela duração configurada.
+
+Um turno de fecho termina no fim do último período operacional e recua pela duração configurada.
+
+Se o período contínuo de funcionamento for mais curto do que a duração padrão, o turno usa todo esse período sem atravessar um fecho operacional.
+
+## D018 — Turnos respeitam operação e disponibilidade
+
+**Estado:** aceite
+
+Um turno só é elegível para uma pessoa se estiver integralmente dentro do calendário operacional e da disponibilidade efetiva dessa pessoa.
+
+## D019 — Persistência v3 adiciona regras de trabalho
+
+**Estado:** aceite
+
+A versão 3 do estado persistido adiciona `WorkRulesConfiguration`.
+
+Estados v2 são migrados preservando calendário, pessoas e disponibilidades, com duração de turno não configurada.

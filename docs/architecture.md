@@ -2,11 +2,12 @@
 
 ## Estado atual
 
-O Schedule Engine tem agora três fundações independentes do algoritmo de geração:
+O Schedule Engine tem agora quatro fundações independentes do algoritmo de geração:
 
 1. calendário operacional contínuo;
 2. pessoas que podem participar em horários;
-3. disponibilidade temporal de cada pessoa.
+3. disponibilidade temporal de cada pessoa;
+4. regras mínimas para construir turnos contínuos.
 
 ### Calendário operacional
 
@@ -82,6 +83,33 @@ Se a operação estiver fechada, ninguém é escalável nessa data, mesmo que ex
 
 A interface aplica a mesma regra: dias fechados ficam bloqueados e as horas selecionáveis ficam limitadas ao funcionamento da operação.
 
+### Regras de trabalho
+
+O Ponto 4 introduz uma duração padrão de turno:
+
+```ts
+interface WorkRulesConfiguration {
+  standardShiftDurationMinutes: number | null;
+}
+```
+
+`null` significa que a duração ainda não foi configurada. O motor não assume silenciosamente uma duração.
+
+A duração configurada é a duração normal pretendida. Quando o período operacional contínuo de um dia é mais curto, o turno é reduzido ao tamanho desse período em vez de tornar o dia inválido.
+
+Um turno diário é representado como um único `TimeInterval`, portanto é contínuo por construção. Turnos repartidos não fazem parte do modelo atual.
+
+`src/utils/workRules.ts` permite:
+
+- validar duração;
+- calcular a duração de um intervalo;
+- verificar se um turno cabe num período operacional;
+- construir um turno de abertura ancorado ao início da operação;
+- construir um turno de fecho ancorado ao fim da operação;
+- validar se uma pessoa pode fazer esse turno considerando operação e disponibilidade.
+
+Um turno contínuo não pode atravessar uma interrupção do calendário operacional. Em operações com vários períodos, abertura e fecho ajustam-se aos respetivos períodos extremos.
+
 ### Persistência da aplicação
 
 A persistência não pertence ao núcleo do Schedule Engine.
@@ -102,9 +130,10 @@ O estado persistido inclui:
 - horário semanal;
 - exceções de calendário;
 - pessoas;
-- disponibilidades.
+- disponibilidades;
+- regras de trabalho.
 
-O formato é versionado. A versão 2 introduz disponibilidades e migra automaticamente dados guardados na versão 1. A aplicação carrega automaticamente no arranque e grava automaticamente quando estes dados mudam.
+O formato é versionado. A versão 3 introduz regras de trabalho e migra automaticamente estados v2 sem inventar uma duração de turno. A migração v1 continua suportada.
 
 Uma futura persistência por API/base de dados deverá implementar o mesmo contrato, sem introduzir dependências de storage no domínio.
 
@@ -118,10 +147,9 @@ A UI não define o domínio e não deve introduzir regras de scheduling.
 
 Ainda não existem:
 
-- cobertura;
-- turnos;
+- requisitos mínimos de presença;
 - contratos;
-- horas de trabalho;
+- horas semanais;
 - geração de horários.
 
 Autenticação, permissões e persistência continuam fora do núcleo. A persistência local atual pertence apenas à aplicação.

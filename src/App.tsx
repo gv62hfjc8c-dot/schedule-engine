@@ -7,7 +7,9 @@ import type {
   PersonAvailability,
   Weekday,
   WeeklyOperatingHours,
+  WorkRulesConfiguration,
 } from "./types";
+import WorkRulesPanel from "./components/WorkRulesPanel";
 import { appStateRepository } from "./persistence/appStateRepository";
 import { APP_STATE_VERSION } from "./persistence/stateRepository";
 import {
@@ -161,6 +163,10 @@ export default function App() {
   const [availabilities, setAvailabilities] = useState<
     PersonAvailability[]
   >([]);
+  const [workRules, setWorkRules] =
+    useState<WorkRulesConfiguration>({
+      standardShiftDurationMinutes: null,
+    });
   const [newPersonName, setNewPersonName] = useState("");
   const [editingPersonId, setEditingPersonId] = useState<string | null>(
     null
@@ -168,7 +174,7 @@ export default function App() {
   const [editingPersonName, setEditingPersonName] = useState("");
   const [personError, setPersonError] = useState("");
   const [activeSection, setActiveSection] = useState<
-    "calendar" | "people" | "availability"
+    "calendar" | "people" | "availability" | "workRules"
   >("calendar");
   const [
     selectedAvailabilityPersonId,
@@ -194,6 +200,7 @@ export default function App() {
           setExceptions(persisted.exceptions);
           setPeople(persisted.people);
           setAvailabilities(persisted.availabilities);
+          setWorkRules(persisted.workRules);
         }
 
         setPersistenceReady(true);
@@ -227,6 +234,7 @@ export default function App() {
           exceptions,
           people,
           availabilities,
+          workRules,
         })
         .then(() => {
           if (requestId === saveRequestId.current) {
@@ -249,6 +257,7 @@ export default function App() {
     exceptions,
     people,
     availabilities,
+    workRules,
   ]);
 
   const summary = useMemo(() => {
@@ -664,7 +673,7 @@ export default function App() {
           <h1>Schedule Engine</h1>
           <p className="page-subtitle">
             Define a base que o motor irá usar continuamente:
-            funcionamento, pessoas e respetiva disponibilidade.
+            funcionamento, pessoas, disponibilidade e regras de trabalho.
           </p>
         </div>
 
@@ -718,6 +727,18 @@ export default function App() {
         >
           <span>Disponibilidade</span>
           <small>Ponto 3</small>
+        </button>
+
+        <button
+          type="button"
+          className={`workspace-tab ${activeSection === "workRules" ? "active" : ""}`}
+          onClick={() => setActiveSection("workRules")}
+          aria-current={
+            activeSection === "workRules" ? "page" : undefined
+          }
+        >
+          <span>Regras de trabalho</span>
+          <small>Ponto 4</small>
         </button>
       </nav>
 
@@ -1589,6 +1610,14 @@ export default function App() {
             </>
           )}
         </>
+      )}
+
+      {activeSection === "workRules" && (
+        <WorkRulesPanel
+          weeklyOperatingHours={weeklyHours}
+          workRules={workRules}
+          onChange={setWorkRules}
+        />
       )}
     </main>
   );

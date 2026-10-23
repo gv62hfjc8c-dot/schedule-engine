@@ -22,30 +22,38 @@ class MemoryStorage implements KeyValueStorage {
   }
 }
 
+const emptyWeek = () => ({
+  monday: [],
+  tuesday: [],
+  wednesday: [],
+  thursday: [],
+  friday: [],
+  saturday: [],
+  sunday: [],
+});
+
 const storage = new MemoryStorage();
-const repository = createLocalStorageStateRepository(storage);
+const repository =
+  createLocalStorageStateRepository(storage);
 
 if ((await repository.load()) !== null) {
-  throw new Error("Repositório vazio deveria devolver null");
+  throw new Error(
+    "Repositório vazio deveria devolver null"
+  );
 }
 
 await repository.save({
   version: APP_STATE_VERSION,
   weeklyOperatingHours: {
-    monday: [{ start: "09:00", end: "18:00" }],
-    tuesday: [{ start: "09:00", end: "18:00" }],
-    wednesday: [{ start: "09:00", end: "18:00" }],
-    thursday: [{ start: "09:00", end: "18:00" }],
-    friday: [{ start: "09:00", end: "18:00" }],
-    saturday: [],
-    sunday: [],
+    ...emptyWeek(),
+    monday: [
+      {
+        start: "08:00",
+        end: "20:00",
+      },
+    ],
   },
-  exceptions: [
-    {
-      date: "2026-12-25",
-      intervals: [],
-    },
-  ],
+  exceptions: [],
   people: [
     {
       id: "p1",
@@ -57,17 +65,20 @@ await repository.save({
     {
       personId: "p1",
       weeklyAvailability: {
-        monday: [{ start: "09:00", end: "18:00" }],
-        tuesday: [],
-        wednesday: [],
-        thursday: [],
-        friday: [],
-        saturday: [],
-        sunday: [],
+        ...emptyWeek(),
+        monday: [
+          {
+            start: "08:00",
+            end: "16:00",
+          },
+        ],
       },
       exceptions: [],
     },
   ],
+  workRules: {
+    standardShiftDurationMinutes: 480,
+  },
 });
 
 const loaded = await repository.load();
@@ -76,67 +87,124 @@ if (
   !loaded ||
   loaded.version !== APP_STATE_VERSION ||
   loaded.people[0]?.name !== "Ana Silva" ||
-  loaded.availabilities[0]?.personId !== "p1"
+  loaded.workRules.standardShiftDurationMinutes !== 480
 ) {
-  throw new Error("Estado v2 não foi recuperado corretamente");
+  throw new Error(
+    "Estado v3 não foi recuperado corretamente"
+  );
 }
 
-const migrationStorage = new MemoryStorage();
+const v2Storage = new MemoryStorage();
 
-migrationStorage.setItem(
+v2Storage.setItem(
+  LOCAL_STORAGE_KEY,
+  JSON.stringify({
+    version: 2,
+    weeklyOperatingHours: {
+      ...emptyWeek(),
+      monday: [
+        {
+          start: "09:00",
+          end: "18:00",
+        },
+      ],
+    },
+    exceptions: [],
+    people: [
+      {
+        id: "existing-person",
+        name: "Pessoa Existente",
+        active: true,
+      },
+    ],
+    availabilities: [
+      {
+        personId: "existing-person",
+        weeklyAvailability: emptyWeek(),
+        exceptions: [],
+      },
+    ],
+  })
+);
+
+const migratedV2 =
+  await createLocalStorageStateRepository(
+    v2Storage
+  ).load();
+
+if (
+  !migratedV2 ||
+  migratedV2.version !== APP_STATE_VERSION ||
+  migratedV2.people[0]?.id !== "existing-person" ||
+  migratedV2.workRules.standardShiftDurationMinutes !== null
+) {
+  throw new Error(
+    "Migração v2 para v3 falhou"
+  );
+}
+
+const v1Storage = new MemoryStorage();
+
+v1Storage.setItem(
   LEGACY_LOCAL_STORAGE_KEY_V1,
   JSON.stringify({
     version: 1,
     weeklyOperatingHours: {
-      monday: [{ start: "09:00", end: "18:00" }],
-      tuesday: [],
-      wednesday: [],
-      thursday: [],
-      friday: [],
-      saturday: [],
-      sunday: [],
+      ...emptyWeek(),
+      monday: [
+        {
+          start: "09:00",
+          end: "18:00",
+        },
+      ],
     },
     exceptions: [],
     people: [
       {
         id: "legacy-person",
-        name: "Pessoa Existente",
+        name: "Pessoa Antiga",
         active: true,
       },
     ],
   })
 );
 
-const migrationRepository =
-  createLocalStorageStateRepository(migrationStorage);
-
-const migrated = await migrationRepository.load();
+const migratedV1 =
+  await createLocalStorageStateRepository(
+    v1Storage
+  ).load();
 
 if (
-  !migrated ||
-  migrated.version !== APP_STATE_VERSION ||
-  migrated.people[0]?.id !== "legacy-person" ||
-  migrated.availabilities[0]?.personId !== "legacy-person" ||
-  Object.values(
-    migrated.availabilities[0].weeklyAvailability
-  ).some((intervals) => intervals.length > 0)
+  !migratedV1 ||
+  migratedV1.version !== APP_STATE_VERSION ||
+  migratedV1.people[0]?.id !== "legacy-person" ||
+  migratedV1.availabilities[0]?.personId !==
+    "legacy-person" ||
+  migratedV1.workRules.standardShiftDurationMinutes !== null
 ) {
-  throw new Error("Migração v1 para v2 falhou");
-}
-
-if (!migrationStorage.getItem(LOCAL_STORAGE_KEY)) {
-  throw new Error("Migração deveria gravar o estado v2");
+  throw new Error(
+    "Migração v1 para v3 falhou"
+  );
 }
 
 const invalidStorage = new MemoryStorage();
-invalidStorage.setItem(LOCAL_STORAGE_KEY, "{invalid json");
+invalidStorage.setItem(
+  LOCAL_STORAGE_KEY,
+  "{invalid json"
+);
 
 if (
-  (await createLocalStorageStateRepository(
-    invalidStorage
-  ).load()) !== null
+  (
+    await createLocalStorageStateRepository(
+      invalidStorage
+    ).load()
+  ) !== null
 ) {
-  throw new Error("JSON inválido deveria ser ignorado");
+  throw new Error(
+    "JSON inválido deveria ser ignorado"
+  );
 }
 
-console.log("Persistence V0: todos os testes passaram.");
+console.log(
+  "Persistence V0: todos os testes passaram."
+);

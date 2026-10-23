@@ -1,5 +1,35 @@
 # Changelog
 
+## 2026-10-23 — Ponto 4 fechado
+
+- regras de trabalho validadas funcionalmente na aplicação;
+- turnos contínuos confirmados;
+- ajuste automático em dias mais curtos confirmado;
+- testes de calendário, pessoas, disponibilidade, regras de trabalho e persistência aprovados localmente;
+- typecheck aprovado localmente;
+- Ponto 4 considerado concluído.
+
+## 2026-10-23 — Ajuste de duração em dias curtos
+
+- duração padrão passa a representar a duração normal pretendida;
+- dias com menos horas de funcionamento deixam de ser tratados como erro;
+- o turno é reduzido ao período operacional contínuo disponível;
+- operações partidas continuam sem permitir que um turno atravesse o fecho;
+- pré-visualização semanal reorganizada numa grelha compacta.
+
+## 2026-10-23 — Ponto 4: Regras de trabalho e turnos contínuos
+
+- abandonado o protótipo de cobertura por intervalos antes de merge;
+- introduzida duração padrão de turno configurável;
+- duração ausente permanece explicitamente não configurada;
+- turnos diários passam a ser contínuos por construção;
+- adicionados cálculos de turno de abertura e de fecho;
+- turnos não podem atravessar períodos de operação fechada;
+- validação reutiliza calendário operacional e disponibilidade;
+- criada interface própria com pré-visualização;
+- persistência atualizada para versão 3 com migração v2 → v3;
+- adicionados testes de regras de trabalho e persistência.
+
 ## 2026-10-22 — Ponto 3 fechado
 
 - disponibilidade validada funcionalmente na aplicação;
