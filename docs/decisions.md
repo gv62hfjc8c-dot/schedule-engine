@@ -189,3 +189,19 @@ Uma mesma pessoa pode cumprir abertura e fecho de um dia curto com um único tur
 **Estado:** adiado para geração
 
 O motor deverá favorecer sobreposição apropriada durante a operação, sem exigir ao operador que defina curvas de afluência ou cobertura por hora. O objetivo só pode ser quantificado quando existirem regras de carga de trabalho e um gerador.
+
+## D025 — SQLite é a fonte de verdade local
+
+**Estado:** aceite para o protótipo
+
+Os dados do Schedule Engine são persistidos numa base SQLite local na raiz de dados do projeto. O frontend comunica com a API colocada no processo Vite existente; não há um segundo serviço para iniciar. O domínio conhece apenas a interface `StateRepository`.
+
+`localStorage` serve exclusivamente para migrar dados anteriores quando a base SQLite ainda está vazia. Os dados históricos do navegador nunca são apagados automaticamente e não substituem uma base já criada.
+
+## D026 — Escritas atómicas com revisões e histórico
+
+**Estado:** aceite para o protótipo
+
+Todas as alterações são transações SQLite, com controlo da revisão esperada, histórico e bloqueio à substituição acidental de colaboradores existentes por uma lista vazia.
+
+A base de dados local sobrevive a reinícios do Vite e do navegador; não é backup independente do disco. Antes de comercialização serão necessários autenticação, cópias externas e estratégia de restauro.
