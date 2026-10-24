@@ -1,7 +1,6 @@
 import type { Person, PersonAvailability } from "../types";
 import {
   isPersistedAppState,
-  LOCAL_STORAGE_KEY,
   LEGACY_LOCAL_STORAGE_KEY_V1,
   BACKUP_PEOPLE_STORAGE_KEY,
 } from "./localStorageStateRepository";
@@ -20,8 +19,9 @@ function isEnvelope(value: unknown): value is DatabaseEnvelope {
   if (!value || typeof value !== "object") return false;
   const payload = value as Record<string, unknown>;
 
-  return Number.isSafeInteger(payload.revision) &&
-    (payload.revision as number) >= 0 &&
+  return typeof payload.revision === "number" &&
+    Number.isSafeInteger(payload.revision) &&
+    payload.revision >= 0 &&
     (payload.state === null || isPersistedAppState(payload.state));
 }
 
@@ -167,7 +167,8 @@ export function createDatabaseStateRepository(
 
     const payload = await parseJsonResponse(response);
     if (!payload || typeof payload !== "object" ||
-        !Number.isSafeInteger((payload as {revision?:unknown}).revision)) {
+        typeof (payload as {revision?:unknown}).revision !== "number" ||
+        !Number.isSafeInteger((payload as {revision:number}).revision)) {
       throw new Error("Confirmação inválida de gravação na SQLite.");
     }
     return (payload as { revision: number }).revision;
