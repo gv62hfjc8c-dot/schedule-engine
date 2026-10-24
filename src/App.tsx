@@ -181,6 +181,8 @@ export default function App() {
     setSelectedAvailabilityPersonId,
   ] = useState<string | null>(null);
   const [persistenceReady, setPersistenceReady] = useState(false);
+  const [persistenceProblem, setPersistenceProblem] = useState<string | null>(null);
+  const skipInitialSave = useRef(true);
   const [persistenceStatus, setPersistenceStatus] = useState<
     "loading" | "saving" | "saved" | "error"
   >("loading");
@@ -205,10 +207,16 @@ export default function App() {
 
         setPersistenceReady(true);
         setPersistenceStatus("saved");
-      } catch {
+      } catch (error) {
         if (cancelled) return;
 
-        setPersistenceReady(true);
+        // Never enable autosave when hydration fails.
+        setPersistenceReady(false);
+        setPersistenceProblem(
+          error instanceof Error
+            ? error.message
+            : "Não foi possível carregar os dados guardados."
+        );
         setPersistenceStatus("error");
       }
     }
@@ -222,6 +230,13 @@ export default function App() {
 
   useEffect(() => {
     if (!persistenceReady) return;
+
+    // Loading existing state (or opening a new installation) is not a change.
+    // Do not overwrite browser storage merely because the app has mounted.
+    if (skipInitialSave.current) {
+      skipInitialSave.current = false;
+      return;
+    }
 
     const requestId = ++saveRequestId.current;
     setPersistenceStatus("saving");
@@ -241,8 +256,14 @@ export default function App() {
             setPersistenceStatus("saved");
           }
         })
-        .catch(() => {
+        .catch((error) => {
           if (requestId === saveRequestId.current) {
+            setPersistenceReady(false);
+            setPersistenceProblem(
+              error instanceof Error
+                ? error.message
+                : "Não foi possível guardar os dados."
+            );
             setPersistenceStatus("error");
           }
         });
@@ -664,6 +685,31 @@ export default function App() {
       ),
     });
   };
+
+  if (persistenceProblem) {
+    return (
+      <main className="app-shell">
+        <header className="page-header">
+          <div>
+            <p className="eyebrow">Proteção dos dados</p>
+            <h1>Schedule Engine</h1>
+          </div>
+        </header>
+        <section className="panel" role="alert" style={{ padding: "24px" }}>
+          <h2>Dados guardados não carregados</h2>
+          <p style={{ marginTop: "12px" }}>
+            {persistenceProblem}
+          </p>
+          <p>
+            Para evitar substituir dados existentes por um estado vazio,
+            a aplicação bloqueou a edição e a gravação automática.
+            Não limpes os dados do navegador. Confirma a versão da
+            aplicação antes de voltares a carregar esta página.
+          </p>
+        </section>
+      </main>
+    );
+  }
 
   return (
     <main className="app-shell">

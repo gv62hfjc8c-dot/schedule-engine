@@ -3,6 +3,8 @@ import type {
 } from "./persistence/localStorageStateRepository";
 import {
   createLocalStorageStateRepository,
+  BACKUP_LATEST_STORAGE_KEY,
+  BACKUP_PEOPLE_STORAGE_KEY,
   LEGACY_LOCAL_STORAGE_KEY_V1,
   LOCAL_STORAGE_KEY,
 } from "./persistence/localStorageStateRepository";
@@ -188,23 +190,124 @@ if (
 }
 
 const invalidStorage = new MemoryStorage();
-invalidStorage.setItem(
-  LOCAL_STORAGE_KEY,
-  "{invalid json"
-);
-
-if (
-  (
-    await createLocalStorageStateRepository(
-      invalidStorage
-    ).load()
-  ) !== null
-) {
+invalidStorage.setItem(LOCAL_STORAGE_KEY, "{invalid json");
+let invalidWasBlocked = false;
+try {
+  await createLocalStorageStateRepository(invalidStorage).load();
+} catch {
+  invalidWasBlocked = true;
+}
+if (!invalidWasBlocked ||
+    invalidStorage.getItem(LOCAL_STORAGE_KEY) !== "{invalid json") {
   throw new Error(
-    "JSON inválido deveria ser ignorado"
+    "JSON inválido tem de bloquear carregamento e preservar conteúdo."
   );
 }
 
-console.log(
-  "Persistence V0: todos os testes passaram."
-);
+const newerStorage = new MemoryStorage();
+const newerState = JSON.stringify({
+  ...loaded,
+  version: APP_STATE_VERSION + 1,
+});
+newerStorage.setItem(LOCAL_STORAGE_KEY, newerState);
+const newerRepository = createLocalStorageStateRepository(newerStorage);
+let newerBlocked = false;
+try {
+  await newerRepository.load();
+} catch {
+  newerBlocked = true;
+}
+if (!newerBlocked) {
+  throw new Error("Versão futura deve bloquear carregamento.");
+}
+
+let newerWriteBlocked = false;
+try {
+  await newerRepository.save(loaded!);
+} catch {
+  newerWriteBlocked = true;
+}
+if (!newerWriteBlocked ||
+    newerStorage.getItem(LOCAL_STORAGE_KEY) !== newerState) {
+  throw new Error("Versão futura não pode ser sobrescrita.");
+}
+
+const protectionStorage = new MemoryStorage();
+const protectedRepo = createLocalStorageStateRepository(protectionStorage);
+await protectedRepo.load();
+await protectedRepo.save(loaded!);
+const populatedRaw = protectionStorage.getItem(LOCAL_STORAGE_KEY);
+if (!populatedRaw) {
+  throw new Error("É necessário ter um estado inicial persistido.");
+}
+
+let emptyPeopleRejected = false;
+try {
+  await protectedRepo.save({ ...loaded!, people: [] });
+} catch {
+  emptyPeopleRejected = true;
+}
+if (!emptyPeopleRejected ||
+    protectionStorage.getItem(LOCAL_STORAGE_KEY) !== populatedRaw) {
+  throw new Error("Não pode apagar todos os colaboradores por acidente.");
+}
+
+await protectedRepo.save({
+  ...loaded!,
+  workRules: { standardShiftDurationMinutes: 360 },
+});
+if (
+  protectionStorage.getItem(BACKUP_LATEST_STORAGE_KEY) !== populatedRaw ||
+  protectionStorage.getItem(BACKUP_PEOPLE_STORAGE_KEY) !== populatedRaw
+) {
+  throw new Error("A versão anterior com colaboradores deve ficar em backup.");
+}
+
+const concurrentStorage = new MemoryStorage();
+const firstTab = createLocalStorageStateRepository(concurrentStorage);
+const secondTab = createLocalStorageStateRepository(concurrentStorage);
+await firstTab.load();
+await secondTab.load();
+await firstTab.save(loaded!);
+let concurrentWriteRejected = false;
+try {
+  await secondTab.save(loaded!);
+} catch {
+  concurrentWriteRejected = true;
+}
+if (!concurrentWriteRejected) {
+  throw new Error("Alteração noutra janela deve impedir gravação concorrente.");
+}
+
+const backupFailureStorage = new MemoryStorage();
+const backupFailureRepo = createLocalStorageStateRepository(backupFailureStorage);
+await backupFailureRepo.load();
+await backupFailureRepo.save(loaded!);
+const failingStorage = {
+  getItem: (key: string) => backupFailureStorage.getItem(key),
+  setItem: (key: string, value: string) => {
+    if (key === BACKUP_LATEST_STORAGE_KEY) {
+      throw new Error("Falha de armazenamento");
+    }
+    backupFailureStorage.setItem(key, value);
+  },
+};
+const failingRepo = createLocalStorageStateRepository(failingStorage);
+await failingRepo.load();
+let backupFailureBlocked = false;
+try {
+  await failingRepo.save({
+    ...loaded!,
+    workRules: { standardShiftDurationMinutes: 360 },
+  });
+} catch {
+  backupFailureBlocked = true;
+}
+if (
+  !backupFailureBlocked ||
+  backupFailureStorage.getItem(LOCAL_STORAGE_KEY) !== JSON.stringify(loaded)
+) {
+  throw new Error("Falha no backup deve impedir substituição do estado.");
+}
+
+console.log("Persistence V0: todos os testes passaram.");
