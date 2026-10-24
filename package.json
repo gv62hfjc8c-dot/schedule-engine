@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "typecheck": "tsc -b",
-    "test": "npm run test:calendar && npm run test:people && npm run test:availability && npm run test:work-rules && npm run test:presence && npm run test:persistence && npm run test:database && npm run test:sqlite",
+    "test": "npm run test:calendar && npm run test:people && npm run test:availability && npm run test:work-rules && npm run test:presence && npm run test:persistence && npm run test:database && npm run test:sqlite && npm run test:sqlite-api",
     "preview": "vite preview",
     "test:calendar": "tsx src/operatingCalendarTest.ts",
     "test:people": "tsx src/peopleTest.ts",
@@ -16,7 +16,8 @@
     "test:work-rules": "tsx src/workRulesTest.ts",
     "test:presence": "tsx src/presenceTest.ts",
     "test:database": "tsx src/databaseStateRepositoryTest.ts",
-    "test:sqlite": "node --test server/sqliteStateDatabase.test.mjs"
+    "test:sqlite": "node --test server/sqliteStateDatabase.test.mjs",
+    "test:sqlite-api": "node --test server/viteDatabasePlugin.test.mjs"
   },
   "dependencies": {
     "react": "^18.3.1",
