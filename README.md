@@ -43,7 +43,13 @@ A aplicação guarda automaticamente:
 - regras de trabalho;
 - requisitos mínimos de presença e exceções.
 
-O armazenamento atual usa `localStorage`, isolado atrás de um contrato assíncrono de persistência.
+O armazenamento principal é agora uma **base de dados SQLite local**, no ficheiro `.schedule-engine-data/state.sqlite` (ignorado pelo Git). É servida pela própria instância Vite que já executa a aplicação na porta 5173, sem servidor adicional.
+
+Na primeira abertura, se a base estiver vazia, a aplicação importa automaticamente o estado v4 já existente no `localStorage`. O armazenamento do navegador permanece intacto como cópia histórica; a partir daí, a base SQLite é a única fonte de verdade. Colaboradores, disponibilidades, calendário, regras e mínimos são persistidos na base.
+
+Cada escrita utiliza uma revisão para bloquear conflitos entre abas; o SQLite mantém histórico das revisões numa transação atómica. O encerramento do Vite ou do navegador não apaga a base.
+
+**Requisito de desenvolvimento:** Node.js 22.13 ou superior (utilizamos `node:sqlite`). O módulo é experimental no Node 22, mas não exige dependência externa nem um segundo processo. Um backup externo do ficheiro SQLite continua recomendado para proteção contra avaria do disco ou eliminação da pasta.
 
 O formato é versionado e suporta migração automática entre as versões introduzidas.
 
