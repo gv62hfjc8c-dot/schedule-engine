@@ -140,7 +140,13 @@ interface StateRepository {
 }
 ```
 
-A implementação atual usa `localStorage` através de `localStorageStateRepository.ts`.
+A implementação principal usa `src/persistence/databaseStateRepository.ts`, que comunica por HTTP (mesma origem `/api/state`) com o plugin `server/viteDatabasePlugin.mjs` instalado no próprio Vite. O plugin utiliza `server/sqliteStateDatabase.mjs` para guardar o estado em SQLite, no caminho `.schedule-engine-data/state.sqlite`, fora do Git.
+
+A escrita é transacional e exige a revisão anterior (optimistic concurrency). A tabela `state_history` mantém uma cópia de cada revisão, permitindo diagnosticar alterações. Os dados sobrevivem ao reinício do servidor e do navegador.
+
+O `localStorage` permanece apenas como origem de migração inicial quando a SQLite está vazia. Nesse primeiro carregamento, os dados do navegador são copiados e mantidos, sem eliminar o original. Quando a SQLite já existe, não voltamos a importar do navegador. Se a API ou leitura falhar, a aplicação bloqueia gravações.
+
+A persistência continua isolada do núcleo de scheduling pelo contrato `StateRepository`. O endpoint atual é uma infraestrutura de desenvolvimento local, acessível apenas do próprio computador, não um backend de produção autenticado.
 
 O estado persistido inclui:
 
@@ -153,7 +159,7 @@ O estado persistido inclui:
 
 O formato é versionado. A versão 4 introduz requisitos de presença e migra automaticamente estados v3 sem inventar mínimos. As migrações v1 e v2 continuam suportadas.
 
-Uma futura persistência por API/base de dados deverá implementar o mesmo contrato, sem introduzir dependências de storage no domínio.
+A persistência SQLite e a API são adaptadores de infraestrutura: não existe dependência de storage no domínio. Para produção serão necessários autenticação, permissões, configuração de alojamento e backups independentes.
 
 ### Interface
 
@@ -169,7 +175,7 @@ Ainda não existem:
 - contratos;
 - horas semanais.
 
-Autenticação, permissões e persistência continuam fora do núcleo. A persistência local atual pertence apenas à aplicação.
+Autenticação, permissões e persistência continuam fora do núcleo. A persistência SQLite local atual pertence apenas à aplicação e ao Vite de desenvolvimento.
 
 ## Regra arquitetural
 
