@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-10-24 — SQLite como armazenamento persistente
+
+- base SQLite local em `.schedule-engine-data/state.sqlite`, fora do Git;
+- API local `/api/state` montada na mesma porta do Vite;
+- migração automática dos dados do navegador apenas na primeira utilização;
+- estado anterior do navegador preservado como cópia histórica;
+- dados guardados atomicamente por revisão e protegidos contra gravações concorrentes;
+- histórico de todas as versões guardadas na base;
+- testes de persistência após reinício, migração, proteção de pessoas e concorrência;
+- não requer segundo servidor nem port adicional.
+
 ## 2026-10-23 — Ponto 5: Requisitos mínimos de presença
 
 - três mínimos independentes: abertura, operação e fecho;
