@@ -5,3 +5,6 @@ dist/
 *.tsbuildinfo
 vite.config.js
 vite.config.d.ts
+
+# SQLite contains local user data and must never enter Git.
+.schedule-engine-data/
