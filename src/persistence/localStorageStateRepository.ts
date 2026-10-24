@@ -21,6 +21,12 @@ export const LOCAL_STORAGE_KEY =
 export const LEGACY_LOCAL_STORAGE_KEY_V1 =
   "schedule-engine:app-state:v1";
 
+/** Snapshots are never used as an implicit source of truth. */
+export const BACKUP_LATEST_STORAGE_KEY =
+  "schedule-engine:app-state:backup:latest";
+export const BACKUP_PEOPLE_STORAGE_KEY =
+  "schedule-engine:app-state:backup:people";
+
 export interface KeyValueStorage {
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;
@@ -257,61 +263,140 @@ function parseJson(raw: string): unknown {
   }
 }
 
+/**
+ * Keep the previous full state before replacing it. In particular, the
+ * last state containing people survives any later edits with zero people.
+ * A failed backup must abort the write instead of silently losing data.
+ */
+function backupPreviousState(storage: KeyValueStorage, raw: string): void {
+  const previous = parseJson(raw);
+  storage.setItem(BACKUP_LATEST_STORAGE_KEY, raw);
+
+  if (
+    previous &&
+    typeof previous === "object" &&
+    Array.isArray((previous as { people?: unknown }).people) &&
+    (previous as { people: unknown[] }).people.length > 0
+  ) {
+    storage.setItem(BACKUP_PEOPLE_STORAGE_KEY, raw);
+  }
+}
+
+function throwIncompatibleState(raw: string): never {
+  const parsed = parseJson(raw);
+  const version = parsed && typeof parsed === "object" &&
+    "version" in parsed ? String(parsed.version) : "desconhecida";
+
+  throw new Error(
+    `Estado guardado incompatível ou inválido (versão ${version}). ` +
+    "Os dados foram preservados; a gravação automática está bloqueada."
+  );
+}
+
 export function createLocalStorageStateRepository(
   storage: KeyValueStorage
 ): StateRepository {
+  // Used to detect changes made by another tab or another application version.
+  let lastObservedRaw: string | null | undefined;
+
   return {
     async load() {
       const currentRaw = storage.getItem(LOCAL_STORAGE_KEY);
 
-      if (currentRaw) {
+      if (currentRaw !== null) {
         const parsed = parseJson(currentRaw);
 
         if (isPersistedAppState(parsed)) {
+          lastObservedRaw = currentRaw;
           return parsed;
         }
 
         if (isLegacyAppStateV2(parsed)) {
           const migrated = migrateV2(parsed);
+          const migratedRaw = JSON.stringify(migrated);
 
-          storage.setItem(
-            LOCAL_STORAGE_KEY,
-            JSON.stringify(migrated)
-          );
+          backupPreviousState(storage, currentRaw);
+          storage.setItem(LOCAL_STORAGE_KEY, migratedRaw);
+          lastObservedRaw = migratedRaw;
 
           return migrated;
         }
 
-        return null;
+        // Never mistake an incompatible future version or corrupt payload
+        // for a clean installation. Returning null would erase user data.
+        throwIncompatibleState(currentRaw);
       }
 
-      const legacyRaw = storage.getItem(
-        LEGACY_LOCAL_STORAGE_KEY_V1
-      );
+      const legacyRaw = storage.getItem(LEGACY_LOCAL_STORAGE_KEY_V1);
 
-      if (!legacyRaw) return null;
+      if (legacyRaw !== null) {
+        const legacy = parseJson(legacyRaw);
 
-      const legacy = parseJson(legacyRaw);
+        if (!isLegacyAppStateV1(legacy)) {
+          throwIncompatibleState(legacyRaw);
+        }
 
-      if (!isLegacyAppStateV1(legacy)) {
-        return null;
+        const migrated = migrateV1(legacy);
+        const migratedRaw = JSON.stringify(migrated);
+
+        backupPreviousState(storage, legacyRaw);
+        storage.setItem(LOCAL_STORAGE_KEY, migratedRaw);
+        lastObservedRaw = migratedRaw;
+
+        return migrated;
       }
 
-      const migrated = migrateV1(legacy);
-
-      storage.setItem(
-        LOCAL_STORAGE_KEY,
-        JSON.stringify(migrated)
-      );
-
-      return migrated;
+      lastObservedRaw = null;
+      return null;
     },
 
     async save(state) {
-      storage.setItem(
-        LOCAL_STORAGE_KEY,
-        JSON.stringify(state)
-      );
+      const currentRaw = storage.getItem(LOCAL_STORAGE_KEY);
+
+      if (
+        lastObservedRaw !== undefined &&
+        currentRaw !== lastObservedRaw
+      ) {
+        throw new Error(
+          "Os dados guardados foram alterados por outra janela ou versão. " +
+          "A gravação foi bloqueada para evitar perdas."
+        );
+      }
+
+      if (lastObservedRaw === undefined && currentRaw !== null) {
+        throw new Error(
+          "É necessário carregar os dados guardados antes de os alterar."
+        );
+      }
+
+      if (currentRaw !== null) {
+        const current = parseJson(currentRaw);
+
+        if (!isPersistedAppState(current)) {
+          throwIncompatibleState(currentRaw);
+        }
+
+        // There is no supported UI operation that removes all people.
+        // An empty incoming array is more likely a failed hydration.
+        if (current.people.length > 0 && state.people.length === 0) {
+          throw new Error(
+            "A gravação foi bloqueada: iria apagar os colaboradores existentes."
+          );
+        }
+      }
+
+      const nextRaw = JSON.stringify(state);
+
+      if (nextRaw === currentRaw) {
+        return;
+      }
+
+      if (currentRaw !== null) {
+        backupPreviousState(storage, currentRaw);
+      }
+
+      storage.setItem(LOCAL_STORAGE_KEY, nextRaw);
+      lastObservedRaw = nextRaw;
     },
   };
 }
