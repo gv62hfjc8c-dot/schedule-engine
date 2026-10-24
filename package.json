@@ -7,14 +7,16 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "typecheck": "tsc -b",
-    "test": "npm run test:calendar && npm run test:people && npm run test:availability && npm run test:work-rules && npm run test:presence && npm run test:persistence",
+    "test": "npm run test:calendar && npm run test:people && npm run test:availability && npm run test:work-rules && npm run test:presence && npm run test:persistence && npm run test:database && npm run test:sqlite",
     "preview": "vite preview",
     "test:calendar": "tsx src/operatingCalendarTest.ts",
     "test:people": "tsx src/peopleTest.ts",
     "test:persistence": "tsx src/persistenceTest.ts",
     "test:availability": "tsx src/availabilityTest.ts",
     "test:work-rules": "tsx src/workRulesTest.ts",
-    "test:presence": "tsx src/presenceTest.ts"
+    "test:presence": "tsx src/presenceTest.ts",
+    "test:database": "tsx src/databaseStateRepositoryTest.ts",
+    "test:sqlite": "node --test server/sqliteStateDatabase.test.mjs"
   },
   "dependencies": {
     "react": "^18.3.1",
@@ -27,5 +29,8 @@
     "tsx": "^4.16.2",
     "typescript": "^5.5.3",
     "vite": "^5.4.0"
+  },
+  "engines": {
+    "node": ">=22.13.0"
   }
 }
