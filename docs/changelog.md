@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-10-25 — Supabase: persistência remota (em validação)
+
+- esquema PostgreSQL com estado v4 em JSONB por utilizador;
+- RLS e autenticação obrigatória;
+- função de gravação transacional que rejeita revisões obsoletas e remoção acidental de todos os colaboradores;
+- histórico de versões no PostgreSQL;
+- migração inicial do `localStorage`, com recuperação de pessoas de backups e v1;
+- importação bloqueada quando já existem dados na cloud;
+- testes simulados de concorrência, persistência, autenticação e migração;
+- validação real com projeto Supabase ainda pendente.
+
 ## 2026-10-23 — Ponto 5: Requisitos mínimos de presença
 
 - três mínimos independentes: abertura, operação e fecho;

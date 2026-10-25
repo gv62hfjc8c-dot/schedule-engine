@@ -2,7 +2,7 @@ name: Schedule Engine checks
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, "feature/presence-requirements-v0"]
   push:
     branches: [main]
 
