@@ -11,6 +11,7 @@ import type {
 import { getOperatingIntervalsForDate, getWeekday, WEEKDAYS } from "../utils/operatingCalendar";
 import {
   checkPresenceAvailabilityCapacity,
+  getPresencePhaseWindows,
   isPresenceRequirementValid,
 } from "../utils/presence";
 import { getAvailabilityIntervalsForDate } from "../utils/availability";
@@ -49,18 +50,18 @@ const fields: {
 }[] = [
   {
     key: "minimumDuringOperation",
-    label: "Durante a operação",
-    help: "Mínimo garantido enquanto a empresa está aberta",
+    label: "Período central",
+    help: "Mínimo obrigatório entre o fim da abertura e o início do fecho",
   },
   {
     key: "minimumAtOpening",
     label: "Na abertura",
-    help: "Presentes no início da operação",
+    help: "Presentes durante os primeiros 30 minutos de funcionamento",
   },
   {
     key: "minimumAtClosing",
     label: "No fecho",
-    help: "Presentes até ao fim da operação",
+    help: "Presentes durante os últimos 30 minutos de funcionamento",
   },
 ];
 
@@ -124,6 +125,18 @@ function safeOperationalIntervals(
   } catch {
     return null;
   }
+}
+
+function phaseWindowsDescription(
+  intervals: WeeklyOperatingHours[Weekday]
+): string | null {
+  const windows = getPresencePhaseWindows(intervals);
+  if (!windows) return null;
+  const describe = (ranges: typeof windows.opening) =>
+    ranges.length > 0
+      ? ranges.map((interval) => `${interval.start}–${interval.end}`).join(" · ")
+      : "—";
+  return `Abertura: ${describe(windows.opening)} | Centro: ${describe(windows.central)} | Fecho: ${describe(windows.closing)}`;
 }
 
 export default function PresencePanel({
@@ -212,9 +225,11 @@ export default function PresencePanel({
           </p>
         </div>
         <p className="section-description">
-          Na abertura e no fecho, o mínimo não pode ser inferior
-          ao mínimo durante a operação. Nenhum destes valores
-          define um intervalo de maior afluência.
+          Os primeiros 30 minutos são a abertura e os últimos 30 minutos
+          são o fecho. O restante funcionamento é o período central.
+          Os três mínimos são independentes: 1 / 2 / 1 é válido.
+          Em dias curtos, se abertura e fecho se sobrepuserem,
+          aplica-se o mínimo mais exigente.
         </p>
 
         <div className="presence-week-grid">
@@ -258,6 +273,11 @@ export default function PresencePanel({
                     </button>
                   )}
                 </div>
+                {!closed && (
+                  <p className="presence-muted">
+                    {phaseWindowsDescription(weeklyOperatingHours[day])}
+                  </p>
+                )}
                 {closed ? (
                   <p className="presence-muted">
                     Sem presença exigida. A regra anterior, se existir, fica preservada.
@@ -282,8 +302,7 @@ export default function PresencePanel({
                     />
                     {!valid && (
                       <p className="presence-validation" role="alert">
-                        Abertura e fecho devem ser iguais ou superiores
-                        ao mínimo durante a operação.
+                        Os três mínimos devem ser números inteiros não negativos.
                       </p>
                     )}
                     {shortage && (
@@ -310,7 +329,7 @@ export default function PresencePanel({
         </div>
         {invalidDays > 0 && (
           <p className="presence-validation" role="alert">
-            Existem {invalidDays} dias com mínimos incoerentes.
+            Existem {invalidDays} dias com mínimos inválidos.
           </p>
         )}
       </section>
@@ -327,6 +346,7 @@ export default function PresencePanel({
         </div>
         <p className="section-description">
           Cada exceção substitui a regra semanal nessa data.
+          Os períodos de abertura e fecho têm 30 minutos, tal como no padrão semanal.
           Em datas fechadas não se aplica qualquer mínimo.
         </p>
 
@@ -410,6 +430,11 @@ export default function PresencePanel({
                       A operação está fechada nesta data. Os requisitos não se aplicam.
                     </p>
                   )}
+                  {operatingIntervals !== null && operatingIntervals.length > 0 && (
+                    <p className="presence-muted">
+                      {phaseWindowsDescription(operatingIntervals)}
+                    </p>
+                  )}
                   {!closed && operatingIntervals !== null && (
                     exception.requirements === null ? (
                       <div className="presence-unconfigured">
@@ -436,7 +461,7 @@ export default function PresencePanel({
                         />
                         {!validRequirement && (
                           <p className="presence-validation" role="alert">
-                            Abertura e fecho não podem ficar abaixo do mínimo operacional.
+                            Os três mínimos devem ser números inteiros não negativos.
                           </p>
                         )}
                         {shortage && (
