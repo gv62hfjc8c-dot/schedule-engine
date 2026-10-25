@@ -43,16 +43,13 @@ A aplicação guarda automaticamente:
 - regras de trabalho;
 - requisitos mínimos de presença e exceções.
 
-O armazenamento atual usa `localStorage`, isolado atrás de um contrato assíncrono de persistência.
+**Em validação:** substituição do armazenamento principal por Supabase/PostgreSQL com autenticação, RLS, histórico e controlo de revisão. O `localStorage` fica como origem de migração inicial e cópia histórica; deixa de ser utilizado para gravações novas. Consulta [configuração do Supabase](docs/supabase-setup.md).
 
 O formato é versionado e suporta migração automática entre as versões introduzidas.
 
 ## Executar
 
-```bash
-npm install
-npm run dev
-```
+Antes de abrir esta branch, configura o projeto Supabase seguindo [o guia](docs/supabase-setup.md) e preenche `.env.local` a partir de `.env.example`. O servidor Vite existente é suficiente; não é necessário um backend adicional.
 
 ## Verificar
 
