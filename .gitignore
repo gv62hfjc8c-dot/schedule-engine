@@ -5,3 +5,8 @@ dist/
 *.tsbuildinfo
 vite.config.js
 vite.config.d.ts
+
+# Keep Supabase configuration out of source control.
+.env
+.env.local
+.env.*.local
