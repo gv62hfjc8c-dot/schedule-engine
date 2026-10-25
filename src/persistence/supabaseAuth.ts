@@ -30,18 +30,36 @@ export interface AuthStorage {
 
 export const AUTH_SESSION_KEY = "schedule-engine:supabase:session:v1";
 
+/**
+ * Validate the public Supabase project URL without relying on a fragile regex.
+ * Project API URLs may include /rest/v1/, but callers need just the origin.
+ */
+export function parseSupabaseProjectUrl(rawUrl: string): string {
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    throw new Error("VITE_SUPABASE_URL tem de ser um endereço HTTPS do Supabase.");
+  }
+
+  if (
+    parsed.protocol !== "https:" ||
+    !parsed.hostname.endsWith(".supabase.co") ||
+    parsed.hostname === ".supabase.co"
+  ) {
+    throw new Error("VITE_SUPABASE_URL tem de ser um endereço HTTPS do Supabase.");
+  }
+
+  return parsed.origin;
+}
+
 export function getSupabaseConfig(): SupabasePublicConfig | null {
   const url = import.meta.env.VITE_SUPABASE_URL?.trim();
   const publishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY?.trim();
 
   if (!url || !publishableKey) return null;
 
-  const parsed = new URL(url);
-  if (parsed.protocol !== "https:" || !/\\.supabase\\.co$/.test(parsed.hostname)) {
-    throw new Error("VITE_SUPABASE_URL tem de ser um endereço HTTPS do Supabase.");
-  }
-
-  return { url: parsed.origin, publishableKey };
+  return { url: parseSupabaseProjectUrl(url), publishableKey };
 }
 
 function isSession(value: unknown): value is SavedSession {
