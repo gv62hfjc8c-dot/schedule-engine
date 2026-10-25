@@ -1,16 +1,9 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import type { AuthIdentity } from "../persistence/supabaseAuth";
 import {
-  getSupabaseConfig,
-  SupabaseAuthClient,
-  type AuthIdentity,
-} from "../persistence/supabaseAuth";
-
-export const supabaseAuthClient = (() => {
-  const config = getSupabaseConfig();
-  return config
-    ? new SupabaseAuthClient(config, window.fetch.bind(window), window.localStorage)
-    : null;
-})();
+  supabaseAuthClient,
+  supabaseConfigurationError,
+} from "../persistence/supabaseInstance";
 
 interface Props {
   children: ReactNode;
@@ -55,6 +48,9 @@ export default function SupabaseGate({ children }: Props) {
             Define VITE_SUPABASE_URL e VITE_SUPABASE_PUBLISHABLE_KEY
             no ficheiro .env.local do projeto.
           </p>
+          {supabaseConfigurationError && (
+            <p role="alert">{supabaseConfigurationError}</p>
+          )}
           <p>
             Os dados existentes no navegador não foram apagados nem alterados.
           </p>
