@@ -28,7 +28,7 @@ Um turno diário é um único intervalo contínuo. Turnos repartidos não fazem 
 
 A duração padrão do turno é configuração explícita; o motor não assume uma duração quando ela ainda não foi definida.
 
-Os mínimos de presença são hard constraints configuráveis por dia e exceção. Não modelam a afluência horária nem limitam o número máximo de pessoas escaladas.
+Os mínimos de presença são hard constraints configuráveis por dia e exceção: **abertura = primeiros 30 minutos**, **período central = funcionamento restante**, **fecho = últimos 30 minutos**. Os três mínimos são independentes (por exemplo, 1 / 2 / 1) e não limitam a quantidade máxima de pessoas.
 
 O núcleo dispõe de um validador da presença em atribuições contínuas propostas e de uma pré-verificação de disponibilidade. Nenhum destes dois mecanismos gera horários ou garante viabilidade integral.
 
