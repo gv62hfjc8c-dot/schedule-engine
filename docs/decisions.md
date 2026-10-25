@@ -189,3 +189,28 @@ Uma mesma pessoa pode cumprir abertura e fecho de um dia curto com um único tur
 **Estado:** adiado para geração
 
 O motor deverá favorecer sobreposição apropriada durante a operação, sem exigir ao operador que defina curvas de afluência ou cobertura por hora. O objetivo só pode ser quantificado quando existirem regras de carga de trabalho e um gerador.
+
+## D025 — Supabase como persistência remota (proposta em validação)
+
+**Estado:** em validação
+
+A aplicação React utiliza um adaptador `StateRepository` para guardar o estado
+v4 em PostgreSQL via Supabase. O motor de scheduling permanece independente.
+O projeto Supabase é separado de outros produtos.
+
+O `localStorage` só pode originar a primeira migração, quando ainda não existe
+um estado associado à conta autenticada. Dados guardados na cloud prevalecem
+sempre sobre o navegador. As chaves históricas permanecem intactas.
+
+Uma conta permanente autenticada é obrigatória. RLS isola os dados por
+proprietário; não existe edição partilhada neste V0. A API usa apenas a chave
+pública, nunca service_role.
+
+## D026 — Revisões transacionais e histórico
+
+**Estado:** em validação
+
+Uma função SQL executa as escritas e valida a revisão anterior numa transação.
+Revisões obsoletas não podem substituir uma versão mais recente. Alterações
+bem-sucedidas entram na tabela de histórico. Eliminação acidental de todos os
+colaboradores é bloqueada. Falhas de leitura interrompem autosave.
