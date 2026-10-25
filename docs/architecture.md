@@ -140,7 +140,7 @@ interface StateRepository {
 }
 ```
 
-A implementação atual usa `localStorage` através de `localStorageStateRepository.ts`.
+A implementação inicial usa `localStorage` através de `localStorageStateRepository.ts`. Na branch Supabase em validação, `supabaseStateRepository.ts` torna PostgreSQL a fonte de verdade, sem introduzir dependências de persistência no domínio. Usa a API REST autenticada do Supabase, políticas RLS e uma função SQL de escrita atómica com controlo de revisão. O `localStorage` só é lido na primeira migração e nunca sobrescreve dados que já existam na cloud. Consulta `docs/supabase-setup.md`.
 
 O estado persistido inclui:
 
