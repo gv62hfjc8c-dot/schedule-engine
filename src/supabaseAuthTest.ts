@@ -1,6 +1,7 @@
 import {
   AUTH_SESSION_KEY,
   SupabaseAuthClient,
+  parseSupabaseProjectUrl,
   type AuthStorage,
 } from "./persistence/supabaseAuth";
 
@@ -62,6 +63,31 @@ const mockedFetch: typeof fetch = async (input, init) => {
 
   return Response.json({ error: "Rota desconhecida." }, { status: 404 });
 };
+
+// Regression: valid production project URLs must never be rejected.
+ensure(
+  parseSupabaseProjectUrl("https://zuczsheoixuwienbkprz.supabase.co") ===
+    "https://zuczsheoixuwienbkprz.supabase.co",
+  "Aceita o domínio do projeto Supabase."
+);
+ensure(
+  parseSupabaseProjectUrl("https://zuczsheoixuwienbkprz.supabase.co/rest/v1/") ===
+    "https://zuczsheoixuwienbkprz.supabase.co",
+  "Normaliza URLs que incluem /rest/v1/."
+);
+for (const invalid of [
+  "http://zuczsheoixuwienbkprz.supabase.co",
+  "https://zuczsheoixuwienbkprz.supabase.co.evil.test",
+  "not-a-url",
+]) {
+  let rejected = false;
+  try {
+    parseSupabaseProjectUrl(invalid);
+  } catch {
+    rejected = true;
+  }
+  ensure(rejected, "Rejeita URLs inválidos ou inseguros.");
+}
 
 const storage = new MemoryStorage();
 const config = {
