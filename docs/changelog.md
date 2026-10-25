@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-10-25 — Ponto 5: janelas de presença de 30 minutos (em validação)
+
+- abertura: primeiros 30 minutos após a abertura do primeiro período operacional;
+- fecho: últimos 30 minutos anteriores ao fim do último período operacional;
+- período central: restante tempo aberto, sem incluir intervalos de encerramento;
+- mínimos independentes: configurações 1 / 2 / 1 passam a ser válidas;
+- operações partidas e dias curtos têm regras explícitas, incluindo sobreposição
+  de janelas com aplicação do mínimo mais exigente;
+- pré-verificação de disponibilidade e validador de atribuições utilizam
+  os mesmos limites horários, com testes de fronteiras;
+- interface passa a mostrar as janelas exatas de cada dia;
+- formato persistido v4 não se altera; sem migração de base de dados.
+
 ## 2026-10-25 — Supabase: persistência remota (em validação)
 
 - esquema PostgreSQL com estado v4 em JSONB por utilizador;
