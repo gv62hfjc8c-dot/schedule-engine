@@ -56,8 +56,9 @@ export interface WorkRulesConfiguration {
 }
 
 /**
- * Minimum simultaneous presence at the boundaries and throughout an
- * operating day. All three values are hard minimums, never targets or maxima.
+ * Independent hard minimums for the first 30 minutes of opening, the central
+ * operating window, and the final 30 minutes before closing. These are
+ * minimums, not targets or maxima. Values like 1 / 2 / 1 are valid.
  */
 export interface PresenceRequirement {
   minimumDuringOperation: number;
