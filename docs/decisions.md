@@ -162,7 +162,7 @@ Estados v2 são migrados preservando calendário, pessoas e disponibilidades, co
 
 **Estado:** aceite para o Ponto 5
 
-Abertura, durante a operação e fecho são mínimos obrigatórios, não objetivos exatos. Abertura e fecho não podem ser inferiores ao mínimo durante a operação.
+Abertura, período central e fecho são mínimos obrigatórios, não objetivos exatos. Os três valores são independentes. A duração das janelas é definida na D027; deixa de vigorar a regra anterior que impedia abertura ou fecho inferiores ao mínimo central.
 
 ## D021 — Requisitos seguem padrão semanal e exceções
 
@@ -214,3 +214,37 @@ Uma função SQL executa as escritas e valida a revisão anterior numa transaç�
 Revisões obsoletas não podem substituir uma versão mais recente. Alterações
 bem-sucedidas entram na tabela de histórico. Eliminação acidental de todos os
 colaboradores é bloqueada. Falhas de leitura interrompem autosave.
+
+## D027 — Janelas de presença de 30 minutos
+
+**Estado:** aceite; implementação em validação funcional
+
+A abertura é o intervalo dos primeiros 30 minutos de relógio após o início
+do primeiro período operacional do dia. O fecho é o intervalo dos últimos
+30 minutos anteriores ao fim do último período operacional. O resto
+do tempo aberto pertence ao período central, mesmo quando a operação
+tem interrupções; durante os encerramentos não há exigência de presença.
+
+Exemplo: operação 09:00–18:00 e mínimos 1 / 2 / 1:
+- 09:00–09:30: pelo menos 1 pessoa;
+- 09:30–17:30: pelo menos 2 pessoas;
+- 17:30–18:00: pelo menos 1 pessoa.
+
+Em dias tão curtos que as duas janelas se sobrepõem, ambas as hard
+constraints se aplicam simultaneamente: exige-se o máximo dos mínimos
+de abertura e fecho. Não se considera um período central inexistente.
+As fronteiras são semiabertas [início, fim).
+
+As janelas são ancoradas apenas na primeira abertura e no último fecho
+do dia, não são reiniciadas a cada reabertura de uma operação partida.
+O requisito de 30 minutos é uma constante explícita do domínio V1,
+não uma configuração arbitrária por dia.
+
+Os validadores puros de atribuições e de capacidade têm de aplicar
+exatamente os mesmos cortes, incluindo os casos em que nenhuma
+disponibilidade muda nos minutos 30 de cada extremo. Esta verificação
+continua a ser apenas necessária e não demonstra viabilidade integral
+dos turnos.
+
+Não há mudança ao formato persistido v4: os três campos já existentes
+passam a ser avaliados nos novos períodos.

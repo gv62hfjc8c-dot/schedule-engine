@@ -31,12 +31,10 @@ export function isPresenceRequirementValid(
     minimumAtClosing: closing,
   } = requirement;
 
-  return (
-    [base, opening, closing].every(
-      (value) => Number.isInteger(value) && value >= 0
-    ) &&
-    opening >= base &&
-    closing >= base
+  // Three independent hard minimums for distinct operating windows.
+  // Opening/closing may be lower or higher than the central requirement.
+  return [base, opening, closing].every(
+    (value) => Number.isSafeInteger(value) && value >= 0
   );
 }
 
@@ -86,7 +84,7 @@ export function resolvePresenceForDate(
       status: "invalid",
       requirements: null,
       issues: [
-        "Os mínimos têm de ser inteiros não negativos; abertura e fecho não podem ser inferiores ao mínimo operacional.",
+        "Os mínimos de abertura, período central e fecho têm de ser inteiros não negativos.",
       ],
     };
   }
@@ -95,6 +93,121 @@ export function resolvePresenceForDate(
 }
 
 type PresencePhase = "opening" | "operation" | "closing";
+
+/**
+ * Opening is the first 30 clock minutes after the first opening time.
+ * Closing is the last 30 clock minutes before the final closing time.
+ * All other OPEN intervals are central. Closed gaps never require coverage.
+ *
+ * If a short day makes the two edge windows overlap, both hard minimums
+ * apply to the overlap, therefore the stricter one is enforced.
+ */
+export const PRESENCE_EDGE_WINDOW_MINUTES = 30;
+
+function requirementForSegment(
+  start: number,
+  end: number,
+  firstOpening: number,
+  lastClosing: number,
+  requirement: PresenceRequirement
+): { phase: PresencePhase; required: number } {
+  const inOpening = start < firstOpening + PRESENCE_EDGE_WINDOW_MINUTES;
+  const inClosing = end > lastClosing - PRESENCE_EDGE_WINDOW_MINUTES;
+
+  if (inOpening && inClosing) {
+    return requirement.minimumAtOpening >= requirement.minimumAtClosing
+      ? { phase: "opening", required: requirement.minimumAtOpening }
+      : { phase: "closing", required: requirement.minimumAtClosing };
+  }
+  if (inOpening) {
+    return { phase: "opening", required: requirement.minimumAtOpening };
+  }
+  if (inClosing) {
+    return { phase: "closing", required: requirement.minimumAtClosing };
+  }
+  return {
+    phase: "operation",
+    required: requirement.minimumDuringOperation,
+  };
+}
+
+function addPhaseBoundaries(
+  edges: Set<number>,
+  interval: NumericInterval,
+  firstOpening: number,
+  lastClosing: number
+): void {
+  for (const boundary of [
+    firstOpening + PRESENCE_EDGE_WINDOW_MINUTES,
+    lastClosing - PRESENCE_EDGE_WINDOW_MINUTES,
+  ]) {
+    if (boundary > interval.start && boundary < interval.end) {
+      edges.add(boundary);
+    }
+  }
+}
+
+export interface PresencePhaseWindows {
+  opening: TimeInterval[];
+  central: TimeInterval[];
+  closing: TimeInterval[];
+}
+
+/** Human-readable phase windows, also reused by the UI for transparency. */
+export function getPresencePhaseWindows(
+  operatingIntervals: TimeInterval[]
+): PresencePhaseWindows | null {
+  const parsed = operatingIntervals.map(parseInterval);
+  if (parsed.some((interval) => interval === null)) return null;
+  const valid = parsed.filter(
+    (interval): interval is NumericInterval => interval !== null
+  ).sort((a, b) => a.start - b.start);
+
+  if (valid.some((interval, index) =>
+    index > 0 && interval.start < valid[index - 1].end
+  )) return null;
+
+  const windows: PresencePhaseWindows = {
+    opening: [],
+    central: [],
+    closing: [],
+  };
+  if (valid.length === 0) return windows;
+
+  const firstOpening = valid[0].start;
+  const lastClosing = valid[valid.length - 1].end;
+  const openingUntil = firstOpening + PRESENCE_EDGE_WINDOW_MINUTES;
+  const closingFrom = lastClosing - PRESENCE_EDGE_WINDOW_MINUTES;
+
+  for (const interval of valid) {
+    const firstEnd = Math.min(interval.end, openingUntil);
+    if (firstEnd > interval.start) {
+      windows.opening.push({
+        start: time(interval.start),
+        end: time(firstEnd),
+      });
+    }
+
+    const centralStart = Math.max(interval.start, openingUntil);
+    const centralEnd = Math.min(interval.end, closingFrom);
+    if (centralEnd > centralStart) {
+      windows.central.push({
+        start: time(centralStart),
+        end: time(centralEnd),
+      });
+    }
+
+    const lastStart = Math.max(interval.start, closingFrom);
+    if (interval.end > lastStart) {
+      windows.closing.push({
+        start: time(lastStart),
+        end: time(interval.end),
+      });
+    }
+  }
+
+  return windows;
+}
 
 export interface PresenceShortage {
   phase: PresencePhase;
@@ -142,8 +255,9 @@ function parseInterval(value: TimeInterval): NumericInterval | null {
  * Pure validation of an already-proposed day's presence. This does not
  * generate assignments and does not claim work-rule or availability validity.
  *
- * Boundaries are [start, end). A person is counted once, both at opening and
- * at closing where their single continuous assignment spans the full day.
+ * Boundaries are [start, end). Phase transitions split coverage into fixed
+ * 30-minute opening/closing bands and a remaining central operating period.
+ * A person is counted once, including when a short day overlaps both bands.
  */
 export function checkPresenceForAssignments(
   operatingIntervals: TimeInterval[],
@@ -211,6 +325,7 @@ export function checkPresenceForAssignments(
 
   for (const interval of validOperation) {
     const edges = new Set<number>([interval.start, interval.end]);
+    addPhaseBoundaries(edges, interval, firstStart, lastEnd);
 
     for (const shift of assigned) {
       if (shift.start > interval.start && shift.start < interval.end) {
@@ -229,20 +344,9 @@ export function checkPresenceForAssignments(
         (shift) => shift.start <= start && shift.end > start
       ).length;
 
-      let required = requirements.minimumDuringOperation;
-      let phase: PresencePhase = "operation";
-
-      if (start === firstStart &&
-          requirements.minimumAtOpening > required) {
-        required = requirements.minimumAtOpening;
-        phase = "opening";
-      }
-
-      if (end === lastEnd &&
-          requirements.minimumAtClosing > required) {
-        required = requirements.minimumAtClosing;
-        phase = "closing";
-      }
+      const { required, phase } = requirementForSegment(
+        start, end, firstStart, lastEnd, requirements
+      );
 
       if (actual < required) {
         shortages.push({
@@ -263,6 +367,7 @@ export function checkPresenceForAssignments(
  * at every instant of operation, enough distinct people must be available.
  * A successful result does NOT prove that valid continuous shifts exist.
  * Each entry in availabilityByPerson belongs to one distinct active person.
+ * Phase boundaries are checked independently of availability change points.
  */
 export function checkPresenceAvailabilityCapacity(
   operatingIntervals: TimeInterval[],
@@ -315,6 +420,7 @@ export function checkPresenceAvailabilityCapacity(
 
   for (const interval of validOperation) {
     const edges = new Set<number>([interval.start, interval.end]);
+    addPhaseBoundaries(edges, interval, firstStart, lastEnd);
 
     for (const personIntervals of numericAvailability) {
       for (const availableInterval of personIntervals) {
@@ -341,20 +447,9 @@ export function checkPresenceAvailabilityCapacity(
         )
       ).length;
 
-      let required = requirements.minimumDuringOperation;
-      let phase: PresencePhase = "operation";
-
-      if (start === firstStart &&
-          requirements.minimumAtOpening > required) {
-        required = requirements.minimumAtOpening;
-        phase = "opening";
-      }
-
-      if (end === lastEnd &&
-          requirements.minimumAtClosing > required) {
-        required = requirements.minimumAtClosing;
-        phase = "closing";
-      }
+      const { required, phase } = requirementForSegment(
+        start, end, firstStart, lastEnd, requirements
+      );
 
       if (actual < required) {
         shortages.push({

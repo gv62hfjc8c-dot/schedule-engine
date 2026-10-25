@@ -113,7 +113,7 @@ Um turno contínuo não pode atravessar uma interrupção do calendário operaci
 
 ### Requisitos mínimos de presença
 
-O Ponto 5 introduz `PresenceRequirement` com três mínimos inteiros e não negativos: abertura, durante a operação e fecho. Abertura e fecho não podem exigir menos do que o mínimo durante a operação.
+O Ponto 5 introduz `PresenceRequirement` com três mínimos independentes, inteiros e não negativos: abertura (primeiros 30 minutos de funcionamento), período central (entre as duas janelas exteriores) e fecho (últimos 30 minutos). Uma configuração 1 / 2 / 1 é válida; os mínimos não são máximos nem objetivos exatos.
 
 Os requisitos não determinam o número exato de colaboradores, nem codificam picos de procura. São hard constraints.
 
@@ -121,7 +121,7 @@ Os requisitos não determinam o número exato de colaboradores, nem codificam pi
 
 `src/utils/presence.ts` resolve os requisitos efetivos de uma data e valida a presença simultânea num conjunto de atribuições contínuas já proposto.
 
-Na verificação das atribuições, os intervalos são semiabertos `[início, fim)`. A abertura corresponde ao início do primeiro intervalo operacional; o fecho ao instante imediatamente anterior ao fim do último. Durante interrupções operacionais não é exigida presença. Cada pessoa pode ter apenas uma atribuição diária; uma mesma pessoa pode cumprir ambos os extremos num dia curto.
+Na verificação das atribuições, os intervalos são semiabertos `[início, fim)`. Para um dia 09:00–18:00, a abertura é 09:00–09:30, o período central 09:30–17:30 e o fecho 17:30–18:00. As janelas estão ancoradas na primeira abertura e no último fecho do dia. Em operações partidas, não se exige presença nos intervalos fechados; o tempo operacional interior pertence ao período central. Em dias com duração total inferior a 60 minutos, abertura e fecho podem sobrepor-se: o mínimo aplicável à sobreposição é o maior dos dois, sem inventar um período central. Cada pessoa conta uma única vez em cada intervalo e só pode ter uma atribuição contínua diária.
 
 O validador de atribuições verifica **apenas presença**, não disponibilidade, contratos, carga horária ou viabilidade global.
 
