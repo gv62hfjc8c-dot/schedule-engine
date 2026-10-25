@@ -46,7 +46,7 @@ const mockedFetch: typeof fetch = async (input, init) => {
   if (url.endsWith("/auth/v1/user")) {
     const headers = new Headers(init?.headers);
     ensure(headers.has("apikey"), "Envia chave pública.");
-    ensure(headers.get("Authorization")?.startsWith("Bearer jwt-"),
+    ensure(Boolean(headers.get("Authorization")?.startsWith("Bearer jwt-")),
       "A requisição tem JWT de utilizador.");
     return Response.json({ id: "user-one", email: "ana@example.com" });
   }
