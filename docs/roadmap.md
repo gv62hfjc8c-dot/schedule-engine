@@ -183,6 +183,7 @@ Primeiro incremento técnico:
 - [x] cálculo de intervalos efetivos, excluindo a refeição;
 - [x] validação pura de refeição, limites diários/semanais e descanso entre dias;
 - [x] contexto de trabalho completo obrigatório para certificar um período;
+- [x] fuso IANA explícito, descanso medido em tempo real e rejeição de horas locais ambíguas/inexistentes;
 - [x] testes dos limiares, semanas partidas, transições de calendário e falta de contexto;
 - [ ] confirmar CI e validação local dos novos testes;
 - [ ] integrar os novos segmentos efetivos no validador de cobertura, sem contar a pausa;
