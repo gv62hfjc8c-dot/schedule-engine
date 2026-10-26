@@ -166,7 +166,7 @@ Estado: **integrado na main (PR #12; 2026-10-26)**
 
 ### Etapa 6.3 — Refeição, descanso e limites de trabalho
 
-Estado: **validadores PR #13 e gerador diário com refeição PR #14 integrados; pesquisa global de período em validação (PR #15)**
+Estado: **núcleo P6.3 implementado com CI aprovado (PRs #13, #14 e #15); integração UI pendente**
 
 Regras acordadas:
 - [x] 8h padrão = 8h de trabalho efetivo, excluindo refeição;
@@ -201,8 +201,7 @@ Primeiro incremento técnico:
 - [x] validação final independente de regras de trabalho, depois de cobertura diária com refeições;
 - [x] testes de backtracking real, horas semanais anteriores/posteriores, domingo/segunda, refeições e contexto desconhecido;
 - [ ] validar execução local do gerador de períodos com regras completas;
-- [ ] integrar o novo gerador na interface e adaptar configuração/persistência quando o núcleo estiver estabilizado;
-- [ ] adaptar a persistência e a interface apenas quando o novo modelo estiver validado.
+- [ ] integrar o novo gerador na interface e adaptar configuração/persistência apenas quando a entrada de contexto exterior completo estiver resolvida;
 
 **Atenção:** o novo gerador de período P6.3 só certifica regras globais quando
 `status: "generated"` **e** quando o contexto exterior ao período está confirmado.
@@ -213,9 +212,9 @@ refeições, descanso ou horas semanais.
 
 - Pesquisa discreta de duração fixa: não encontrar solução não prova impossibilidade global.
 - Não existem turnos repartidos nem atribuições multi-dia.
-- Ainda sem equidade, contratos, horas semanais ou descanso entre dias.
+- O gerador **legado** ainda não aplica as regras P6.3; o novo núcleo experimental valida horas semanais e descanso entre dias apenas quando recebe contexto exterior completo.
 - A interface de geração é apenas uma simulação, sem gravação dos turnos.
 
 ## Próximo passo
 
-Validar os casos locais e integrar o PR #15 após CI aprovado. Depois fazer integração controlada da nova geração na interface, com origem explícita do contexto exterior completo e preservação dos dados existentes.
+Validar localmente o núcleo multi-dia após a integração do PR #15. Depois definir a origem verificável dos turnos exteriores ao período e fazer integração controlada na interface, preservando os dados existentes.
