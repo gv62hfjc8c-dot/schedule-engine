@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-10-26 — Ponto 6.3: modelo de trabalho efetivo e validadores independentes
+
+- aprovados 8h efetivas diárias, máximo de 40h semanais e 11h de descanso;
+- aprovada pausa obrigatória de 60 min em turnos com mais de 6h efetivas,
+  posicionável após 3–5h de trabalho efetivo;
+- introduzido modelo aditivo de turno datado com intervalo de presença e refeição;
+- validador puro de pausas, limites diários, semanais e descanso, com
+  distinção entre violações, entrada inválida e contexto exterior incompleto;
+- semanas civis de segunda a domingo, com turnos conhecidos fora do período;
+- teste unitário dos casos-limite; sem alterações a Supabase ou à interface;
+- gerador anterior ainda não aplica os novos limites (integração pendente).
+
 ## 2026-10-26 — Ponto 6.2: gerador de períodos V0 (em validação)
 
 - orquestra vários dias consecutivos através do gerador diário já validado;
