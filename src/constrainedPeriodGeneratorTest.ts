@@ -238,6 +238,54 @@ assert(blockedAfter.status === "incomplete" &&
   blockedAfter.workViolations.some(v => v.code === "minimum_rest"),
   "O descanso para o dia seguinte ao período também é validado.");
 
+const futureWeekWorked = ["2026-10-27", "2026-10-28", "2026-10-29",
+  "2026-10-30", "2026-10-31"].map(date => shift(date, "a"));
+const futureWeek = inputs(mon, mon, ["a", "b"],
+  { [mon]: interval("09:00", "13:00") },
+  { [mon]: {
+    a: interval("09:00", "13:00"),
+    b: interval("09:00", "13:00"),
+  } },
+  { [mon]: one }, undefined, futureWeekWorked
+);
+const futureWeekResult = generateConstrainedPeriodSchedule(futureWeek);
+assert(futureWeekResult.status === "generated" &&
+  futureWeekResult.assignments.length === 1 &&
+  futureWeekResult.assignments[0].personId === "b",
+  "40h já conhecidas após o período impedem escalar A na segunda.");
+independentlyValidate(futureWeek, futureWeekResult.assignments);
+
+const sundayBefore = inputs(mon, mon, ["a", "b"],
+  { [mon]: interval("08:00", "12:00") },
+  { [mon]: {
+    a: interval("08:00", "12:00"),
+    b: interval("08:00", "12:00"),
+  } },
+  { [mon]: one }, undefined,
+  [shift("2026-10-25", "a", "16:00", "22:00", null)]
+);
+const sundayBeforeResult = generateConstrainedPeriodSchedule(sundayBefore);
+assert(sundayBeforeResult.status === "generated" &&
+  sundayBeforeResult.assignments[0].personId === "b",
+  "Descanso entre domingo anterior e segunda do período exige B.");
+independentlyValidate(sundayBefore, sundayBeforeResult.assignments);
+
+const illegalKnownWeek = inputs(sun, sun, ["b"],
+  { [sun]: interval("09:00", "13:00") },
+  { [sun]: { b: interval("09:00", "13:00") } },
+  { [sun]: one }, undefined,
+  [...weekWorked, shift(sat, "a")]
+);
+const invalidKnownWeek = generateConstrainedPeriodSchedule(illegalKnownWeek);
+assert(invalidKnownWeek.status === "invalid_input" &&
+  invalidKnownWeek.workViolations.some(v => v.code === "weekly_limit"),
+  "Contexto externo que já ultrapassa 40h deve ser recusado antes da pesquisa.");
+
+const malformedExternal = structuredClone(restInput);
+malformedExternal.externalContext.shifts.push(null as unknown as DatedWorkShift);
+assert(generateConstrainedPeriodSchedule(malformedExternal).status === "invalid_input",
+  "Um turno exterior malformado deve devolver invalid_input, não lançar exceção.");
+
 const wrongOutside = structuredClone(restInput);
 wrongOutside.externalContext.completeOutsideTarget = false;
 const incomplete = generateConstrainedPeriodSchedule(wrongOutside);
