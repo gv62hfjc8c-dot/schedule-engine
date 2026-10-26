@@ -12,6 +12,12 @@
 - fuso horário IANA explícito; descanso em minutos reais, incluindo mudanças
   da hora legal, com rejeição de horas locais inexistentes ou ambíguas;
 - teste unitário dos casos-limite; sem alterações a Supabase ou à interface;
+- acrescentado `checkPresenceForWorkShifts` para excluir períodos de refeição
+  da cobertura mínima, reutilizando o algoritmo de presença existente;
+- introduzido `checkPresenceForWorkingIntervals` para preservar uma única
+  pessoa com vários segmentos não sobrepostos e impedir dupla contagem;
+- testes de refeições simultâneas e desfasadas, limites de fases e
+  equivalência com validador antigo quando não existem pausas;
 - gerador anterior ainda não aplica os novos limites (integração pendente).
 
 ## 2026-10-26 — Ponto 6.2: gerador de períodos V0 (em validação)
