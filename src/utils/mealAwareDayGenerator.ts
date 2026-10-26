@@ -216,14 +216,18 @@ function createCandidates(
           (_, index) => (index + 1) * GRID_MINUTES)
       : [Math.min(target, operatingDuration)];
     for (const requestedEffective of effectiveChoices) {
+      const effectiveWithMeal = Math.min(requestedEffective,
+        operatingDuration - meal.durationMinutes);
       const withMeal =
         requestedEffective > meal.requiredAboveEffectiveMinutes &&
-        requestedEffective + meal.durationMinutes <= operatingDuration &&
-        requestedEffective > meal.earliestStartAfterWorkMinutes &&
-        meal.earliestStartAfterWorkMinutes <= meal.latestStartAfterWorkMinutes;
+        effectiveWithMeal > meal.requiredAboveEffectiveMinutes &&
+        effectiveWithMeal > meal.earliestStartAfterWorkMinutes &&
+        meal.earliestStartAfterWorkMinutes <= meal.latestStartAfterWorkMinutes &&
+        (!flexibleDurations ||
+          requestedEffective + meal.durationMinutes <= operatingDuration);
       const effectiveMinutes = flexibleDurations
         ? requestedEffective
-        : withMeal ? requestedEffective
+        : withMeal ? effectiveWithMeal
           : Math.min(requestedEffective, meal.requiredAboveEffectiveMinutes);
       if (effectiveMinutes <= 0 ||
           (!withMeal && effectiveMinutes > meal.requiredAboveEffectiveMinutes)) continue;
