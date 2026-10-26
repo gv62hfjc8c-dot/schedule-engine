@@ -251,6 +251,143 @@ function parseInterval(value: TimeInterval): NumericInterval | null {
   return { start, end };
 }
 
+
+/**
+ * The single coverage algorithm for both legacy continuous assignments
+ * and P6.3 working segments (i.e. attendance MINUS meal breaks).
+ * Segments have already been validated and never overlap for one person.
+ */
+function evaluatePresenceCoverage(
+  validOperation: NumericInterval[],
+  requirements: PresenceRequirement,
+  assigned: NumericInterval[]
+): PresenceCheckResult {
+  const shortages: PresenceShortage[] = [];
+  const firstStart = validOperation[0].start;
+  const lastEnd = validOperation[validOperation.length - 1].end;
+
+  for (const interval of validOperation) {
+    const edges = new Set<number>([interval.start, interval.end]);
+    addPhaseBoundaries(edges, interval, firstStart, lastEnd);
+
+    for (const shift of assigned) {
+      if (shift.start > interval.start && shift.start < interval.end) {
+        edges.add(shift.start);
+      }
+      if (shift.end > interval.start && shift.end < interval.end) {
+        edges.add(shift.end);
+      }
+    }
+
+    const sortedEdges = [...edges].sort((a, b) => a - b);
+    for (let index = 0; index < sortedEdges.length - 1; index++) {
+      const start = sortedEdges[index];
+      const end = sortedEdges[index + 1];
+      const actual = assigned.filter(
+        (shift) => shift.start <= start && shift.end > start
+      ).length;
+
+      const { required, phase } = requirementForSegment(
+        start, end, firstStart, lastEnd, requirements
+      );
+
+      if (actual < required) {
+        shortages.push({
+          phase,
+          interval: { start: time(start), end: time(end) },
+          required,
+          actual,
+        });
+      }
+    }
+  }
+
+  return { valid: shortages.length === 0, issues: [], shortages };
+}
+
+/** Working intervals belonging to ONE distinct person on ONE date. */
+export interface PersonWorkingIntervals {
+  personId: string;
+  intervals: TimeInterval[];
+}
+
+/**
+ * Checks operational coverage over the UNION of each person's working
+ * intervals. A person counts at most once at every instant. It does NOT
+ * validate legal meal timing, eligibility, availability or weekly hours.
+ *
+ * Input segments must not overlap within one person and must all fit
+ * in one continuous operating interval each. Empty arrays contribute
+ * no coverage. The caller validates the enclosing attendance span.
+ */
+export function checkPresenceForWorkingIntervals(
+  operatingIntervals: TimeInterval[],
+  requirements: PresenceRequirement,
+  workingByPerson: PersonWorkingIntervals[]
+): PresenceCheckResult {
+  const issues: string[] = [];
+  if (!isPresenceRequirementValid(requirements)) {
+    issues.push("Requisitos de presença inválidos.");
+  }
+  const operating = operatingIntervals.map(parseInterval);
+  if (operating.some((interval) => interval === null)) {
+    issues.push("O calendário operacional contém intervalos inválidos.");
+  }
+  const validOperation = operating.filter(
+    (interval): interval is NumericInterval => interval !== null
+  ).sort((a, b) => a.start - b.start);
+
+  if (validOperation.length === 0) {
+    issues.push("Não existe operação aberta a validar.");
+  }
+  if (validOperation.some(
+    (interval, index) =>
+      index > 0 && interval.start < validOperation[index - 1].end
+  )) {
+    issues.push("O calendário operacional tem intervalos sobrepostos.");
+  }
+
+  const seen = new Set<string>();
+  const assigned: NumericInterval[] = [];
+  for (const person of workingByPerson) {
+    if (!person.personId.trim()) {
+      issues.push("Um conjunto de intervalos não tem identificador de pessoa.");
+    } else if (seen.has(person.personId)) {
+      issues.push(`Existem intervalos duplicados para a pessoa ${person.personId}.`);
+    }
+    seen.add(person.personId);
+
+    const parsed = person.intervals.map(parseInterval);
+    if (parsed.some((interval) => interval === null)) {
+      issues.push(`A pessoa ${person.personId} tem um intervalo de trabalho inválido.`);
+      continue;
+    }
+    const intervals = parsed.filter(
+      (interval): interval is NumericInterval => interval !== null
+    ).sort((a, b) => a.start - b.start);
+
+    if (intervals.some(
+      (interval, index) =>
+        index > 0 && interval.start < intervals[index - 1].end
+    )) {
+      issues.push(`A pessoa ${person.personId} tem intervalos de trabalho sobrepostos.`);
+    }
+    for (const interval of intervals) {
+      if (!validOperation.some(
+        (operation) =>
+          interval.start >= operation.start && interval.end <= operation.end
+      )) {
+        issues.push(`Um intervalo de ${person.personId} ultrapassa o funcionamento contínuo.`);
+      } else {
+        assigned.push(interval);
+      }
+    }
+  }
+
+  if (issues.length > 0) return { valid: false, issues, shortages: [] };
+  return evaluatePresenceCoverage(validOperation, requirements, assigned);
+}
+
 /**
  * Pure validation of an already-proposed day's presence. This does not
  * generate assignments and does not claim work-rule or availability validity.
@@ -319,47 +456,7 @@ export function checkPresenceForAssignments(
     return { valid: false, issues, shortages: [] };
   }
 
-  const shortages: PresenceShortage[] = [];
-  const firstStart = validOperation[0].start;
-  const lastEnd = validOperation[validOperation.length - 1].end;
-
-  for (const interval of validOperation) {
-    const edges = new Set<number>([interval.start, interval.end]);
-    addPhaseBoundaries(edges, interval, firstStart, lastEnd);
-
-    for (const shift of assigned) {
-      if (shift.start > interval.start && shift.start < interval.end) {
-        edges.add(shift.start);
-      }
-      if (shift.end > interval.start && shift.end < interval.end) {
-        edges.add(shift.end);
-      }
-    }
-
-    const sortedEdges = [...edges].sort((a, b) => a - b);
-    for (let index = 0; index < sortedEdges.length - 1; index++) {
-      const start = sortedEdges[index];
-      const end = sortedEdges[index + 1];
-      const actual = assigned.filter(
-        (shift) => shift.start <= start && shift.end > start
-      ).length;
-
-      const { required, phase } = requirementForSegment(
-        start, end, firstStart, lastEnd, requirements
-      );
-
-      if (actual < required) {
-        shortages.push({
-          phase,
-          interval: { start: time(start), end: time(end) },
-          required,
-          actual,
-        });
-      }
-    }
-  }
-
-  return { valid: shortages.length === 0, issues: [], shortages };
+  return evaluatePresenceCoverage(validOperation, requirements, assigned);
 }
 
 /**

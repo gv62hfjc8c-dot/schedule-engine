@@ -1,5 +1,27 @@
 # Changelog
 
+## 2026-10-26 — Ponto 6.3: modelo de trabalho efetivo e validadores independentes
+
+- aprovados 8h efetivas diárias, máximo de 40h semanais e 11h de descanso;
+- aprovada pausa obrigatória de 60 min em turnos com mais de 6h efetivas,
+  posicionável após 3–5h de trabalho efetivo;
+- introduzido modelo aditivo de turno datado com intervalo de presença e refeição;
+- validador puro de pausas, limites diários, semanais e descanso, com
+  distinção entre violações, entrada inválida e contexto exterior incompleto;
+- semanas civis de segunda a domingo, com turnos conhecidos fora do período;
+- fuso horário IANA explícito; descanso em minutos reais, incluindo mudanças
+  da hora legal, com rejeição de horas locais inexistentes ou ambíguas;
+- teste unitário dos casos-limite; sem alterações a Supabase ou à interface;
+- acrescentado `checkPresenceForWorkShifts` para excluir períodos de refeição
+  da cobertura mínima, reutilizando o algoritmo de presença existente;
+- introduzido `checkPresenceForWorkingIntervals` para preservar uma única
+  pessoa com vários segmentos não sobrepostos e impedir dupla contagem;
+- testes de refeições simultâneas e desfasadas, limites de fases e
+  equivalência com validador antigo quando não existem pausas;
+- testes locais de regras de trabalho e cobertura com refeições confirmados;
+- testes, verificação de tipos e build aprovados no GitHub Actions;
+- gerador anterior ainda não aplica os novos limites (integração pendente).
+
 ## 2026-10-26 — Ponto 6.2: gerador de períodos V0 (em validação)
 
 - orquestra vários dias consecutivos através do gerador diário já validado;
