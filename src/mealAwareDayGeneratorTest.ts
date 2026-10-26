@@ -82,7 +82,7 @@ function assertDailyValid(
 ): void {
   const operation = input.operatingCalendar.exceptions[0].intervals;
   const requirements = input.presence.presenceExceptions[0].requirements;
-  assert(requirements !== null, "Caso de teste deve ter presença configurada.");
+  if (requirements === null) throw new Error("Caso de teste sem presença configurada.");
   assert(checkPresenceForWorkShifts(
     input.date, operation, requirements, assignments
   ).valid, "Validação independente confirma cobertura com refeições.");
