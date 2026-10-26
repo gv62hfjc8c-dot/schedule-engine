@@ -251,7 +251,7 @@ passam a ser avaliados nos novos períodos.
 
 ## D028 — Geração de vários dias não equivale a validação global
 
-**Estado:** proposta em validação técnica (Ponto 6.2)
+**Estado:** aceite para Ponto 6.2
 
 Um horário de período V0 é a composição determinística de horários diários
 individualmente validados. Não existe ainda qualquer hard constraint entre
@@ -268,3 +268,64 @@ parcial como pronta a utilizar. Não encontrar solução na pesquisa discreta de
 um dia não prova inviabilidade matemática fora do espaço pesquisado.
 
 O núcleo continua sem dependências da UI, Supabase ou outro meio de persistência.
+
+## D029 — Trabalho efetivo, refeição e descanso são conceitos distintos
+
+**Estado:** aceite como modelo de regras Ponto 6.3; integração na geração pendente
+
+O turno padrão (atualmente 8h) representa **trabalho efetivo**. Um turno
+continua a ser uma atribuição diária única, com intervalo de presença total
+e, quando aplicável, um intervalo de refeição interior. A refeição não conta
+para as horas efetivas nem para a cobertura mínima. D015 mantém-se:
+não se modelam múltiplos turnos independentes por pessoa/dia.
+
+Política inicial, com parâmetros explícitos e configuráveis:
+- refeição de 60 minutos consecutivos **obrigatória para mais de 360 min**
+  de trabalho efetivo; 360 min exatos não a exigem;
+- a refeição pode começar após 180 a 300 min de trabalho efetivo,
+  incluindo exatamente os extremos. Quando há refeição facultativa,
+  a mesma duração e janela aplicam-se;
+- descanso mínimo de 660 min consecutivos entre turnos, contado do
+  fim da presença total até ao início da presença seguinte; refeição interna
+  não substitui descanso entre jornadas;
+- máximo de 480 min de trabalho efetivo por pessoa e dia civil;
+- máximo de 2400 min de trabalho efetivo por pessoa na semana de
+  **segunda-feira a domingo**, sem reiniciar as horas no início de um
+  intervalo arbitrário de geração.
+
+Todos são **hard constraints**. O V0 não admite dispensas automáticas
+nem exceções autorizadas de limite. As exceções ao calendário,
+disponibilidade e cobertura existentes são separadas destas regras.
+Cumprimento legal específico continua a cargo da integração/contexto.
+
+Para preservar compatibilidade com os dados v4, o novo tipo
+`DatedWorkShift` e a configuração `WorkConstraintConfiguration`
+são **aditivos**. A atribuição antiga `PresenceAssignment` não é
+automaticamente convertida numa atribuição com refeição. A geração
+atual (P6.1/P6.2) continua **sem validar P6.3**; não pode ser
+considerada uma certificação global até a migração/integração explícita.
+O V0 não cobre turnos que atravessam a meia-noite.
+
+## D030 — O contexto exterior ao período não pode ser presumido vazio
+
+**Estado:** aceite para validador independente Ponto 6.3
+
+Para afirmar que descanso e horas semanais são cumpridos, o validador
+recebe um `targetPeriod` e um `knownSchedule` com todos os turnos e
+ausências confirmados num intervalo de contexto. Exige declaração
+explícita de que esse contexto está completo.
+
+O contexto mínimo inclui:
+- as semanas **inteiras**, segunda a domingo, tocadas pelo período;
+- o dia imediatamente anterior e posterior ao período, para verificar
+  descanso também nas fronteiras, incluindo a mudança de semana/ano.
+
+Sem esse contexto confirmado, um conjunto de turnos aparentemente
+conforme devolve `incomplete_context`, nunca `valid`. Violações
+já demonstráveis continuam a ser reportadas. Um resultado `valid`
+certifica apenas as regras de trabalho aqui definidas; não certifica
+cobertura, disponibilidade, contratação ou equidade.
+
+A implementação V0 é um validador puro com testes próprios. A camada
+de cobertura existente ainda recebe turnos contínuos sem refeição e
+deve ser evoluída antes de se poder publicar uma escala sob P6.3.
