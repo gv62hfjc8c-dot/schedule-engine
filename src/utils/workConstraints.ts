@@ -272,9 +272,16 @@ export function validateWorkConstraints(
   const byPersonWeek = new Map<string, ParsedShift[]>();
   const byPerson = new Map<string, ParsedShift[]>();
 
+  const firstRelevantWeek = mondayOf(start);
+  const lastRelevantWeek = mondayOf(end);
+
   for (const shift of parsed) {
     const { original, dateMs, effectiveMinutes } = shift;
-    const inTarget = dateMs >= start && dateMs <= end;
+    const week = mondayOf(dateMs);
+    // Meal/daily validity of external shifts in an affected calendar week
+    // matters: invalid outside shifts must not undercount the weekly total.
+    const inAffectedWeek = week >= firstRelevantWeek &&
+      week <= lastRelevantWeek;
     const personDay = `${original.personId}| ${original.date}`;
     const personWeek = `${original.personId}| ${dateKey(mondayOf(dateMs))}`;
 
@@ -282,7 +289,7 @@ export function validateWorkConstraints(
     byPersonWeek.set(personWeek, [...(byPersonWeek.get(personWeek) ?? []), shift]);
     byPerson.set(original.personId, [...(byPerson.get(original.personId) ?? []), shift]);
 
-    if (!inTarget) continue;
+    if (!inAffectedWeek) continue;
 
     if (original.mealBreak) {
       const mealStart = minute(original.mealBreak.start);
@@ -329,7 +336,8 @@ export function validateWorkConstraints(
   for (const shifts of byPersonDay.values()) {
     if (shifts.length <= 1) continue;
     const first = shifts[0].original;
-    if (shifts[0].dateMs >= start && shifts[0].dateMs <= end) {
+    const week = mondayOf(shifts[0].dateMs);
+    if (week >= firstRelevantWeek && week <= lastRelevantWeek) {
       addViolation(
         violations, "multiple_daily_shifts", first,
         "Existe mais do que um turno para a mesma pessoa nesta data."
