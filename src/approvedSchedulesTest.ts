@@ -10,6 +10,7 @@ import type {
 } from "./types";
 import { WEEKDAYS } from "./utils/operatingCalendar";
 import { createEmptyWeeklyAvailability } from "./utils/availability";
+import { generateConstrainedPeriodSchedule } from "./utils/constrainedPeriodGenerator";
 import { createEmptyWeeklyPresenceRequirements } from "./utils/presence";
 import { INITIAL_WORK_CONSTRAINTS } from "./utils/workConstraints";
 import {
@@ -342,6 +343,51 @@ const nextB = approveSchedule({
 assert(nextB.ok && nextB.ledger.version === 2,
   "Outra pessoa sem conflito de descanso pode ser aprovada.");
 
+// End-to-end core integration: approved Monday work is automatically
+// supplied as outside context to the P6.3 period search for Tuesday.
+// A lacks 11h of rest; the period generator must select B instead.
+const approvedContext = queryApprovedExternalContext({
+  ledger: late.ledger,
+  targetPeriod: { startDate: tue, endDate: tue },
+  workConstraints: INITIAL_WORK_CONSTRAINTS,
+  timeZone: "Atlantic/Azores",
+});
+assert(approvedContext.status === "ready" &&
+  approvedContext.externalContext?.shifts.length === 1,
+  "A fonte aprovada substitui a declaração manual de zero turnos exteriores.");
+if (!approvedContext.externalContext) {
+  throw new Error("Contexto aprovado necessário.");
+}
+const generatedFromLedgerEnv = env(
+  { [tue]: interval("08:00", "12:00") },
+  { [tue]: {
+    a: interval("08:00", "12:00"),
+    b: interval("08:00", "12:00"),
+  } }
+);
+const generatedFromLedger = generateConstrainedPeriodSchedule({
+  startDate: tue,
+  endDate: tue,
+  ...generatedFromLedgerEnv,
+  timeZone: "Atlantic/Azores",
+  workRules: { standardShiftDurationMinutes: 480 },
+  externalContext: approvedContext.externalContext,
+  maxSearchNodes: 5000,
+});
+assert(generatedFromLedger.status === "generated" &&
+  generatedFromLedger.assignments.length === 1 &&
+  generatedFromLedger.assignments[0].personId === "b",
+  "Geração multi-dia escolhe B porque A tem só 10h de descanso após aprovação.");
+const approvedGenerated = approveSchedule({
+  ledger: late.ledger,
+  expectedVersion: 1,
+  at: now2,
+  draft: draft("generated-from-ledger", tue, generatedFromLedger.assignments),
+  environment: generatedFromLedgerEnv,
+});
+assert(approvedGenerated.ok && approvedGenerated.ledger.version === 2,
+  "Resultado com contexto certificado pode ser aprovado após revalidação total.");
+
 const fullWeek = [mon, tue, wed, thu, fri];
 const allDays = [...fullWeek, sat];
 const longEnvironment = workDayEnvironment(
@@ -508,6 +554,24 @@ assertFailure(approveSchedule({
   environment: workDayEnvironment([tue]),
 }), "invalid_input",
 "Sem instante ISO válido não se pode criar evento histórico.");
+
+assertFailure(approveSchedule({
+  ledger: first.ledger,
+  expectedVersion: 1,
+  at: "2026-02-30T12:00:00Z",
+  draft: draft("bad-iso-day", tue, [shift(tue)]),
+  environment: workDayEnvironment([tue]),
+}), "invalid_input",
+"A data civil impossível em carimbo temporal não pode ser normalizada.");
+
+const corruptEnvironment = structuredClone(mondayEnvironment);
+(corruptEnvironment.availabilities[0] as unknown as { exceptions: unknown })
+  .exceptions = null;
+assertFailure(approveSchedule({
+  ledger: ledger(), expectedVersion: 0,
+  at: now1, draft: proposal, environment: corruptEnvironment,
+}), "invalid_input",
+"Persistência de disponibilidade malformada deve falhar sem lançar exceção.");
 
 const malformed = { ...proposal, startDate: "2026-02-30" };
 assertFailure(approveSchedule({
