@@ -1,5 +1,22 @@
 # Changelog
 
+## 2026-10-26 — Ponto 6.3: gerador diário experimental com refeições (PR #14)
+
+- novo `generateMealAwareDaySchedule` puro e separado do gerador diário anterior;
+- turnos com 8h de trabalho efetivo e pausa de refeição de 60min
+  representam 9h de presença total;
+- pesquisa discreta conjunta de pessoas, horários de início e posições
+  de pausa, com cobertura real descontada durante a refeição;
+- verificação independente de regras locais e disponibilidade antes
+  de devolver uma solução diária;
+- geração atómica com estados de insuficiência, pesquisa sem solução
+  e limite de nós, sem confundir com prova de impossibilidade;
+- testes de cobertura 1/2/1, refeições desfasadas, operação curta
+  e partida, arquivados, limites e casos inválidos;
+- `validationScope: "daily_work_and_coverage_only"`: sem validação
+  de descanso e horas semanais — gerador multi-dia ainda pendente;
+- nenhuma alteração à UI, persistência ou dados Supabase.
+
 ## 2026-10-26 — Ponto 6.3: modelo de trabalho efetivo e validadores independentes
 
 - aprovados 8h efetivas diárias, máximo de 40h semanais e 11h de descanso;
