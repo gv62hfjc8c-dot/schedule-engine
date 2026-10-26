@@ -446,10 +446,15 @@ const sixScenario = inputs(mon, sat, ["a", "b"],
 const sixResult = generateConstrainedPeriodSchedule({
   ...sixScenario, maxSearchNodes: 5000,
 });
-assert(sixResult.status === "incomplete" &&
-  sixResult.exploredNodes === 0 &&
-  sixResult.issues.some(issue => issue.includes("grelha V0")),
-  "O sexto dia deve ser identificado como inviável na grelha V0 sem pesquisa.");
+assert(sixResult.status === "generated",
+  "Seis dias com durações flexíveis devem produzir solução na grelha 15m.");
+independentlyValidate(sixScenario, sixResult.assignments);
+assert(sixResult.assignments.some(shift => {
+  const [a,b] = [shift.interval.start, shift.interval.end].map(value =>
+    Number(value.slice(0,2)) * 60 + Number(value.slice(3)));
+  const meal = shift.mealBreak ? 60 : 0;
+  return b - a - meal < 480;
+}), "O período deve incluir turnos inferiores a oito horas.");
 const fiveResult = generateConstrainedPeriodSchedule({
   ...sixScenario, endDate: "2026-10-30", maxSearchNodes: 5000,
 });
