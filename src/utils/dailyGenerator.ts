@@ -12,7 +12,7 @@ import {
   getSchedulableIntervalsForDate,
   isSchedulableForInterval,
 } from "./availability";
-import { getOperatingIntervalsForDate } from "./operatingCalendar";
+import { getOperatingIntervalsForDate, getWeekday } from "./operatingCalendar";
 import {
   checkPresenceAvailabilityCapacity,
   checkPresenceForAssignments,
@@ -241,6 +241,8 @@ export function generateDaySchedule(
   let operatingIntervals: TimeInterval[];
   let presence: ReturnType<typeof resolvePresenceForDate>;
   try {
+    // Date-specific exceptions would otherwise bypass the calendar's date parser.
+    getWeekday(input.date);
     operatingIntervals = getOperatingIntervalsForDate(
       input.date,
       input.operatingCalendar.weeklyOperatingHours,
