@@ -353,6 +353,36 @@ export default function ConstrainedPeriodGeneratorPanel({
                 representa uma aprovação nem persistência de escala.
               </p>
             )}
+            {result.status === "generated" && (
+              <div className="p63-violations">
+                <h4>Horas semanais atribuídas · objetivo 40h por pessoa</h4>
+                {people.filter(p => p.active).map(person => {
+                  const total = result.assignments
+                    .filter(shift => shift.personId === person.id)
+                    .reduce((sum, shift) => {
+                      const minutes = (clock: string) =>
+                        Number(clock.slice(0, 2)) * 60 + Number(clock.slice(3, 5));
+                      return sum + minutes(shift.interval.end) -
+                        minutes(shift.interval.start) -
+                        (shift.mealBreak
+                          ? minutes(shift.mealBreak.end) - minutes(shift.mealBreak.start)
+                          : 0);
+                    }, 0);
+                  const format = (value: number) =>
+                    `${Math.floor(value / 60)}h${String(value % 60).padStart(2, "0")}`;
+                  return (
+                    <p key={person.id}>
+                      <strong>{person.name}</strong>: {format(total)} / 40h00
+                      {" · "}défice {format(Math.max(0, 2400 - total))}
+                    </p>
+                  );
+                })}
+                <p className="generator-hint">
+                  Objetivo preferencial; melhoria local limitada, sem garantia
+                  de ótimo global. Mantêm-se as regras obrigatórias.
+                </p>
+              </div>
+            )}
             {result.issues.map((issue, index) => (
               <p className="generator-issue" key={index}>{issue}</p>
             ))}
