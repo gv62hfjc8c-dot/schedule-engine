@@ -8,7 +8,13 @@
 - só devolve a lista de atribuições quando todos os dias cumprem as regras diárias;
 - distingue claramente validação **diária** de viabilidade global/contratual;
 - testes automatizados para exceções, períodos incompletos e datas de fronteira;
-- sem alterações de interface, Supabase ou formato de persistência nesta etapa.
+- criado modo «Vários dias · V0» na interface existente de geração, com seleção
+  de intervalo, cartões por data, turnos e diagnósticos de cobertura;
+- períodos incompletos mostram dias validados isoladamente, mas nunca publicam
+  atribuições parciais como horário do período;
+- avisos explícitos de que descansos, horas semanais e contratos não são
+  verificados; simulação apenas em memória, sem escrita de turnos no Supabase;
+- sem mudanças ao esquema ou formato persistido.
 
 ## 2026-10-26 — Ponto 6.1: gerador diário V0 (em desenvolvimento)
 
