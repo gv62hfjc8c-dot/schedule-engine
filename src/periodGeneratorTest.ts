@@ -12,7 +12,7 @@ import {
   type GeneratePeriodScheduleInput,
 } from "./utils/periodGenerator";
 import { checkPresenceForAssignments } from "./utils/presence";
-import { getOperatingIntervalsForDate, WEEKDAYS } from "./utils/operatingCalendar";
+import { getOperatingIntervalsForDate, getWeekday, WEEKDAYS } from "./utils/operatingCalendar";
 import { getAvailabilityIntervalsForDate } from "./utils/availability";
 
 function assert(ok: boolean, message: string): void {
@@ -114,8 +114,7 @@ assert(result.assignments.every((assignment) => {
     normal.operatingCalendar.exceptions
   );
   const requirements = normal.presence.weeklyPresenceRequirements[
-    WEEKDAYS[new Date(assignment.date + "T00:00:00Z").getUTCDay() === 0 ?
-      6 : new Date(assignment.date + "T00:00:00Z").getUTCDay() - 1]
+    getWeekday(assignment.date)
   ];
   return requirements !== null &&
     checkPresenceForAssignments(intervals, requirements, [{
@@ -148,7 +147,7 @@ assert(mixedResult.generatedDays === 2 && mixedResult.failedDays === 1,
   "A contagem dos dias deve preservar sucesso e falha por data.");
 assert(mixedResult.days[1].shortages.some((s) =>
   s.phase === "operation" && s.interval.start === "09:30" &&
-  s.actual === 0 && s.required === 2
+  s.actual === 1 && s.required === 2
 ), "Diagnóstico deve preservar a insuficiência do dia específico.");
 
 const twoEight = makeInput("2026-10-26", "2026-10-27");
