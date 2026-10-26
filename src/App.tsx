@@ -775,7 +775,6 @@ export default function App() {
           aria-current={activeSection === "calendar" ? "page" : undefined}
         >
           <span>Calendário operacional</span>
-          <small>Ponto 1</small>
         </button>
 
         <button
@@ -785,7 +784,6 @@ export default function App() {
           aria-current={activeSection === "people" ? "page" : undefined}
         >
           <span>Pessoas</span>
-          <small>Ponto 2</small>
         </button>
 
         <button
@@ -797,7 +795,6 @@ export default function App() {
           }
         >
           <span>Disponibilidade</span>
-          <small>Ponto 3</small>
         </button>
 
         <button
@@ -809,7 +806,6 @@ export default function App() {
           }
         >
           <span>Regras de trabalho</span>
-          <small>Ponto 4</small>
         </button>
         <button
           type="button"
@@ -818,7 +814,6 @@ export default function App() {
           aria-current={activeSection === "presence" ? "page" : undefined}
         >
           <span>Presença mínima</span>
-          <small>Ponto 5</small>
         </button>
         <button
           type="button"
@@ -827,7 +822,6 @@ export default function App() {
           aria-current={activeSection === "generator" ? "page" : undefined}
         >
           <span>Gerar horário</span>
-          <small>Ponto 6 · V0</small>
         </button>
       </nav>
 
