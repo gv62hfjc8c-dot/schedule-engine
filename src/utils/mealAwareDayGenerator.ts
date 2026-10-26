@@ -67,6 +67,8 @@ export interface MealAwareDailySearchOptions {
   budget?: MealAwareSearchBudget;
   /** Return true only if the downstream schedule can be completed. */
   acceptSolution?: (assignments: DatedWorkShift[]) => boolean;
+  /** Period scheduler can explore effective durations at 15m increments. */
+  flexibleDurations?: boolean;
 }
 
 interface NumericInterval {
@@ -194,7 +196,8 @@ function createCandidates(
   standardMinutes: number,
   constraints: WorkConstraintConfiguration,
   firstOpening: number,
-  lastClosing: number
+  lastClosing: number,
+  flexibleDurations = false
 ): Candidate[] {
   const result = new Map<string, Candidate>();
   const meal = constraints.mealBreak;
@@ -207,19 +210,24 @@ function createCandidates(
 
   for (const operation of operating) {
     const operatingDuration = operation.end - operation.start;
-    const effectiveWithMeal = Math.min(
-      target, operatingDuration - meal.durationMinutes
-    );
-    const withMeal =
-      target > meal.requiredAboveEffectiveMinutes &&
-      effectiveWithMeal > meal.requiredAboveEffectiveMinutes &&
-      effectiveWithMeal > meal.earliestStartAfterWorkMinutes &&
-      meal.earliestStartAfterWorkMinutes <= meal.latestStartAfterWorkMinutes;
-    const effectiveMinutes = withMeal
-      ? effectiveWithMeal
-      : Math.min(target, operatingDuration, meal.requiredAboveEffectiveMinutes);
-    if (effectiveMinutes <= 0) continue;
-    const span = effectiveMinutes + (withMeal ? meal.durationMinutes : 0);
+    const maxEffective = Math.min(target, operatingDuration);
+    const effectiveChoices = flexibleDurations
+      ? Array.from({ length: Math.floor(maxEffective / GRID_MINUTES) },
+          (_, index) => (index + 1) * GRID_MINUTES)
+      : [Math.min(target, operatingDuration)];
+    for (const requestedEffective of effectiveChoices) {
+      const withMeal =
+        requestedEffective > meal.requiredAboveEffectiveMinutes &&
+        requestedEffective + meal.durationMinutes <= operatingDuration &&
+        requestedEffective > meal.earliestStartAfterWorkMinutes &&
+        meal.earliestStartAfterWorkMinutes <= meal.latestStartAfterWorkMinutes;
+      const effectiveMinutes = flexibleDurations
+        ? requestedEffective
+        : withMeal ? requestedEffective
+          : Math.min(requestedEffective, meal.requiredAboveEffectiveMinutes);
+      if (effectiveMinutes <= 0 ||
+          (!withMeal && effectiveMinutes > meal.requiredAboveEffectiveMinutes)) continue;
+      const span = effectiveMinutes + (withMeal ? meal.durationMinutes : 0);
 
     for (const allowed of schedulable) {
       const first = Math.max(operation.start, allowed.start);
@@ -457,16 +465,28 @@ export function searchMealAwareDaySchedule(
     standard,
     input.workConstraints,
     operating[0].start,
-    operating[operating.length - 1].end
+    operating[operating.length - 1].end,
+    options.flexibleDurations ?? false
   )).filter(candidate => candidateValidForDailyWork(
     input.date, candidate, input.workConstraints, input.timeZone
   ));
-  candidates.sort((a, b) =>
-    a.personId.localeCompare(b.personId, "en") ||
-    a.start - b.start ||
-    (a.mealStart ?? -1) - (b.mealStart ?? -1) ||
-    a.end - b.end
-  );
+  // Cover a long operating day with complementary, shorter shifts first.
+  // The search still considers EVERY 15-minute duration if needed.
+  const midpoint = Math.ceil(
+    (operating[operating.length - 1].end - operating[0].start) /
+    (2 * GRID_MINUTES)
+  ) * GRID_MINUTES;
+  candidates.sort((a, b) => {
+    const duration = (c: Candidate) => c.end - c.start -
+      (c.mealStart === null ? 0 : input.workConstraints.mealBreak.durationMinutes);
+    return (options.flexibleDurations
+      ? Math.abs(duration(a) - midpoint) - Math.abs(duration(b) - midpoint)
+      : 0) ||
+      a.personId.localeCompare(b.personId, "en") ||
+      a.start - b.start ||
+      (a.mealStart ?? -1) - (b.mealStart ?? -1) ||
+      a.end - b.end;
+  });
 
   const search = (
     selected: Candidate[],
