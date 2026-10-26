@@ -18,6 +18,8 @@
   pessoa com vários segmentos não sobrepostos e impedir dupla contagem;
 - testes de refeições simultâneas e desfasadas, limites de fases e
   equivalência com validador antigo quando não existem pausas;
+- testes locais de regras de trabalho e cobertura com refeições confirmados;
+- testes, verificação de tipos e build aprovados no GitHub Actions;
 - gerador anterior ainda não aplica os novos limites (integração pendente).
 
 ## 2026-10-26 — Ponto 6.2: gerador de períodos V0 (em validação)
