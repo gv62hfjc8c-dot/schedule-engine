@@ -135,7 +135,7 @@ const DAY = 86_400_000;
 
 function civil(value: string): number | null {
   if (typeof value !== "string" ||
-      !/^\\d{4}-\\d{2}-\\d{2}$/.test(value)) return null;
+      !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
   const parsed = new Date(value + "T00:00:00Z");
   return Number.isNaN(parsed.getTime()) ||
     parsed.toISOString().slice(0, 10) !== value
@@ -220,7 +220,7 @@ function validZone(zone: string): boolean {
 
 function validInstant(value: string): boolean {
   return typeof value === "string" &&
-    /^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,3})?(?:Z|[+-]\\d{2}:\\d{2})$/.test(value) &&
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/.test(value) &&
     Number.isFinite(Date.parse(value));
 }
 
