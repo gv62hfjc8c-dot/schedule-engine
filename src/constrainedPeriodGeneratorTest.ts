@@ -400,7 +400,8 @@ assert(generateConstrainedPeriodSchedule(badKnown).status === "invalid_input",
 
 console.log("Constrained Period Generator V0: todos os testes passaram.");
 
-\n// PR #22: a sound weekly lower bound rejects demonstrably insufficient
+
+// PR #22: a sound weekly lower bound rejects demonstrably insufficient
 // total person-minutes without claiming that other cases are feasible.
 const fullWeekDays = ["2026-10-26", "2026-10-27", "2026-10-28",
   "2026-10-29", "2026-10-30"];
