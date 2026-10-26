@@ -428,3 +428,31 @@ const notProven = generateConstrainedPeriodSchedule({
 assert(!(notProven.status === "incomplete" && notProven.exploredNodes === 0 &&
   notProven.issues.some(issue => issue.includes("Inviabilidade comprovada"))),
   "Cobertura mínima inferior à capacidade não pode ser rejeitada antecipadamente.");
+
+
+// PR #23: weekly bound specific to V0 fixed-duration candidates.
+// Five 9-hour opening days require two 8h effective candidates each;
+// a 4h Saturday adds one 4h candidate (84h > 80h weekly capacity).
+const sixDates = ["2026-10-26","2026-10-27","2026-10-28",
+  "2026-10-29","2026-10-30","2026-10-31"];
+const sixOperation = Object.fromEntries(sixDates.map((date, index) =>
+  [date, interval("09:00", index === 5 ? "13:00" : "18:00")]));
+const sixAvailability = Object.fromEntries(sixDates.map((date, index) =>
+  [date, { a: interval("09:00", index === 5 ? "13:00" : "18:00"),
+    b: interval("09:00", index === 5 ? "13:00" : "18:00") }]));
+const sixRequirements = Object.fromEntries(sixDates.map(date => [date, one]));
+const sixScenario = inputs(mon, sat, ["a", "b"],
+  sixOperation, sixAvailability, sixRequirements);
+const sixResult = generateConstrainedPeriodSchedule({
+  ...sixScenario, maxSearchNodes: 5000,
+});
+assert(sixResult.status === "incomplete" &&
+  sixResult.exploredNodes === 0 &&
+  sixResult.issues.some(issue => issue.includes("grelha V0")),
+  "O sexto dia deve ser identificado como inviável na grelha V0 sem pesquisa.");
+const fiveResult = generateConstrainedPeriodSchedule({
+  ...sixScenario, endDate: "2026-10-30", maxSearchNodes: 5000,
+});
+assert(fiveResult.status === "generated" &&
+  fiveResult.assignments.length === 10,
+  "Cinco dias permanecem geráveis com dois turnos por dia.");
