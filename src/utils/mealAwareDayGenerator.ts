@@ -72,7 +72,7 @@ const DEFAULT_MAX_SEARCH_NODES = 50_000;
 
 function minute(value: string): number | null {
   if (typeof value !== "string" ||
-    (!/^(?:[01]\\d|2[0-3]):[0-5]\\d$/.test(value) && value !== "24:00")) {
+    (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value) && value !== "24:00")) {
     return null;
   }
   const [hour, min] = value.split(":").map(Number);
