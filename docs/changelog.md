@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-10-26 — Ponto 6.2: gerador de períodos V0 (em validação)
+
+- orquestra vários dias consecutivos através do gerador diário já validado;
+- intervalo de datas inclusivo, limitado a 14 dias e calculado sem erros de fusos horários;
+- preserva os diagnósticos por data e os casos de dias fechados;
+- só devolve a lista de atribuições quando todos os dias cumprem as regras diárias;
+- distingue claramente validação **diária** de viabilidade global/contratual;
+- testes automatizados para exceções, períodos incompletos e datas de fronteira;
+- sem alterações de interface, Supabase ou formato de persistência nesta etapa.
+
 ## 2026-10-26 — Ponto 6.1: gerador diário V0 (em desenvolvimento)
 
 - gerador puro de turnos contínuos para uma única data;
