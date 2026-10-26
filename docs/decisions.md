@@ -484,3 +484,62 @@ A versão seguinte deve obter turnos aprovados fora do período
 a partir de uma fonte verificável (ou entrada manual estruturada),
 preservando a semântica `incomplete_context`. Não converter
 o cenário hipotético de zero turnos num default de produção.
+
+## D037 — Aprovar é uma transição explícita, nunca um efeito da geração
+
+**Estado:** aceite no núcleo P6.4 (PR #17)
+
+Um horário gerado é uma proposta. Só uma operação **explícita**
+`approveSchedule` pode tornar turnos compromissos aprovados.
+A aprovação revalida independentemente cobertura (sem contar a
+refeição), atividade/disponibilidade das pessoas e todas as
+hard constraints de trabalho, face aos turnos já aprovados.
+Não basta copiar um resultado com `status: "generated"`.
+
+O primeiro modelo `ApprovedScheduleRecord` contém um ID estável,
+período inclusivo, turnos, fuso IANA, estado e instantes explícitos
+de aprovação/alteração. Estados:
+- `approved`: único que conta para trabalho futuro;
+- `cancelled`: histórico preservado, sem compromissos ativos;
+- `superseded`: histórico preservado e ligado à substituição aprovada.
+
+Na primeira versão, **um horário aprovado é dono de todas as
+datas civis do seu período**, mesmo dias sem turnos. Isto impede
+aprovações fragmentadas com cobertura diária ambígua.
+Não são permitidos dois horários ativos com períodos sobrepostos.
+
+`replaceApprovedSchedule` exige o mesmo intervalo inicial/final
+e valida a proposta contra todos os outros horários aprovados
+**antes** de tornar o anterior `superseded`. Se falhar, nada muda.
+O cancelamento também é explícito, mas **não garante cobertura
+depois da remoção**. Não se fazem substituições implícitas.
+
+## D038 — Ledger completo é uma responsabilidade do adaptador de dados
+
+**Estado:** aceite no núcleo P6.4 (PR #17)
+
+O ledger inclui `version`, `coverage`, `timeZone`,
+`complete` e histórico de horários aprovados. A API
+`queryApprovedExternalContext` só devolve turnos exteriores
+para um período quando um **repositório confiável** atesta
+completude em todo o intervalo semanal e de descanso exigido.
+Sem essa atestação devolve `incomplete_context` e não inventa
+dias livres. Se o período contém uma escala aprovada, devolve
+`target_occupied`; o gerador P6.3 não suporta turnos fixos
+dentro do período na V0.
+
+O núcleo não conhece armazenamento. `complete: true` é
+uma **afirmação explícita do chamador**, que deverá ser
+sustentada por consistência transacional na implementação
+do repositório. Não é derivada da lista vazia de registos.
+
+Todas as mutações exigem `expectedVersion`. O núcleo rejeita
+versões desatualizadas e incrementa a versão uma vez por
+transição bem-sucedida. Uma futura persistência terá de aplicar
+este contrato com **compare-and-swap/transação atómica**;
+o controlo de versões em memória não resolve concorrência
+entre clientes por si só.
+
+Sem persistência de escalas aprovadas, este núcleo ainda não é
+uma fonte de verdade operacional. Não altera Supabase, esquema
+de persistência v4 nem a interface.
