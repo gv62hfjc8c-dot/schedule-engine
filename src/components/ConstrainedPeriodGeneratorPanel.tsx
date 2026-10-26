@@ -45,6 +45,12 @@ function addCivilDays(date: string, amount: number): string {
   return utc.toISOString().slice(0, 10);
 }
 
+function weekMonday(date: string): string {
+  const value = new Date(date + "T00:00:00Z");
+  value.setUTCDate(value.getUTCDate() - (value.getUTCDay() + 6) % 7);
+  return value.toISOString().slice(0, 10);
+}
+
 function displayDate(date: string): string {
   return new Intl.DateTimeFormat("pt-PT", {
     weekday: "short",
@@ -352,6 +358,37 @@ export default function ConstrainedPeriodGeneratorPanel({
                 outros turnos exteriores ao período</strong>. Isto não
                 representa uma aprovação nem persistência de escala.
               </p>
+            )}
+            {result.status === "generated" &&
+              weekMonday(startDate) === weekMonday(endDate) && (
+              <div className="p63-violations">
+                <h4>Horas semanais atribuídas · objetivo 40h por pessoa</h4>
+                {people.filter(p => p.active).map(person => {
+                  const total = result.assignments
+                    .filter(shift => shift.personId === person.id)
+                    .reduce((sum, shift) => {
+                      const minutes = (clock: string) =>
+                        Number(clock.slice(0, 2)) * 60 + Number(clock.slice(3, 5));
+                      return sum + minutes(shift.interval.end) -
+                        minutes(shift.interval.start) -
+                        (shift.mealBreak
+                          ? minutes(shift.mealBreak.end) - minutes(shift.mealBreak.start)
+                          : 0);
+                    }, 0);
+                  const format = (value: number) =>
+                    `${Math.floor(value / 60)}h${String(value % 60).padStart(2, "0")}`;
+                  return (
+                    <p key={person.id}>
+                      <strong>{person.name}</strong>: {format(total)} / 40h00
+                      {" · "}défice {format(Math.max(0, 2400 - total))}
+                    </p>
+                  );
+                })}
+                <p className="generator-hint">
+                  Objetivo preferencial; melhoria local limitada, sem garantia
+                  de ótimo global. Mantêm-se as regras obrigatórias.
+                </p>
+              </div>
             )}
             {result.issues.map((issue, index) => (
               <p className="generator-issue" key={index}>{issue}</p>
