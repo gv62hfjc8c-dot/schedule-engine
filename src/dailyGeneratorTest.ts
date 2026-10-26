@@ -33,9 +33,10 @@ function inputFor(
   return {
     date, people, availabilities,
     operatingCalendar: {
-      weeklyOperatingHours: Object.fromEntries(
-        WEEKDAYS.map((day) => [day, []])
-      ) as WeeklyOperatingHours,
+      weeklyOperatingHours: WEEKDAYS.reduce((weekly, day) => {
+        weekly[day] = [];
+        return weekly;
+      }, {} as WeeklyOperatingHours),
       exceptions: [{ date, intervals: operation }],
     },
     workRules: { standardShiftDurationMinutes: duration },
