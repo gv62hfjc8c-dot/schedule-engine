@@ -399,3 +399,32 @@ assert(generateConstrainedPeriodSchedule(badKnown).status === "invalid_input",
   "Contexto exterior estruturalmente inválido é rejeitado.");
 
 console.log("Constrained Period Generator V0: todos os testes passaram.");
+
+
+// PR #22: a sound weekly lower bound rejects demonstrably insufficient
+// total person-minutes without claiming that other cases are feasible.
+const fullWeekDays = ["2026-10-26", "2026-10-27", "2026-10-28",
+  "2026-10-29", "2026-10-30"];
+const longOperation = Object.fromEntries(fullWeekDays.map(date =>
+  [date, interval("09:00", "18:00")]));
+const bothAvailable = Object.fromEntries(fullWeekDays.map(date =>
+  [date, { a: interval("09:00", "18:00"), b: interval("09:00", "18:00") }]));
+const twoRequired = Object.fromEntries(fullWeekDays.map(date =>
+  [date, { minimumAtOpening: 2, minimumDuringOperation: 2,
+    minimumAtClosing: 2 }]));
+const tooMuchWeeklyDemand = inputs(mon, "2026-10-30", ["a", "b"],
+  longOperation, bothAvailable, twoRequired);
+const proof = generateConstrainedPeriodSchedule(tooMuchWeeklyDemand);
+assert(proof.status === "incomplete" && proof.exploredNodes === 0 &&
+  proof.issues.some(issue => issue.includes("Inviabilidade comprovada")),
+  "Cobertura semanal de 90h não cabe nas 80h máximas de duas pessoas.");
+const singleRequired = Object.fromEntries(fullWeekDays.map(date =>
+  [date, one]));
+const notProven = generateConstrainedPeriodSchedule({
+  ...inputs(mon, "2026-10-30", ["a", "b"],
+    longOperation, bothAvailable, singleRequired),
+  maxSearchNodes: 500,
+});
+assert(!(notProven.status === "incomplete" && notProven.exploredNodes === 0 &&
+  notProven.issues.some(issue => issue.includes("Inviabilidade comprovada"))),
+  "Cobertura mínima inferior à capacidade não pode ser rejeitada antecipadamente.");
