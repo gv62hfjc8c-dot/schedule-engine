@@ -192,6 +192,14 @@ assert(badTime.status === "invalid_input", "Horas inválidas são recusadas.");
 const badDate = generateDaySchedule({ ...short, date: "2026-02-30" });
 assert(badDate.status === "invalid_input", "Datas impossíveis são recusadas.");
 
+const badExceptionDate = inputFor(
+  "2026-02-30", interval("09:00", "13:00"), ["a", "b"],
+  { a: interval("09:00", "13:00"), b: interval("09:00", "13:00") },
+  twoTwoTwo
+);
+assert(generateDaySchedule(badExceptionDate).status === "invalid_input",
+  "Exceção por data inválida não pode contornar a validação civil.");
+
 const duplicatedExceptions = generateDaySchedule({
   ...short, presence: {
     ...short.presence,
