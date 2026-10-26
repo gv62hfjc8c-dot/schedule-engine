@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { readGeneratorDate, saveGeneratorDate } from "./generatorUiPreferences";
 import type {
   OperatingCalendarConfiguration,
   Person,
@@ -63,7 +64,7 @@ export default function DailyGeneratorPanel({
   workRules,
   presence,
 }: DailyGeneratorPanelProps) {
-  const [date, setDate] = useState(todayKey);
+  const [date, setDate] = useState(() => readGeneratorDate("day:date", todayKey));
   const [snapshot, setSnapshot] = useState<GeneratedSnapshot | null>(null);
   const [unexpectedError, setUnexpectedError] = useState<string | null>(null);
 
@@ -164,6 +165,7 @@ export default function DailyGeneratorPanel({
               value={date}
               onChange={(event) => {
                 setDate(event.target.value);
+                saveGeneratorDate("day:date", event.target.value);
                 setUnexpectedError(null);
               }}
             />
