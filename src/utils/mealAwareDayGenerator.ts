@@ -16,6 +16,7 @@ import { getOperatingIntervalsForDate, getWeekday } from "./operatingCalendar";
 import {
   checkPresenceAvailabilityCapacity,
   resolvePresenceForDate,
+  getPresencePhaseWindows,
   type PresenceShortage,
 } from "./presence";
 import { checkPresenceForWorkShifts } from "./workCoverage";
@@ -67,6 +68,8 @@ export interface MealAwareDailySearchOptions {
   budget?: MealAwareSearchBudget;
   /** Return true only if the downstream schedule can be completed. */
   acceptSolution?: (assignments: DatedWorkShift[]) => boolean;
+  /** Period scheduler can explore effective durations at 15m increments. */
+  flexibleDurations?: boolean;
 }
 
 interface NumericInterval {
@@ -194,7 +197,8 @@ function createCandidates(
   standardMinutes: number,
   constraints: WorkConstraintConfiguration,
   firstOpening: number,
-  lastClosing: number
+  lastClosing: number,
+  flexibleDurations = false
 ): Candidate[] {
   const result = new Map<string, Candidate>();
   const meal = constraints.mealBreak;
@@ -207,19 +211,28 @@ function createCandidates(
 
   for (const operation of operating) {
     const operatingDuration = operation.end - operation.start;
-    const effectiveWithMeal = Math.min(
-      target, operatingDuration - meal.durationMinutes
-    );
-    const withMeal =
-      target > meal.requiredAboveEffectiveMinutes &&
-      effectiveWithMeal > meal.requiredAboveEffectiveMinutes &&
-      effectiveWithMeal > meal.earliestStartAfterWorkMinutes &&
-      meal.earliestStartAfterWorkMinutes <= meal.latestStartAfterWorkMinutes;
-    const effectiveMinutes = withMeal
-      ? effectiveWithMeal
-      : Math.min(target, operatingDuration, meal.requiredAboveEffectiveMinutes);
-    if (effectiveMinutes <= 0) continue;
-    const span = effectiveMinutes + (withMeal ? meal.durationMinutes : 0);
+    const maxEffective = Math.min(target, operatingDuration);
+    const effectiveChoices = flexibleDurations
+      ? Array.from({ length: Math.floor(maxEffective / GRID_MINUTES) },
+          (_, index) => (index + 1) * GRID_MINUTES)
+      : [Math.min(target, operatingDuration)];
+    for (const requestedEffective of effectiveChoices) {
+      const effectiveWithMeal = Math.min(requestedEffective,
+        operatingDuration - meal.durationMinutes);
+      const withMeal =
+        requestedEffective > meal.requiredAboveEffectiveMinutes &&
+        effectiveWithMeal > meal.requiredAboveEffectiveMinutes &&
+        effectiveWithMeal > meal.earliestStartAfterWorkMinutes &&
+        meal.earliestStartAfterWorkMinutes <= meal.latestStartAfterWorkMinutes &&
+        (!flexibleDurations ||
+          requestedEffective + meal.durationMinutes <= operatingDuration);
+      const effectiveMinutes = flexibleDurations
+        ? requestedEffective
+        : withMeal ? effectiveWithMeal
+          : Math.min(requestedEffective, meal.requiredAboveEffectiveMinutes);
+      if (effectiveMinutes <= 0 ||
+          (!withMeal && effectiveMinutes > meal.requiredAboveEffectiveMinutes)) continue;
+      const span = effectiveMinutes + (withMeal ? meal.durationMinutes : 0);
 
     for (const allowed of schedulable) {
       const first = Math.max(operation.start, allowed.start);
@@ -260,6 +273,7 @@ function createCandidates(
           );
         }
       }
+    }
     }
   }
   return [...result.values()].sort(
@@ -457,16 +471,30 @@ export function searchMealAwareDaySchedule(
     standard,
     input.workConstraints,
     operating[0].start,
-    operating[operating.length - 1].end
+    operating[operating.length - 1].end,
+    options.flexibleDurations ?? false
   )).filter(candidate => candidateValidForDailyWork(
     input.date, candidate, input.workConstraints, input.timeZone
   ));
-  candidates.sort((a, b) =>
-    a.personId.localeCompare(b.personId, "en") ||
-    a.start - b.start ||
-    (a.mealStart ?? -1) - (b.mealStart ?? -1) ||
-    a.end - b.end
-  );
+  // Cover a long operating day with complementary, shorter shifts first.
+  // The search still considers EVERY 15-minute duration if needed.
+  const midpoint = requirements.minimumDuringOperation > 1
+    ? Math.min(standard, input.workConstraints.maximumDailyEffectiveMinutes)
+    : Math.ceil(
+        (operating[operating.length - 1].end - operating[0].start) /
+        (2 * GRID_MINUTES)
+      ) * GRID_MINUTES;
+  candidates.sort((a, b) => {
+    const duration = (c: Candidate) => c.end - c.start -
+      (c.mealStart === null ? 0 : input.workConstraints.mealBreak.durationMinutes);
+    return (options.flexibleDurations
+      ? Math.abs(duration(a) - midpoint) - Math.abs(duration(b) - midpoint)
+      : 0) ||
+      a.personId.localeCompare(b.personId, "en") ||
+      a.start - b.start ||
+      (a.mealStart ?? -1) - (b.mealStart ?? -1) ||
+      a.end - b.end;
+  });
 
   const search = (
     selected: Candidate[],
@@ -514,8 +542,25 @@ export function searchMealAwareDaySchedule(
     return null;
   };
 
+  // Safe person-count lower bound: work minutes required for coverage
+  // cannot be supplied by fewer people than daily effective limits permit.
+  let minimumPeople = 0;
+  const phaseWindows = getPresencePhaseWindows(operatingIntervals);
+  if (phaseWindows) {
+    const personMinutes = [
+      [phaseWindows.opening, requirements.minimumAtOpening],
+      [phaseWindows.central, requirements.minimumDuringOperation],
+      [phaseWindows.closing, requirements.minimumAtClosing],
+    ].reduce((total, [windows, required]) =>
+      total + (windows as TimeInterval[]).reduce((sum, w) =>
+        sum + ((minute(w.end) ?? 0) - (minute(w.start) ?? 0)) *
+          (required as number), 0), 0);
+    const perPerson = Math.min(input.workConstraints.maximumDailyEffectiveMinutes,
+      input.workConstraints.maximumWeeklyEffectiveMinutes);
+    if (perPerson > 0) minimumPeople = Math.ceil(personMinutes / perPerson);
+  }
   let solution: Candidate[] | null = null;
-  for (let count = 0; count <= active.length; count++) {
+  for (let count = minimumPeople; count <= active.length; count++) {
     solution = search([], new Set<string>(), count);
     if (solution || budget.limitReached) break;
   }
