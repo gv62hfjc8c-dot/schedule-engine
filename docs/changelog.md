@@ -7,7 +7,11 @@
 - diagnósticos distintos para configuração inválida, capacidade insuficiente,
   ausência de solução encontrada e limite atingido;
 - testes automáticos para duração, horários partidos, dias curtos e arquivos;
-- sem alterações ao Supabase ou à interface.
+- sem alterações ao Supabase ou ao esquema dos dados persistidos.
+- adicionada área experimental «Gerar horário», com calendário, estado de pesquisa,
+  turnos por colaborador e diagnóstico de insuficiências;
+- simulação apenas em memória; não altera as configurações nem persiste resultados;
+- resultados anteriores ficam obsoletos se a configuração for alterada;
 
 ## 2026-10-25 — Ponto 5: janelas de presença de 30 minutos (em validação)
 
