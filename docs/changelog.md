@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-10-26 — P6.4: persistência separada de escalas aprovadas (incremento preparatório)
+
+- teste do núcleo aprovado localmente (`test:approved-schedules`);
+- nova migração SQL **ainda não aplicada** para ledgers e histórico de
+  horários aprovados, preservando integralmente o estado de configuração v4;
+- proposta de armazenamento por utilizador com RLS de SELECT e gravação
+  apenas por RPC transacional, com compare-and-swap entre sessões;
+- bootstrap sem atestar automaticamente contexto completo e exigência
+  de confirmação explícita para primeira atestação;
+- repositório de persistência isolado que valida snapshots recebidos,
+  bloqueia dados malformados e preserva o resultado desconhecido sem registo;
+- testes do adaptador com mock de duas abas, dois proprietários, histórico
+  imutável, controlo de versões e confirmação explícita;
+- pendente validação real do SQL e de autoridade de regras de domínio
+  antes de disponibilizar ações de aprovação em produção.
+
 ## 2026-10-26 — P6.4: núcleo independente de aprovação de horários (PR #17)
 
 - introduzidos ledger e horários aprovados com estados `approved`,
