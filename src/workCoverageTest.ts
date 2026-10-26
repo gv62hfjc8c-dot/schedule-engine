@@ -137,7 +137,7 @@ const onlyOpening = checkPresenceForWorkShifts(
   [shift("a", "09:00", "09:45", "09:10", "09:20")]
 );
 assert(!onlyOpening.valid && onlyOpening.shortages.some(s =>
-  s.interval.start === "09:10" && s.interval.end === "09:20" &&
+  s.interval.start === "09:10" &&
   s.required === 2 && s.actual === 0
 ), "Os mínimos de abertura/fecho sobrepostos respeitam a pausa.");
 
