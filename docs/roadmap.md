@@ -147,9 +147,9 @@ Estado: **em desenvolvimento**
 - [x] ignorar resultados anteriores quando mudam data, pessoas ou regras;
 - [x] validar manualmente a interface com dados reais: capacidade insuficiente, sem solução com turnos de 8h, horário válido para sábado de 4h e recuperação dos requisitos após remoção de exceção;
 
-### Etapa 6.2 — Gerador de períodos (branch feature/period-generator-v0)
+### Etapa 6.2 — Gerador de períodos V0
 
-Estado: **implementado e validado; PR #12 pronto para integração**
+Estado: **integrado na main (PR #12; 2026-10-26)**
 
 - [x] orquestração pura do gerador diário num intervalo inclusivo de datas civis;
 - [x] até 14 dias consecutivos, com verificação de datas inválidas e ordem cronológica;
@@ -164,6 +164,35 @@ Estado: **implementado e validado; PR #12 pronto para integração**
 - [x] alternância entre gerador diário e gerador de períodos sem alterar o estado persistido;
 - [x] validação funcional com dados reais: semana incompleta (0/1/6), diagnóstico de segunda-feira, domingo fechado, período válido sábado/domingo (1/1/0) com exceção temporária, e recuperação após remover exceção (0/1/1), sem publicação parcial;
 
+### Etapa 6.3 — Refeição, descanso e limites de trabalho
+
+Estado: **validadores independentes em desenvolvimento** (`feature/work-constraints-validators-v0`)
+
+Regras acordadas:
+- [x] 8h padrão = 8h de trabalho efetivo, excluindo refeição;
+- [x] refeição obrigatória quando há **mais de 6h efetivas**;
+- [x] refeição de 60 minutos, início após 3h a 5h efetivas, inclusive;
+- [x] refeição não conta para o trabalho efetivo nem para a cobertura;
+- [x] descanso mínimo de 11h entre jornadas;
+- [x] máximos de 8h efetivas diárias e 40h semanais;
+- [x] semana de segunda-feira a domingo, incluindo turnos fora do período pedido;
+- [x] nenhuma ultrapassagem automática / exceção aos limites nesta versão.
+
+Primeiro incremento técnico:
+- [x] tipos aditivos de turno datado com pausa de refeição e configuração explícita;
+- [x] cálculo de intervalos efetivos, excluindo a refeição;
+- [x] validação pura de refeição, limites diários/semanais e descanso entre dias;
+- [x] contexto de trabalho completo obrigatório para certificar um período;
+- [x] testes dos limiares, semanas partidas, transições de calendário e falta de contexto;
+- [ ] confirmar CI e validação local dos novos testes;
+- [ ] integrar os novos segmentos efetivos no validador de cobertura, sem contar a pausa;
+- [ ] evoluir o gerador para respeitar estas hard constraints e pesquisar pausas;
+- [ ] adaptar a persistência e a interface apenas quando o novo modelo estiver validado.
+
+**Atenção:** o gerador diário/multidiário V0 ainda não aplica as regras P6.3.
+Um horário apresentado como validado nas interfaces anteriores só cumpre
+as regras diárias anteriormente implementadas.
+
 ### Limites explícitos V0
 
 - Pesquisa discreta de duração fixa: não encontrar solução não prova impossibilidade global.
@@ -173,4 +202,4 @@ Estado: **implementado e validado; PR #12 pronto para integração**
 
 ## Próximo passo
 
-Integrar PR #12 na main após aprovação. Antes de evoluir para otimização de horários multi-dia, definir e testar as hard constraints entre dias, começando por descanso e limites de trabalho.
+Validar e integrar o primeiro validador independente P6.3. Depois adaptar cobertura e geração para tratar refeições e restrições entre jornadas, mantendo resultados anteriores explicitamente limitados ao V0 diário.
