@@ -166,7 +166,7 @@ Estado: **integrado na main (PR #12; 2026-10-26)**
 
 ### Etapa 6.3 — Refeição, descanso e limites de trabalho
 
-Estado: **núcleo integrado na main (PRs #13–#15), UI experimental condicionada à confirmação de contexto em desenvolvimento**
+Estado: **núcleo P6.3 implementado com CI aprovado (PRs #13, #14 e #15); integração UI pendente**
 
 Regras acordadas:
 - [x] 8h padrão = 8h de trabalho efetivo, excluindo refeição;
@@ -200,54 +200,13 @@ Primeiro incremento técnico:
 - [x] orçamento de pesquisa global em todos os dias; nunca publicar soluções parciais;
 - [x] validação final independente de regras de trabalho, depois de cobertura diária com refeições;
 - [x] testes de backtracking real, horas semanais anteriores/posteriores, domingo/segunda, refeições e contexto desconhecido;
-- [x] execução local de `npm run test:constrained-period-generator` confirmada pelo utilizador;
-- [x] interface experimental P6.3 independente dos modos V0 anteriores, com entrada explícita de datas e fuso IANA;
-- [x] confirmação obrigatória de **ausência de outros turnos exteriores** nas datas necessárias para descanso e limites semanais;
-- [x] sem confirmação, sem contexto: botão de geração bloqueado e nenhuma escala publicada;
-- [x] teste unitário do adaptador de confirmação, datas de fronteira e regras inválidas;
-- [x] turnos com refeições visíveis apenas quando a solução global for validada no cenário declarado;
-- [x] validar manualmente a interface P6.3: sem confirmação bloqueia; cobertura insuficiente diagnosticada (dias 26 e 31/10); cenário temporário 1/1/1 gerou turno de 09:00–13:00 sem refeição e foi revertido pelo utilizador;
-- [ ] definir fonte de turnos aprovados (incluindo externos) antes de permitir validação de escalas efetivas sem hipótese de contexto vazio;
-- [ ] definir migração de regras P6.3 para configuração persistida só quando necessária.
+- [ ] validar execução local do gerador de períodos com regras completas;
+- [ ] integrar o novo gerador na interface e adaptar configuração/persistência apenas quando a entrada de contexto exterior completo estiver resolvida;
 
 **Atenção:** o novo gerador de período P6.3 só certifica regras globais quando
 `status: "generated"` **e** quando o contexto exterior ao período está confirmado.
 O gerador na interface ainda é anterior ao P6.3; não certifica
 refeições, descanso ou horas semanais.
-
-### Etapa 6.4 — Núcleo de horários aprovados
-
-Estado: **núcleo aprovado PR #17; adaptador e migração de persistência em validação, sem deployment**
-
-Primeiro incremento — sem Supabase nem interface:
-- [x] separar proposta gerada de escala **aprovada**, sem aprovação automática;
-- [x] ledger explícito com versão, fuso IANA e intervalo confirmado de conhecimento de compromissos;
-- [x] horários ativos com ID único e reserva de **todo o período civil**, incluindo dias sem turnos;
-- [x] aprovação atómica com nova verificação de operação, disponibilidade, pessoas ativas, cobertura, refeições, limites de 8h/40h e descanso de 11h;
-- [x] cancelamento com histórico preservado e remoção de compromissos ativos;
-- [x] substituição atómica do mesmo período, validando a nova solução antes de desativar a anterior;
-- [x] consultas ao ledger para preparar o contexto exterior completo do gerador P6.3, recusando períodos ocupados;
-- [x] validação de versões esperadas para futuras escritas concorrentes no armazenamento;
-- [x] testes de transições, conflitos, reversões atómicas, contexto incompleto e imutabilidade;
-- [x] teste `npm run test:approved-schedules` aprovado no Mac, na versão `d397f78`;
-- [x] persistência separada do estado v4: ledger por proprietário, snapshots JSONB, histórico, SELECT com RLS, gravação exclusivamente por RPC com CAS;
-- [x] migração SQL **preparada no repositório, não aplicada** ao Supabase;
-- [x] repositório TS isolado com consulta fail-closed, versão explícita, bootstrap incompleto e atestação explícita de completude;
-- [x] testes de duas abas, múltiplos proprietários, conflitos de versão, histórico e dados malformados;
-- [x] definir autorização operacional V0: apenas o proprietário autenticado solicita aprovação, cancelamento e substituição (D040);
-- [x] bloquear EXECUTE da RPC de snapshots aos clientes na migração SQL ainda não aplicada;
-- [x] contrato de comandos em TypeScript, com identidade do proprietário e dados carregados por portas confiáveis, reaproveitando validação do núcleo;
-- [x] testes iniciais de acesso anónimo, versão obsoleta, contexto ausente, conflito CAS e falhas de leitura;
-- [ ] implementar adaptador **efetivamente server-side** com autenticação e fontes autoritativas, mantendo o cliente sem acesso à RPC de snapshots;
-- [ ] testar concorrência e autorização do adaptador real;
-- [ ] definir origem verificável da completude do ledger e validá-la por testes reais;
-- [ ] rever/aplicar migration SQL num ambiente dedicado e validar transações concorrentes reais com Supabase (testes atuais usam mock);
-- [ ] integrar aprovação/cancelamento/substituição na interface após validação funcional.
-
-**Invariante:** o ledger somente pode declarar `complete: true` quando o
-repositório/adaptador tiver confirmação de TODOS os compromissos aprovados
-no intervalo de contexto. Um ledger vazio não prova ausência de trabalho.
-Cancelar uma escala remove o compromisso mas **não certifica cobertura**.
 
 ### Limites explícitos V0
 
@@ -258,4 +217,4 @@ Cancelar uma escala remove o compromisso mas **não certifica cobertura**.
 
 ## Próximo passo
 
-Implementar a fronteira de aprovação confiável e testar a negação de escrita direta de clientes. Não aplicar a migração SQL até verificar o ambiente Supabase e as condições de integridade/autoridade necessárias. A UI continua sem aprovar horários até existir fonte confiável de contexto e validação de domínio na fronteira de escrita.
+Validar localmente o núcleo multi-dia após a integração do PR #15. Depois definir a origem verificável dos turnos exteriores ao período e fazer integração controlada na interface, preservando os dados existentes.
