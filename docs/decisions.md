@@ -248,3 +248,23 @@ dos turnos.
 
 Não há mudança ao formato persistido v4: os três campos já existentes
 passam a ser avaliados nos novos períodos.
+
+## D028 — Geração de vários dias não equivale a validação global
+
+**Estado:** proposta em validação técnica (Ponto 6.2)
+
+Um horário de período V0 é a composição determinística de horários diários
+individualmente validados. Não existe ainda qualquer hard constraint entre
+dias; por isso o resultado usa explicitamente `validationScope: "daily_only"`
+e nunca afirma ter verificado descanso entre dias, contratos, quotas semanais
+ou equidade.
+
+As datas civis são enumeradas sem dependência do fuso horário do navegador,
+entre início e fim inclusivos, até 14 dias na primeira implementação.
+
+Se um único dia falhar, a API devolve diagnósticos para **todos** os dias,
+mas `assignments: []` para o período inteiro, para não apresentar uma solução
+parcial como pronta a utilizar. Não encontrar solução na pesquisa discreta de
+um dia não prova inviabilidade matemática fora do espaço pesquisado.
+
+O núcleo continua sem dependências da UI, Supabase ou outro meio de persistência.

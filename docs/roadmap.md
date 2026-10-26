@@ -147,6 +147,23 @@ Estado: **em desenvolvimento**
 - [x] ignorar resultados anteriores quando mudam data, pessoas ou regras;
 - [x] validar manualmente a interface com dados reais: capacidade insuficiente, sem solução com turnos de 8h, horário válido para sábado de 4h e recuperação dos requisitos após remoção de exceção;
 
+### Etapa 6.2 — Gerador de períodos (branch feature/period-generator-v0)
+
+Estado: **implementado e validado; PR #12 pronto para integração**
+
+- [x] orquestração pura do gerador diário num intervalo inclusivo de datas civis;
+- [x] até 14 dias consecutivos, com verificação de datas inválidas e ordem cronológica;
+- [x] exceções diárias de calendário, disponibilidade e presença respeitadas;
+- [x] resultados e diagnósticos por data, sem ocultar sucessos ou falhas;
+- [x] publicação atómica: um período incompleto nunca disponibiliza turnos parciais;
+- [x] indicação explícita de `daily_only`: não certifica descanso, horas semanais ou justiça distributiva;
+- [x] testes de dias fechados, exceções, falhas parciais, ano bissexto, ano novo e DST;
+- [x] CI verde e testes locais do núcleo;
+- [x] interface experimental de vários dias, com resumo e diagnóstico por data;
+- [x] resultados apresentados apenas quando todos os dias passam na validação diária;
+- [x] alternância entre gerador diário e gerador de períodos sem alterar o estado persistido;
+- [x] validação funcional com dados reais: semana incompleta (0/1/6), diagnóstico de segunda-feira, domingo fechado, período válido sábado/domingo (1/1/0) com exceção temporária, e recuperação após remover exceção (0/1/1), sem publicação parcial;
+
 ### Limites explícitos V0
 
 - Pesquisa discreta de duração fixa: não encontrar solução não prova impossibilidade global.
@@ -156,4 +173,4 @@ Estado: **em desenvolvimento**
 
 ## Próximo passo
 
-Rever e integrar a etapa 6.1 na main após aprovação do PR. Depois iniciar a modelação e validação de horários de vários dias, sem introduzir ainda regras de distribuição que não estejam definidas.
+Integrar PR #12 na main após aprovação. Antes de evoluir para otimização de horários multi-dia, definir e testar as hard constraints entre dias, começando por descanso e limites de trabalho.

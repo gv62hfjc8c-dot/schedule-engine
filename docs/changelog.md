@@ -1,5 +1,29 @@
 # Changelog
 
+## 2026-10-26 — Ponto 6.2: gerador de períodos V0 (em validação)
+
+- orquestra vários dias consecutivos através do gerador diário já validado;
+- intervalo de datas inclusivo, limitado a 14 dias e calculado sem erros de fusos horários;
+- preserva os diagnósticos por data e os casos de dias fechados;
+- só devolve a lista de atribuições quando todos os dias cumprem as regras diárias;
+- distingue claramente validação **diária** de viabilidade global/contratual;
+- testes automatizados para exceções, períodos incompletos e datas de fronteira;
+- criado modo «Vários dias · V0» na interface existente de geração, com seleção
+  de intervalo, cartões por data, turnos e diagnósticos de cobertura;
+- períodos incompletos mostram dias validados isoladamente, mas nunca publicam
+  atribuições parciais como horário do período;
+- avisos explícitos de que descansos, horas semanais e contratos não são
+  verificados; simulação apenas em memória, sem escrita de turnos no Supabase;
+- sem mudanças ao esquema ou formato persistido.
+- validação funcional manual concluída com dados reais: semana 26/10–01/11
+  corretamente incompleta (0 dias com turnos, 1 fechado, 6 falhas),
+  diagnóstico de cobertura de segunda-feira e fecho de domingo;
+- cenário de sucesso 31/10–01/11 com exceção de presença 1/1/1:
+  Anabela 09:00–13:00 no sábado e domingo fechado, 0 falhas;
+- eliminação da exceção de teste confirmou retorno ao diagnóstico
+  de insuficiência de sábado (09:30–12:30, 1 de 2 pessoas)
+  e não publicação de turnos parciais. Dados temporários repostos.
+
 ## 2026-10-26 — Ponto 6.1: gerador diário V0 (em desenvolvimento)
 
 - gerador puro de turnos contínuos para uma única data;

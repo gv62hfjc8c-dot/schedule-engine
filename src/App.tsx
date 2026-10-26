@@ -13,7 +13,7 @@ import type {
 } from "./types";
 import WorkRulesPanel from "./components/WorkRulesPanel";
 import PresencePanel from "./components/PresencePanel";
-import DailyGeneratorPanel from "./components/DailyGeneratorPanel";
+import ScheduleGeneratorPanel from "./components/ScheduleGeneratorPanel";
 import { createEmptyWeeklyPresenceRequirements } from "./utils/presence";
 import { appStateRepository } from "./persistence/appStateRepository";
 import { APP_STATE_VERSION } from "./persistence/stateRepository";
@@ -1722,7 +1722,7 @@ export default function App() {
       )}
 
       {activeSection === "generator" && (
-        <DailyGeneratorPanel
+        <ScheduleGeneratorPanel
           people={people}
           availabilities={availabilities}
           operatingCalendar={generatorOperatingCalendar}
