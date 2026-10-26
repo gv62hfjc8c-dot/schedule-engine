@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-10-26 — P6.4: núcleo independente de aprovação de horários (PR #17)
+
+- introduzidos ledger e horários aprovados com estados `approved`,
+  `cancelled`, `superseded`, ID imutável e versão do ledger;
+- aprovação explícita com revalidação de cobertura, disponibilidade,
+  elegibilidade, refeição, descanso e limites diários/semanais;
+- cancelamento histórico sem compromissos ativos; substituição
+  transacional em memória, validando antes de desativar a origem;
+- consultas de contexto exterior ao período P6.3 a partir dos
+  compromissos aprovados, sem assumir zero horas sem contexto completo;
+- detetor de versão obsoleta para futura persistência com transação
+  e controlo de concorrência;
+- testes de conflitos, transições, semanas, descanso, entradas
+  inválidas, segurança do histórico e imutabilidade;
+- **sem alteração da interface, Supabase ou dados de produção**.
+
 ## 2026-10-26 — Ponto 6.3: preview de período com contexto explícito
 
 - terceiro modo experimental na interface para gerar vários dias

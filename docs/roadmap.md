@@ -206,7 +206,7 @@ Primeiro incremento técnico:
 - [x] sem confirmação, sem contexto: botão de geração bloqueado e nenhuma escala publicada;
 - [x] teste unitário do adaptador de confirmação, datas de fronteira e regras inválidas;
 - [x] turnos com refeições visíveis apenas quando a solução global for validada no cenário declarado;
-- [ ] validar interface P6.3 manualmente com dados reais sem alterar Supabase;
+- [x] validar manualmente a interface P6.3: sem confirmação bloqueia; cobertura insuficiente diagnosticada (dias 26 e 31/10); cenário temporário 1/1/1 gerou turno de 09:00–13:00 sem refeição e foi revertido pelo utilizador;
 - [ ] definir fonte de turnos aprovados (incluindo externos) antes de permitir validação de escalas efetivas sem hipótese de contexto vazio;
 - [ ] definir migração de regras P6.3 para configuração persistida só quando necessária.
 
@@ -214,6 +214,30 @@ Primeiro incremento técnico:
 `status: "generated"` **e** quando o contexto exterior ao período está confirmado.
 O gerador na interface ainda é anterior ao P6.3; não certifica
 refeições, descanso ou horas semanais.
+
+### Etapa 6.4 — Núcleo de horários aprovados
+
+Estado: **modelo e operações puras implementadas (PR #17); persistência pendente**
+
+Primeiro incremento — sem Supabase nem interface:
+- [x] separar proposta gerada de escala **aprovada**, sem aprovação automática;
+- [x] ledger explícito com versão, fuso IANA e intervalo confirmado de conhecimento de compromissos;
+- [x] horários ativos com ID único e reserva de **todo o período civil**, incluindo dias sem turnos;
+- [x] aprovação atómica com nova verificação de operação, disponibilidade, pessoas ativas, cobertura, refeições, limites de 8h/40h e descanso de 11h;
+- [x] cancelamento com histórico preservado e remoção de compromissos ativos;
+- [x] substituição atómica do mesmo período, validando a nova solução antes de desativar a anterior;
+- [x] consultas ao ledger para preparar o contexto exterior completo do gerador P6.3, recusando períodos ocupados;
+- [x] validação de versões esperadas para futuras escritas concorrentes no armazenamento;
+- [x] testes de transições, conflitos, reversões atómicas, contexto incompleto e imutabilidade;
+- [ ] validar o teste do núcleo no Mac;
+- [ ] escolher/rever contrato de persistência de escalas aprovadas e modelo de autorização;
+- [ ] integrar persistência com transações e proteção de concorrência real;
+- [ ] integrar aprovação/cancelamento/substituição na interface após validação funcional.
+
+**Invariante:** o ledger somente pode declarar `complete: true` quando o
+repositório/adaptador tiver confirmação de TODOS os compromissos aprovados
+no intervalo de contexto. Um ledger vazio não prova ausência de trabalho.
+Cancelar uma escala remove o compromisso mas **não certifica cobertura**.
 
 ### Limites explícitos V0
 
@@ -224,4 +248,4 @@ refeições, descanso ou horas semanais.
 
 ## Próximo passo
 
-Validar manualmente o novo painel P6.3 condicionado à hipótese explícita de zero turnos exteriores. Depois decidir e implementar a fonte de escalas aprovadas, sem deduzir ausência de trabalho da falta de registos e sem alterar prematuramente a persistência.
+Validar localmente as transições P6.4 e confirmar CI. Depois definir persistência fiável das escalas aprovadas, incluindo controlo de concorrência e origem verificável da cobertura do ledger antes de integrar ações de aprovação na interface.
