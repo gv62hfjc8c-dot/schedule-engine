@@ -98,9 +98,9 @@ begin
       using errcode = '22023';
   end if;
   if coalesce((p_payload #>> '{coverage,startDate}') ~
-       '^\\d{4}-\\d{2}-\\d{2}$', false) = false or
+       '^[0-9]{4}-[0-9]{2}-[0-9]{2}$', false) = false or
      coalesce((p_payload #>> '{coverage,endDate}') ~
-       '^\\d{4}-\\d{2}-\\d{2}$', false) = false then
+       '^[0-9]{4}-[0-9]{2}-[0-9]{2}$', false) = false then
     raise exception 'Intervalo de cobertura inválido.'
       using errcode = '22023';
   end if;
