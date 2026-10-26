@@ -222,7 +222,7 @@ const minuteSpecific = generateDaySchedule(inputFor(
     a: interval("09:00", "13:00"),
     b: interval("09:07", "13:00"),
   },
-  { minimumAtOpening: 1, minimumDuringOperation: 2, minimumAtClosing: 2 }
+  { minimumAtOpening: 2, minimumDuringOperation: 2, minimumAtClosing: 2 }
 ));
 assert(minuteSpecific.status === "insufficient_capacity",
   "Disponibilidade ao minuto não pode ser arredondada.");
