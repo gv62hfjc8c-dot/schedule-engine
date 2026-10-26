@@ -374,3 +374,37 @@ explicitamente todos os resultados antes de publicar uma escala.
 
 A interface anterior continua a usar o gerador diário/multidiário
 pré-P6.3 e não pode apresentar-se como validação dos novos requisitos.
+
+## D033 — A pesquisa diária com refeição é experimental e independente
+
+**Estado:** implementado como gerador diário V0 isolado (Ponto 6.3)
+
+O gerador `generateMealAwareDaySchedule` recebe explicitamente
+`workConstraints` e `timeZone`. A duração padrão do turno é tempo
+de trabalho **efetivo**. Quando excede o limiar de refeição, gera
+um período total de presença acrescido da pausa; por exemplo,
+8h efetivas + 60min de refeição = 9h no calendário.
+
+O algoritmo pesquisa, **simultaneamente**, pessoas, posições de
+turnos e janelas de refeição, revalidando a cobertura apenas sobre
+segmentos efetivos. Os candidatos usam uma grelha de 15 minutos
+mais extremos exatos. É procura **limitada**, não prova de inviabilidade
+fora da grelha; distinguir `not_found` de `search_limit`.
+
+Em períodos operacionais curtos, o turno efetivo pode ser reduzido.
+Quando não há espaço para uma pausa obrigatória, é permitida
+apenas uma duração sem pausa até ao limite de obrigatoriedade.
+A disponibilidade precisa de conter o **intervalo completo de
+presença**, incluindo a pausa; não são gerados turnos atravessando
+interrupções do calendário operacional.
+
+A validação independente de trabalho é invocada em contexto
+explicitamente **incompleto**, apenas para verificar configuração,
+refeição e máximos locais. É PROIBIDO interpretar tal validação
+como cumprimento semanal ou de descanso entre jornadas.
+
+O contrato anuncia `validationScope: "daily_work_and_coverage_only"`.
+A geração e a publicação dos turnos do período exigirão um futuro
+algoritmo conjunto multi-dia (não apenas validar a primeira
+composição gananciosa dos dias). O gerador e a UI pré-P6.3
+permanecem inalterados, sem migração nem alteração de Supabase.
