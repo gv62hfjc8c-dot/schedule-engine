@@ -43,7 +43,7 @@ const spanning = prepareExplicitEmptyContext({
 });
 assert(spanning.status === "ready" &&
   spanning.requiredContext?.startDate === "2026-10-26" &&
-  spanning.requiredContext?.endDate === "2026-11-09",
+  spanning.requiredContext?.endDate === "2026-11-08",
   "Declaração deve incluir duas semanas civis inteiras mais a fronteira.");
 
 const monday = prepareExplicitEmptyContext({
@@ -51,7 +51,7 @@ const monday = prepareExplicitEmptyContext({
   confirmedNoExternalShifts: true,
 });
 assert(monday.requiredContext?.startDate === "2026-11-01" &&
-  monday.requiredContext?.endDate === "2026-11-09",
+  monday.requiredContext?.endDate === "2026-11-08",
   "Segunda deve também requerer domingo anterior para descanso.");
 
 const sunday = prepareExplicitEmptyContext({
