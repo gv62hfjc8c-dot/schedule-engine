@@ -167,10 +167,12 @@ export function generateConstrainedPeriodSchedule(
 
   const target = { startDate: input.startDate, endDate: input.endDate };
   const outside = input.externalContext;
+  // Validate untrusted schedule structure through the work validator
+  // below, not through a sorting function that could throw on bad data.
   const externalShifts = [...outside.shifts].sort(
-    (a, b) => a.date.localeCompare(b.date) ||
-      a.personId.localeCompare(b.personId, "en") ||
-      a.interval.start.localeCompare(b.interval.start)
+    (a, b) => (a?.date ?? "").localeCompare(b?.date ?? "") ||
+      (a?.personId ?? "").localeCompare(b?.personId ?? "", "en") ||
+      (a?.interval?.start ?? "").localeCompare(b?.interval?.start ?? "")
   );
   const knownSchedule = (shifts: DatedWorkShift[], complete: boolean) => ({
     startDate: outside.startDate,
