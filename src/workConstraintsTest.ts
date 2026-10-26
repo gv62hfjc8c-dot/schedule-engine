@@ -40,9 +40,11 @@ interface TestOptions {
   contextEnd?: string;
   complete?: boolean;
   rules?: WorkConstraintConfiguration;
+  timeZone?: string;
 }
 function check(shifts: DatedWorkShift[], options: TestOptions = {}) {
   const input = {
+    timeZone: options.timeZone ?? "Atlantic/Azores",
     rules: options.rules ?? baseline,
     targetPeriod: {
       startDate: options.targetStart ?? monday,
