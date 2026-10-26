@@ -234,7 +234,10 @@ Primeiro incremento — sem Supabase nem interface:
 - [x] migração SQL **preparada no repositório, não aplicada** ao Supabase;
 - [x] repositório TS isolado com consulta fail-closed, versão explícita, bootstrap incompleto e atestação explícita de completude;
 - [x] testes de duas abas, múltiplos proprietários, conflitos de versão, histórico e dados malformados;
-- [ ] definir autorização operacional e origem **verificável** de completude do ledger (o SQL ainda não valida todas as hard constraints de domínio);
+- [x] definir autorização operacional V0: apenas o proprietário autenticado solicita aprovação, cancelamento e substituição (D040);
+- [x] bloquear EXECUTE da RPC de snapshots aos clientes na migração SQL ainda não aplicada;
+- [ ] implementar executor confiável que revalida as hard constraints e controla as mutações;
+- [ ] definir origem verificável da completude do ledger e validá-la por testes reais;
 - [ ] rever/aplicar migration SQL num ambiente dedicado e validar transações concorrentes reais com Supabase (testes atuais usam mock);
 - [ ] integrar aprovação/cancelamento/substituição na interface após validação funcional.
 
@@ -252,4 +255,4 @@ Cancelar uma escala remove o compromisso mas **não certifica cobertura**.
 
 ## Próximo passo
 
-Validar no GitHub e localmente o adaptador de persistência P6.4. Não aplicar a migração SQL até verificar o ambiente Supabase e as condições de integridade/autoridade necessárias. A UI continua sem aprovar horários até existir fonte confiável de contexto e validação de domínio na fronteira de escrita.
+Implementar a fronteira de aprovação confiável e testar a negação de escrita direta de clientes. Não aplicar a migração SQL até verificar o ambiente Supabase e as condições de integridade/autoridade necessárias. A UI continua sem aprovar horários até existir fonte confiável de contexto e validação de domínio na fronteira de escrita.
