@@ -543,3 +543,43 @@ entre clientes por si só.
 Sem persistência de escalas aprovadas, este núcleo ainda não é
 uma fonte de verdade operacional. Não altera Supabase, esquema
 de persistência v4 nem a interface.
+
+## D039 — Armazenar escalas aprovadas fora do estado de configuração v4
+
+**Estado:** aceite como proposta implementada no repositório; SQL não aplicado
+
+O payload de configuração `schedule_engine_states` (versão v4) não
+é alterado. Escalas aprovadas usam objetos distintos:
+`schedule_engine_approved_ledgers` e
+`schedule_engine_approved_ledger_history`, ambos por `owner_id`,
+com RLS de leitura e sem permissões de escrita direta para clientes.
+
+A gravação é efetuada por uma RPC `security definer`,
+`save_schedule_engine_approved_ledger`, que obtém a identidade
+da sessão, usa um lock transacional por proprietário, compara
+`p_expected_version` com a versão da base, incrementa exatamente
+uma versão por transição e guarda o snapshot no histórico na mesma
+transação. Conflitos devolvem código SQL `40001`. Não se repete
+automaticamente uma escrita após erro de rede/autenticação.
+
+Uma ausência de linha significa **desconhecido**, não a ausência
+de horários. O primeiro snapshot exige versão 0, nenhum registo
+e `complete: false`; a passagem explícita de `complete:false`
+para `true` exige um parâmetro de atestação. O intervalo de
+conhecimento (`coverage`) e o fuso são imutáveis nesta versão,
+para não inventar cobertura sobre dias/zonas adicionais.
+
+O repositório `createSupabaseApprovedLedgerRepository` não é
+instanciado pela interface e não é fonte de verdade operacional
+enquanto a migração e a validação de confiança não estiverem
+implementadas e revistas.
+
+**Limite crítico:** a RPC apenas garante autorização por proprietário,
+CAS, estrutura mínima, atestação explícita e histórico transacional.
+**Não reimplementa nem certifica em PostgreSQL todas as hard
+constraints de cobertura/trabalho.** O núcleo TypeScript verifica
+essas regras, mas um cliente não confiável poderia contornar o
+validador. Antes de permitir aprovação real na UI, a arquitetura
+de produção precisa de um executor fiável de validação de domínio
+na fronteira de escrita (ou servidor). Não chamar a esta migração
+uma aprovação operacional segura até essa fronteira existir.

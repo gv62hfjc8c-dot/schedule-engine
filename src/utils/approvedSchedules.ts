@@ -287,6 +287,19 @@ function ledgerIssues(ledger: ApprovedScheduleLedger): string[] {
   return issues;
 }
 
+/**
+ * Validate untrusted persisted ledger data BEFORE exposing it as a source
+ * of approved commitments. This is structural validation, NOT proof that
+ * the stored schedule was approved by a trusted domain validation service.
+ */
+export function validateApprovedScheduleLedger(value: unknown): string[] {
+  try {
+    return ledgerIssues(value as ApprovedScheduleLedger);
+  } catch {
+    return ["Ledger de horários aprovados malformado."];
+  }
+}
+
 /** Active shifts only, with copies to stop accidental mutation by callers. */
 export function listApprovedShifts(ledger: ApprovedScheduleLedger): DatedWorkShift[] {
   return ledger.records
