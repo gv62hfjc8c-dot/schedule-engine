@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-10-26 — Ponto 6.3: preview de período com contexto explícito
+
+- terceiro modo experimental na interface para gerar vários dias
+  com refeição, descanso de 11h e limite semanal de 40h;
+- datas e fuso IANA explícitos, apresentação de pausas e diagnósticos;
+- como não há turnos aprovados persistidos, exige-se confirmação
+  expressa de inexistência de turnos já atribuídos fora do período
+  no intervalo de contexto completo;
+- sem confirmação, não há geração global; alteração de dados/datas
+  invalida a confirmação e o resultado;
+- testes do adaptador de contexto e limites civis, sem suposições de
+  horas livres a partir de base de dados vazia;
+- mantém os modos de gerador V0, o esquema de persistência e
+  os dados do Supabase inalterados.
+
 ## 2026-10-26 — Ponto 6.3: gerador de períodos com backtracking (PR #15)
 
 - pesquisa conjunta de turnos diários, refeições e alternativas em dias

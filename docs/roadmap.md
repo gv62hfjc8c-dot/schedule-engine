@@ -166,7 +166,7 @@ Estado: **integrado na main (PR #12; 2026-10-26)**
 
 ### Etapa 6.3 — Refeição, descanso e limites de trabalho
 
-Estado: **núcleo P6.3 implementado com CI aprovado (PRs #13, #14 e #15); integração UI pendente**
+Estado: **núcleo integrado na main (PRs #13–#15), UI experimental condicionada à confirmação de contexto em desenvolvimento**
 
 Regras acordadas:
 - [x] 8h padrão = 8h de trabalho efetivo, excluindo refeição;
@@ -200,8 +200,15 @@ Primeiro incremento técnico:
 - [x] orçamento de pesquisa global em todos os dias; nunca publicar soluções parciais;
 - [x] validação final independente de regras de trabalho, depois de cobertura diária com refeições;
 - [x] testes de backtracking real, horas semanais anteriores/posteriores, domingo/segunda, refeições e contexto desconhecido;
-- [ ] validar execução local do gerador de períodos com regras completas;
-- [ ] integrar o novo gerador na interface e adaptar configuração/persistência apenas quando a entrada de contexto exterior completo estiver resolvida;
+- [x] execução local de `npm run test:constrained-period-generator` confirmada pelo utilizador;
+- [x] interface experimental P6.3 independente dos modos V0 anteriores, com entrada explícita de datas e fuso IANA;
+- [x] confirmação obrigatória de **ausência de outros turnos exteriores** nas datas necessárias para descanso e limites semanais;
+- [x] sem confirmação, sem contexto: botão de geração bloqueado e nenhuma escala publicada;
+- [x] teste unitário do adaptador de confirmação, datas de fronteira e regras inválidas;
+- [x] turnos com refeições visíveis apenas quando a solução global for validada no cenário declarado;
+- [ ] validar interface P6.3 manualmente com dados reais sem alterar Supabase;
+- [ ] definir fonte de turnos aprovados (incluindo externos) antes de permitir validação de escalas efetivas sem hipótese de contexto vazio;
+- [ ] definir migração de regras P6.3 para configuração persistida só quando necessária.
 
 **Atenção:** o novo gerador de período P6.3 só certifica regras globais quando
 `status: "generated"` **e** quando o contexto exterior ao período está confirmado.
@@ -217,4 +224,4 @@ refeições, descanso ou horas semanais.
 
 ## Próximo passo
 
-Validar localmente o núcleo multi-dia após a integração do PR #15. Depois definir a origem verificável dos turnos exteriores ao período e fazer integração controlada na interface, preservando os dados existentes.
+Validar manualmente o novo painel P6.3 condicionado à hipótese explícita de zero turnos exteriores. Depois decidir e implementar a fonte de escalas aprovadas, sem deduzir ausência de trabalho da falta de registos e sem alterar prematuramente a persistência.
