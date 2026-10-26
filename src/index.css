@@ -1799,3 +1799,95 @@ h2 {
     max-width: 100%;
   }
 }
+
+/* P6.3 — experimental period search with explicitly confirmed context */
+.p63-context-box {
+  display: grid;
+  gap: 10px;
+}
+
+.p63-context-box p {
+  margin: 0;
+}
+
+.p63-context-box .generator-issue {
+  color: #9e573f;
+}
+
+.p63-confirmation {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  border-radius: 9px;
+  border: 1px solid #e5d8bf;
+  background: #fff;
+  padding: 13px;
+  cursor: pointer;
+}
+
+.p63-confirmation input {
+  flex: 0 0 auto;
+  width: 17px;
+  height: 17px;
+  margin: 1px 0 0;
+  accent-color: #405b75;
+}
+
+.p63-confirmation span {
+  color: #534f48;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.55;
+}
+
+.p63-action-row {
+  display: grid;
+  gap: 9px;
+  justify-items: start;
+  padding: 0 24px 20px;
+}
+
+.p63-action-row .primary-button {
+  min-height: 42px;
+}
+
+.p63-action-row .primary-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.p63-violations {
+  display: grid;
+  gap: 10px;
+}
+
+.p63-assignment {
+  gap: 14px;
+}
+
+.p63-assignment-times {
+  display: grid;
+  justify-items: end;
+  gap: 5px;
+  text-align: right;
+}
+
+.p63-assignment-times small {
+  color: #7c899a;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+@media (max-width: 700px) {
+  .p63-assignment {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .p63-assignment-times {
+    justify-items: start;
+    text-align: left;
+  }
+  .p63-action-row {
+    padding-inline: 18px;
+  }
+}
