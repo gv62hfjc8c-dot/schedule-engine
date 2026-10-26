@@ -54,6 +54,8 @@ export interface KnownWorkSchedule extends WorkValidationDateRange {
 }
 
 export interface ValidateWorkConstraintsInput {
+  /** Required IANA zone to measure REAL elapsed rest across DST changes. */
+  timeZone: string;
   rules: WorkConstraintConfiguration;
   targetPeriod: WorkValidationDateRange;
   knownSchedule: KnownWorkSchedule;
@@ -83,6 +85,8 @@ interface ParsedShift {
   start: number;
   end: number;
   effectiveMinutes: number;
+  mealMinutes: number;
+  workBeforeMealMinutes: number;
   absoluteStart: number;
   absoluteEnd: number;
 }
@@ -109,6 +113,49 @@ function minute(value: string): number | null {
   if (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value)) return null;
   const [hours, minutes] = value.split(":").map(Number);
   return hours * 60 + minutes;
+}
+
+/**
+ * Reconstruct a local wall-clock timestamp as a UTC-shaped value. We do NOT
+ * interpret the wall clock as UTC; this is only an offset calculation.
+ */
+function localAsNaiveUtc(instant: number, formatter: Intl.DateTimeFormat): number {
+  const parts = formatter.formatToParts(new Date(instant));
+  const number = (type: Intl.DateTimeFormatPartTypes): number => {
+    const part = parts.find((candidate) => candidate.type === type);
+    if (!part) throw new Error("Fuso horário sem componente temporal esperada.");
+    return Number(part.value);
+  };
+  return Date.UTC(
+    number("year"), number("month") - 1, number("day"),
+    number("hour"), number("minute")
+  );
+}
+
+/**
+ * Resolve an unambiguous civil clock time in the configured IANA zone.
+ * Nonexistent (spring-forward) or ambiguous (fall-back) clock times return
+ * null: a caller needs an explicit disambiguation policy before scheduling.
+ */
+function resolveLocalClock(
+  dateMs: number,
+  minuteOfDay: number,
+  formatter: Intl.DateTimeFormat
+): number | null {
+  const naive = dateMs + minuteOfDay * 60_000;
+  const offsets = new Set<number>();
+  for (const hours of [-36, -12, 0, 12, 36]) {
+    const probe = naive + hours * 3_600_000;
+    offsets.add(localAsNaiveUtc(probe, formatter) - probe);
+  }
+  const matches = new Set<number>();
+  for (const offset of offsets) {
+    const candidate = naive - offset;
+    if (localAsNaiveUtc(candidate, formatter) === naive) {
+      matches.add(candidate);
+    }
+  }
+  return matches.size === 1 ? [...matches][0] : null;
 }
 
 function positive(value: number): boolean {
@@ -218,7 +265,21 @@ export function validateWorkConstraints(
   if (typeof input.knownSchedule?.complete !== "boolean") {
     issues.push("A completude do contexto deve ser declarada explicitamente.");
   }
-  if (issues.length || start === null || end === null ||
+
+  let formatter: Intl.DateTimeFormat | null = null;
+  try {
+    if (!input.timeZone?.trim()) throw new Error("Fuso horário em falta.");
+    formatter = new Intl.DateTimeFormat("en-GB-u-ca-gregory-nu-latn", {
+      timeZone: input.timeZone,
+      year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit",
+      hourCycle: "h23",
+    });
+  } catch {
+    issues.push("É obrigatório um fuso horário IANA válido.");
+  }
+  if (issues.length || formatter === null ||
+      start === null || end === null ||
       knownStart === null || knownEnd === null) {
     return invalid(issues);
   }
@@ -253,16 +314,35 @@ export function validateWorkConstraints(
     }
     const mealStart = shift.mealBreak ? minute(shift.mealBreak.start) : null;
     const mealEnd = shift.mealBreak ? minute(shift.mealBreak.end) : null;
-    const mealMinutes = mealStart !== null && mealEnd !== null
-      ? mealEnd - mealStart : 0;
+    const absoluteStart = resolveLocalClock(shiftDate, startMinute, formatter);
+    const absoluteEnd = resolveLocalClock(shiftDate, endMinute, formatter);
+    const absoluteMealStart = mealStart !== null
+      ? resolveLocalClock(shiftDate, mealStart, formatter) : null;
+    const absoluteMealEnd = mealEnd !== null
+      ? resolveLocalClock(shiftDate, mealEnd, formatter) : null;
+    if (absoluteStart === null || absoluteEnd === null ||
+        absoluteEnd <= absoluteStart ||
+        (shift.mealBreak && (absoluteMealStart === null ||
+          absoluteMealEnd === null || absoluteMealStart <= absoluteStart ||
+          absoluteMealEnd >= absoluteEnd ||
+          absoluteMealEnd <= absoluteMealStart))) {
+      issues.push(`Turno ${index + 1}: hora local inexistente, ambígua ou incoerente no fuso configurado.`);
+      continue;
+    }
+    const mealMinutes = absoluteMealStart !== null && absoluteMealEnd !== null
+      ? (absoluteMealEnd - absoluteMealStart) / 60_000 : 0;
+    const workingBeforeMeal = absoluteMealStart !== null
+      ? (absoluteMealStart - absoluteStart) / 60_000 : 0;
     parsed.push({
       original: shift,
       dateMs: shiftDate,
       start: startMinute,
       end: endMinute,
-      effectiveMinutes: endMinute - startMinute - mealMinutes,
-      absoluteStart: shiftDate + startMinute * 60_000,
-      absoluteEnd: shiftDate + endMinute * 60_000,
+      effectiveMinutes: (absoluteEnd - absoluteStart) / 60_000 - mealMinutes,
+      mealMinutes,
+      workBeforeMealMinutes: workingBeforeMeal,
+      absoluteStart,
+      absoluteEnd,
     });
   }
   if (issues.length) return invalid(issues, requiredContext);
@@ -292,20 +372,15 @@ export function validateWorkConstraints(
     if (!inAffectedWeek) continue;
 
     if (original.mealBreak) {
-      const mealStart = minute(original.mealBreak.start);
-      const mealEnd = minute(original.mealBreak.end);
-      if (mealStart === null || mealEnd === null) {
-        throw new Error("Erro interno: pausa estruturalmente inválida.");
-      }
-      if (mealEnd - mealStart !== input.rules.mealBreak.durationMinutes) {
+      if (shift.mealMinutes !== input.rules.mealBreak.durationMinutes) {
         addViolation(
           violations, "meal_duration", original,
           "A pausa tem uma duração diferente da regra obrigatória.",
-          { actualMinutes: mealEnd - mealStart,
+          { actualMinutes: shift.mealMinutes,
             requiredMinutes: input.rules.mealBreak.durationMinutes }
         );
       }
-      const workingBeforeMeal = mealStart - shift.start;
+      const workingBeforeMeal = shift.workBeforeMealMinutes;
       if (workingBeforeMeal < input.rules.mealBreak.earliestStartAfterWorkMinutes ||
           workingBeforeMeal > input.rules.mealBreak.latestStartAfterWorkMinutes) {
         addViolation(
