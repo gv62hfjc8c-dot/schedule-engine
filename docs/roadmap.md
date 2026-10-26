@@ -166,7 +166,7 @@ Estado: **integrado na main (PR #12; 2026-10-26)**
 
 ### Etapa 6.3 — Refeição, descanso e limites de trabalho
 
-Estado: **validadores independentes implementados e validados; PR #13 em revisão**
+Estado: **validadores independentes integrados na main (PR #13); gerador diário com refeição V0 em validação no PR #14**
 
 Regras acordadas:
 - [x] 8h padrão = 8h de trabalho efetivo, excluindo refeição;
@@ -189,12 +189,17 @@ Primeiro incremento técnico:
 - [x] validador independente de cobertura que exclui a pausa e preserva os cortes de presença anteriores;
 - [x] testes de cobertura de refeições simultâneas/desfasadas, mínimos 1/2/1, dias curtos, requisitos sobrepostos e regressão de turnos sem pausa;
 - [x] testes locais `npm run test:work-constraints` e `npm run test:work-coverage` confirmados pelo utilizador;
-- [ ] evoluir o gerador para respeitar estas hard constraints e pesquisar pausas;
+- [x] gerador diário **isolado** que pesquisa turnos e posições de refeição em conjunto;
+- [x] regra de 8h efetivas + 1h de refeição e encurtamento explícito para operação curta;
+- [x] cobertura reavaliada durante cada pausa e validação final independente;
+- [x] pesquisa determinística, limitada e resultados atómicos, com diagnósticos de capacidade;
+- [x] testes de refeições desfasadas, mínimo central 1/2/1, dias curtos, configuração, limites e regressão;
+- [ ] gerador multi-dia que pesquisa alternativas entre dias, valida descanso e 40h semanais com contexto exterior completo;
 - [ ] adaptar a persistência e a interface apenas quando o novo modelo estiver validado.
 
-**Atenção:** o gerador diário/multidiário V0 ainda não aplica as regras P6.3.
-Um horário apresentado como validado nas interfaces anteriores só cumpre
-as regras diárias anteriormente implementadas.
+**Atenção:** o novo gerador com refeição V0 apenas valida cobertura e regras **locais do dia**.
+O gerador diário/multidiário apresentado na interface continua anterior ao P6.3;
+não certifica refeições, descanso entre dias nem horas semanais.
 
 ### Limites explícitos V0
 
@@ -205,4 +210,4 @@ as regras diárias anteriormente implementadas.
 
 ## Próximo passo
 
-Integrar os validadores independentes do P6.3 após aprovação do PR #13. Em seguida, adaptar a pesquisa de horários para validar conjuntamente refeição, cobertura, descanso e limites de horas, mantendo os resultados antigos explicitamente limitados ao V0 diário.
+Validar e integrar o gerador diário com refeição do PR #14. Depois evoluir o motor de períodos para escolher turnos e pausas **entre dias**, em vez de aceitar a primeira solução diária e apenas testar descanso/40h posteriormente.
