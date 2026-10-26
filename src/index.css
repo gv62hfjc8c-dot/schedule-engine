@@ -1607,3 +1607,195 @@ h2 {
     max-width: none;
   }
 }
+
+
+/* Ponto 6.2 — preview read-only de vários dias */
+.generator-mode-switch {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 16px;
+  padding: 4px;
+  background: #eef2f6;
+  border: 1px solid #dfe5ec;
+  border-radius: 12px;
+}
+
+.generator-mode-switch button {
+  border: 0;
+  border-radius: 9px;
+  min-height: 38px;
+  padding: 0 18px;
+  background: transparent;
+  color: #667488;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.generator-mode-switch button:hover {
+  color: #243147;
+}
+
+.generator-mode-switch button.generator-mode-active {
+  color: #243147;
+  background: #fff;
+  box-shadow: 0 1px 3px rgb(16 24 40 / 10%);
+}
+
+.period-generator-controls .generator-date-field {
+  min-width: 160px;
+  max-width: 220px;
+}
+
+.period-generator-disclaimer {
+  margin: 0 24px 20px;
+  border: 1px solid #e6dfd1;
+  border-radius: 11px;
+  background: #fdfaf4;
+  padding: 14px;
+}
+
+.period-generator-disclaimer strong {
+  display: block;
+  margin-bottom: 5px;
+  color: #756347;
+  font-size: 12px;
+}
+
+.period-generator-disclaimer p {
+  margin: 0;
+  color: #786c59;
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.generator-status-daily_complete {
+  color: #42745b;
+  background: #edf7f1;
+}
+
+.period-generator-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.period-generator-summary > div {
+  display: grid;
+  gap: 5px;
+  border-radius: 10px;
+  background: #f6f8fa;
+  border: 1px solid #e6eaf0;
+  padding: 12px;
+}
+
+.period-generator-summary strong {
+  color: #2c394b;
+  font-size: 20px;
+}
+
+.period-generator-summary span {
+  color: #7d899b;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.period-day-list {
+  display: grid;
+  gap: 10px;
+}
+
+.period-day-card {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid #e3e8ef;
+  background: #fafbfc;
+  border-radius: 12px;
+  min-width: 0;
+}
+
+.period-day-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.period-day-heading > div {
+  display: grid;
+  gap: 3px;
+}
+
+.period-day-heading strong {
+  font-size: 13px;
+  color: #243147;
+}
+
+.period-day-heading > div > span {
+  font-size: 11px;
+  color: #8a95a5;
+}
+
+.period-day-state {
+  max-width: 60%;
+  border-radius: 999px;
+  background: #fff3e8;
+  color: #9a6133;
+  padding: 6px 10px;
+  font-size: 10px;
+  font-weight: 800;
+  text-align: right;
+}
+
+.period-day-state-generated,
+.period-day-state-closed {
+  background: #eaf5ed;
+  color: #497356;
+}
+
+.period-day-state-closed {
+  background: #e9edf3;
+  color: #637186;
+}
+
+.period-day-card .generator-assignment {
+  background: #fff;
+}
+
+.period-day-card .generator-issue {
+  margin: 0;
+  border-left: 2px solid #d0ad7a;
+  padding-left: 10px;
+  color: #805c3b;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.period-day-card .generator-shortage-list p {
+  flex-wrap: wrap;
+  font-size: 11px;
+}
+
+@media (max-width: 700px) {
+  .period-generator-controls .generator-date-field {
+    max-width: none;
+    flex-basis: 100%;
+  }
+  .period-generator-summary {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 480px) {
+  .period-generator-summary {
+    grid-template-columns: 1fr;
+  }
+  .period-day-heading {
+    flex-wrap: wrap;
+  }
+  .period-day-state {
+    max-width: 100%;
+  }
+}
