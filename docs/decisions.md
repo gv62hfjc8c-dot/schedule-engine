@@ -349,3 +349,28 @@ O motor mantém-se independente da região/empresa. Não é adotado
 automaticamente o fuso do navegador. A interface e os adaptadores
 de dados terão de fornecer um fuso concreto quando estas regras
 forem integradas no gerador. Não há migração de persistência nesta etapa.
+
+## D032 — Cobertura utiliza segmentos efetivos, não presença total
+
+**Estado:** implementado como validador independente do Ponto 6.3; geração pendente
+
+Para turnos com uma pausa de refeição, o período de presença total
+não equivale ao intervalo de cobertura. O motor remove a refeição
+para obter até dois segmentos de trabalho efetivo de uma mesma
+pessoa, mantendo **uma única atribuição diária**.
+
+Os intervalos da mesma pessoa não podem sobrepor-se; o mesmo
+colaborador nunca é contado duas vezes no mesmo instante.
+Os segmentos são verificados com o **mesmo algoritmo P5** de
+cobertura de abertura, período central e fecho, sem duplicar
+os cortes de 30 minutos.
+
+`checkPresenceForWorkShifts` valida apenas a **estrutura e cobertura**
+de um dia. Uma resposta positiva não certifica a obrigatoriedade,
+duração e posição da refeição, descanso, horas de trabalho,
+disponibilidade ou contexto de semanas adjacentes. Essa validação
+fica a cargo dos outros módulos; o gerador terá de compor
+explicitamente todos os resultados antes de publicar uma escala.
+
+A interface anterior continua a usar o gerador diário/multidiário
+pré-P6.3 e não pode apresentar-se como validação dos novos requisitos.
