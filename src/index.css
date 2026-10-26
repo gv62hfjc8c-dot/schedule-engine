@@ -1368,3 +1368,242 @@ h2 {
   font-size: 11px;
   line-height: 1.5;
 }
+
+/* Ponto 6 — preview efémero do gerador diário */
+.generator-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(330px, 0.95fr);
+  align-items: start;
+  gap: 20px;
+}
+
+.generator-panel,
+.generator-results {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.generator-controls {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 4px 24px 20px;
+}
+
+.generator-date-field {
+  flex: 1 1 180px;
+  max-width: 290px;
+  display: grid;
+  gap: 7px;
+}
+
+.generator-date-field > span {
+  color: #6c788a;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.generator-date-field .date-input {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid #d8dee8;
+  border-radius: 10px;
+  background: #fff;
+  padding: 0 11px;
+  color: #172033;
+  font: inherit;
+}
+
+.generator-controls > .primary-button {
+  min-height: 42px;
+}
+
+.generator-controls > .primary-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.generator-facts,
+.generator-phase-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0 24px 20px;
+}
+
+.generator-facts > div,
+.generator-phase-grid > div {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  border: 1px solid #e5eaf0;
+  border-radius: 10px;
+  background: #fafbfc;
+  padding: 12px;
+}
+
+.generator-facts span,
+.generator-phase-grid span {
+  color: #7b8799;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.generator-facts strong,
+.generator-phase-grid strong {
+  color: #243147;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.generator-phase-preview {
+  margin: 0 24px 20px;
+}
+
+.generator-phase-preview > p:first-child {
+  margin: 0 0 11px;
+  color: #68768a;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.generator-phase-grid {
+  margin: 0;
+}
+
+.generator-footnote,
+.generator-hint {
+  margin: 0;
+  color: #8390a1;
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.generator-panel > .generator-footnote {
+  border-top: 1px solid #edf0f4;
+  padding: 15px 24px 20px;
+}
+
+.generator-phase-preview > .generator-hint {
+  margin-top: 10px;
+}
+
+.generator-result-body {
+  display: grid;
+  gap: 14px;
+  padding: 4px 24px 24px;
+}
+
+.generator-result-body h3 {
+  color: #243147;
+  font-size: 16px;
+  margin: 0;
+}
+
+.generator-result-body h4 {
+  font-size: 13px;
+  margin: 0;
+}
+
+.generator-result-body p {
+  margin: 0;
+  color: #637187;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.generator-result-body .generator-footnote,
+.generator-result-body .generator-hint {
+  color: #8490a1;
+  font-size: 11px;
+}
+
+.generator-result-body .generator-issue {
+  border-left: 2px solid #d0ad7a;
+  padding-left: 10px;
+  color: #805c3b;
+}
+
+.generator-status {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 8px 11px;
+  color: #86653d;
+  background: #faf5eb;
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.generator-status-generated,
+.generator-status-closed {
+  color: #42745b;
+  background: #edf7f1;
+}
+
+.generator-assignment-list,
+.generator-shortage-list {
+  display: grid;
+  gap: 8px;
+}
+
+.generator-assignment {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid #e2e8ef;
+  border-radius: 10px;
+  background: #fafbfc;
+  padding: 13px;
+}
+
+.generator-assignment strong {
+  color: #2d394d;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.generator-assignment span {
+  color: #4e6075;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.generator-shortage-list p {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 13px;
+  border-radius: 9px;
+  background: #faf7f1;
+  color: #776347;
+}
+
+.generator-shortage-list p span {
+  text-align: right;
+}
+
+@media (max-width: 980px) {
+  .generator-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 700px) {
+  .generator-facts,
+  .generator-phase-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .generator-controls {
+    align-items: stretch;
+  }
+
+  .generator-date-field {
+    max-width: none;
+  }
+}
