@@ -45,6 +45,12 @@ function addCivilDays(date: string, amount: number): string {
   return utc.toISOString().slice(0, 10);
 }
 
+function weekMonday(date: string): string {
+  const value = new Date(date + "T00:00:00Z");
+  value.setUTCDate(value.getUTCDate() - (value.getUTCDay() + 6) % 7);
+  return value.toISOString().slice(0, 10);
+}
+
 function displayDate(date: string): string {
   return new Intl.DateTimeFormat("pt-PT", {
     weekday: "short",
@@ -353,7 +359,8 @@ export default function ConstrainedPeriodGeneratorPanel({
                 representa uma aprovação nem persistência de escala.
               </p>
             )}
-            {result.status === "generated" && (
+            {result.status === "generated" &&
+              weekMonday(startDate) === weekMonday(endDate) && (
               <div className="p63-violations">
                 <h4>Horas semanais atribuídas · objetivo 40h por pessoa</h4>
                 {people.filter(p => p.active).map(person => {
