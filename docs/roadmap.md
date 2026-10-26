@@ -158,8 +158,11 @@ Estado: **em validação técnica**
 - [x] publicação atómica: um período incompleto nunca disponibiliza turnos parciais;
 - [x] indicação explícita de `daily_only`: não certifica descanso, horas semanais ou justiça distributiva;
 - [x] testes de dias fechados, exceções, falhas parciais, ano bissexto, ano novo e DST;
-- [ ] CI verde e validação manual com casos reais;
-- [ ] interface experimental de vários dias, depois de validar o núcleo.
+- [x] CI verde e testes locais do núcleo;
+- [x] interface experimental de vários dias, com resumo e diagnóstico por data;
+- [x] resultados apresentados apenas quando todos os dias passam na validação diária;
+- [x] alternância entre gerador diário e gerador de períodos sem alterar o estado persistido;
+- [ ] validação funcional da interface com dados reais antes do merge.
 
 ### Limites explícitos V0
 
@@ -170,4 +173,4 @@ Estado: **em validação técnica**
 
 ## Próximo passo
 
-Validar a etapa 6.2 do gerador de períodos antes de apresentar horários multidiários na interface. Só introduzir novos limites de trabalho/descanso após definição clara das regras.
+Validar o modo «Vários dias» com dados reais antes do merge do PR #12. Depois definir hard constraints entre dias, começando por descanso e limites de trabalho, antes de afirmar viabilidade global.
