@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { readGeneratorMode, saveGeneratorMode } from "./generatorUiPreferences";
 import type {
   OperatingCalendarConfiguration,
   Person,
@@ -21,7 +22,7 @@ interface ScheduleGeneratorPanelProps {
 export default function ScheduleGeneratorPanel(
   props: ScheduleGeneratorPanelProps
 ) {
-  const [mode, setMode] = useState<"day" | "period" | "constrained">("day");
+  const [mode, setMode] = useState<"day" | "period" | "constrained">(readGeneratorMode);
 
   return (
     <>
@@ -30,7 +31,7 @@ export default function ScheduleGeneratorPanel(
           type="button"
           className={mode === "day" ? "generator-mode-active" : ""}
           aria-pressed={mode === "day"}
-          onClick={() => setMode("day")}
+          onClick={() => { setMode("day"); saveGeneratorMode("day"); }}
         >
           Um dia
         </button>
@@ -38,7 +39,7 @@ export default function ScheduleGeneratorPanel(
           type="button"
           className={mode === "period" ? "generator-mode-active" : ""}
           aria-pressed={mode === "period"}
-          onClick={() => setMode("period")}
+          onClick={() => { setMode("period"); saveGeneratorMode("period"); }}
         >
           Vários dias · V0
         </button>
@@ -46,7 +47,7 @@ export default function ScheduleGeneratorPanel(
           type="button"
           className={mode === "constrained" ? "generator-mode-active" : ""}
           aria-pressed={mode === "constrained"}
-          onClick={() => setMode("constrained")}
+          onClick={() => { setMode("constrained"); saveGeneratorMode("constrained"); }}
         >
           Vários dias · regras P6.3
         </button>

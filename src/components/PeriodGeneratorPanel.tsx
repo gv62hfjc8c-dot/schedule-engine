@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { readGeneratorDate, saveGeneratorDate } from "./generatorUiPreferences";
 import type {
   OperatingCalendarConfiguration,
   Person,
@@ -64,8 +65,8 @@ export default function PeriodGeneratorPanel({
   workRules,
   presence,
 }: PeriodGeneratorPanelProps) {
-  const [startDate, setStartDate] = useState(todayKey);
-  const [endDate, setEndDate] = useState(() => addCivilDays(todayKey(), 6));
+  const [startDate, setStartDate] = useState(() => readGeneratorDate("period:start", todayKey));
+  const [endDate, setEndDate] = useState(() => readGeneratorDate("period:end", () => addCivilDays(todayKey(), 6)));
   const [snapshot, setSnapshot] = useState<PeriodSnapshot | null>(null);
   const [unexpectedError, setUnexpectedError] = useState<string | null>(null);
 
@@ -142,6 +143,7 @@ export default function PeriodGeneratorPanel({
               value={startDate}
               onChange={(event) => {
                 setStartDate(event.target.value);
+                saveGeneratorDate("period:start", event.target.value);
                 setUnexpectedError(null);
               }}
             />
@@ -155,6 +157,7 @@ export default function PeriodGeneratorPanel({
               value={endDate}
               onChange={(event) => {
                 setEndDate(event.target.value);
+                saveGeneratorDate("period:end", event.target.value);
                 setUnexpectedError(null);
               }}
             />

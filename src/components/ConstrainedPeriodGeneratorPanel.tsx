@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { readGeneratorDate, saveGeneratorDate } from "./generatorUiPreferences";
 import type {
   OperatingCalendarConfiguration,
   Person,
@@ -97,8 +98,8 @@ export default function ConstrainedPeriodGeneratorPanel({
   workRules,
   presence,
 }: ConstrainedPeriodGeneratorPanelProps) {
-  const [startDate, setStartDate] = useState(todayKey);
-  const [endDate, setEndDate] = useState(() => addCivilDays(todayKey(), 6));
+  const [startDate, setStartDate] = useState(() => readGeneratorDate("constrained:start", todayKey));
+  const [endDate, setEndDate] = useState(() => readGeneratorDate("constrained:end", () => addCivilDays(todayKey(), 6)));
   const [timeZone, setTimeZone] = useState("Atlantic/Azores");
   const [confirmed, setConfirmed] = useState(false);
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
@@ -214,6 +215,7 @@ export default function ConstrainedPeriodGeneratorPanel({
               value={startDate}
               onChange={(event) => {
                 setStartDate(event.target.value);
+                saveGeneratorDate("constrained:start", event.target.value);
                 resetScenario();
               }}
             />
@@ -227,6 +229,7 @@ export default function ConstrainedPeriodGeneratorPanel({
               value={endDate}
               onChange={(event) => {
                 setEndDate(event.target.value);
+                saveGeneratorDate("constrained:end", event.target.value);
                 resetScenario();
               }}
             />
