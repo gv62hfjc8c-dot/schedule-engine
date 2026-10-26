@@ -217,7 +217,7 @@ refeições, descanso ou horas semanais.
 
 ### Etapa 6.4 — Núcleo de horários aprovados
 
-Estado: **modelo e operações puras implementadas (PR #17); persistência pendente**
+Estado: **núcleo aprovado PR #17; adaptador e migração de persistência em validação, sem deployment**
 
 Primeiro incremento — sem Supabase nem interface:
 - [x] separar proposta gerada de escala **aprovada**, sem aprovação automática;
@@ -229,9 +229,13 @@ Primeiro incremento — sem Supabase nem interface:
 - [x] consultas ao ledger para preparar o contexto exterior completo do gerador P6.3, recusando períodos ocupados;
 - [x] validação de versões esperadas para futuras escritas concorrentes no armazenamento;
 - [x] testes de transições, conflitos, reversões atómicas, contexto incompleto e imutabilidade;
-- [ ] validar o teste do núcleo no Mac;
-- [ ] escolher/rever contrato de persistência de escalas aprovadas e modelo de autorização;
-- [ ] integrar persistência com transações e proteção de concorrência real;
+- [x] teste `npm run test:approved-schedules` aprovado no Mac, na versão `d397f78`;
+- [x] persistência separada do estado v4: ledger por proprietário, snapshots JSONB, histórico, SELECT com RLS, gravação exclusivamente por RPC com CAS;
+- [x] migração SQL **preparada no repositório, não aplicada** ao Supabase;
+- [x] repositório TS isolado com consulta fail-closed, versão explícita, bootstrap incompleto e atestação explícita de completude;
+- [x] testes de duas abas, múltiplos proprietários, conflitos de versão, histórico e dados malformados;
+- [ ] definir autorização operacional e origem **verificável** de completude do ledger (o SQL ainda não valida todas as hard constraints de domínio);
+- [ ] rever/aplicar migration SQL num ambiente dedicado e validar transações concorrentes reais com Supabase (testes atuais usam mock);
 - [ ] integrar aprovação/cancelamento/substituição na interface após validação funcional.
 
 **Invariante:** o ledger somente pode declarar `complete: true` quando o
@@ -248,4 +252,4 @@ Cancelar uma escala remove o compromisso mas **não certifica cobertura**.
 
 ## Próximo passo
 
-Validar localmente as transições P6.4 e confirmar CI. Depois definir persistência fiável das escalas aprovadas, incluindo controlo de concorrência e origem verificável da cobertura do ledger antes de integrar ações de aprovação na interface.
+Validar no GitHub e localmente o adaptador de persistência P6.4. Não aplicar a migração SQL até verificar o ambiente Supabase e as condições de integridade/autoridade necessárias. A UI continua sem aprovar horários até existir fonte confiável de contexto e validação de domínio na fronteira de escrita.
