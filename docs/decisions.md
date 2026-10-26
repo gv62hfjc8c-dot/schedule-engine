@@ -157,3 +157,94 @@ Um turno só é elegível para uma pessoa se estiver integralmente dentro do cal
 A versão 3 do estado persistido adiciona `WorkRulesConfiguration`.
 
 Estados v2 são migrados preservando calendário, pessoas e disponibilidades, com duração de turno não configurada.
+
+## D020 — Presença usa três mínimos independentes
+
+**Estado:** aceite para o Ponto 5
+
+Abertura, período central e fecho são mínimos obrigatórios, não objetivos exatos. Os três valores são independentes. A duração das janelas é definida na D027; deixa de vigorar a regra anterior que impedia abertura ou fecho inferiores ao mínimo central.
+
+## D021 — Requisitos seguem padrão semanal e exceções
+
+**Estado:** aceite para o Ponto 5
+
+Uma exceção por data substitui totalmente o padrão semanal. Num dia fechado não existe exigência de presença. Exceções duplicadas para a mesma data são inválidas.
+
+## D022 — Não configurado não equivale a zero
+
+**Estado:** aceite para o Ponto 5
+
+`null` significa que os requisitos não estão configurados. Uma regra com mínimos zero é explícita e tecnicamente válida, mas não exige presença.
+
+## D023 — Presença e viabilidade global são conceitos distintos
+
+**Estado:** aceite para o Ponto 5
+
+O validador de presença pode identificar falta de pessoas na abertura, durante a operação e no fecho de atribuições propostas. Não certifica disponibilidade, descanso, contratos nem qualidade do horário.
+
+Uma mesma pessoa pode cumprir abertura e fecho de um dia curto com um único turno contínuo.
+
+## D024 — Sobreposição central fica para a otimização
+
+**Estado:** adiado para geração
+
+O motor deverá favorecer sobreposição apropriada durante a operação, sem exigir ao operador que defina curvas de afluência ou cobertura por hora. O objetivo só pode ser quantificado quando existirem regras de carga de trabalho e um gerador.
+
+## D025 — Supabase como persistência remota (proposta em validação)
+
+**Estado:** em validação
+
+A aplicação React utiliza um adaptador `StateRepository` para guardar o estado
+v4 em PostgreSQL via Supabase. O motor de scheduling permanece independente.
+O projeto Supabase é separado de outros produtos.
+
+O `localStorage` só pode originar a primeira migração, quando ainda não existe
+um estado associado à conta autenticada. Dados guardados na cloud prevalecem
+sempre sobre o navegador. As chaves históricas permanecem intactas.
+
+Uma conta permanente autenticada é obrigatória. RLS isola os dados por
+proprietário; não existe edição partilhada neste V0. A API usa apenas a chave
+pública, nunca service_role.
+
+## D026 — Revisões transacionais e histórico
+
+**Estado:** em validação
+
+Uma função SQL executa as escritas e valida a revisão anterior numa transação.
+Revisões obsoletas não podem substituir uma versão mais recente. Alterações
+bem-sucedidas entram na tabela de histórico. Eliminação acidental de todos os
+colaboradores é bloqueada. Falhas de leitura interrompem autosave.
+
+## D027 — Janelas de presença de 30 minutos
+
+**Estado:** aceite; implementação em validação funcional
+
+A abertura é o intervalo dos primeiros 30 minutos de relógio após o início
+do primeiro período operacional do dia. O fecho é o intervalo dos últimos
+30 minutos anteriores ao fim do último período operacional. O resto
+do tempo aberto pertence ao período central, mesmo quando a operação
+tem interrupções; durante os encerramentos não há exigência de presença.
+
+Exemplo: operação 09:00–18:00 e mínimos 1 / 2 / 1:
+- 09:00–09:30: pelo menos 1 pessoa;
+- 09:30–17:30: pelo menos 2 pessoas;
+- 17:30–18:00: pelo menos 1 pessoa.
+
+Em dias tão curtos que as duas janelas se sobrepõem, ambas as hard
+constraints se aplicam simultaneamente: exige-se o máximo dos mínimos
+de abertura e fecho. Não se considera um período central inexistente.
+As fronteiras são semiabertas [início, fim).
+
+As janelas são ancoradas apenas na primeira abertura e no último fecho
+do dia, não são reiniciadas a cada reabertura de uma operação partida.
+O requisito de 30 minutos é uma constante explícita do domínio V1,
+não uma configuração arbitrária por dia.
+
+Os validadores puros de atribuições e de capacidade têm de aplicar
+exatamente os mesmos cortes, incluindo os casos em que nenhuma
+disponibilidade muda nos minutos 30 de cada extremo. Esta verificação
+continua a ser apenas necessária e não demonstra viabilidade integral
+dos turnos.
+
+Não há mudança ao formato persistido v4: os três campos já existentes
+passam a ser avaliados nos novos períodos.

@@ -3,12 +3,16 @@ import type {
   OperatingHoursException,
   Person,
   PersonAvailability,
+  PresenceException,
+  PresenceRequirement,
+  WeeklyPresenceRequirements,
   TimeInterval,
   Weekday,
   WeeklyAvailability,
   WeeklyOperatingHours,
   WorkRulesConfiguration,
 } from "../types";
+import { createEmptyWeeklyPresenceRequirements } from "../utils/presence";
 import {
   APP_STATE_VERSION,
   type PersistedAppState,
@@ -21,7 +25,6 @@ export const LOCAL_STORAGE_KEY =
 export const LEGACY_LOCAL_STORAGE_KEY_V1 =
   "schedule-engine:app-state:v1";
 
-/** Snapshots are never used as an implicit source of truth. */
 export const BACKUP_LATEST_STORAGE_KEY =
   "schedule-engine:app-state:backup:latest";
 export const BACKUP_PEOPLE_STORAGE_KEY =
@@ -55,6 +58,11 @@ interface LegacyAppStateV2 {
   exceptions: OperatingHoursException[];
   people: Person[];
   availabilities: PersonAvailability[];
+}
+
+interface LegacyAppStateV3 extends Omit<LegacyAppStateV2, "version"> {
+  version: 3;
+  workRules: WorkRulesConfiguration;
 }
 
 function isTimeInterval(
@@ -153,6 +161,41 @@ function isWorkRulesConfiguration(
   );
 }
 
+function isPresenceRequirement(
+  value: unknown
+): value is PresenceRequirement {
+  if (!value || typeof value !== "object") return false;
+  const requirement = value as Record<string, unknown>;
+  return (
+    typeof requirement.minimumDuringOperation === "number" &&
+    typeof requirement.minimumAtOpening === "number" &&
+    typeof requirement.minimumAtClosing === "number" &&
+    Number.isFinite(requirement.minimumDuringOperation) &&
+    Number.isFinite(requirement.minimumAtOpening) &&
+    Number.isFinite(requirement.minimumAtClosing)
+  );
+}
+
+function isWeeklyPresenceRequirements(
+  value: unknown
+): value is WeeklyPresenceRequirements {
+  if (!value || typeof value !== "object") return false;
+  const weekly = value as Record<string, unknown>;
+  return WEEKDAYS.every(
+    (day) => weekly[day] === null || isPresenceRequirement(weekly[day])
+  );
+}
+
+function isPresenceException(value: unknown): value is PresenceException {
+  if (!value || typeof value !== "object") return false;
+  const exception = value as Record<string, unknown>;
+  return (
+    typeof exception.date === "string" &&
+    (exception.requirements === null ||
+      isPresenceRequirement(exception.requirements))
+  );
+}
+
 function isLegacyAppStateV1(
   value: unknown
 ): value is LegacyAppStateV1 {
@@ -189,6 +232,22 @@ function isLegacyAppStateV2(
   );
 }
 
+function isLegacyAppStateV3(value: unknown): value is LegacyAppStateV3 {
+  if (!value || typeof value !== "object") return false;
+  const state = value as Record<string, unknown>;
+  return (
+    state.version === 3 &&
+    isWeeklyIntervals(state.weeklyOperatingHours) &&
+    Array.isArray(state.exceptions) &&
+    state.exceptions.every(isOperatingException) &&
+    Array.isArray(state.people) &&
+    state.people.every(isPerson) &&
+    Array.isArray(state.availabilities) &&
+    state.availabilities.every(isPersonAvailability) &&
+    isWorkRulesConfiguration(state.workRules)
+  );
+}
+
 export function isPersistedAppState(
   value: unknown
 ): value is PersistedAppState {
@@ -205,7 +264,10 @@ export function isPersistedAppState(
     state.people.every(isPerson) &&
     Array.isArray(state.availabilities) &&
     state.availabilities.every(isPersonAvailability) &&
-    isWorkRulesConfiguration(state.workRules)
+    isWorkRulesConfiguration(state.workRules) &&
+    isWeeklyPresenceRequirements(state.weeklyPresenceRequirements) &&
+    Array.isArray(state.presenceExceptions) &&
+    state.presenceExceptions.every(isPresenceException)
   );
 }
 
@@ -239,6 +301,8 @@ function migrateV1(
       exceptions: [],
     })),
     workRules: emptyWorkRules(),
+    weeklyPresenceRequirements: createEmptyWeeklyPresenceRequirements(),
+    presenceExceptions: [],
   };
 }
 
@@ -252,6 +316,17 @@ function migrateV2(
     people: state.people,
     availabilities: state.availabilities,
     workRules: emptyWorkRules(),
+    weeklyPresenceRequirements: createEmptyWeeklyPresenceRequirements(),
+    presenceExceptions: [],
+  };
+}
+
+function migrateV3(state: LegacyAppStateV3): PersistedAppState {
+  return {
+    ...state,
+    version: APP_STATE_VERSION,
+    weeklyPresenceRequirements: createEmptyWeeklyPresenceRequirements(),
+    presenceExceptions: [],
   };
 }
 
@@ -296,7 +371,6 @@ function throwIncompatibleState(raw: string): never {
 export function createLocalStorageStateRepository(
   storage: KeyValueStorage
 ): StateRepository {
-  // Used to detect changes made by another tab or another application version.
   let lastObservedRaw: string | null | undefined;
 
   return {
@@ -311,6 +385,17 @@ export function createLocalStorageStateRepository(
           return parsed;
         }
 
+        if (isLegacyAppStateV3(parsed)) {
+          const migrated = migrateV3(parsed);
+          const migratedRaw = JSON.stringify(migrated);
+
+          backupPreviousState(storage, currentRaw);
+          storage.setItem(LOCAL_STORAGE_KEY, migratedRaw);
+          lastObservedRaw = migratedRaw;
+
+          return migrated;
+        }
+
         if (isLegacyAppStateV2(parsed)) {
           const migrated = migrateV2(parsed);
           const migratedRaw = JSON.stringify(migrated);
@@ -322,8 +407,6 @@ export function createLocalStorageStateRepository(
           return migrated;
         }
 
-        // Never mistake an incompatible future version or corrupt payload
-        // for a clean installation. Returning null would erase user data.
         throwIncompatibleState(currentRaw);
       }
 
@@ -376,8 +459,6 @@ export function createLocalStorageStateRepository(
           throwIncompatibleState(currentRaw);
         }
 
-        // There is no supported UI operation that removes all people.
-        // An empty incoming array is more likely a failed hydration.
         if (current.people.length > 0 && state.people.length === 0) {
           throw new Error(
             "A gravação foi bloqueada: iria apagar os colaboradores existentes."

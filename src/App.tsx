@@ -5,11 +5,15 @@ import type {
   OperatingInterval,
   Person,
   PersonAvailability,
+  PresenceException,
+  WeeklyPresenceRequirements,
   Weekday,
   WeeklyOperatingHours,
   WorkRulesConfiguration,
 } from "./types";
 import WorkRulesPanel from "./components/WorkRulesPanel";
+import PresencePanel from "./components/PresencePanel";
+import { createEmptyWeeklyPresenceRequirements } from "./utils/presence";
 import { appStateRepository } from "./persistence/appStateRepository";
 import { APP_STATE_VERSION } from "./persistence/stateRepository";
 import {
@@ -167,6 +171,10 @@ export default function App() {
     useState<WorkRulesConfiguration>({
       standardShiftDurationMinutes: null,
     });
+  const [weeklyPresenceRequirements, setWeeklyPresenceRequirements] =
+    useState<WeeklyPresenceRequirements>(createEmptyWeeklyPresenceRequirements);
+  const [presenceExceptions, setPresenceExceptions] =
+    useState<PresenceException[]>([]);
   const [newPersonName, setNewPersonName] = useState("");
   const [editingPersonId, setEditingPersonId] = useState<string | null>(
     null
@@ -174,7 +182,7 @@ export default function App() {
   const [editingPersonName, setEditingPersonName] = useState("");
   const [personError, setPersonError] = useState("");
   const [activeSection, setActiveSection] = useState<
-    "calendar" | "people" | "availability" | "workRules"
+    "calendar" | "people" | "availability" | "workRules" | "presence"
   >("calendar");
   const [
     selectedAvailabilityPersonId,
@@ -203,6 +211,8 @@ export default function App() {
           setPeople(persisted.people);
           setAvailabilities(persisted.availabilities);
           setWorkRules(persisted.workRules);
+          setWeeklyPresenceRequirements(persisted.weeklyPresenceRequirements);
+          setPresenceExceptions(persisted.presenceExceptions);
         }
 
         setPersistenceReady(true);
@@ -231,8 +241,7 @@ export default function App() {
   useEffect(() => {
     if (!persistenceReady) return;
 
-    // Loading existing state (or opening a new installation) is not a change.
-    // Do not overwrite browser storage merely because the app has mounted.
+    // Loading existing data is not a user change.
     if (skipInitialSave.current) {
       skipInitialSave.current = false;
       return;
@@ -250,6 +259,8 @@ export default function App() {
           people,
           availabilities,
           workRules,
+          weeklyPresenceRequirements,
+          presenceExceptions,
         })
         .then(() => {
           if (requestId === saveRequestId.current) {
@@ -279,6 +290,8 @@ export default function App() {
     people,
     availabilities,
     workRules,
+    weeklyPresenceRequirements,
+    presenceExceptions,
   ]);
 
   const summary = useMemo(() => {
@@ -719,7 +732,7 @@ export default function App() {
           <h1>Schedule Engine</h1>
           <p className="page-subtitle">
             Define a base que o motor irá usar continuamente:
-            funcionamento, pessoas, disponibilidade e regras de trabalho.
+            funcionamento, pessoas, disponibilidade, regras de trabalho e presença mínima.
           </p>
         </div>
 
@@ -786,6 +799,16 @@ export default function App() {
           <span>Regras de trabalho</span>
           <small>Ponto 4</small>
         </button>
+        <button
+          type="button"
+          className={`workspace-tab ${activeSection === "presence" ? "active" : ""}`}
+          onClick={() => setActiveSection("presence")}
+          aria-current={activeSection === "presence" ? "page" : undefined}
+        >
+          <span>Presença mínima</span>
+          <small>Ponto 5</small>
+        </button>
+
       </nav>
 
       {activeSection === "calendar" && (
@@ -1665,6 +1688,19 @@ export default function App() {
           onChange={setWorkRules}
         />
       )}
+      {activeSection === "presence" && (
+        <PresencePanel
+          weeklyOperatingHours={weeklyHours}
+          operatingExceptions={exceptions}
+          people={people}
+          availabilities={availabilities}
+          weeklyRequirements={weeklyPresenceRequirements}
+          exceptions={presenceExceptions}
+          onWeeklyChange={setWeeklyPresenceRequirements}
+          onExceptionsChange={setPresenceExceptions}
+        />
+      )}
+
     </main>
   );
 }

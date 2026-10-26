@@ -1,5 +1,44 @@
 # Changelog
 
+## 2026-10-25 — Ponto 5: janelas de presença de 30 minutos (em validação)
+
+- abertura: primeiros 30 minutos após a abertura do primeiro período operacional;
+- fecho: últimos 30 minutos anteriores ao fim do último período operacional;
+- período central: restante tempo aberto, sem incluir intervalos de encerramento;
+- mínimos independentes: configurações 1 / 2 / 1 passam a ser válidas;
+- operações partidas e dias curtos têm regras explícitas, incluindo sobreposição
+  de janelas com aplicação do mínimo mais exigente;
+- pré-verificação de disponibilidade e validador de atribuições utilizam
+  os mesmos limites horários, com testes de fronteiras;
+- interface passa a mostrar as janelas exatas de cada dia;
+- formato persistido v4 não se altera; sem migração de base de dados.
+
+## 2026-10-25 — Supabase: persistência remota (em validação)
+
+- esquema PostgreSQL com estado v4 em JSONB por utilizador;
+- RLS e autenticação obrigatória;
+- função de gravação transacional que rejeita revisões obsoletas e remoção acidental de todos os colaboradores;
+- histórico de versões no PostgreSQL;
+- migração inicial do `localStorage`, com recuperação de pessoas de backups e v1;
+- importação bloqueada quando já existem dados na cloud;
+- testes simulados de concorrência, persistência, autenticação e migração;
+- validação real com projeto Supabase ainda pendente.
+
+## 2026-10-23 — Ponto 5: Requisitos mínimos de presença
+
+- três mínimos independentes: abertura, operação e fecho;
+- padrão semanal e exceções por data;
+- ausência de configuração distinta de mínimo zero;
+- validação de mínimos e exceções duplicadas;
+- validador puro de presença sobre turnos propostos com varrimento de intervalos;
+- dias curtos e operações partidas tratados sem duplicar pessoas;
+- interface semanal compacta e exceções;
+- persistência atualizada para v4 com migrações v1–v3;
+- adicionada pré-verificação necessária de capacidade baseada em disponibilidade;
+- criada CI para testes, TypeScript e build;
+- adicionados testes do domínio e da persistência;
+- Ponto 5 permanece em validação, sem gerador nem curva horária.
+
 ## 2026-10-23 — Ponto 4 fechado
 
 - regras de trabalho validadas funcionalmente na aplicação;

@@ -2,12 +2,13 @@
 
 ## Estado atual
 
-O Schedule Engine tem agora quatro fundações independentes do algoritmo de geração:
+O Schedule Engine tem agora cinco fundações independentes do algoritmo de geração:
 
 1. calendário operacional contínuo;
 2. pessoas que podem participar em horários;
 3. disponibilidade temporal de cada pessoa;
-4. regras mínimas para construir turnos contínuos.
+4. regras mínimas para construir turnos contínuos;
+5. requisitos mínimos de presença.
 
 ### Calendário operacional
 
@@ -110,6 +111,22 @@ Um turno diário é representado como um único `TimeInterval`, portanto é cont
 
 Um turno contínuo não pode atravessar uma interrupção do calendário operacional. Em operações com vários períodos, abertura e fecho ajustam-se aos respetivos períodos extremos.
 
+### Requisitos mínimos de presença
+
+O Ponto 5 introduz `PresenceRequirement` com três mínimos independentes, inteiros e não negativos: abertura (primeiros 30 minutos de funcionamento), período central (entre as duas janelas exteriores) e fecho (últimos 30 minutos). Uma configuração 1 / 2 / 1 é válida; os mínimos não são máximos nem objetivos exatos.
+
+Os requisitos não determinam o número exato de colaboradores, nem codificam picos de procura. São hard constraints.
+
+`WeeklyPresenceRequirements` guarda uma regra ou `null` para cada dia; `null` significa por configurar e não é equivalente a uma regra com três zeros. `PresenceException` substitui a regra semanal numa data específica. Datas fechadas não exigem presença. Exceções duplicadas são inválidas.
+
+`src/utils/presence.ts` resolve os requisitos efetivos de uma data e valida a presença simultânea num conjunto de atribuições contínuas já proposto.
+
+Na verificação das atribuições, os intervalos são semiabertos `[início, fim)`. Para um dia 09:00–18:00, a abertura é 09:00–09:30, o período central 09:30–17:30 e o fecho 17:30–18:00. As janelas estão ancoradas na primeira abertura e no último fecho do dia. Em operações partidas, não se exige presença nos intervalos fechados; o tempo operacional interior pertence ao período central. Em dias com duração total inferior a 60 minutos, abertura e fecho podem sobrepor-se: o mínimo aplicável à sobreposição é o maior dos dois, sem inventar um período central. Cada pessoa conta uma única vez em cada intervalo e só pode ter uma atribuição contínua diária.
+
+O validador de atribuições verifica **apenas presença**, não disponibilidade, contratos, carga horária ou viabilidade global.
+
+`checkPresenceAvailabilityCapacity` faz também uma pré-verificação necessária: conta pessoas distintas disponíveis ao longo de todo o período operacional, incluindo as horas de abertura e fecho. Uma falta de pessoas disponíveis torna a cobertura impossível; a inexistência de faltas **não prova** que existam turnos contínuos viáveis.
+
 ### Persistência da aplicação
 
 A persistência não pertence ao núcleo do Schedule Engine.
@@ -123,7 +140,7 @@ interface StateRepository {
 }
 ```
 
-A implementação atual usa `localStorage` através de `localStorageStateRepository.ts`.
+A implementação inicial usa `localStorage` através de `localStorageStateRepository.ts`. Na branch Supabase em validação, `supabaseStateRepository.ts` torna PostgreSQL a fonte de verdade, sem introduzir dependências de persistência no domínio. Usa a API REST autenticada do Supabase, políticas RLS e uma função SQL de escrita atómica com controlo de revisão. O `localStorage` só é lido na primeira migração e nunca sobrescreve dados que já existam na cloud. Consulta `docs/supabase-setup.md`.
 
 O estado persistido inclui:
 
@@ -131,9 +148,10 @@ O estado persistido inclui:
 - exceções de calendário;
 - pessoas;
 - disponibilidades;
-- regras de trabalho.
+- regras de trabalho;
+- requisitos mínimos de presença.
 
-O formato é versionado. A versão 3 introduz regras de trabalho e migra automaticamente estados v2 sem inventar uma duração de turno. A migração v1 continua suportada.
+O formato é versionado. A versão 4 introduz requisitos de presença e migra automaticamente estados v3 sem inventar mínimos. As migrações v1 e v2 continuam suportadas.
 
 Uma futura persistência por API/base de dados deverá implementar o mesmo contrato, sem introduzir dependências de storage no domínio.
 
@@ -147,10 +165,9 @@ A UI não define o domínio e não deve introduzir regras de scheduling.
 
 Ainda não existem:
 
-- requisitos mínimos de presença;
+- gerador de horários e otimização;
 - contratos;
-- horas semanais;
-- geração de horários.
+- horas semanais.
 
 Autenticação, permissões e persistência continuam fora do núcleo. A persistência local atual pertence apenas à aplicação.
 
