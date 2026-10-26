@@ -13,6 +13,8 @@ import type { PresenceShortage } from "./presence";
 import type { DayScheduleStatus } from "./dailyGenerator";
 import { MAX_PERIOD_DAYS } from "./periodGenerator";
 import { getOperatingIntervalsForDate } from "./operatingCalendar";
+import { isSchedulableForInterval } from "./availability";
+import { checkPresenceForWorkShifts } from "./workCoverage";
 import { getPresencePhaseWindows, resolvePresenceForDate } from "./presence";
 
 /**
@@ -179,6 +181,128 @@ function provenWeeklyCapacityShortage(
   return null;
 }
 
+
+
+/**
+ * Improvement phase after a certified feasible period. Extend existing
+ * attendance spans on the 15-minute grid while preserving ALL hard rules.
+ * Never removes coverage or assignments. This is a bounded local improvement,
+ * NOT a proof of globally optimal hours.
+ */
+function improveWeeklyHours(
+  input: GenerateConstrainedPeriodInput,
+  base: DatedWorkShift[],
+  external: DatedWorkShift[],
+  knownStart: string,
+  knownEnd: string
+): DatedWorkShift[] {
+  const schedule = base.map(s => ({
+    ...s, interval: { ...s.interval },
+    mealBreak: s.mealBreak ? { ...s.mealBreak } : null,
+  }));
+  const mins = (value: string) => {
+    const [h, m] = value.split(":").map(Number);
+    return h * 60 + m;
+  };
+  const time = (value: number) =>
+    `${String(Math.floor(value / 60)).padStart(2,"0")}:${String(value % 60).padStart(2,"0")}`;
+  const effective = (s: DatedWorkShift) =>
+    mins(s.interval.end) - mins(s.interval.start) -
+      (s.mealBreak ? mins(s.mealBreak.end) - mins(s.mealBreak.start) : 0);
+  const weeklyLimit = input.workConstraints.maximumWeeklyEffectiveMinutes;
+  const meal = input.workConstraints.mealBreak;
+  const weeks = (date: string) => {
+    const d = new Date(date + "T00:00:00Z");
+    d.setUTCDate(d.getUTCDate() - (d.getUTCDay()+6)%7);
+    return d.toISOString().slice(0,10);
+  };
+  const dateValid = (date: string) => {
+    const operation = getOperatingIntervalsForDate(date,
+      input.operatingCalendar.weeklyOperatingHours,
+      input.operatingCalendar.exceptions);
+    const presence = resolvePresenceForDate(date,
+      input.presence.weeklyPresenceRequirements,
+      input.presence.presenceExceptions,
+      input.operatingCalendar.weeklyOperatingHours,
+      input.operatingCalendar.exceptions);
+    return presence.status === "configured" &&
+      checkPresenceForWorkShifts(date, operation, presence.requirements,
+        schedule.filter(s => s.date === date)).valid;
+  };
+  const valid = (date: string) =>
+    dateValid(date) &&
+    validateWorkConstraints({
+      timeZone: input.timeZone,
+      rules: input.workConstraints,
+      targetPeriod: { startDate: input.startDate, endDate: input.endDate },
+      knownSchedule: {
+        startDate: knownStart, endDate: knownEnd, complete: true,
+        shifts: [...external, ...schedule],
+      },
+    }).status === "valid";
+
+  // Aim for the weekly cap in this experiment. Bound candidate evaluation
+  // to prevent unbounded work outside the backtracking budget.
+  let evaluations = 0;
+  for (let round = 0; round < 2; round++) {
+    let changed = false;
+    for (let i = schedule.length - 1; i >= 0; i--) {
+      const original = schedule[i];
+      const personHours = schedule.filter(s =>
+        s.personId === original.personId && weeks(s.date) === weeks(original.date)
+      ).reduce((n,s) => n + effective(s),0) +
+        external.filter(s => s.personId === original.personId &&
+          weeks(s.date) === weeks(original.date)).reduce((n,s)=>n+effective(s),0);
+      const availableHours = Math.min(weeklyLimit - personHours,
+        input.workConstraints.maximumDailyEffectiveMinutes - effective(original));
+      if (availableHours < 15) continue;
+      const availability = input.availabilities.find(a =>
+        a.personId === original.personId);
+      if (!availability) continue;
+      const earliest = Math.max(0, mins(original.interval.start) - availableHours);
+      const latest = Math.min(1440, mins(original.interval.end) + availableHours);
+      const proposals: DatedWorkShift[] = [];
+      for (let start = Math.ceil(earliest/15)*15;
+        start <= mins(original.interval.start); start += 15) {
+        for (let end = Math.ceil(mins(original.interval.end)/15)*15;
+          end <= latest; end += 15) {
+          const duration = end - start;
+          if (duration <= mins(original.interval.end)-mins(original.interval.start)) continue;
+          const limit = Math.min(weeklyLimit - personHours + effective(original),
+            input.workConstraints.maximumDailyEffectiveMinutes);
+          if (duration <= meal.requiredAboveEffectiveMinutes && duration <= limit) {
+            proposals.push({...original, interval:{start:time(start),end:time(end)},mealBreak:null});
+          }
+          const work = duration - meal.durationMinutes;
+          if (work > meal.requiredAboveEffectiveMinutes && work <= limit) {
+            for (let offset = meal.earliestStartAfterWorkMinutes;
+              offset <= Math.min(meal.latestStartAfterWorkMinutes, work - 1);
+              offset += 15) {
+              proposals.push({...original,
+                interval:{start:time(start),end:time(end)},
+                mealBreak:{start:time(start+offset),
+                  end:time(start+offset+meal.durationMinutes)}});
+            }
+          }
+        }
+      }
+      proposals.sort((a,b) => effective(b)-effective(a));
+      let selected: DatedWorkShift | null = null;
+      for (const proposed of proposals) {
+        if (++evaluations > 12000) break;
+        if (!isSchedulableForInterval(original.date,proposed.interval,
+          availability,input.operatingCalendar.weeklyOperatingHours,
+          input.operatingCalendar.exceptions)) continue;
+        schedule[i] = proposed;
+        if (valid(original.date)) { selected = proposed; break; }
+      }
+      schedule[i] = selected ?? original;
+      if (selected) changed = true;
+    }
+    if (!changed || evaluations > 12000) break;
+  }
+  return schedule;
+}
 
 /**
  * Backtracks ACROSS dates. It does not fix the first valid daily solution
@@ -410,7 +534,8 @@ export function generateConstrainedPeriodSchedule(
     );
   }
   if (found && accepted !== null) {
-    const assignments: DatedWorkShift[] = accepted;
+    const assignments: DatedWorkShift[] = improveWeeklyHours(input, accepted,
+      externalShifts, outside.startDate, outside.endDate);
     return {
       status: "generated",
       validationScope: "period_work_and_coverage_when_generated",
