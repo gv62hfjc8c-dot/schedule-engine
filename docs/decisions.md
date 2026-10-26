@@ -583,3 +583,25 @@ validador. Antes de permitir aprovação real na UI, a arquitetura
 de produção precisa de um executor fiável de validação de domínio
 na fronteira de escrita (ou servidor). Não chamar a esta migração
 uma aprovação operacional segura até essa fronteira existir.
+
+## D040 — Aprovação V0 exclusiva do proprietário, com execução confiável
+
+**Estado:** aceite (2026-10-26); implementação faseada
+
+Apenas o proprietário autenticado da conta pode solicitar aprovação,
+cancelamento ou substituição de um horário no V0. Isto não significa que
+o cliente autenticado tenha permissão para escrever snapshots arbitrários.
+
+A operação oficial é executada numa fronteira de servidor confiável, que
+resolve a identidade do proprietário e revalida as hard constraints do
+motor contra contexto e configuração autoritativos antes de persistir.
+A transação de gravação mantém CAS, histórico e isolamento por proprietário.
+A atestação de completude do ledger requer origem verificável e não pode
+ser produzida apenas por um booleano controlado pelo cliente.
+
+**Primeiro bloqueio de segurança:** a migração SQL preparatória deixa de
+conceder EXECUTE da RPC de snapshots a `authenticated`. A função permanece
+inacessível aos papéis cliente enquanto não existir o executor confiável.
+O adaptador TS existente continua apenas experimental; os seus testes com
+mock não demonstram permissões reais na base. Não aplicar esta migração
+nem disponibilizar aprovação na UI antes de testes de integração reais.
