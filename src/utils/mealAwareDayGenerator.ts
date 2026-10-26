@@ -16,6 +16,7 @@ import { getOperatingIntervalsForDate, getWeekday } from "./operatingCalendar";
 import {
   checkPresenceAvailabilityCapacity,
   resolvePresenceForDate,
+  getPresencePhaseWindows,
   type PresenceShortage,
 } from "./presence";
 import { checkPresenceForWorkShifts } from "./workCoverage";
@@ -477,10 +478,12 @@ export function searchMealAwareDaySchedule(
   ));
   // Cover a long operating day with complementary, shorter shifts first.
   // The search still considers EVERY 15-minute duration if needed.
-  const midpoint = Math.ceil(
-    (operating[operating.length - 1].end - operating[0].start) /
-    (2 * GRID_MINUTES)
-  ) * GRID_MINUTES;
+  const midpoint = requirements.minimumDuringOperation > 1
+    ? Math.min(standard, input.workConstraints.maximumDailyEffectiveMinutes)
+    : Math.ceil(
+        (operating[operating.length - 1].end - operating[0].start) /
+        (2 * GRID_MINUTES)
+      ) * GRID_MINUTES;
   candidates.sort((a, b) => {
     const duration = (c: Candidate) => c.end - c.start -
       (c.mealStart === null ? 0 : input.workConstraints.mealBreak.durationMinutes);
@@ -539,8 +542,25 @@ export function searchMealAwareDaySchedule(
     return null;
   };
 
+  // Safe person-count lower bound: work minutes required for coverage
+  // cannot be supplied by fewer people than daily effective limits permit.
+  let minimumPeople = 0;
+  const phaseWindows = getPresencePhaseWindows(operatingIntervals);
+  if (phaseWindows) {
+    const personMinutes = [
+      [phaseWindows.opening, requirements.minimumAtOpening],
+      [phaseWindows.central, requirements.minimumDuringOperation],
+      [phaseWindows.closing, requirements.minimumAtClosing],
+    ].reduce((total, [windows, required]) =>
+      total + (windows as TimeInterval[]).reduce((sum, w) =>
+        sum + ((minute(w.end) ?? 0) - (minute(w.start) ?? 0)) *
+          (required as number), 0), 0);
+    const perPerson = Math.min(input.workConstraints.maximumDailyEffectiveMinutes,
+      input.workConstraints.maximumWeeklyEffectiveMinutes);
+    if (perPerson > 0) minimumPeople = Math.ceil(personMinutes / perPerson);
+  }
   let solution: Candidate[] | null = null;
-  for (let count = 0; count <= active.length; count++) {
+  for (let count = minimumPeople; count <= active.length; count++) {
     solution = search([], new Set<string>(), count);
     if (solution || budget.limitReached) break;
   }
