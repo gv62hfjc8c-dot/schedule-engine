@@ -88,3 +88,37 @@ export interface PresenceAssignment {
   personId: string;
   interval: TimeInterval;
 }
+
+/**
+ * P6.3: effective working minutes EXCLUDE the uninterrupted meal break.
+ * A shift still has one continuous attendance span, with at most one meal.
+ * This is an additive model; legacy PresenceAssignment is not migrated yet.
+ */
+export interface MealBreakConstraint {
+  /** A meal is mandatory strictly ABOVE this many effective working minutes. */
+  requiredAboveEffectiveMinutes: number;
+  /** Exactly this many consecutive clock minutes, unpaid/non-working in V0. */
+  durationMinutes: number;
+  /** Inclusive bounds measured in EFFECTIVE work before the meal begins. */
+  earliestStartAfterWorkMinutes: number;
+  latestStartAfterWorkMinutes: number;
+}
+
+export interface WorkConstraintConfiguration {
+  mealBreak: MealBreakConstraint;
+  minimumRestBetweenShiftsMinutes: number;
+  maximumDailyEffectiveMinutes: number;
+  maximumWeeklyEffectiveMinutes: number;
+}
+
+/**
+ * A dated attendance span (same civil day; no overnight shifts in this V0).
+ * The meal is a gap INSIDE the span and does not cover operational presence.
+ * null explicitly means no meal break.
+ */
+export interface DatedWorkShift {
+  date: string;
+  personId: string;
+  interval: TimeInterval;
+  mealBreak: TimeInterval | null;
+}
