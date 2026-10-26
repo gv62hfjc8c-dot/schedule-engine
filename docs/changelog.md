@@ -9,6 +9,8 @@
 - validador puro de pausas, limites diários, semanais e descanso, com
   distinção entre violações, entrada inválida e contexto exterior incompleto;
 - semanas civis de segunda a domingo, com turnos conhecidos fora do período;
+- fuso horário IANA explícito; descanso em minutos reais, incluindo mudanças
+  da hora legal, com rejeição de horas locais inexistentes ou ambíguas;
 - teste unitário dos casos-limite; sem alterações a Supabase ou à interface;
 - gerador anterior ainda não aplica os novos limites (integração pendente).
 
