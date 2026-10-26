@@ -452,3 +452,35 @@ A API é declaradamente
 `validationScope: "period_work_and_coverage_when_generated"`.
 O gerador legado e a interface existentes continuam a anunciar
 escopos inferiores; não se alterou a persistência nem o Supabase.
+
+## D036 — UI P6.3 não pode inventar um calendário de turnos aprovados
+
+**Estado:** aceite para interface experimental; fonte de turnos reais pendente
+
+O estado atualmente persistido contém configurações, pessoas,
+disponibilidades e cobertura, **não** um registo completo de turnos
+gerados/aprovados. A ausência de tal registo não permite inferir
+que os colaboradores não trabalham fora das datas pedidas.
+
+A primeira interface P6.3 mantém os modos diários e de período V0
+inalterados e acrescenta um **terceiro modo** de simulação:
+a operação indica as datas e o fuso IANA, consulta o intervalo
+de contexto obrigatório calculado pelo validador, e tem de declarar
+expressamente que **não existem turnos exteriores já atribuídos**
+nesse intervalo. Não pode confirmar implicitamente ou por defeito.
+
+O adaptador `prepareExplicitEmptyContext` devolve
+`requires_confirmation` sem essa declaração e só fornece
+`externalContext: { completeOutsideTarget: true, shifts: [] }`
+com confirmação explícita. Quando mudam datas/fuso/configuração
+da UI, a confirmação e o resultado são invalidados.
+
+Uma solução `generated` é válida **sob a declaração feita**,
+não prova a inexistência de turnos no mundo real nem representa
+aprovação de uma escala. A interface mostra esse caráter
+condicionado e não lê/escreve horários no Supabase.
+
+A versão seguinte deve obter turnos aprovados fora do período
+a partir de uma fonte verificável (ou entrada manual estruturada),
+preservando a semântica `incomplete_context`. Não converter
+o cenário hipotético de zero turnos num default de produção.
