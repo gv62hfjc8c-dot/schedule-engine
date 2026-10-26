@@ -141,14 +141,18 @@ Estado: **em desenvolvimento**
 - [x] verificação independente de cobertura e disponibilidade antes de publicar solução;
 - [x] distinguir input inválido, capacidade insuficiente, pesquisa sem solução e limite atingido;
 - [x] testes de domínio (dias longos, curtos, partidos, arquivo, casos impossíveis na grelha);
-- [ ] executar CI, typecheck e build e validar com casos reais.
+- [x] executar CI, typecheck e build do núcleo;
+- [x] interface experimental para selecionar uma data e visualizar turnos e conflitos;
+- [x] simulação efémera: nunca guardar turnos nem alterar configurações no Supabase;
+- [x] ignorar resultados anteriores quando mudam data, pessoas ou regras;
+- [ ] validar manualmente a interface com dados reais e casos de sucesso/falha.
 
 ### Limites explícitos V0
 
 - Pesquisa discreta de duração fixa: não encontrar solução não prova impossibilidade global.
 - Não existem turnos repartidos nem atribuições multi-dia.
 - Ainda sem equidade, contratos, horas semanais ou descanso entre dias.
-- Sem interface de geração nesta etapa.
+- A interface de geração é apenas uma simulação, sem gravação dos turnos.
 
 ## Próximo passo
 
