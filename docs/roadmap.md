@@ -145,7 +145,7 @@ Estado: **em desenvolvimento**
 - [x] interface experimental para selecionar uma data e visualizar turnos e conflitos;
 - [x] simulação efémera: nunca guardar turnos nem alterar configurações no Supabase;
 - [x] ignorar resultados anteriores quando mudam data, pessoas ou regras;
-- [ ] validar manualmente a interface com dados reais e casos de sucesso/falha.
+- [x] validar manualmente a interface com dados reais: capacidade insuficiente, sem solução com turnos de 8h, horário válido para sábado de 4h e recuperação dos requisitos após remoção de exceção;
 
 ### Limites explícitos V0
 
@@ -156,4 +156,4 @@ Estado: **em desenvolvimento**
 
 ## Próximo passo
 
-Validar o gerador diário isoladamente antes de expor um resultado na interface.
+Rever e integrar a etapa 6.1 na main após aprovação do PR. Depois iniciar a modelação e validação de horários de vários dias, sem introduzir ainda regras de distribuição que não estejam definidas.
