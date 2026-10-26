@@ -212,7 +212,7 @@ function gridWeeklyShortage(
     const perWeek = new Map<string, number>();
     const mins = (time: string): number => {
       if (typeof time !== "string" ||
-          !/^(?:[01]\\d|2[0-3]):[0-5]\\d$|^24:00$/.test(time)) return NaN;
+          !/^(?:[01]\d|2[0-3]):[0-5]\d$|^24:00$/.test(time)) return NaN;
       const [hours, minutes] = time.split(":").map(Number);
       return hours * 60 + minutes;
     };
