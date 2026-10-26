@@ -329,3 +329,23 @@ cobertura, disponibilidade, contratação ou equidade.
 A implementação V0 é um validador puro com testes próprios. A camada
 de cobertura existente ainda recebe turnos contínuos sem refeição e
 deve ser evoluída antes de se poder publicar uma escala sob P6.3.
+
+## D031 — O descanso é duração real num fuso horário explícito
+
+**Estado:** aceite para validador independente Ponto 6.3
+
+O descanso mínimo de 11h é medido em **minutos efetivamente decorridos**
+entre dois instantes; a diferença entre horas de relógio locais pode
+não ser a duração real durante mudanças da hora legal.
+
+O validador exige um identificador de fuso horário **IANA** explícito
+(`timeZone`, por exemplo `Atlantic/Azores`). Datas civis e horas locais
+são convertidas em instantes efetivos para avaliar descanso, refeição e
+limites de trabalho. Horas locais inexistentes (avanço de relógio)
+ou ambíguas (recuo de relógio) são rejeitadas nesta primeira versão,
+em vez de serem interpretadas silenciosamente.
+
+O motor mantém-se independente da região/empresa. Não é adotado
+automaticamente o fuso do navegador. A interface e os adaptadores
+de dados terão de fornecer um fuso concreto quando estas regras
+forem integradas no gerador. Não há migração de persistência nesta etapa.
