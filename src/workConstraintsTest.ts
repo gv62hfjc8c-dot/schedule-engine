@@ -133,6 +133,24 @@ assert(hasCode(check(sixDays, {
   targetStart: "2026-10-28", targetEnd: "2026-10-30",
 }), "weekly_limit"), "Horas posteriores ao período entram na soma semanal.");
 
+const invalidExternalMeal = check([
+  shift(monday, "a", "09:00", "18:00", null),
+  shift("2026-10-28"),
+], {
+  targetStart: "2026-10-28", targetEnd: "2026-10-28",
+});
+assert(hasCode(invalidExternalMeal, "meal_required"),
+  "A refeição inválida num turno exterior da mesma semana deve ser detetada.");
+
+const invalidExternalDaily = check([
+  shift(monday, "a", "09:00", "19:00"),
+  shift("2026-10-28"),
+], {
+  targetStart: "2026-10-28", targetEnd: "2026-10-28",
+});
+assert(hasCode(invalidExternalDaily, "daily_limit"),
+  "Turnos exteriores que condicionam a semana também têm de ser válidos.");
+
 const weekBoundary = check([
   shift(sunday), shift("2026-11-02"),
 ], {
