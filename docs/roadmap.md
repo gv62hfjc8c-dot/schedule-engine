@@ -149,7 +149,7 @@ Estado: **em desenvolvimento**
 
 ### Etapa 6.2 — Gerador de períodos (branch feature/period-generator-v0)
 
-Estado: **em validação técnica**
+Estado: **implementado e validado; PR #12 pronto para integração**
 
 - [x] orquestração pura do gerador diário num intervalo inclusivo de datas civis;
 - [x] até 14 dias consecutivos, com verificação de datas inválidas e ordem cronológica;
@@ -162,7 +162,7 @@ Estado: **em validação técnica**
 - [x] interface experimental de vários dias, com resumo e diagnóstico por data;
 - [x] resultados apresentados apenas quando todos os dias passam na validação diária;
 - [x] alternância entre gerador diário e gerador de períodos sem alterar o estado persistido;
-- [ ] validação funcional da interface com dados reais antes do merge.
+- [x] validação funcional com dados reais: semana incompleta (0/1/6), diagnóstico de segunda-feira, domingo fechado, período válido sábado/domingo (1/1/0) com exceção temporária, e recuperação após remover exceção (0/1/1), sem publicação parcial;
 
 ### Limites explícitos V0
 
@@ -173,4 +173,4 @@ Estado: **em validação técnica**
 
 ## Próximo passo
 
-Validar o modo «Vários dias» com dados reais antes do merge do PR #12. Depois definir hard constraints entre dias, começando por descanso e limites de trabalho, antes de afirmar viabilidade global.
+Integrar PR #12 na main após aprovação. Antes de evoluir para otimização de horários multi-dia, definir e testar as hard constraints entre dias, começando por descanso e limites de trabalho.
