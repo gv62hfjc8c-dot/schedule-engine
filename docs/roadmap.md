@@ -236,7 +236,10 @@ Primeiro incremento — sem Supabase nem interface:
 - [x] testes de duas abas, múltiplos proprietários, conflitos de versão, histórico e dados malformados;
 - [x] definir autorização operacional V0: apenas o proprietário autenticado solicita aprovação, cancelamento e substituição (D040);
 - [x] bloquear EXECUTE da RPC de snapshots aos clientes na migração SQL ainda não aplicada;
-- [ ] implementar executor confiável que revalida as hard constraints e controla as mutações;
+- [x] contrato de comandos em TypeScript, com identidade do proprietário e dados carregados por portas confiáveis, reaproveitando validação do núcleo;
+- [x] testes iniciais de acesso anónimo, versão obsoleta, contexto ausente, conflito CAS e falhas de leitura;
+- [ ] implementar adaptador **efetivamente server-side** com autenticação e fontes autoritativas, mantendo o cliente sem acesso à RPC de snapshots;
+- [ ] testar concorrência e autorização do adaptador real;
 - [ ] definir origem verificável da completude do ledger e validá-la por testes reais;
 - [ ] rever/aplicar migration SQL num ambiente dedicado e validar transações concorrentes reais com Supabase (testes atuais usam mock);
 - [ ] integrar aprovação/cancelamento/substituição na interface após validação funcional.
