@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-26 — P6.4: restringir escrita de horários aprovados
+
+- D040: apenas o proprietário autenticado solicita aprovação, cancelamento ou substituição;
+- RPC de snapshots deixa de conceder `EXECUTE` ao cliente autenticado na migração preparatória;
+- escrita permanece bloqueada enquanto não existir um executor confiável com revalidação de domínio;
+- sem deployment SQL nem alteração de dados; permissões reais e concorrência ainda por testar.
+
 ## 2026-10-26 — P6.4: persistência separada de escalas aprovadas (incremento preparatório)
 
 - teste do núcleo aprovado localmente (`test:approved-schedules`);
