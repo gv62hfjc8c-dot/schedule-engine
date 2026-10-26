@@ -53,6 +53,22 @@ export interface GenerateMealAwareDayResult {
   candidateCount: number;
 }
 
+/**
+ * Shared finite search budget. Enables period-level backtracking without
+ * resetting the node limit for each new day or rejected daily candidate.
+ */
+export interface MealAwareSearchBudget {
+  maxNodes: number;
+  exploredNodes: number;
+  limitReached: boolean;
+}
+
+export interface MealAwareDailySearchOptions {
+  budget?: MealAwareSearchBudget;
+  /** Return true only if the downstream schedule can be completed. */
+  acceptSolution?: (assignments: DatedWorkShift[]) => boolean;
+}
+
 interface NumericInterval {
   start: number;
   end: number;
@@ -275,11 +291,23 @@ function candidateValidForDailyWork(
     workCheck.violations.length === 0 && workCheck.issues.length === 1;
 }
 
-export function generateMealAwareDaySchedule(
-  input: GenerateMealAwareDayInput
+export function searchMealAwareDaySchedule(
+  input: GenerateMealAwareDayInput,
+  options: MealAwareDailySearchOptions = {}
 ): GenerateMealAwareDayResult {
   const issues: string[] = [];
   const limit = input.maxSearchNodes ?? DEFAULT_MAX_SEARCH_NODES;
+  const budget = options.budget ?? {
+    maxNodes: limit,
+    exploredNodes: 0,
+    limitReached: false,
+  };
+  const startingNodes = budget.exploredNodes;
+  if (!Number.isSafeInteger(budget.maxNodes) || budget.maxNodes <= 0 ||
+      !Number.isSafeInteger(budget.exploredNodes) || budget.exploredNodes < 0 ||
+      typeof budget.limitReached !== "boolean") {
+    issues.push("O orçamento de pesquisa deve ser válido.");
+  }
   if (!Number.isSafeInteger(limit) || limit <= 0) {
     issues.push("O limite de pesquisa deve ser um inteiro positivo.");
   }
@@ -440,18 +468,17 @@ export function generateMealAwareDaySchedule(
     a.end - b.end
   );
 
-  let exploredNodes = 0;
-  let limitReached = false;
   const search = (
     selected: Candidate[],
     used: Set<string>,
     maxPeople: number
   ): Candidate[] | null => {
-    if (exploredNodes >= limit) {
-      limitReached = true;
+    if (budget.limitReached ||
+        budget.exploredNodes >= budget.maxNodes) {
+      budget.limitReached = true;
       return null;
     }
-    exploredNodes++;
+    budget.exploredNodes++;
 
     const coverage = checkPresenceForWorkShifts(
       input.date,
@@ -462,7 +489,13 @@ export function generateMealAwareDaySchedule(
     if (coverage.issues.length > 0) {
       throw new Error(`Erro interno de cobertura: ${coverage.issues.join(" ")}`);
     }
-    if (coverage.valid) return selected;
+    if (coverage.valid) {
+      const assignments = selected.map(candidate =>
+        toShift(input.date, candidate)
+      ).sort((a, b) => a.personId.localeCompare(b.personId, "en"));
+      return !options.acceptSolution || options.acceptSolution(assignments)
+        ? selected : null;
+    }
     if (selected.length >= maxPeople) return null;
 
     const uncoveredStart = minute(coverage.shortages[0].interval.start);
@@ -476,7 +509,7 @@ export function generateMealAwareDaySchedule(
       next.add(candidate.personId);
       const solution = search([...selected, candidate], next, maxPeople);
       if (solution) return solution;
-      if (limitReached) return null;
+      if (budget.limitReached) return null;
     }
     return null;
   };
@@ -484,21 +517,21 @@ export function generateMealAwareDaySchedule(
   let solution: Candidate[] | null = null;
   for (let count = 0; count <= active.length; count++) {
     solution = search([], new Set<string>(), count);
-    if (solution || limitReached) break;
+    if (solution || budget.limitReached) break;
   }
   if (!solution) {
     return {
-      status: limitReached ? "search_limit" : "not_found",
+      status: budget.limitReached ? "search_limit" : "not_found",
       validationScope: "daily_work_and_coverage_only",
       assignments: [],
       issues: [
-        limitReached
+        budget.limitReached
           ? "A pesquisa atingiu o limite de nós antes de encontrar uma solução."
           : "Não foi encontrada solução entre os turnos com refeições candidatos.",
         "Isto não demonstra impossibilidade fora da grelha de pesquisa V0.",
       ],
       shortages: [],
-      exploredNodes,
+      exploredNodes: budget.exploredNodes - startingNodes,
       candidateCount: candidates.length,
     };
   }
@@ -542,7 +575,14 @@ export function generateMealAwareDaySchedule(
     assignments,
     issues: [],
     shortages: [],
-    exploredNodes,
+    exploredNodes: budget.exploredNodes - startingNodes,
     candidateCount: candidates.length,
   };
+}
+
+/** Backward-compatible one-day entrypoint; period search uses a visitor. */
+export function generateMealAwareDaySchedule(
+  input: GenerateMealAwareDayInput
+): GenerateMealAwareDayResult {
+  return searchMealAwareDaySchedule(input);
 }

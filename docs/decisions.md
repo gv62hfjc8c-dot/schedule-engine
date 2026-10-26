@@ -408,3 +408,47 @@ A geração e a publicação dos turnos do período exigirão um futuro
 algoritmo conjunto multi-dia (não apenas validar a primeira
 composição gananciosa dos dias). O gerador e a UI pré-P6.3
 permanecem inalterados, sem migração nem alteração de Supabase.
+
+## D034 — A geração de períodos exige pesquisa conjunta entre dias
+
+**Estado:** implementado no núcleo experimental do Ponto 6.3 (PR #15)
+
+Uma composição gananciosa de horários diários e validação posterior
+**não é um algoritmo multi-dia correto**: a primeira escolha válida
+para segunda-feira pode impedir o descanso ou a quota semanal de
+terça-feira. O motor tem de conseguir voltar a um dia anterior e
+testar outra atribuição de pessoa/turno/refeição.
+
+`generateConstrainedPeriodSchedule` utiliza a pesquisa de soluções
+diárias por visitante (`searchMealAwareDaySchedule`) e um orçamento
+único de nós, partilhado por **todos os dias e tentativas anteriores**.
+Antes de aceitar um candidato diário, descarta violação de descanso
+mínimo, limite de trabalho diário/semanal ou da regra de refeição
+calculada com turnos já selecionados e o contexto exterior.
+
+Os limites V0 de 14 dias e de pesquisa discreta de 15 minutos
+mantêm-se; `incomplete` e `search_limit` não provam inviabilidade
+fora do conjunto examinado. Não se otimiza equidade nesta etapa.
+
+## D035 — Confirmação explícita de contexto exterior para certificação global
+
+**Estado:** implementado no núcleo experimental do Ponto 6.3 (PR #15)
+
+A entrada `externalContext` declara um intervalo e um conjunto
+completo de turnos e ausências **fora do período-alvo**, com
+`completeOutsideTarget:true`. O intervalo confirmado tem de
+conter todas as semanas civis tocadas pelo período, mais os
+dias adjacentes para descanso (D030). Caso contrário, o
+resultado é `incomplete_context`, sem atribuições publicadas.
+
+No V0, turnos fixos já atribuídos **dentro** do período-alvo são
+rejeitados como entrada não suportada. A operação não pode assumir
+que ausência de informação significa ausência de trabalho.
+Com os turnos externos e a solução construída internamente, o
+motor chama o validador independente com contexto completo
+antes de devolver `status: "generated"`.
+
+A API é declaradamente
+`validationScope: "period_work_and_coverage_when_generated"`.
+O gerador legado e a interface existentes continuam a anunciar
+escopos inferiores; não se alterou a persistência nem o Supabase.

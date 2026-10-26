@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-10-26 — Ponto 6.3: gerador de períodos com backtracking (PR #15)
+
+- pesquisa conjunta de turnos diários, refeições e alternativas em dias
+  anteriores quando uma escolha não respeita o descanso de 11h;
+- limitação a 40h efetivas semanais avaliada durante a pesquisa,
+  incluindo turnos conhecidos antes e depois das datas selecionadas;
+- pesquisa com limite global de nós, sem reiniciar a cada dia/alternativa,
+  e resultado atómico após validação final independente;
+- contexto exterior completo confirmado obrigatório para certificar
+  dias e semanas, evitando assumir horas inexistentes;
+- testes de descanso dentro/fora do período, limites semanais com
+  registos anteriores/posteriores, falta de contexto, refeições e
+  casos sem alternativas;
+- o núcleo é isolado: sem alterações ao gerador da interface ou a
+  pessoas, Supabase e persistência.
+
 ## 2026-10-26 — Ponto 6.3: gerador diário experimental com refeições (PR #14)
 
 - novo `generateMealAwareDaySchedule` puro e separado do gerador diário anterior;

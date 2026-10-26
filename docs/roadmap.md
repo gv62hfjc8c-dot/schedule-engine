@@ -166,7 +166,7 @@ Estado: **integrado na main (PR #12; 2026-10-26)**
 
 ### Etapa 6.3 — Refeição, descanso e limites de trabalho
 
-Estado: **validadores independentes integrados na main (PR #13); gerador diário com refeição V0 em validação no PR #14**
+Estado: **núcleo P6.3 implementado com CI aprovado (PRs #13, #14 e #15); integração UI pendente**
 
 Regras acordadas:
 - [x] 8h padrão = 8h de trabalho efetivo, excluindo refeição;
@@ -194,20 +194,27 @@ Primeiro incremento técnico:
 - [x] cobertura reavaliada durante cada pausa e validação final independente;
 - [x] pesquisa determinística, limitada e resultados atómicos, com diagnósticos de capacidade;
 - [x] testes de refeições desfasadas, mínimo central 1/2/1, dias curtos, configuração, limites e regressão;
-- [ ] gerador multi-dia que pesquisa alternativas entre dias, valida descanso e 40h semanais com contexto exterior completo;
-- [ ] adaptar a persistência e a interface apenas quando o novo modelo estiver validado.
+- [x] gerador multi-dia **isolado** que retrocede para turnos alternativos quando uma escolha diária impede os dias seguintes;
+- [x] validação de 11h de descanso e 40h semanais **durante** a pesquisa, incluindo turnos anteriores e posteriores ao período;
+- [x] contexto exterior explicitamente completo obrigatório (semanas inteiras e dias adjacentes);
+- [x] orçamento de pesquisa global em todos os dias; nunca publicar soluções parciais;
+- [x] validação final independente de regras de trabalho, depois de cobertura diária com refeições;
+- [x] testes de backtracking real, horas semanais anteriores/posteriores, domingo/segunda, refeições e contexto desconhecido;
+- [ ] validar execução local do gerador de períodos com regras completas;
+- [ ] integrar o novo gerador na interface e adaptar configuração/persistência apenas quando a entrada de contexto exterior completo estiver resolvida;
 
-**Atenção:** o novo gerador com refeição V0 apenas valida cobertura e regras **locais do dia**.
-O gerador diário/multidiário apresentado na interface continua anterior ao P6.3;
-não certifica refeições, descanso entre dias nem horas semanais.
+**Atenção:** o novo gerador de período P6.3 só certifica regras globais quando
+`status: "generated"` **e** quando o contexto exterior ao período está confirmado.
+O gerador na interface ainda é anterior ao P6.3; não certifica
+refeições, descanso ou horas semanais.
 
 ### Limites explícitos V0
 
 - Pesquisa discreta de duração fixa: não encontrar solução não prova impossibilidade global.
 - Não existem turnos repartidos nem atribuições multi-dia.
-- Ainda sem equidade, contratos, horas semanais ou descanso entre dias.
+- O gerador **legado** ainda não aplica as regras P6.3; o novo núcleo experimental valida horas semanais e descanso entre dias apenas quando recebe contexto exterior completo.
 - A interface de geração é apenas uma simulação, sem gravação dos turnos.
 
 ## Próximo passo
 
-Validar e integrar o gerador diário com refeição do PR #14. Depois evoluir o motor de períodos para escolher turnos e pausas **entre dias**, em vez de aceitar a primeira solução diária e apenas testar descanso/40h posteriormente.
+Validar localmente o núcleo multi-dia após a integração do PR #15. Depois definir a origem verificável dos turnos exteriores ao período e fazer integração controlada na interface, preservando os dados existentes.
