@@ -196,7 +196,7 @@ function gridWeeklyShortage(
     const rules = input.workConstraints;
     const meal = rules.mealBreak;
     const standard = input.workRules.standardShiftDurationMinutes;
-    if (!Number.isSafeInteger(standard) || standard <= 0 ||
+    if (typeof standard !== "number" || !Number.isSafeInteger(standard) || standard <= 0 ||
         !Number.isSafeInteger(rules.maximumDailyEffectiveMinutes) ||
         !Number.isSafeInteger(rules.maximumWeeklyEffectiveMinutes) ||
         rules.maximumDailyEffectiveMinutes <= 0 ||
