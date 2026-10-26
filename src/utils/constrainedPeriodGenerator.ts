@@ -128,6 +128,8 @@ function provenWeeklyCapacityShortage(
     if (!Number.isSafeInteger(maxWeekly) || maxWeekly < 0 ||
         !Array.isArray(input.people)) return null;
     const activeIds = new Set(input.people.filter(p => p?.active).map(p => p.id));
+    // Preserve existing daily shortage diagnostics when nobody is active.
+    if (activeIds.size === 0) return null;
     const supply = activeIds.size * maxWeekly;
     const byWeek = new Map<string, number>();
     const mins = (value: string) => {
