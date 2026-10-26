@@ -269,6 +269,7 @@ function createCandidates(
         }
       }
     }
+    }
   }
   return [...result.values()].sort(
     (a, b) => a.start - b.start ||
