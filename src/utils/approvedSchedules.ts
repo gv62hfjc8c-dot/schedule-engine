@@ -221,7 +221,8 @@ function validZone(zone: string): boolean {
 function validInstant(value: string): boolean {
   return typeof value === "string" &&
     /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/.test(value) &&
-    Number.isFinite(Date.parse(value));
+    Number.isFinite(Date.parse(value)) &&
+    civil(value.slice(0, 10)) !== null;
 }
 
 /**
@@ -487,12 +488,28 @@ function validateDraft(
   // The core does not trust a user-supplied "generated" boolean.
   if (!environment || !Array.isArray(environment.people) ||
       !Array.isArray(environment.availabilities) ||
-      !environment.operatingCalendar || !environment.presence) return {
+      !environment.operatingCalendar ||
+      !Array.isArray(environment.operatingCalendar.exceptions) ||
+      !environment.operatingCalendar.weeklyOperatingHours ||
+      !environment.presence ||
+      !Array.isArray(environment.presence.presenceExceptions) ||
+      !environment.presence.weeklyPresenceRequirements ||
+      environment.availabilities.some(entry =>
+        !entry || !entry.personId?.trim() ||
+        !Array.isArray(entry.exceptions) || !entry.weeklyAvailability
+      )) return {
     code: "invalid_input",
     issues: ["Configuração operacional para aprovação incompleta."],
     workViolations: [],
   };
 
+  if (environment.people.some(person => !person ||
+      !person.id?.trim() || typeof person.active !== "boolean")) {
+    return {
+      code: "invalid_input", issues: ["Registos de pessoas inválidos."],
+      workViolations: [],
+    };
+  }
   const people = new Map(environment.people.map(p => [p.id, p]));
   const availability = new Map(
     environment.availabilities.map(entry => [entry.personId, entry])
