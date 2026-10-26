@@ -179,6 +179,99 @@ function provenWeeklyCapacityShortage(
   return null;
 }
 
+
+/**
+ * Necessary weekly bound for the CURRENT finite V0 candidate grid only.
+ * For a single operating interval, createCandidates always uses one fixed
+ * effective duration per person. Required total person-minutes divided by
+ * that duration gives a lower bound on the number of selected candidates.
+ * This is NOT a proof of impossibility for shorter/flexible shifts outside V0.
+ * On ambiguous inputs the regular generator and diagnostics remain in charge.
+ */
+function gridWeeklyShortage(
+  input: GenerateConstrainedPeriodInput,
+  dates: string[]
+): string | null {
+  try {
+    const rules = input.workConstraints;
+    const meal = rules.mealBreak;
+    const standard = input.workRules.standardShiftDurationMinutes;
+    if (!Number.isSafeInteger(standard) || standard <= 0 ||
+        !Number.isSafeInteger(rules.maximumDailyEffectiveMinutes) ||
+        !Number.isSafeInteger(rules.maximumWeeklyEffectiveMinutes) ||
+        rules.maximumDailyEffectiveMinutes <= 0 ||
+        rules.maximumWeeklyEffectiveMinutes <= 0 ||
+        !Number.isSafeInteger(meal.durationMinutes) ||
+        !Number.isSafeInteger(meal.requiredAboveEffectiveMinutes) ||
+        !Number.isSafeInteger(meal.earliestStartAfterWorkMinutes) ||
+        !Number.isSafeInteger(meal.latestStartAfterWorkMinutes) ||
+        !Array.isArray(input.people)) return null;
+    const active = new Set(input.people.filter(p => p?.active).map(p => p.id));
+    if (active.size === 0) return null;
+    const limit = active.size * rules.maximumWeeklyEffectiveMinutes;
+    const perWeek = new Map<string, number>();
+    const mins = (time: string): number => {
+      if (typeof time !== "string" ||
+          !/^(?:[01]\\d|2[0-3]):[0-5]\\d$|^24:00$/.test(time)) return NaN;
+      const [hours, minutes] = time.split(":").map(Number);
+      return hours * 60 + minutes;
+    };
+    for (const date of dates) {
+      const intervals = getOperatingIntervalsForDate(
+        date, input.operatingCalendar.weeklyOperatingHours,
+        input.operatingCalendar.exceptions
+      );
+      if (intervals.length === 0) continue;
+      if (intervals.length !== 1) return null;
+      const operation = intervals[0];
+      const duration = mins(operation.end) - mins(operation.start);
+      if (!Number.isSafeInteger(duration) || duration <= 0) return null;
+      const presence = resolvePresenceForDate(
+        date, input.presence.weeklyPresenceRequirements,
+        input.presence.presenceExceptions,
+        input.operatingCalendar.weeklyOperatingHours,
+        input.operatingCalendar.exceptions
+      );
+      if (presence.status !== "configured") return null;
+      const windows = getPresencePhaseWindows(intervals);
+      if (!windows) return null;
+      const phases = [
+        [windows.opening, presence.requirements.minimumAtOpening],
+        [windows.central, presence.requirements.minimumDuringOperation],
+        [windows.closing, presence.requirements.minimumAtClosing],
+      ] as const;
+      const required = phases.reduce((total, [windowsOfPhase, minimum]) =>
+        total + windowsOfPhase.reduce((subtotal, w) =>
+          subtotal + (mins(w.end) - mins(w.start)) * minimum, 0), 0);
+      if (!Number.isFinite(required) || required < 0) return null;
+      const target = Math.min(standard,
+        rules.maximumDailyEffectiveMinutes,
+        rules.maximumWeeklyEffectiveMinutes);
+      const possibleWithMeal = Math.min(target, duration - meal.durationMinutes);
+      const withMeal =
+        target > meal.requiredAboveEffectiveMinutes &&
+        possibleWithMeal > meal.requiredAboveEffectiveMinutes &&
+        possibleWithMeal > meal.earliestStartAfterWorkMinutes &&
+        meal.earliestStartAfterWorkMinutes <= meal.latestStartAfterWorkMinutes;
+      const fixedEffective = withMeal
+        ? possibleWithMeal
+        : Math.min(target, duration, meal.requiredAboveEffectiveMinutes);
+      if (!Number.isSafeInteger(fixedEffective) || fixedEffective <= 0) return null;
+      const minimumDailyTotal = Math.ceil(required / fixedEffective) * fixedEffective;
+      const epoch = Date.parse(date + "T00:00:00Z");
+      const weekday = new Date(epoch).getUTCDay();
+      const monday = dayString(epoch - ((weekday + 6) % 7) * DAY);
+      perWeek.set(monday, (perWeek.get(monday) ?? 0) + minimumDailyTotal);
+    }
+    for (const [week, needed] of perWeek) {
+      if (needed > limit) return `Semana de ${week}: os turnos de duração fixa da grelha V0 exigem pelo menos ${needed} minutos efetivos, acima dos ${limit} minutos de capacidade semanal. Não há solução nessa grelha; horários com durações mais flexíveis não foram excluídos.`;
+    }
+  } catch {
+    // Invalid or ambiguous data must be left to the existing validators.
+  }
+  return null;
+}
+
 /**
  * Backtracks ACROSS dates. It does not fix the first valid daily solution
  * and only reject the final period: a daily accepted candidate is passed
@@ -294,6 +387,13 @@ export function generateConstrainedPeriodSchedule(
     return resultWith("incomplete", [
       shortage,
       "O diagnóstico é um limite inferior comprovado; nenhuma pesquisa foi necessária.",
+    ], [], required);
+  }
+  const gridShortage = gridWeeklyShortage(input, dates);
+  if (gridShortage) {
+    return resultWith("incomplete", [
+      gridShortage,
+      "Diagnóstico restrito aos candidatos V0; não demonstra inviabilidade fora desta grelha.",
     ], [], required);
   }
   const diagnostics: ConstrainedPeriodDayDiagnostic[] = dates.map(date => ({
