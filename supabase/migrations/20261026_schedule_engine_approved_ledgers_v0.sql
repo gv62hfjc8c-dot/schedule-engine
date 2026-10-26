@@ -6,6 +6,9 @@
 -- before persistence. SQL below enforces owner scope, CAS/version/history,
 -- immutable scope and explicit context attestation, NOT the full work rules.
 -- Production server-authoritative domain validation is a separate step.
+-- SECURITY GATE: while that service is absent, NO client role receives EXECUTE.
+-- Do not grant to authenticated, anon, or service_role until the trusted
+-- identity/authorization and domain-validation flow has been implemented.
 
 create table if not exists public.schedule_engine_approved_ledgers (
   owner_id uuid primary key references auth.users (id) on delete cascade,
@@ -177,9 +180,11 @@ $$;
 revoke all on function public.save_schedule_engine_approved_ledger(
   bigint, jsonb, boolean
 ) from public, anon, authenticated;
-grant execute on function public.save_schedule_engine_approved_ledger(
-  bigint, jsonb, boolean
-) to authenticated;
+-- Intentionally no EXECUTE grant. PostgreSQL function EXECUTE is granted to
+-- PUBLIC by default, hence the explicit REVOKE above is essential.
+-- A later migration must introduce a trusted server-side command boundary
+-- (owner resolution, domain revalidation and atomic persistence) before
+-- granting access. Passing p_attest_complete is not proof of completeness.
 
 comment on function public.save_schedule_engine_approved_ledger(
   bigint, jsonb, boolean
