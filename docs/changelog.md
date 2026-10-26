@@ -15,6 +15,14 @@
 - avisos explícitos de que descansos, horas semanais e contratos não são
   verificados; simulação apenas em memória, sem escrita de turnos no Supabase;
 - sem mudanças ao esquema ou formato persistido.
+- validação funcional manual concluída com dados reais: semana 26/10–01/11
+  corretamente incompleta (0 dias com turnos, 1 fechado, 6 falhas),
+  diagnóstico de cobertura de segunda-feira e fecho de domingo;
+- cenário de sucesso 31/10–01/11 com exceção de presença 1/1/1:
+  Anabela 09:00–13:00 no sábado e domingo fechado, 0 falhas;
+- eliminação da exceção de teste confirmou retorno ao diagnóstico
+  de insuficiência de sábado (09:30–12:30, 1 de 2 pessoas)
+  e não publicação de turnos parciais. Dados temporários repostos.
 
 ## 2026-10-26 — Ponto 6.1: gerador diário V0 (em desenvolvimento)
 
