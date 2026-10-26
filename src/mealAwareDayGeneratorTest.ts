@@ -263,14 +263,12 @@ assert(archivedResult.status === "not_found" &&
 const constrained = structuredClone(fullDay);
 constrained.workConstraints.maximumDailyEffectiveMinutes = 360;
 const constrainedResult = generateMealAwareDaySchedule(constrained);
-assert(constrainedResult.status === "not_found" ||
-  constrainedResult.status === "generated",
-  "Limite inferior impede turnos de 8h; a pesquisa permanece terminante.");
-if (constrainedResult.status === "generated") {
-  assert(constrainedResult.assignments.every(s => s.mealBreak === null),
-    "Com máximo 6h efetivas, não há pausa obrigatória.");
-  assertDailyValid(constrained, constrainedResult.assignments);
-}
+assert(constrainedResult.status === "generated" &&
+  constrainedResult.assignments.length === 2,
+  "Limite diário de 6h requer dois turnos curtos para cobrir 9h.");
+assert(constrainedResult.assignments.every(s => s.mealBreak === null),
+  "Com máximo de 6h efetivas, não há refeição obrigatória.");
+assertDailyValid(constrained, constrainedResult.assignments);
 
 const brokenAvailability = structuredClone(fullDay);
 brokenAvailability.availabilities[0].exceptions.push(
