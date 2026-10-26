@@ -13,6 +13,7 @@ import type {
 } from "./types";
 import WorkRulesPanel from "./components/WorkRulesPanel";
 import PresencePanel from "./components/PresencePanel";
+import DailyGeneratorPanel from "./components/DailyGeneratorPanel";
 import { createEmptyWeeklyPresenceRequirements } from "./utils/presence";
 import { appStateRepository } from "./persistence/appStateRepository";
 import { APP_STATE_VERSION } from "./persistence/stateRepository";
@@ -182,7 +183,7 @@ export default function App() {
   const [editingPersonName, setEditingPersonName] = useState("");
   const [personError, setPersonError] = useState("");
   const [activeSection, setActiveSection] = useState<
-    "calendar" | "people" | "availability" | "workRules" | "presence"
+    "calendar" | "people" | "availability" | "workRules" | "presence" | "generator"
   >("calendar");
   const [
     selectedAvailabilityPersonId,
@@ -322,6 +323,17 @@ export default function App() {
   const activePeople = useMemo(
     () => getActivePeople(people),
     [people]
+  );
+
+  // Stable, read-only snapshots for the experimental generator.
+  // These objects are not added to the persistence/autosave dependencies.
+  const generatorOperatingCalendar = useMemo(
+    () => ({ weeklyOperatingHours: weeklyHours, exceptions }),
+    [weeklyHours, exceptions]
+  );
+  const generatorPresence = useMemo(
+    () => ({ weeklyPresenceRequirements, presenceExceptions }),
+    [weeklyPresenceRequirements, presenceExceptions]
   );
 
   const selectedAvailabilityPerson =
@@ -808,7 +820,15 @@ export default function App() {
           <span>Presença mínima</span>
           <small>Ponto 5</small>
         </button>
-
+        <button
+          type="button"
+          className={`workspace-tab ${activeSection === "generator" ? "active" : ""}`}
+          onClick={() => setActiveSection("generator")}
+          aria-current={activeSection === "generator" ? "page" : undefined}
+        >
+          <span>Gerar horário</span>
+          <small>Ponto 6 · V0</small>
+        </button>
       </nav>
 
       {activeSection === "calendar" && (
@@ -1701,6 +1721,15 @@ export default function App() {
         />
       )}
 
+      {activeSection === "generator" && (
+        <DailyGeneratorPanel
+          people={people}
+          availabilities={availabilities}
+          operatingCalendar={generatorOperatingCalendar}
+          workRules={workRules}
+          presence={generatorPresence}
+        />
+      )}
     </main>
   );
 }

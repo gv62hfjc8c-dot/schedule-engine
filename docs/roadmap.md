@@ -99,10 +99,11 @@ Estado: **fechado**
 
 ## Ponto 5 — Requisitos mínimos de presença
 
-Estado: **em validação**
+Estado: **fechado (2026-10-26)**
 
 - [x] três mínimos obrigatórios: abertura, durante a operação, fecho;
-- [x] mínimos inteiros não negativos, com abertura e fecho ≥ mínimo operacional;
+- [x] mínimos inteiros não negativos e independentes, aplicados em janelas de 30 minutos;
+- [x] configuração 1 / 2 / 1 válida e sobreposição de extremos em dias curtos;
 - [x] mínimos são limites inferiores, nunca tetos nem objetivos de pessoal exato;
 - [x] padrão semanal com dias fechados isentos de exigência;
 - [x] exceções por data substituem integralmente o padrão;
@@ -126,6 +127,33 @@ Estado: **em validação**
 - contratos, horas semanais e pausas;
 - validação integral de viabilidade do horário.
 
-## Próximo ponto
+## Ponto 6 — Gerador de horários V0
 
-Validar o Ponto 5 em casos reais antes de escolher a próxima regra de scheduling.
+Estado: **em desenvolvimento**
+
+### Etapa 6.1 — Gerador diário puro
+
+- [x] entrada explícita e resultado tipificado com diagnósticos;
+- [x] candidatos determinísticos de um turno contínuo por pessoa ativa e por dia;
+- [x] duração padrão preservada, exceto em períodos operacionais mais curtos;
+- [x] pesquisa discreta de 15 minutos mais limites horários exatos, com limite de nós;
+- [x] seleção progressiva por número mínimo de pessoas, sem otimização da equidade;
+- [x] verificação independente de cobertura e disponibilidade antes de publicar solução;
+- [x] distinguir input inválido, capacidade insuficiente, pesquisa sem solução e limite atingido;
+- [x] testes de domínio (dias longos, curtos, partidos, arquivo, casos impossíveis na grelha);
+- [x] executar CI, typecheck e build do núcleo;
+- [x] interface experimental para selecionar uma data e visualizar turnos e conflitos;
+- [x] simulação efémera: nunca guardar turnos nem alterar configurações no Supabase;
+- [x] ignorar resultados anteriores quando mudam data, pessoas ou regras;
+- [x] validar manualmente a interface com dados reais: capacidade insuficiente, sem solução com turnos de 8h, horário válido para sábado de 4h e recuperação dos requisitos após remoção de exceção;
+
+### Limites explícitos V0
+
+- Pesquisa discreta de duração fixa: não encontrar solução não prova impossibilidade global.
+- Não existem turnos repartidos nem atribuições multi-dia.
+- Ainda sem equidade, contratos, horas semanais ou descanso entre dias.
+- A interface de geração é apenas uma simulação, sem gravação dos turnos.
+
+## Próximo passo
+
+Rever e integrar a etapa 6.1 na main após aprovação do PR. Depois iniciar a modelação e validação de horários de vários dias, sem introduzir ainda regras de distribuição que não estejam definidas.

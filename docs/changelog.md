@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-10-26 — Ponto 6.1: gerador diário V0 (em desenvolvimento)
+
+- gerador puro de turnos contínuos para uma única data;
+- pesquisa de candidatos determinística, limitada e verificada pelos validadores existentes;
+- diagnósticos distintos para configuração inválida, capacidade insuficiente,
+  ausência de solução encontrada e limite atingido;
+- testes automáticos para duração, horários partidos, dias curtos e arquivos;
+- sem alterações ao Supabase ou ao esquema dos dados persistidos.
+- adicionada área experimental «Gerar horário», com calendário, estado de pesquisa,
+  turnos por colaborador e diagnóstico de insuficiências;
+- simulação apenas em memória; não altera as configurações nem persiste resultados;
+- resultados anteriores ficam obsoletos se a configuração for alterada;
+
 ## 2026-10-25 — Ponto 5: janelas de presença de 30 minutos (em validação)
 
 - abertura: primeiros 30 minutos após a abertura do primeiro período operacional;
