@@ -261,6 +261,42 @@ const dst = check([shift("2027-03-29")], {
 assert(dst.status === "valid",
   "Contexto por datas civis não pode depender da mudança de hora.");
 
+
+const dstRest = check([
+  shift("2027-03-27", "a", "11:00", "20:00", "15:00", "16:00"),
+  shift("2027-03-28", "a", "07:00", "16:00", "11:00", "12:00"),
+], {
+  targetStart: "2027-03-27", targetEnd: "2027-03-28",
+  contextStart: "2027-03-21", contextEnd: "2027-03-29",
+  timeZone: "Europe/Lisbon",
+});
+assert(hasCode(dstRest, "minimum_rest") &&
+  dstRest.violations.find(v => v.code === "minimum_rest")?.actualMinutes === 600,
+  "11h nominais na transição de primavera são apenas 10h reais.");
+
+const missingSpringHour = check([
+  shift("2027-03-28", "a", "01:30", "05:30", null),
+], {
+  targetStart: "2027-03-28", targetEnd: "2027-03-28",
+  contextStart: "2027-03-21", contextEnd: "2027-03-29",
+  timeZone: "Europe/Lisbon",
+});
+assert(missingSpringHour.status === "invalid_input",
+  "Horas locais inexistentes na mudança para verão têm de ser recusadas.");
+
+const repeatedFallHour = check([
+  shift("2027-10-31", "a", "01:30", "05:30", null),
+], {
+  targetStart: "2027-10-31", targetEnd: "2027-10-31",
+  contextStart: "2027-10-24", contextEnd: "2027-11-01",
+  timeZone: "Europe/Lisbon",
+});
+assert(repeatedFallHour.status === "invalid_input",
+  "Horas locais ambíguas na mudança para inverno têm de ser recusadas.");
+
+assert(check([shift(monday)], { timeZone: "Mars/Phobos" }).status === "invalid_input",
+  "Um fuso IANA inválido impede certificação do descanso.");
+
 assert(check([]).status === "valid",
   "Ausência confirmada de turnos pode ser validada apenas quanto a regras de trabalho.");
 
