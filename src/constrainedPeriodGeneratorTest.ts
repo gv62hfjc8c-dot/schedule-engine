@@ -460,3 +460,6 @@ const fiveResult = generateConstrainedPeriodSchedule({
 assert(fiveResult.status === "generated" &&
   fiveResult.assignments.length === 10,
   "Cinco dias permanecem geráveis com dois turnos por dia.");
+
+const totalOptimized = sixResult.assignments.reduce((acc, item) => { const t = (v: string) => Number(v.slice(0,2))*60+Number(v.slice(3,5)); return acc+t(item.interval.end)-t(item.interval.start)-(item.mealBreak?t(item.mealBreak.end)-t(item.mealBreak.start):0); },0);
+assert(totalOptimized > 3000 && totalOptimized <= 4800, "Otimização semanal melhora cobertura mínima sem exceder máximo.");
