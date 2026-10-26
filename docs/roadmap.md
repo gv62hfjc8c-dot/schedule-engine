@@ -185,8 +185,10 @@ Primeiro incremento técnico:
 - [x] contexto de trabalho completo obrigatório para certificar um período;
 - [x] fuso IANA explícito, descanso medido em tempo real e rejeição de horas locais ambíguas/inexistentes;
 - [x] testes dos limiares, semanas partidas, transições de calendário e falta de contexto;
-- [ ] confirmar CI e validação local dos novos testes;
-- [ ] integrar os novos segmentos efetivos no validador de cobertura, sem contar a pausa;
+- [x] CI aprovado e testes locais do validador de trabalho confirmados;
+- [x] validador independente de cobertura que exclui a pausa e preserva os cortes de presença anteriores;
+- [x] testes de cobertura de refeições simultâneas/desfasadas, mínimos 1/2/1, dias curtos, requisitos sobrepostos e regressão de turnos sem pausa;
+- [ ] validar localmente os novos testes de cobertura antes do merge;
 - [ ] evoluir o gerador para respeitar estas hard constraints e pesquisar pausas;
 - [ ] adaptar a persistência e a interface apenas quando o novo modelo estiver validado.
 
@@ -203,4 +205,4 @@ as regras diárias anteriormente implementadas.
 
 ## Próximo passo
 
-Validar e integrar o primeiro validador independente P6.3. Depois adaptar cobertura e geração para tratar refeições e restrições entre jornadas, mantendo resultados anteriores explicitamente limitados ao V0 diário.
+Confirmar os testes locais de cobertura com refeições e integrar os validadores do P6.3 após aprovação do PR #13. Depois adaptar a pesquisa de horários para validar conjuntamente refeição, cobertura, descanso e limites de horas.
