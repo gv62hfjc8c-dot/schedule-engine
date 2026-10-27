@@ -1981,3 +1981,74 @@ h2 {
     border-color:#46556a;
   }
 }
+
+/* PR #33 follow-up: consistent semantic surfaces and readable dark-mode content. */
+.workspace-tab { flex-direction:column; justify-content:center; gap:5px; }
+.workspace-tab-icon { display:block; flex-shrink:0; }
+@media (max-width: 640px) {
+  .workspace-tab { min-height:62px; }
+}
+@media (prefers-color-scheme: dark) {
+  /* Components previously carrying light-only backgrounds. */
+  .presence-day,.presence-exception,.presence-day.is-closed,
+  .work-rule-card,.work-preview-row,.work-preview-row.is-closed,
+  .work-preview-shifts > span,.generator-facts > div,
+  .generator-phase-grid > div,.period-generator-summary > div,
+  .person-row.is-archived,.people-head,
+  .period-generator-disclaimer,.p63-confirmation {
+    background:#253347;
+    border-color:#41536b;
+    color:#eaf0fa;
+  }
+  .people-head {color:#b9c8dc;}
+  .person-row,.work-preview-note,.generator-panel > .generator-footnote {
+    border-color:#41536b;
+  }
+  .person-row.is-archived {background:#222f40;}
+  .person-avatar {background:#36475e;color:#eef3fc;}
+  .person-status.active {background:#214638;color:#bce9d0;}
+  .person-status.archived {background:#354155;color:#d0d9e8;}
+  .work-rule-card strong,.work-preview-day strong,
+  .presence-day-head strong,.generator-facts strong,
+  .generator-phase-grid strong,.period-generator-summary strong,
+  .period-day-heading strong,.generator-result-body h3,
+  .generator-result-body h4,.generator-result-body strong {
+    color:#edf3fc;
+  }
+  .presence-day-head span,.presence-muted,.presence-disclaimer,
+  .work-rule-card p,.work-preview-day span,.work-preview-note,
+  .work-preview-row.is-closed span,.work-preview-shifts > span,
+  .generator-facts span,.generator-phase-grid span,
+  .period-generator-summary span,.period-day-heading > div > span,
+  .generator-result-body p,.generator-result-body .generator-footnote,
+  .generator-result-body .generator-hint,.generator-date-field > span,
+  .p63-assignment-times small {
+    color:#b2c0d4;
+  }
+  .work-preview-shifts strong,.period-day-card .generator-assignment,
+  .generator-assignment {color:#eaf0fa;}
+  .period-day-card .generator-assignment {background:#293a50;}
+  .period-generator-disclaimer strong,.p63-context-box .generator-issue {
+    color:#ffd49c;
+  }
+  .period-generator-disclaimer p {color:#d7c4a9;}
+  .p63-confirmation span {color:#eaf0fa;}
+  .p63-confirmation {border-color:#6a5a42;background:#283549;}
+  .p63-context-box {color:#dbe4f2;}
+  .generator-issue,.period-day-card .generator-issue {color:#ffce9b;}
+  .generator-status {background:#493b29;color:#ffdfa8;}
+  .generator-status-generated,.generator-status-closed,
+  .generator-status-daily_complete {background:#214638;color:#bce9d0;}
+  .period-day-state {background:#493b29;color:#ffdfa8;}
+  .period-day-state-generated {background:#214638;color:#bce9d0;}
+  .period-day-state-closed {background:#364257;color:#ccd7e8;}
+  .work-preview-warning {color:#f2c78b;}
+  .work-rule-badge {color:#d1deef;background:#2b3b51;}
+  .presence-text-button {color:#bdd7ff;}
+  .status-badge,.save-status,.secondary-button,.workspace-subtab {
+    background:#253347;
+    border-color:#41536b;
+    color:#eaf0fa;
+  }
+  .empty-icon {color:#b4c4d8;}
+}
