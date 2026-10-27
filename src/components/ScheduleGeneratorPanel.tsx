@@ -6,7 +6,6 @@ import { createEmptyWeeklyAvailability } from "../utils/availability";
 import { createEmptyWeeklyPresenceRequirements } from "../utils/presence";
 import { INITIAL_WORK_CONSTRAINTS } from "../utils/workConstraints";
 import { approveSchedule, cancelApprovedSchedule, replaceApprovedSchedule, createApprovedScheduleLedger, listApprovedShifts, queryApprovedExternalContext, type ApprovedScheduleLedger, type ApprovalEnvironment, type ApprovalMutationResult } from "../utils/approvedSchedules";
-import { readGeneratorMode, saveGeneratorMode } from "./generatorUiPreferences";
 import type {
   OperatingCalendarConfiguration,
   Person,
@@ -14,9 +13,6 @@ import type {
   PresenceConfiguration,
   WorkRulesConfiguration,
 } from "../types";
-import DailyGeneratorPanel from "./DailyGeneratorPanel";
-import ApprovedContextIntegrationLab from "./ApprovedContextIntegrationLab";
-import PeriodGeneratorPanel from "./PeriodGeneratorPanel";
 import ConstrainedPeriodGeneratorPanel from "./ConstrainedPeriodGeneratorPanel";
 
 interface ScheduleGeneratorPanelProps {
@@ -27,61 +23,9 @@ interface ScheduleGeneratorPanelProps {
   presence: PresenceConfiguration;
 }
 
-export default function ScheduleGeneratorPanel(
-  props: ScheduleGeneratorPanelProps
-) {
-  const [mode, setMode] = useState<"day" | "period" | "constrained" | "approval" | "storage" | "trusted" | "integration">(readGeneratorMode);
-
-  return (
-    <>
-      <nav className="generator-mode-switch" aria-label="Modo de geração">
-        <button
-          type="button"
-          className={mode === "day" ? "generator-mode-active" : ""}
-          aria-pressed={mode === "day"}
-          onClick={() => { setMode("day"); saveGeneratorMode("day"); }}
-        >
-          Um dia
-        </button>
-        <button
-          type="button"
-          className={mode === "period" ? "generator-mode-active" : ""}
-          aria-pressed={mode === "period"}
-          onClick={() => { setMode("period"); saveGeneratorMode("period"); }}
-        >
-          Vários dias · V0
-        </button>
-        <button
-          type="button"
-          className={mode === "constrained" ? "generator-mode-active" : ""}
-          aria-pressed={mode === "constrained"}
-          onClick={() => { setMode("constrained"); saveGeneratorMode("constrained"); }}
-        >
-          Vários dias · regras P6.3
-        </button>
-        <button type="button" className={mode === "approval" ? "generator-mode-active" : ""} aria-pressed={mode === "approval"} onClick={() => setMode("approval")}>Laboratório PR #17</button>
-        <button type="button" className={mode === "storage" ? "generator-mode-active" : ""} aria-pressed={mode === "storage"} onClick={() => setMode("storage")}>Laboratório PR #18</button>
-        <button type="button" className={mode === "trusted" ? "generator-mode-active" : ""} aria-pressed={mode === "trusted"} onClick={() => setMode("trusted")}>Laboratório PR #19</button>
-        <button type="button" className={mode === "integration" ? "generator-mode-active" : ""} aria-pressed={mode === "integration"} onClick={() => setMode("integration")}>Integração P6.4</button>
-      </nav>
-
-      {mode === "day" ? (
-        <DailyGeneratorPanel {...props} />
-      ) : mode === "period" ? (
-        <PeriodGeneratorPanel {...props} />
-      ) : mode === "constrained" ? (
-        <ConstrainedPeriodGeneratorPanel {...props} />
-      ) : mode === "approval" ? (
-        <ApprovalPlayground />
-      ) : mode === "storage" ? (
-        <StoragePlayground />
-      ) : mode === "trusted" ? (
-        <TrustedApprovalPlayground />
-      ) : (
-        <ApprovedContextIntegrationLab />
-      )}
-    </>
-  );
+/** PR #32: single public generator. Legacy experiments remain in source for tests. */
+export default function ScheduleGeneratorPanel(props: ScheduleGeneratorPanelProps) {
+  return <ConstrainedPeriodGeneratorPanel {...props} />;
 }
 
 /**
