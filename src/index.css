@@ -2114,3 +2114,18 @@ h2 {
   .calendar-grid .calendar-day-name{color:#b6c5d7;}
   .calendar-grid button.calendar-selected{background:#587cad;color:white;}
 }
+
+/* Two independent iOS-style selection wheels (hours and minutes). */
+.time-wheel-popover.time-wheel-dual { width: 266px; min-width: 266px; }
+.time-wheel-columns { display:grid; grid-template-columns:minmax(0,1fr) 18px minmax(0,1fr);align-items:end;padding:8px 12px 14px; }
+.time-wheel-column { min-width:0; }
+.time-wheel-caption {display:block;text-align:center;color:#728097;font-size:11px;font-weight:700;padding:0 0 5px;}
+.time-wheel-columns .time-wheel-list {height:204px;padding:0 3px;}
+.time-wheel-columns .time-wheel-option {height:42px;font-size:19px;}
+.time-wheel-columns .time-wheel-option.selected {font-size:22px;}
+.time-wheel-separator {align-self:center;text-align:center;font-size:22px;font-weight:800;margin-top:18px;}
+.picker-heading button:disabled {opacity:.5;cursor:not-allowed;}
+@media(prefers-color-scheme:dark) {
+  .time-wheel-caption {color:#b7c7db;}
+  .time-wheel-separator {color:#f0f5fc;}
+}
