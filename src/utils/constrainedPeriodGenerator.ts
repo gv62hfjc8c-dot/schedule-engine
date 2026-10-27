@@ -301,6 +301,69 @@ function improveWeeklyHours(
     }
     if (!changed || evaluations > 12000) break;
   }
+
+  // P6.3 PR #26: fill missing person-days only after extending existing
+  // shifts. Every extra candidate is checked against availability, daily
+  // coverage and the COMPLETE work schedule, including external shifts.
+  // Prefer the largest usable effective duration without claiming optimality.
+  const dates = Array.from(new Set(base.map(s => s.date))).sort();
+  for (const date of dates) {
+    if (evaluations >= 12000) break;
+    const operation = getOperatingIntervalsForDate(date,
+      input.operatingCalendar.weeklyOperatingHours,
+      input.operatingCalendar.exceptions);
+    for (const person of input.people.filter(p => p.active)) {
+      if (evaluations >= 12000) break;
+      if (schedule.some(s => s.date === date && s.personId === person.id)) continue;
+      const availability = input.availabilities.find(a => a.personId === person.id);
+      if (!availability) continue;
+      const personHours = [...schedule, ...external].filter(s =>
+        s.personId === person.id && weeks(s.date) === weeks(date)
+      ).reduce((total, shift) => total + effective(shift), 0);
+      const remaining = Math.min(weeklyLimit - personHours,
+        input.workConstraints.maximumDailyEffectiveMinutes);
+      if (remaining < 15) continue;
+      let added = false;
+      for (const period of operation) {
+        if (added || evaluations >= 12000) break;
+        const open = mins(period.start);
+        const close = mins(period.end);
+        const maxEffective = Math.min(remaining, close - open);
+        for (let work = Math.floor(maxEffective / 15) * 15;
+          work >= 15 && !added && evaluations < 12000; work -= 15) {
+          const needsMeal = work > meal.requiredAboveEffectiveMinutes;
+          const span = work + (needsMeal ? meal.durationMinutes : 0);
+          if (span > close - open) continue;
+          for (let start = open; start + span <= close && !added &&
+            evaluations < 12000; start += 15) {
+            const mealOffsets = needsMeal
+              ? Array.from({length: Math.max(0, Math.floor(
+                  (Math.min(meal.latestStartAfterWorkMinutes, work - 1) -
+                    meal.earliestStartAfterWorkMinutes) / 15) + 1)},
+                  (_, i) => meal.earliestStartAfterWorkMinutes + 15*i)
+              : [0];
+            for (const offset of mealOffsets) {
+              if (++evaluations > 12000) break;
+              const candidate: DatedWorkShift = {
+                date, personId: person.id,
+                interval: {start: time(start), end: time(start + span)},
+                mealBreak: needsMeal
+                  ? {start: time(start + offset),
+                    end: time(start + offset + meal.durationMinutes)}
+                  : null,
+              };
+              if (!isSchedulableForInterval(date, candidate.interval,
+                availability, input.operatingCalendar.weeklyOperatingHours,
+                input.operatingCalendar.exceptions)) continue;
+              schedule.push(candidate);
+              if (valid(date)) {added = true; break;}
+              schedule.pop();
+            }
+          }
+        }
+      }
+    }
+  }
   return schedule;
 }
 
