@@ -479,6 +479,28 @@ const weeklyFor = (personId: string) => sixResult.assignments
       (s.mealBreak ? minutes(s.mealBreak.end) -
         minutes(s.mealBreak.start) : 0);
   }, 0);
-assert(weeklyFor("a") === 2400 && weeklyFor("b") === 2400,
-  `Objetivos semanais: a=${weeklyFor("a")} b=${weeklyFor("b")}; sabado=${JSON.stringify(sixResult.assignments.filter(s=>s.date===sat))}`);
+assert(weeklyFor("a") === 2400 && weeklyFor("b") === 2340,
+  "Sábado com quatro horas só permite completar 39h à segunda pessoa neste teste.");
+const saturdayFive = structuredClone(sixScenario);
+saturdayFive.operatingCalendar.exceptions.find(e => e.date === sat)!.intervals =
+  interval("09:00", "14:00");
+for (const availability of saturdayFive.availabilities) {
+  availability.exceptions.find(e => e.date === sat)!.intervals =
+    interval("09:00", "14:00");
+}
+const fiveHourSaturday = generateConstrainedPeriodSchedule({
+  ...saturdayFive, maxSearchNodes: 5000,
+});
+assert(fiveHourSaturday.status === "generated",
+  "Seis dias com sábado de cinco horas devem continuar a gerar solução.");
+const totalByPerson = (id: string) => fiveHourSaturday.assignments
+  .filter(s => s.personId === id)
+  .reduce((n,s) => {
+    const m = (v: string) => Number(v.slice(0,2))*60 + Number(v.slice(3));
+    return n + m(s.interval.end)-m(s.interval.start) -
+      (s.mealBreak ? m(s.mealBreak.end)-m(s.mealBreak.start) : 0);
+  },0);
+assert(totalByPerson("a") === 2400 && totalByPerson("b") === 2400,
+  `Sábado 09–14 deve atingir 40h/40h: a=${totalByPerson("a")} b=${totalByPerson("b")}`);
+independentlyValidate(saturdayFive, fiveHourSaturday.assignments);
 independentlyValidate(sixScenario, sixResult.assignments);
