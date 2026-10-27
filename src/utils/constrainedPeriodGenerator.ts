@@ -315,6 +315,10 @@ function improveWeeklyHours(
     for (const person of input.people.filter(p => p.active)) {
       if (evaluations >= 12000) break;
       if (schedule.some(s => s.date === date && s.personId === person.id)) continue;
+      // Start with trailing free days: avoid destabilizing already validated
+      // inter-day arrangements through speculative earlier extra shifts.
+      if (schedule.some(s => s.personId === person.id && s.date > date &&
+        weeks(s.date) === weeks(date))) continue;
       const availability = input.availabilities.find(a => a.personId === person.id);
       if (!availability) continue;
       const personHours = [...schedule, ...external].filter(s =>
