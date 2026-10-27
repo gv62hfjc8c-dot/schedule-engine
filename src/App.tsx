@@ -12,6 +12,8 @@ import type {
   WorkRulesConfiguration,
 } from "./types";
 import WorkRulesPanel from "./components/WorkRulesPanel";
+import TimeWheelSelect from "./components/TimeWheelSelect";
+import CalendarDateInput from "./components/CalendarDateInput";
 import PresencePanel from "./components/PresencePanel";
 import ScheduleGeneratorPanel from "./components/ScheduleGeneratorPanel";
 import { createEmptyWeeklyPresenceRequirements } from "./utils/presence";
@@ -871,7 +873,7 @@ export default function App() {
                         <span className="sr-only">
                           Abertura de {weekdayLabels[weekday]}
                         </span>
-                        <select
+                        <TimeWheelSelect
                           value={interval.start}
                           onChange={(event) =>
                             updateDayInterval(
@@ -886,14 +888,14 @@ export default function App() {
                               {time}
                             </option>
                           ))}
-                        </select>
+                        </TimeWheelSelect>
                       </label>
 
                       <label className="select-field">
                         <span className="sr-only">
                           Fecho de {weekdayLabels[weekday]}
                         </span>
-                        <select
+                        <TimeWheelSelect
                           value={interval.end}
                           onChange={(event) =>
                             updateDayInterval(
@@ -910,7 +912,7 @@ export default function App() {
                               </option>
                             )
                           )}
-                        </select>
+                        </TimeWheelSelect>
                       </label>
                     </>
                   ) : (
@@ -962,9 +964,8 @@ export default function App() {
                 return (
                   <article className="exception-card" key={index}>
                     <div className="exception-topline">
-                      <input
+                      <CalendarDateInput
                         className="date-input"
-                        type="date"
                         value={exception.date}
                         onChange={(event) =>
                           updateException(index, {
@@ -1006,7 +1007,7 @@ export default function App() {
                         <div className="exception-time-grid">
                           <label className="select-field">
                             <span>Abertura</span>
-                            <select
+                            <TimeWheelSelect
                               value={interval.start}
                               onChange={(event) =>
                                 updateExceptionInterval(
@@ -1022,12 +1023,12 @@ export default function App() {
                                   {time}
                                 </option>
                               ))}
-                            </select>
+                            </TimeWheelSelect>
                           </label>
 
                           <label className="select-field">
                             <span>Fecho</span>
-                            <select
+                            <TimeWheelSelect
                               value={interval.end}
                               onChange={(event) =>
                                 updateExceptionInterval(
@@ -1045,7 +1046,7 @@ export default function App() {
                                   </option>
                                 )
                               )}
-                            </select>
+                            </TimeWheelSelect>
                           </label>
                         </div>
                       )}
@@ -1398,7 +1399,7 @@ export default function App() {
                                   <span className="sr-only">
                                     Início de {weekdayLabels[weekday]}
                                   </span>
-                                  <select
+                                  <TimeWheelSelect
                                     value={interval.start}
                                     onChange={(event) =>
                                       updateAvailabilityInterval(
@@ -1415,14 +1416,14 @@ export default function App() {
                                         {time}
                                       </option>
                                     ))}
-                                  </select>
+                                  </TimeWheelSelect>
                                 </label>
 
                                 <label className="select-field">
                                   <span className="sr-only">
                                     Fim de {weekdayLabels[weekday]}
                                   </span>
-                                  <select
+                                  <TimeWheelSelect
                                     value={interval.end}
                                     onChange={(event) =>
                                       updateAvailabilityInterval(
@@ -1440,7 +1441,7 @@ export default function App() {
                                         {time}
                                       </option>
                                     ))}
-                                  </select>
+                                  </TimeWheelSelect>
                                 </label>
                               </>
                             ) : (
@@ -1520,9 +1521,8 @@ export default function App() {
                                 key={index}
                               >
                                 <div className="exception-topline">
-                                  <input
+                                  <CalendarDateInput
                                     className="date-input"
-                                    type="date"
                                     value={exception.date}
                                     onChange={(event) =>
                                       updateAvailabilityException(
@@ -1600,7 +1600,7 @@ export default function App() {
                                     <div className="exception-time-grid">
                                       <label className="select-field">
                                         <span>Início</span>
-                                        <select
+                                        <TimeWheelSelect
                                           value={
                                             interval.start
                                           }
@@ -1626,12 +1626,12 @@ export default function App() {
                                               </option>
                                             )
                                           )}
-                                        </select>
+                                        </TimeWheelSelect>
                                       </label>
 
                                       <label className="select-field">
                                         <span>Fim</span>
-                                        <select
+                                        <TimeWheelSelect
                                           value={interval.end}
                                           onChange={(event) =>
                                             updateAvailabilityExceptionInterval(
@@ -1654,7 +1654,7 @@ export default function App() {
                                               {time}
                                             </option>
                                           ))}
-                                        </select>
+                                        </TimeWheelSelect>
                                       </label>
                                     </div>
                                   )}
