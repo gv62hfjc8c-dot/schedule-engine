@@ -15,6 +15,7 @@ import type {
   WorkRulesConfiguration,
 } from "../types";
 import DailyGeneratorPanel from "./DailyGeneratorPanel";
+import ApprovedContextIntegrationLab from "./ApprovedContextIntegrationLab";
 import PeriodGeneratorPanel from "./PeriodGeneratorPanel";
 import ConstrainedPeriodGeneratorPanel from "./ConstrainedPeriodGeneratorPanel";
 
@@ -29,7 +30,7 @@ interface ScheduleGeneratorPanelProps {
 export default function ScheduleGeneratorPanel(
   props: ScheduleGeneratorPanelProps
 ) {
-  const [mode, setMode] = useState<"day" | "period" | "constrained" | "approval" | "storage" | "trusted">(readGeneratorMode);
+  const [mode, setMode] = useState<"day" | "period" | "constrained" | "approval" | "storage" | "trusted" | "integration">(readGeneratorMode);
 
   return (
     <>
@@ -61,6 +62,7 @@ export default function ScheduleGeneratorPanel(
         <button type="button" className={mode === "approval" ? "generator-mode-active" : ""} aria-pressed={mode === "approval"} onClick={() => setMode("approval")}>Laboratório PR #17</button>
         <button type="button" className={mode === "storage" ? "generator-mode-active" : ""} aria-pressed={mode === "storage"} onClick={() => setMode("storage")}>Laboratório PR #18</button>
         <button type="button" className={mode === "trusted" ? "generator-mode-active" : ""} aria-pressed={mode === "trusted"} onClick={() => setMode("trusted")}>Laboratório PR #19</button>
+        <button type="button" className={mode === "integration" ? "generator-mode-active" : ""} aria-pressed={mode === "integration"} onClick={() => setMode("integration")}>Integração P6.4</button>
       </nav>
 
       {mode === "day" ? (
@@ -73,8 +75,10 @@ export default function ScheduleGeneratorPanel(
         <ApprovalPlayground />
       ) : mode === "storage" ? (
         <StoragePlayground />
-      ) : (
+      ) : mode === "trusted" ? (
         <TrustedApprovalPlayground />
+      ) : (
+        <ApprovedContextIntegrationLab />
       )}
     </>
   );
