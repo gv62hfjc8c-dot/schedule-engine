@@ -199,8 +199,8 @@ export default function ConstrainedPeriodGeneratorPanel({
       <section className="panel generator-panel">
         <div className="panel-header">
           <div>
-            <p className="section-kicker">Ponto 6.3 · simulação experimental</p>
-            <h2>Período com regras de trabalho</h2>
+            <p className="section-kicker">Planeamento de horários</p>
+            <h2>Gerar horário</h2>
           </div>
           <span className="work-rule-badge">Até {MAX_PERIOD_DAYS} dias</span>
         </div>
@@ -332,7 +332,7 @@ export default function ConstrainedPeriodGeneratorPanel({
       <section className="panel generator-results" aria-live="polite">
         <div className="panel-header">
           <div>
-            <p className="section-kicker">Validação global condicionada</p>
+            <p className="section-kicker">Resultado do planeamento</p>
             <h2>Resultado da simulação</h2>
           </div>
           {result && (
