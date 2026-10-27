@@ -80,7 +80,7 @@ export default function ScheduleGeneratorPanel(
 const DEMO_DATE = "2026-10-26";
 const DEMO_ZONE = "Atlantic/Azores";
 function demonstrationEnvironment(): ApprovalEnvironment {
-  const emptyHours = Object.fromEntries(WEEKDAYS.map(day => [day, []])) as
+  const emptyHours = Object.fromEntries(WEEKDAYS.map(day => [day, []])) as unknown as
     ApprovalEnvironment["operatingCalendar"]["weeklyOperatingHours"];
   const availability = ["a", "b"].map(personId => ({
     personId,
