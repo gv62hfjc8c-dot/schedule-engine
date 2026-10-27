@@ -1891,3 +1891,93 @@ h2 {
     padding-inline: 18px;
   }
 }
+
+
+/* PR #33 — Navigation hierarchy and OS-synchronized color scheme. */
+:root { color-scheme: light dark; }
+.workspace-tabs {
+  display: grid;
+  grid-template-columns: repeat(4,minmax(0,1fr));
+  gap: 6px;
+}
+.workspace-tab { min-width: 0; justify-content: center; }
+.workspace-subtabs {
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  margin:-6px 0 20px;
+}
+.workspace-subtab {
+  border:1px solid #dfe5ec;
+  border-radius:9px;
+  padding:10px 16px;
+  color:#697588;
+  background:#fff;
+  font-size:13px;
+  font-weight:700;
+}
+.workspace-subtab.active {
+  color:#fff;
+  border-color:#253247;
+  background:#253247;
+}
+.workspace-subtab:focus-visible { outline:2px solid #40536d;outline-offset:2px; }
+@media (max-width: 640px) {
+  .workspace-tabs {grid-template-columns:repeat(2,minmax(0,1fr));}
+  .workspace-subtab {flex:1 1 auto;text-align:center;}
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme:dark;
+    background:#111824;
+    color:#e7edf6;
+  }
+  body { background:#111824; color:#e7edf6; }
+  h1,h2,h3,h4,.day-name strong,.overview-item strong {color:#edf3fc;}
+  .page-subtitle,.panel-help,.section-description,.generator-hint,
+  .section-kicker,.eyebrow,.day-name span,.select-field > span:not(.sr-only),
+  .overview-item span {color:#a9b6ca;}
+  .panel,.status-badge,.save-status,.overview-bar,
+  .workspace-tab.active,.workspace-subtab,.secondary-button,
+  .exception-card,.period-day-card,.generator-assignment,
+  .generator-facts,.generator-result-body,.p63-context-box,
+  .p63-violations,.empty-state {
+    background:#1c2736;
+    color:#e7edf6;
+    border-color:#35445a;
+  }
+  .overview-item {border-color:#35445a;}
+  .workspace-tabs {background:#172232;border-color:#35445a;}
+  .workspace-tab {color:#a9b6ca;}
+  .workspace-tab.active,.workspace-tab:hover {color:#f4f7fd;}
+  .workspace-tab.active {background:#304159;box-shadow:none;}
+  .workspace-subtab.active,.primary-button {
+    background:#55749b;border-color:#688bb6;color:#fff;
+  }
+  .primary-button:hover {background:#6486ad;}
+  .workspace-subtab:not(.active):hover,.secondary-button:hover {
+    background:#28384b;color:#f4f7fd;
+  }
+  .schedule-table,.schedule-row,.schedule-head,
+  .exception-topline {border-color:#35445a;}
+  .schedule-head {background:#253346;color:#b5c2d4;}
+  .schedule-row:hover {background:#233145;}
+  .schedule-row.is-closed {background:#1c2736;}
+  input[type="date"],input[type="text"],input[type="number"],
+  input[type="email"],textarea,select {
+    background:#142030;
+    border-color:#43556b;
+    color:#f3f7fd;
+  }
+  input::placeholder,textarea::placeholder {color:#a3b2c5;}
+  input:disabled,select:disabled,button:disabled {opacity:.65;}
+  .state-button.open {background:#173b33;color:#c0e8d3;border-color:#386d58;}
+  .state-button.closed {background:#2a3545;color:#bbc6d7;border-color:#46556a;}
+  .save-status.saved {color:#add9ba;}
+  .save-status.error {background:#47272c;color:#ffd0d0;border-color:#94505a;}
+  .empty-state {background:#182333;}
+  .generator-issue,.operation-closed-note {color:#f3bfbe;}
+  .period-day-state,.generator-status,.work-rule-badge {
+    border-color:#46556a;
+  }
+}
