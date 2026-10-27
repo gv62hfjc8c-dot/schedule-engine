@@ -2052,3 +2052,65 @@ h2 {
   }
   .empty-icon {color:#b4c4d8;}
 }
+
+/* Unified visual controls. Native schedules and calendar data remain unchanged. */
+.time-wheel-field,.custom-date-field {position:relative;min-width:0;width:100%;}
+.time-wheel-trigger,.custom-date-trigger {
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  width:100%;height:42px;border:1px solid #d8dee8;border-radius:10px;
+  background:#fff;color:#172033;padding:0 12px;text-align:left;font:inherit;
+}
+.time-wheel-chevrons{font-size:12px;line-height:10px;color:#73839a;}
+.picker-backdrop{position:fixed;inset:0;z-index:40;border:0;background:transparent;cursor:default;}
+.time-wheel-popover,.custom-calendar-popover {
+  position:absolute;z-index:41;top:calc(100% + 6px);left:0;
+  min-width:230px;max-width:min(330px,calc(100vw - 32px));
+  border:1px solid #dbe2eb;border-radius:16px;
+  background:#fff;color:#172033;box-shadow:0 14px 42px #10182838;
+  overflow:hidden;
+}
+.time-wheel-popover{width:220px;}
+.picker-heading{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid #e3e9f0;font-size:13px;}
+.picker-heading button,.calendar-today{border:0;background:transparent;color:#315d91;font-size:13px;font-weight:700;}
+.time-wheel-list{height:210px;overflow-y:auto;scroll-snap-type:y mandatory;overscroll-behavior:contain;padding:0 12px;mask-image:linear-gradient(transparent,#000 22%,#000 78%,transparent);}
+.time-wheel-spacer{height:84px;}
+.time-wheel-option{display:block;width:100%;height:42px;scroll-snap-align:center;background:transparent;border:0;color:#78879b;font-size:17px;text-align:center;border-radius:10px;}
+.time-wheel-option.selected{background:#eaf0f8;color:#19344f;font-weight:800;font-size:21px;}
+.time-wheel-option:hover{background:#eef2f7;color:#172033;}
+.custom-calendar-popover{width:302px;padding:12px;}
+.calendar-toolbar{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:12px;}
+.calendar-toolbar strong{text-transform:capitalize;font-size:14px;}
+.calendar-toolbar button{width:34px;height:34px;border:1px solid #dce3eb;border-radius:9px;background:#f7f9fc;color:inherit;font-size:21px;}
+.calendar-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px;text-align:center;}
+.calendar-grid .calendar-day-name{font-size:10px;font-weight:800;color:#7d8b9c;padding:6px 0;}
+.calendar-grid button{aspect-ratio:1;border:0;background:transparent;color:inherit;border-radius:9px;font-size:12px;}
+.calendar-grid button:hover{background:#e9eff7;}
+.calendar-grid button.calendar-selected{background:#314d70;color:white;font-weight:800;}
+.calendar-today{display:block;margin:10px auto 0;padding:7px;}
+.time-wheel-trigger:focus-visible,.custom-date-trigger:focus-visible,
+.calendar-grid button:focus-visible,.time-wheel-option:focus-visible{outline:2px solid #7198cb;outline-offset:2px;}
+.person-row.is-archived {opacity:.8;}
+@media(prefers-color-scheme:dark){
+  .people-count{background:#253347;border-color:#42536b;color:#edf3fc;}
+  .people-count strong{color:#edf3fc;}
+  .people-count span{color:#b6c4d7;}
+  .person-row.is-archived{background:#192638;opacity:.82;}
+  .person-row:hover,.schedule-row:hover{background:#2a3b51;}
+  .person-row.is-archived:hover{background:#233249;}
+  .time-wheel-trigger,.custom-date-trigger{
+    background:#142030;border-color:#43556b;color:#f3f7fd;
+  }
+  .time-wheel-chevrons{color:#b8c8df;}
+  .time-wheel-popover,.custom-calendar-popover{
+    background:#202d3f;border-color:#485e76;color:#eef3fa;
+    box-shadow:0 16px 45px #0009;
+  }
+  .picker-heading{border-color:#43556b;}
+  .picker-heading button,.calendar-today{color:#a9ceff;}
+  .time-wheel-option{color:#a7b7ce;}
+  .time-wheel-option.selected{background:#375477;color:#fff;}
+  .time-wheel-option:hover,.calendar-grid button:hover{background:#354a64;color:#fff;}
+  .calendar-toolbar button{background:#2a3b50;border-color:#485e76;color:#eef3fa;}
+  .calendar-grid .calendar-day-name{color:#b6c5d7;}
+  .calendar-grid button.calendar-selected{background:#587cad;color:white;}
+}
