@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { readGeneratorDate, saveGeneratorDate } from "./generatorUiPreferences";
+import CalendarDateInput from "./CalendarDateInput";
 import type {
   OperatingCalendarConfiguration,
   Person,
@@ -214,10 +215,9 @@ export default function ConstrainedPeriodGeneratorPanel({
         <div className="generator-controls period-generator-controls">
           <label className="select-field generator-date-field" htmlFor="p63-start-date">
             <span>Data inicial</span>
-            <input
+            <CalendarDateInput
               id="p63-start-date"
               className="date-input"
-              type="date"
               value={startDate}
               onChange={(event) => {
                 setStartDate(event.target.value);
@@ -228,10 +228,9 @@ export default function ConstrainedPeriodGeneratorPanel({
           </label>
           <label className="select-field generator-date-field" htmlFor="p63-end-date">
             <span>Data final (inclusive)</span>
-            <input
+            <CalendarDateInput
               id="p63-end-date"
               className="date-input"
-              type="date"
               value={endDate}
               onChange={(event) => {
                 setEndDate(event.target.value);
