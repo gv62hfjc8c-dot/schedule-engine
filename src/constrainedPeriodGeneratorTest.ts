@@ -463,3 +463,22 @@ assert(fiveResult.status === "generated" &&
 
 const totalOptimized = sixResult.assignments.reduce((acc, item) => { const t = (v: string) => Number(v.slice(0,2))*60+Number(v.slice(3,5)); return acc+t(item.interval.end)-t(item.interval.start)-(item.mealBreak?t(item.mealBreak.end)-t(item.mealBreak.start):0); },0);
 assert(totalOptimized > 3000 && totalOptimized <= 4800, "Otimização semanal melhora cobertura mínima sem exceder máximo.");
+
+
+// PR #26: a missing Saturday shift fills the second person's final five hours.
+const saturdayExtra = sixResult.assignments.find(s =>
+  s.date === sat && s.personId === "b");
+assert(saturdayExtra !== undefined,
+  "O segundo colaborador deve receber um turno adicional no sábado.");
+const weeklyFor = (personId: string) => sixResult.assignments
+  .filter(s => s.personId === personId)
+  .reduce((sum, s) => {
+    const minutes = (clock: string) =>
+      Number(clock.slice(0, 2))*60 + Number(clock.slice(3,5));
+    return sum + minutes(s.interval.end) - minutes(s.interval.start) -
+      (s.mealBreak ? minutes(s.mealBreak.end) -
+        minutes(s.mealBreak.start) : 0);
+  }, 0);
+assert(weeklyFor("a") === 2400 && weeklyFor("b") === 2400,
+  "Ambos os colaboradores devem atingir 40h sem violar hard constraints.");
+independentlyValidate(sixScenario, sixResult.assignments);
