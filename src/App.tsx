@@ -749,10 +749,7 @@ export default function App() {
         </div>
 
         <div className="header-statuses">
-          <div className="status-badge">
-            <span className="status-dot" />
-            Fundação V0
-          </div>
+          
 
           <div
             className={`save-status ${persistenceStatus}`}
@@ -767,63 +764,38 @@ export default function App() {
         </div>
       </header>
 
-      <nav className="workspace-tabs" aria-label="Áreas de configuração">
-        <button
-          type="button"
-          className={`workspace-tab ${activeSection === "calendar" ? "active" : ""}`}
-          onClick={() => setActiveSection("calendar")}
-          aria-current={activeSection === "calendar" ? "page" : undefined}
-        >
-          <span>Calendário operacional</span>
-        </button>
-
-        <button
-          type="button"
-          className={`workspace-tab ${activeSection === "people" ? "active" : ""}`}
-          onClick={() => setActiveSection("people")}
-          aria-current={activeSection === "people" ? "page" : undefined}
-        >
-          <span>Pessoas</span>
-        </button>
-
-        <button
-          type="button"
-          className={`workspace-tab ${activeSection === "availability" ? "active" : ""}`}
-          onClick={() => setActiveSection("availability")}
-          aria-current={
-            activeSection === "availability" ? "page" : undefined
-          }
-        >
-          <span>Disponibilidade</span>
-        </button>
-
-        <button
-          type="button"
-          className={`workspace-tab ${activeSection === "workRules" ? "active" : ""}`}
-          onClick={() => setActiveSection("workRules")}
-          aria-current={
-            activeSection === "workRules" ? "page" : undefined
-          }
-        >
-          <span>Regras de trabalho</span>
-        </button>
-        <button
-          type="button"
-          className={`workspace-tab ${activeSection === "presence" ? "active" : ""}`}
-          onClick={() => setActiveSection("presence")}
-          aria-current={activeSection === "presence" ? "page" : undefined}
-        >
-          <span>Presença mínima</span>
-        </button>
-        <button
-          type="button"
-          className={`workspace-tab ${activeSection === "generator" ? "active" : ""}`}
-          onClick={() => setActiveSection("generator")}
-          aria-current={activeSection === "generator" ? "page" : undefined}
-        >
-          <span>Gerar horário</span>
-        </button>
+      <nav className="workspace-tabs" aria-label="Áreas principais">
+        {([
+          {id:"operation",label:"Operação",sections:["calendar","presence"]},
+          {id:"team",label:"Equipa",sections:["people","availability"]},
+          {id:"rules",label:"Regras",sections:["workRules"]},
+          {id:"schedules",label:"Horários",sections:["generator"]},
+        ] as const).map(group => (
+          <button key={group.id} type="button"
+            className={`workspace-tab ${(group.sections as readonly string[]).includes(activeSection) ? "active" : ""}`}
+            aria-current={(group.sections as readonly string[]).includes(activeSection) ? "page" : undefined}
+            onClick={() => setActiveSection(group.sections[0])}>
+            <span>{group.label}</span>
+          </button>
+        ))}
       </nav>
+      {(["calendar","presence","people","availability"] as const).includes(
+        activeSection as "calendar" | "presence" | "people" | "availability"
+      ) && (
+        <nav className="workspace-subtabs" aria-label="Secções da área">
+          {(activeSection === "calendar" || activeSection === "presence"
+            ? [{id:"calendar",label:"Calendário operacional"},{id:"presence",label:"Presença mínima"}]
+            : [{id:"people",label:"Pessoas"},{id:"availability",label:"Disponibilidades"}]
+          ).map(item => (
+            <button key={item.id} type="button"
+              className={`workspace-subtab ${activeSection===item.id?"active":""}`}
+              aria-current={activeSection===item.id?"page":undefined}
+              onClick={() => setActiveSection(item.id as typeof activeSection)}>
+              {item.label}
+            </button>
+          ))}
+        </nav>
+      )}
 
       {activeSection === "calendar" && (
         <>
@@ -846,7 +818,7 @@ export default function App() {
         <section className="panel schedule-panel">
           <div className="panel-header">
             <div>
-              <p className="section-kicker">Ponto 1</p>
+              
               <h2>Horário de funcionamento</h2>
             </div>
             <p className="panel-help">
@@ -1102,7 +1074,7 @@ export default function App() {
           <section className="panel people-panel">
         <div className="panel-header people-header">
           <div>
-            <p className="section-kicker">Ponto 2</p>
+            
             <h2>Pessoas</h2>
             <p className="people-description">
               Pessoas ativas podem participar em horários futuros.
@@ -1340,7 +1312,7 @@ export default function App() {
                   <section className="panel schedule-panel">
                     <div className="panel-header">
                       <div>
-                        <p className="section-kicker">Ponto 3</p>
+                        
                         <h2>Disponibilidade semanal</h2>
                       </div>
                       <p className="panel-help">
