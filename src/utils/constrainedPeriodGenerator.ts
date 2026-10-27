@@ -307,7 +307,9 @@ function improveWeeklyHours(
   // coverage and the COMPLETE work schedule, including external shifts.
   // Prefer the largest usable effective duration without claiming optimality.
   const dates = Array.from(new Set(base.map(s => s.date))).sort();
-  for (const date of dates) {
+  // Experimental scope: only optimize free days in near-full weekly periods.
+  // Short test periods must not gain incidental extra assignments.
+  for (const date of dates.length >= 5 ? dates : []) {
     if (evaluations >= 12000) break;
     const operation = getOperatingIntervalsForDate(date,
       input.operatingCalendar.weeklyOperatingHours,
