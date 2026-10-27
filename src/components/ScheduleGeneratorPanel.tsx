@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { executeApprovedScheduleCommand, type ApprovedScheduleCommand, type TrustedApprovalPorts } from "../application/executeApprovedScheduleCommand";
 import { createSupabaseApprovedLedgerRepository } from "../persistence/supabaseApprovedLedgerRepository";
 import { WEEKDAYS } from "../utils/operatingCalendar";
 import { createEmptyWeeklyAvailability } from "../utils/availability";
@@ -28,7 +29,7 @@ interface ScheduleGeneratorPanelProps {
 export default function ScheduleGeneratorPanel(
   props: ScheduleGeneratorPanelProps
 ) {
-  const [mode, setMode] = useState<"day" | "period" | "constrained" | "approval" | "storage">(readGeneratorMode);
+  const [mode, setMode] = useState<"day" | "period" | "constrained" | "approval" | "storage" | "trusted">(readGeneratorMode);
 
   return (
     <>
@@ -59,6 +60,7 @@ export default function ScheduleGeneratorPanel(
         </button>
         <button type="button" className={mode === "approval" ? "generator-mode-active" : ""} aria-pressed={mode === "approval"} onClick={() => setMode("approval")}>Laboratório PR #17</button>
         <button type="button" className={mode === "storage" ? "generator-mode-active" : ""} aria-pressed={mode === "storage"} onClick={() => setMode("storage")}>Laboratório PR #18</button>
+        <button type="button" className={mode === "trusted" ? "generator-mode-active" : ""} aria-pressed={mode === "trusted"} onClick={() => setMode("trusted")}>Laboratório PR #19</button>
       </nav>
 
       {mode === "day" ? (
@@ -69,8 +71,10 @@ export default function ScheduleGeneratorPanel(
         <ConstrainedPeriodGeneratorPanel {...props} />
       ) : mode === "approval" ? (
         <ApprovalPlayground />
-      ) : (
+      ) : mode === "storage" ? (
         <StoragePlayground />
+      ) : (
+        <TrustedApprovalPlayground />
       )}
     </>
   );
@@ -338,6 +342,113 @@ function StoragePlayground() {
         <h3>Histórico das operações nesta experiência</h3>
         {history.length ? history.map((entry,i)=><p key={i}>{i+1}. {entry}</p>)
           : <p>Nenhuma operação executada.</p>}
+      </section>
+    </div>
+  );
+}
+
+/**
+ * PR #19 browser learning lab. The REAL application command handler is
+ * invoked with fake server-owned ports; this is NOT a security boundary.
+ * No browser-supplied owner/environment/clock and no external side effects.
+ */
+function TrustedApprovalPlayground() {
+  const seed = () => createApprovedScheduleLedger(
+    {startDate:"2026-10-25",endDate:"2026-11-09"},DEMO_ZONE,true);
+  const server = useRef<ApprovedScheduleLedger>(seed());
+  const [version,setVersion] = useState(0);
+  const [message,setMessage] = useState("Nenhum comando executado.");
+  const [events,setEvents] = useState<string[]>([]);
+  const [busy,setBusy] = useState(false);
+  const active = server.current.records.find(r=>r.status==="approved");
+  const command = async (label:string, draft:ApprovedScheduleCommand, anonymous=false,
+    envFailure=false, conflict=false) => {
+    setBusy(true);
+    let writes=0, environmentReads=0;
+    const ports:TrustedApprovalPorts = {
+      authenticateOwner:async()=>anonymous?null:"test-owner",
+      loadLedger:async(owner)=>{
+        if(owner!=="test-owner")throw Error("Owner inválido");
+        return structuredClone(server.current);
+      },
+      loadEnvironment:async(owner)=>{
+        environmentReads++;
+        if(owner!=="test-owner" || envFailure)throw Error("Configuração indisponível");
+        return demonstrationEnvironment();
+      },
+      now:()=>new Date().toISOString(),
+      commit:async(owner,next,expected)=>{
+        if(owner!=="test-owner")throw Error("Owner inválido");
+        if(conflict || server.current.version!==expected)return "conflict";
+        server.current=structuredClone(next);
+        writes++;
+        return "saved";
+      },
+    };
+    try {
+      const result=await executeApprovedScheduleCommand(draft,ports);
+      const detail=result.ok
+        ? "aprovado; versão "+result.version+"; estado "+result.record.status
+        : "recusado ("+result.code+"): "+result.issues.join(" ");
+      setMessage(label+": "+detail+". Gravações: "+writes+
+        "; leituras de configuração: "+environmentReads+".");
+      setEvents(rows=>[...rows,label+" — "+detail]);
+      setVersion(server.current.version);
+    } finally {setBusy(false);}
+  };
+  const draft = () => demoDraft("trusted-"+(server.current.records.length+1),"a");
+  const approve = (expectedVersion:number, anonymous=false,envFailure=false,conflict=false) =>
+    command("Aprovar horário",{
+      kind:"approve",expectedVersion,draft:draft(),
+    },anonymous,envFailure,conflict);
+  return (
+    <div className="generator-layout period-generator-layout">
+      <section className="panel generator-panel">
+        <div className="panel-header"><div><p className="section-kicker">PR #19 · fronteira de confiança simulada</p>
+          <h2>Comandos de aprovação protegidos</h2></div></div>
+        <p>O comando real do PR #19 corre neste laboratório com serviços de
+          autenticação, leitura e gravação fictícios. Não é um servidor seguro,
+          não comunica com Supabase e não altera dados reais.</p>
+        <p><strong>1. Tentar aprovar sem autenticação</strong></p>
+        <button type="button" disabled={busy} onClick={()=>approve(version,true)}>
+          Testar sessão não autenticada
+        </button>
+        <p><strong>2. Testar uma versão já desatualizada</strong></p>
+        <button type="button" disabled={busy} onClick={()=>approve(Math.max(-1,version-1))}>
+          Testar versão incorreta
+        </button>
+        <p><strong>3. Validar um comando de aprovação</strong></p>
+        <button type="button" disabled={busy} onClick={()=>approve(version)}>
+          Aprovar com identidade e contexto válidos
+        </button>
+        <p><strong>4. Impedir aprovação quando o servidor falha</strong></p>
+        <button type="button" disabled={busy} onClick={()=>approve(version,false,true)}>
+          Simular configuração indisponível
+        </button>
+        <button type="button" disabled={busy} onClick={()=>approve(version,false,false,true)}>
+          Simular conflito na gravação
+        </button>
+        <p><strong>5. Cancelar sem consultar configurações operacionais</strong></p>
+        <button type="button" disabled={busy||!active}
+          onClick={()=>active&&command("Cancelar horário",{
+            kind:"cancel",expectedVersion:version,scheduleId:active.id,
+          },false,true)}>
+          Cancelar aprovação ativa
+        </button>
+        <p><button type="button" disabled={busy} onClick={()=>{
+          server.current=seed();setVersion(0);setMessage("Laboratório reiniciado.");setEvents([]);
+        }}>Reiniciar laboratório</button></p>
+      </section>
+      <section className="panel generator-results" aria-live="polite">
+        <div className="panel-header"><div><p className="section-kicker">Contrato de comando</p>
+          <h2>Resultado no servidor fictício</h2></div></div>
+        <p role="status"><strong>{message}</strong></p>
+        <p>Versão do ledger: <strong>{version}</strong></p>
+        <p>Horário ativo: <strong>{active?.id??"Nenhum"}</strong></p>
+        <p>Registos preservados: <strong>{server.current.records.length}</strong></p>
+        <h3>Operações executadas</h3>
+        {events.length?events.map((entry,i)=><p key={i}>{i+1}. {entry}</p>):
+          <p>Sem operações.</p>}
       </section>
     </div>
   );
