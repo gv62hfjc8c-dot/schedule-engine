@@ -463,3 +463,44 @@ assert(fiveResult.status === "generated" &&
 
 const totalOptimized = sixResult.assignments.reduce((acc, item) => { const t = (v: string) => Number(v.slice(0,2))*60+Number(v.slice(3,5)); return acc+t(item.interval.end)-t(item.interval.start)-(item.mealBreak?t(item.mealBreak.end)-t(item.mealBreak.start):0); },0);
 assert(totalOptimized > 3000 && totalOptimized <= 4800, "Otimização semanal melhora cobertura mínima sem exceder máximo.");
+
+
+// PR #26: a missing Saturday shift fills the second person's final five hours.
+const saturdayExtra = sixResult.assignments.find(s =>
+  s.date === sat && s.personId === "b");
+assert(saturdayExtra !== undefined,
+  "O segundo colaborador deve receber um turno adicional no sábado.");
+const weeklyFor = (personId: string) => sixResult.assignments
+  .filter(s => s.personId === personId)
+  .reduce((sum, s) => {
+    const minutes = (clock: string) =>
+      Number(clock.slice(0, 2))*60 + Number(clock.slice(3,5));
+    return sum + minutes(s.interval.end) - minutes(s.interval.start) -
+      (s.mealBreak ? minutes(s.mealBreak.end) -
+        minutes(s.mealBreak.start) : 0);
+  }, 0);
+assert(weeklyFor("a") === 2400 && weeklyFor("b") === 2340,
+  "Sábado com quatro horas só permite completar 39h à segunda pessoa neste teste.");
+const saturdayFive = structuredClone(sixScenario);
+saturdayFive.operatingCalendar.exceptions.find(e => e.date === sat)!.intervals =
+  interval("09:00", "14:00");
+for (const availability of saturdayFive.availabilities) {
+  availability.exceptions.find(e => e.date === sat)!.intervals =
+    interval("09:00", "14:00");
+}
+const fiveHourSaturday = generateConstrainedPeriodSchedule({
+  ...saturdayFive, maxSearchNodes: 5000,
+});
+assert(fiveHourSaturday.status === "generated",
+  "Seis dias com sábado de cinco horas devem continuar a gerar solução.");
+const totalByPerson = (id: string) => fiveHourSaturday.assignments
+  .filter(s => s.personId === id)
+  .reduce((n,s) => {
+    const m = (v: string) => Number(v.slice(0,2))*60 + Number(v.slice(3));
+    return n + m(s.interval.end)-m(s.interval.start) -
+      (s.mealBreak ? m(s.mealBreak.end)-m(s.mealBreak.start) : 0);
+  },0);
+assert(totalByPerson("a") === 2400 && totalByPerson("b") === 2400,
+  `Sábado 09–14 deve atingir 40h/40h: a=${totalByPerson("a")} b=${totalByPerson("b")}`);
+independentlyValidate(saturdayFive, fiveHourSaturday.assignments);
+independentlyValidate(sixScenario, sixResult.assignments);
