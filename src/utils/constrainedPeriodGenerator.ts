@@ -307,15 +307,16 @@ function improveWeeklyHours(
   // coverage and the COMPLETE work schedule, including external shifts.
   // Prefer the largest usable effective duration without claiming optimality.
   const dates = Array.from(new Set(base.map(s => s.date))).sort();
+  let extraEvaluations = 0;
   // Experimental scope: only optimize free days in near-full weekly periods.
   // Short test periods must not gain incidental extra assignments.
   for (const date of dates.length >= 5 ? dates : []) {
-    if (evaluations >= 12000) break;
+    if (extraEvaluations >= 2000) break;
     const operation = getOperatingIntervalsForDate(date,
       input.operatingCalendar.weeklyOperatingHours,
       input.operatingCalendar.exceptions);
     for (const person of input.people.filter(p => p.active)) {
-      if (evaluations >= 12000) break;
+      if (extraEvaluations >= 2000) break;
       if (schedule.some(s => s.date === date && s.personId === person.id)) continue;
       // Start with trailing free days: avoid destabilizing already validated
       // inter-day arrangements through speculative earlier extra shifts.
@@ -331,7 +332,7 @@ function improveWeeklyHours(
       if (remaining < 15) continue;
       let added = false;
       for (const period of operation) {
-        if (added || evaluations >= 12000) break;
+        if (added || extraEvaluations >= 2000) break;
         const open = mins(period.start);
         const close = mins(period.end);
         const maxEffective = Math.min(remaining, close - open);
@@ -349,7 +350,7 @@ function improveWeeklyHours(
                   (_, i) => meal.earliestStartAfterWorkMinutes + 15*i)
               : [0];
             for (const offset of mealOffsets) {
-              if (++evaluations > 12000) break;
+              if (++extraEvaluations > 2000) break;
               const candidate: DatedWorkShift = {
                 date, personId: person.id,
                 interval: {start: time(start), end: time(start + span)},
