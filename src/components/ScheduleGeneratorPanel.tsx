@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { createSupabaseApprovedLedgerRepository } from "../persistence/supabaseApprovedLedgerRepository";
 import { WEEKDAYS } from "../utils/operatingCalendar";
 import { createEmptyWeeklyAvailability } from "../utils/availability";
 import { createEmptyWeeklyPresenceRequirements } from "../utils/presence";
@@ -27,7 +28,7 @@ interface ScheduleGeneratorPanelProps {
 export default function ScheduleGeneratorPanel(
   props: ScheduleGeneratorPanelProps
 ) {
-  const [mode, setMode] = useState<"day" | "period" | "constrained" | "approval">(readGeneratorMode);
+  const [mode, setMode] = useState<"day" | "period" | "constrained" | "approval" | "storage">(readGeneratorMode);
 
   return (
     <>
@@ -57,6 +58,7 @@ export default function ScheduleGeneratorPanel(
           Vários dias · regras P6.3
         </button>
         <button type="button" className={mode === "approval" ? "generator-mode-active" : ""} aria-pressed={mode === "approval"} onClick={() => setMode("approval")}>Laboratório PR #17</button>
+        <button type="button" className={mode === "storage" ? "generator-mode-active" : ""} aria-pressed={mode === "storage"} onClick={() => setMode("storage")}>Laboratório PR #18</button>
       </nav>
 
       {mode === "day" ? (
@@ -65,8 +67,10 @@ export default function ScheduleGeneratorPanel(
         <PeriodGeneratorPanel {...props} />
       ) : mode === "constrained" ? (
         <ConstrainedPeriodGeneratorPanel {...props} />
-      ) : (
+      ) : mode === "approval" ? (
         <ApprovalPlayground />
+      ) : (
+        <StoragePlayground />
       )}
     </>
   );
@@ -204,6 +208,136 @@ function ApprovalPlayground() {
               aprovado em {record.approvedAt} · substitui {record.replacesId ?? "—"}</p>
           )) : <p>Ainda não existem registos.</p>}
         </div>
+      </section>
+    </div>
+  );
+}
+
+/**
+ * PR #18 browser contract lab: the REAL approved-ledger repository adapter
+ * talks to a deterministic fake Supabase REST/RPC service in memory.
+ * No network, credentials, configured people or Supabase writes.
+ */
+function StoragePlayground() {
+  const remote = useRef<ApprovedScheduleLedger | null>(null);
+  const [tabA,setTabA] = useState<ApprovedScheduleLedger | null>(null);
+  const [tabB,setTabB] = useState<ApprovedScheduleLedger | null>(null);
+  const [message,setMessage] = useState("Servidor simulado sem qualquer registo. Começa por consultar.");
+  const [history,setHistory] = useState<string[]>([]);
+  const [busy,setBusy] = useState(false);
+  const user = {id:"11111111-1111-4111-8111-111111111111",email:"lab@example.test"};
+  const fakeClient = {
+    user,
+    async request(path:string, init?:RequestInit):Promise<Response> {
+      if (path.startsWith("/rest/v1/schedule_engine_approved_ledgers") && !init) {
+        return Response.json(remote.current
+          ? [{ledger_version:remote.current.version,payload:structuredClone(remote.current)}]
+          : []);
+      }
+      if (path === "/rest/v1/rpc/save_schedule_engine_approved_ledger" &&
+          init?.method === "POST") {
+        const args = JSON.parse(String(init.body)) as {
+          p_expected_version:number;p_payload:ApprovedScheduleLedger;
+          p_attest_complete:boolean;
+        };
+        const old = remote.current;
+        if (!old) {
+          if (args.p_expected_version !== -1 || args.p_payload.version !== 0 ||
+            args.p_payload.complete || args.p_payload.records.length) {
+            return Response.json({code:"40001",message:"Inicialização inválida."},{status:409});
+          }
+        } else {
+          if (args.p_expected_version !== old.version ||
+            args.p_payload.version !== old.version+1)
+            return Response.json({code:"40001",message:"Conflito de versão: a leitura está desatualizada."},{status:409});
+          if (JSON.stringify(args.p_payload.coverage)!==JSON.stringify(old.coverage) ||
+            args.p_payload.timeZone!==old.timeZone)
+            return Response.json({code:"22023",message:"Escopo não pode mudar."},{status:400});
+          if (!old.complete && args.p_payload.complete && !args.p_attest_complete)
+            return Response.json({code:"22023",message:"É necessária confirmação explícita."},{status:400});
+        }
+        remote.current=structuredClone(args.p_payload);
+        return Response.json(remote.current.version);
+      }
+      return Response.json({message:"Rota desconhecida."},{status:404});
+    },
+  };
+  const adapter = () => createSupabaseApprovedLedgerRepository(fakeClient);
+  const run = async (label:string, action:()=>Promise<void>) => {
+    setBusy(true);
+    try {
+      await action();
+      setMessage(label + ": concluído.");
+      setHistory(h=>[...h,label+" — sucesso"]);
+    } catch(e) {
+      const detail=e instanceof Error?e.message:String(e);
+      setMessage(label+": recusado. "+detail);
+      setHistory(h=>[...h,label+" — recusado: "+detail]);
+    } finally {setBusy(false);}
+  };
+  const initial = () => createApprovedScheduleLedger(
+    {startDate:"2026-10-25",endDate:"2026-11-09"},
+    "Atlantic/Azores",false);
+  const readA = () => run("Ler na aba A",async()=>{
+    const value=await adapter().load();setTabA(value);
+    if (!value) throw new Error("Registo desconhecido: ainda não existe.");
+  });
+  const initialize = () => run("Inicializar registo",async()=>{
+    const value=initial();await adapter().save(value,null);setTabA(value);
+  });
+  const attest = () => run("Confirmar contexto",async()=>{
+    if (!tabA) throw new Error("Consulta ou inicialização necessária.");
+    const next={...tabA,version:tabA.version+1,complete:true};
+    await adapter().save(next,tabA.version,{attestComplete:true});setTabA(next);
+  });
+  const increment = () => run("Guardar nova versão",async()=>{
+    if (!tabA) throw new Error("Ainda não há registo na aba A.");
+    const next={...tabA,version:tabA.version+1};
+    await adapter().save(next,tabA.version);setTabA(next);
+  });
+  const status = (value:ApprovedScheduleLedger|null) =>
+    value ? "versão "+value.version+" · contexto "+(value.complete?"confirmado":"não confirmado")
+      : "sem registo carregado";
+  return (
+    <div className="generator-layout period-generator-layout">
+      <section className="panel generator-panel">
+        <div className="panel-header"><div><p className="section-kicker">PR #18 · persistência isolada</p>
+          <h2>Laboratório do repositório de horários</h2></div></div>
+        <p>Esta experiência utiliza o adaptador real do PR #18 com um serviço Supabase
+          simulado em memória. Não usa rede, não grava dados reais e reinicia ao atualizar a página.</p>
+        <p><strong>1. Consultar antes de existir qualquer registo</strong></p>
+        <button type="button" disabled={busy} onClick={readA}>Ler na aba A</button>
+        <p><strong>2. Inicializar, sem assumir ausência confirmada de turnos</strong></p>
+        <button type="button" disabled={busy} onClick={initialize}>Inicializar registo vazio</button>
+        <p><strong>3. Confirmar expressamente o contexto conhecido</strong></p>
+        <button type="button" disabled={busy} onClick={attest}>Confirmar contexto completo</button>
+        <p><strong>4. Simular uma segunda aba e uma alteração concorrente</strong></p>
+        <button type="button" disabled={busy} onClick={()=>run("Ler na aba B",async()=>{
+          setTabB(await adapter().load());
+        })}>Ler na aba B</button>
+        <button type="button" disabled={busy} onClick={increment}>Guardar nova versão na aba A</button>
+        <button type="button" disabled={busy} onClick={()=>run("Gravar pela aba B",async()=>{
+          if (!tabB) throw new Error("Lê primeiro na aba B.");
+          const next={...tabB,version:tabB.version+1};
+          await adapter().save(next,tabB.version);setTabB(next);
+        })}>Tentar gravar versão antiga na aba B</button>
+        <p><button type="button" disabled={busy} onClick={()=>{
+          remote.current=null;setTabA(null);setTabB(null);
+          setMessage("Laboratório reiniciado.");setHistory([]);
+        }}>Reiniciar laboratório</button></p>
+      </section>
+      <section className="panel generator-results" aria-live="polite">
+        <div className="panel-header"><div><p className="section-kicker">Estado das leituras</p>
+          <h2>Servidor e duas abas</h2></div></div>
+        <p role="status"><strong>{message}</strong></p>
+        <p><strong>Servidor:</strong> {status(remote.current)}</p>
+        <p><strong>Aba A:</strong> {status(tabA)}</p>
+        <p><strong>Aba B:</strong> {status(tabB)}</p>
+        <p>Os registos são sempre cópias isoladas. Uma gravação com versão antiga
+          deve receber conflito e não alterar o servidor.</p>
+        <h3>Histórico das operações nesta experiência</h3>
+        {history.length ? history.map((entry,i)=><p key={i}>{i+1}. {entry}</p>)
+          : <p>Nenhuma operação executada.</p>}
       </section>
     </div>
   );
