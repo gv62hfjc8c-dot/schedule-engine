@@ -480,5 +480,5 @@ const weeklyFor = (personId: string) => sixResult.assignments
         minutes(s.mealBreak.start) : 0);
   }, 0);
 assert(weeklyFor("a") === 2400 && weeklyFor("b") === 2400,
-  "Ambos os colaboradores devem atingir 40h sem violar hard constraints.");
+  `Objetivos semanais: a=${weeklyFor("a")} b=${weeklyFor("b")}; sabado=${JSON.stringify(sixResult.assignments.filter(s=>s.date===sat))}`);
 independentlyValidate(sixScenario, sixResult.assignments);
