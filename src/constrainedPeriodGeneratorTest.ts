@@ -504,3 +504,17 @@ assert(totalByPerson("a") === 2400 && totalByPerson("b") === 2400,
   `Sábado 09–14 deve atingir 40h/40h: a=${totalByPerson("a")} b=${totalByPerson("b")}`);
 independentlyValidate(saturdayFive, fiveHourSaturday.assignments);
 independentlyValidate(sixScenario, sixResult.assignments);
+
+const pr27Weekdays = fiveHourSaturday.assignments.filter(s =>
+  s.personId === "a" && s.date < "2026-10-31");
+const effectiveMinutes = (s: DatedWorkShift) => {
+  const m = (x: string) => Number(x.slice(0,2))*60+Number(x.slice(3,5));
+  return m(s.interval.end)-m(s.interval.start) -
+    (s.mealBreak ? m(s.mealBreak.end)-m(s.mealBreak.start) : 0);
+};
+assert(pr27Weekdays.length === 5 &&
+  pr27Weekdays.every(s => effectiveMinutes(s) === 420 &&
+    s.interval.start === "09:00" && s.interval.end === "17:00"),
+  "PR27: Anabela deve ter 7h efetivas regulares de segunda a sexta.");
+assert(totalByPerson("a") === 2400 && totalByPerson("b") === 2400,
+  "PR27 preserva 40h por pessoa após regularização.");
