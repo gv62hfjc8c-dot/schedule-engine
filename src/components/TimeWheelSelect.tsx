@@ -6,40 +6,85 @@ interface TimeWheelSelectProps {
   children: ReactNode;
   disabled?: boolean;
 }
+
 export default function TimeWheelSelect({ value, onChange, children, disabled }: TimeWheelSelectProps) {
-  const options = Children.toArray(children).flatMap(child => {
-    // Existing option maps arrive as child elements; preserve supplied valid times.
-    return isValidElement<{ value?: string; children?: ReactNode }>(child) && typeof child.props.value === "string"
-      ? [child.props.value] : [];
-  });
+  // The availability and operating-hours rules supply the allowed combinations.
+  const options = Children.toArray(children).flatMap(child =>
+    isValidElement<{ value?: string }>(child) && typeof child.props.value === "string"
+      ? [child.props.value] : []
+  );
+  const hours = [...new Set(options.map(time => time.slice(0, 2)))];
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  const selected = options.indexOf(value);
+  const [draftHour, setDraftHour] = useState(value.slice(0, 2));
+  const [draftMinute, setDraftMinute] = useState(value.slice(3, 5));
+  const hourList = useRef<HTMLDivElement>(null);
+  const minuteList = useRef<HTMLDivElement>(null);
+
+  const minutes = [...new Set(options.filter(time => time.startsWith(draftHour + ":")).map(time => time.slice(3, 5)))];
+  const candidate = draftHour + ":" + draftMinute;
+  const valid = options.includes(candidate);
+
+  function start() {
+    setDraftHour(value.slice(0, 2));
+    setDraftMinute(value.slice(3, 5));
+    setOpen(true);
+  }
+  function selectHour(hour: string) {
+    setDraftHour(hour);
+    const available = options.filter(time => time.startsWith(hour + ":")).map(time => time.slice(3, 5));
+    if (!available.includes(draftMinute)) setDraftMinute(available[0] ?? "00");
+  }
+  function confirm() {
+    if (!valid) return;
+    if (candidate !== value) onChange({ target: { value: candidate } });
+    setOpen(false);
+  }
   useEffect(() => {
     if (!open) return;
-    ref.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({block:"center"});
-  }, [open, value]);
-  function pick(next: string) { onChange({target:{value:next}}); setOpen(false); }
-  function move(direction: number) {
-    if (!options.length) return;
-    pick(options[Math.max(0, Math.min(options.length - 1, selected + direction))]);
-  }
+    hourList.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: "center" });
+    minuteList.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: "center" });
+  }, [open, draftHour, draftMinute]);
+
   return <div className="time-wheel-field">
     <button type="button" disabled={disabled} className="time-wheel-trigger"
-      aria-label={"Hora: " + value} aria-haspopup="listbox" aria-expanded={open}
-      onClick={() => setOpen(!open)}
-      onKeyDown={event => { if (event.key === "ArrowDown") {event.preventDefault();move(1);} if(event.key === "ArrowUp"){event.preventDefault();move(-1);} }}>
+      aria-label={"Hora: " + value} aria-haspopup="dialog" aria-expanded={open}
+      onClick={() => open ? setOpen(false) : start()}>
       <span>{value}</span><span aria-hidden="true" className="time-wheel-chevrons">⌃<br/>⌄</span>
     </button>
-    {open && <><button type="button" aria-label="Fechar seleção de hora" className="picker-backdrop" onClick={() => setOpen(false)}/>
-      <div className="time-wheel-popover" role="dialog" aria-label="Escolher hora">
-        <div className="picker-heading"><strong>Escolher hora</strong><button type="button" onClick={() => setOpen(false)}>Concluído</button></div>
-        <div className="time-wheel-list" role="listbox" ref={ref} aria-label="Horas disponíveis">
-          <div className="time-wheel-spacer" aria-hidden="true"/>
-          {options.map(time => <button key={time} role="option" aria-selected={time===value} type="button"
-            className={"time-wheel-option"+(time===value?" selected":"")} onClick={()=>pick(time)}>{time}</button>)}
-          <div className="time-wheel-spacer" aria-hidden="true"/>
+    {open && <>
+      <button type="button" aria-label="Cancelar seleção de hora" className="picker-backdrop" onClick={() => setOpen(false)}/>
+      <div className="time-wheel-popover time-wheel-dual" role="dialog" aria-label="Selecionar horas e minutos"
+        onKeyDown={event => { if (event.key === "Escape") setOpen(false); }}>
+        <div className="picker-heading">
+          <strong>Selecionar hora</strong>
+          <button type="button" disabled={!valid} onClick={confirm}>Concluído</button>
         </div>
-      </div></>}
+        <div className="time-wheel-columns">
+          <div className="time-wheel-column">
+            <span className="time-wheel-caption">Horas</span>
+            <div className="time-wheel-list" role="listbox" aria-label="Horas" ref={hourList}>
+              <div className="time-wheel-spacer" aria-hidden="true"/>
+              {hours.map(hour => <button key={hour} type="button" role="option"
+                aria-selected={hour === draftHour}
+                className={"time-wheel-option" + (hour === draftHour ? " selected" : "")}
+                onClick={() => selectHour(hour)}>{hour}</button>)}
+              <div className="time-wheel-spacer" aria-hidden="true"/>
+            </div>
+          </div>
+          <span className="time-wheel-separator" aria-hidden="true">:</span>
+          <div className="time-wheel-column">
+            <span className="time-wheel-caption">Minutos</span>
+            <div className="time-wheel-list" role="listbox" aria-label="Minutos" ref={minuteList}>
+              <div className="time-wheel-spacer" aria-hidden="true"/>
+              {minutes.map(minute => <button key={minute} type="button" role="option"
+                aria-selected={minute === draftMinute}
+                className={"time-wheel-option" + (minute === draftMinute ? " selected" : "")}
+                onClick={() => setDraftMinute(minute)}>{minute}</button>)}
+              <div className="time-wheel-spacer" aria-hidden="true"/>
+            </div>
+          </div>
+        </div>
+      </div>
+    </>}
   </div>;
 }
