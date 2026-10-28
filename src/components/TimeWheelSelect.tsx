@@ -36,8 +36,8 @@ export default function TimeWheelSelect({ value, onChange, children, disabled }:
   }
   function confirm() {
     if (!valid) return;
-    if (candidate !== value) onChange({ target: { value: candidate } });
     setOpen(false);
+    if (candidate !== value) onChange({ target: { value: candidate } });
   }
   useEffect(() => {
     if (!open) return;
@@ -48,16 +48,16 @@ export default function TimeWheelSelect({ value, onChange, children, disabled }:
   return <div className="time-wheel-field">
     <button type="button" disabled={disabled} className="time-wheel-trigger"
       aria-label={"Hora: " + value} aria-haspopup="dialog" aria-expanded={open}
-      onClick={() => open ? setOpen(false) : start()}>
+      onClick={(event) => { event.stopPropagation(); open ? setOpen(false) : start(); }}>
       <span>{value}</span><span aria-hidden="true" className="time-wheel-chevrons">⌃<br/>⌄</span>
     </button>
     {open && <>
-      <button type="button" aria-label="Cancelar seleção de hora" className="picker-backdrop" onClick={() => setOpen(false)}/>
+      <button type="button" aria-label="Cancelar seleção de hora" className="picker-backdrop" onClick={(event) => { event.stopPropagation(); setOpen(false); }}/>
       <div className="time-wheel-popover time-wheel-dual" role="dialog" aria-label="Selecionar horas e minutos"
         onKeyDown={event => { if (event.key === "Escape") setOpen(false); }}>
         <div className="picker-heading">
           <strong>Selecionar hora</strong>
-          <button type="button" disabled={!valid} onClick={confirm}>Concluído</button>
+          <button type="button" disabled={!valid} onClick={(event) => { event.stopPropagation(); confirm(); }}>Concluído</button>
         </div>
         <div className="time-wheel-columns">
           <div className="time-wheel-column">

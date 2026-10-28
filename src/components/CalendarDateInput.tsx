@@ -21,14 +21,14 @@ export default function CalendarDateInput({value,onChange,id,className, "aria-la
   const offset = (first.getUTCDay()+6)%7;
   const last = new Date(Date.UTC(year,monthIndex,0)).getUTCDate();
   function shift(delta:number) {const d=new Date(Date.UTC(year,monthIndex-1+delta,1));setMonth(d.toISOString().slice(0,7));}
-  function choose(day:number) {onChange({target:{value:month+"-"+String(day).padStart(2,"0")}});setOpen(false);}
+  function choose(day:number) {setOpen(false);onChange({target:{value:month+"-"+String(day).padStart(2,"0")}});}
   return <div className="custom-date-field">
     <button id={id} className={"custom-date-trigger "+(className||"")} type="button"
-      aria-label={ariaLabel||"Escolher data"} aria-expanded={open} aria-haspopup="dialog" onClick={()=>setOpen(!open)}>
+      aria-label={ariaLabel||"Escolher data"} aria-expanded={open} aria-haspopup="dialog" onClick={(event)=>{event.stopPropagation();setOpen(!open);}}>
       <span>{valid(value)?new Intl.DateTimeFormat("pt-PT",{day:"2-digit",month:"2-digit",year:"numeric",timeZone:"UTC"}).format(new Date(value+"T12:00:00Z")):"Selecionar data"}</span>
       <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg>
     </button>
-    {open && <><button type="button" className="picker-backdrop" aria-label="Fechar calendário" onClick={()=>setOpen(false)}/>
+    {open && <><button type="button" className="picker-backdrop" aria-label="Fechar calendário" onClick={(event)=>{event.stopPropagation();setOpen(false);}}/>
       <div className="custom-calendar-popover" role="dialog" aria-label="Calendário" ref={dialog}
         onKeyDown={e=>{if(e.key==="Escape")setOpen(false);}}>
         <div className="calendar-toolbar">
@@ -44,7 +44,8 @@ export default function CalendarDateInput({value,onChange,id,className, "aria-la
             className={value===month+"-"+String(day).padStart(2,"0")?"calendar-selected":""}
             onClick={()=>choose(day)}>{day}</button>)}
         </div>
-        <button type="button" className="calendar-today" onClick={()=>{const now=new Date();const local=new Date(now.getTime()-now.getTimezoneOffset()*60000);const date=local.toISOString().slice(0,10);onChange({target:{value:date}});setOpen(false);}}>Hoje</button>
+        <div className="calendar-footer"><button type="button" className="calendar-close" onClick={(event)=>{event.stopPropagation();setOpen(false);}}>Concluído</button></div>
+        <button type="button" className="calendar-today" onClick={()=>{setOpen(false);const now=new Date();const local=new Date(now.getTime()-now.getTimezoneOffset()*60000);const date=local.toISOString().slice(0,10);onChange({target:{value:date}});}}>Hoje</button>
       </div></>}
   </div>;
 }
