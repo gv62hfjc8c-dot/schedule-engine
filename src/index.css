@@ -2129,3 +2129,13 @@ h2 {
   .time-wheel-caption {color:#b7c7db;}
   .time-wheel-separator {color:#f0f5fc;}
 }
+
+/* Explicit calendar dismissal, matching the time picker confirmation. */
+.calendar-footer { display:flex;justify-content:flex-end;margin-top:12px;border-top:1px solid #e3e9f0;padding-top:10px; }
+.calendar-close {border:0;border-radius:8px;background:#314d70;color:#fff;padding:8px 14px;font-size:12px;font-weight:800;}
+.calendar-close:hover {background:#42658f;}
+@media (prefers-color-scheme:dark) {
+  .calendar-footer {border-color:#43556b;}
+  .calendar-close {background:#597da9;color:#fff;}
+  .calendar-close:hover {background:#6a91be;}
+}
