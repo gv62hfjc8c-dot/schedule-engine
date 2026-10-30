@@ -118,6 +118,7 @@ export default function ConstrainedPeriodGeneratorPanel({
     // An edited roster/configuration requires a fresh, explicit declaration.
     setConfirmed(false);
     setSnapshot(null);
+    setWorkspaceView("settings");
   }, [people, availabilities, operatingCalendar, workRules, presence]);
 
   const context = prepareExplicitEmptyContext({
@@ -142,6 +143,7 @@ export default function ConstrainedPeriodGeneratorPanel({
   const stale = snapshot !== null && !sameInputs;
 
   function resetScenario() {
+    setWorkspaceView("settings");
     setConfirmed(false);
     setSnapshot(null);
     setError(null);
