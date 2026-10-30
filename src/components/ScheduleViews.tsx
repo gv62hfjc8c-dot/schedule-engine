@@ -89,8 +89,9 @@ export default function ScheduleViews({ assignments, people, startDate, endDate 
       {dateShifts(cursor).map((shift, index) => <div className="schedule-day-shift" key={shift.personId + "-" + index}>
         <div><strong>{getName(shift.personId)}</strong><span>{shift.mealBreak ? "Refeição " + shift.mealBreak.start + "–" + shift.mealBreak.end : "Sem pausa obrigatória"}</span></div>
         <strong>{shiftLabel(shift)}</strong>
-        <div className="schedule-shift-bar" aria-hidden="true">
-          <span style={{ left: Math.max(0, timeMinutes(shift.interval.start) / 1440 * 100) + "%", width: Math.max(1, (timeMinutes(shift.interval.end) - timeMinutes(shift.interval.start)) / 1440 * 100) + "%" }} />
+        <div className="schedule-shift-bar" role="img" aria-label={"Turno " + shiftLabel(shift) + (shift.mealBreak ? ", pausa " + mealLabel(shift) : "")}>
+          <span className="schedule-shift-work" style={{ left: Math.max(0, timeMinutes(shift.interval.start) / 1440 * 100) + "%", width: Math.max(1, (timeMinutes(shift.interval.end) - timeMinutes(shift.interval.start)) / 1440 * 100) + "%" }} />
+          {shift.mealBreak && <span className="schedule-shift-meal" style={{ left: timeMinutes(shift.mealBreak.start) / 1440 * 100 + "%", width: (timeMinutes(shift.mealBreak.end) - timeMinutes(shift.mealBreak.start)) / 1440 * 100 + "%" }} />}
         </div>
       </div>)}
     </div>}
