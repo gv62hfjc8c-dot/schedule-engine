@@ -106,6 +106,7 @@ export default function ConstrainedPeriodGeneratorPanel({
   workRules,
   presence,
 }: ConstrainedPeriodGeneratorPanelProps) {
+  const [workspaceView, setWorkspaceView] = useState<"settings" | "schedule">("settings");
   const [startDate, setStartDate] = useState(() => readGeneratorDate("constrained:start", todayKey));
   const [endDate, setEndDate] = useState(() => readGeneratorDate("constrained:end", () => addCivilDays(todayKey(), 6)));
   const [timeZone, setTimeZone] = useState("Atlantic/Azores");
@@ -177,6 +178,7 @@ export default function ConstrainedPeriodGeneratorPanel({
         externalContext: prepared.externalContext,
         maxSearchNodes: PREVIEW_MAX_NODES,
       });
+      setWorkspaceView(generated.status === "generated" ? "schedule" : "settings");
       setSnapshot({
         startDate,
         endDate,
@@ -197,7 +199,12 @@ export default function ConstrainedPeriodGeneratorPanel({
   }
 
   return (
-    <div className="generator-layout period-generator-layout">
+    <div className="generator-workspace">
+      <nav className="generator-workspace-tabs" aria-label="Secções de horários">
+        <button type="button" className={workspaceView === "settings" ? "active" : ""} aria-pressed={workspaceView === "settings"} onClick={() => setWorkspaceView("settings")}>Gerar horário</button>
+        <button type="button" className={workspaceView === "schedule" ? "active" : ""} aria-pressed={workspaceView === "schedule"} disabled={result?.status !== "generated"} onClick={() => setWorkspaceView("schedule")}>Visualizar horário</button>
+      </nav>
+      {workspaceView === "settings" && <div className="generator-layout period-generator-layout">
       <section className="panel generator-panel">
         <div className="panel-header">
           <div>
@@ -489,7 +496,8 @@ export default function ConstrainedPeriodGeneratorPanel({
           </div>
         )}
       </section>
-      {result?.status === "generated" && <ScheduleViews assignments={result.assignments} people={people} startDate={startDate} endDate={endDate} />}
+      </div>}
+      {workspaceView === "schedule" && result?.status === "generated" && <ScheduleViews assignments={result.assignments} people={people} startDate={startDate} endDate={endDate} />}
     </div>
   );
 }
