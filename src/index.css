@@ -2257,3 +2257,35 @@ h2 {
   .schedule-week-meal,.schedule-month-meal {color:#c4d7ec;}
   .schedule-shift-bar .schedule-shift-meal {background:#efb563;}
 }
+
+/* PR #39: compact monthly overview with contextual detail panel. */
+.schedule-month-workspace{display:grid;grid-template-columns:minmax(0,1fr) minmax(230px,290px);gap:16px;padding:16px 20px 22px;align-items:start;}
+.schedule-month-main{min-width:0;}
+.schedule-month-filter{display:flex;align-items:center;gap:12px;margin-bottom:12px;}
+.schedule-month-filter label{font-size:12px;font-weight:750;color:#697588;}
+.schedule-month-filter select{width:min(290px,100%);min-height:40px;}
+.schedule-month-workspace .schedule-month-grid{border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;}
+.schedule-month-workspace .schedule-month-cell.schedule-month-compact{min-height:76px;height:76px;padding:9px 6px;justify-content:flex-start;gap:8px;}
+.schedule-month-compact small{display:block;font-size:10px;line-height:1.25;white-space:normal;overflow:hidden;overflow-wrap:anywhere;max-height:30px;}
+.schedule-month-compact.selected-date{outline:2px solid #4979ae;outline-offset:-2px;background:#eaf1fb;}
+.schedule-month-details{min-width:0;border:1px solid #e0e7f0;border-radius:12px;background:#fafbfd;padding:17px;max-height:570px;overflow-y:auto;}
+.schedule-month-details h3{margin:0 0 5px;font-size:16px;line-height:1.35;text-transform:capitalize;}
+.schedule-month-details>p{color:#697588;font-size:12px;}
+.schedule-month-detail-shift{display:grid;gap:5px;border:1px solid #e0e7f0;background:#fff;border-radius:10px;padding:12px;margin-bottom:9px;}
+.schedule-month-detail-shift strong{font-size:13px;}
+.schedule-month-detail-shift span{font-size:14px;font-weight:750;color:#244c77;}
+.schedule-month-detail-shift small,.schedule-month-empty{font-size:11px;color:#718097;line-height:1.5;}
+.schedule-month-open-day{border:0;border-radius:9px;background:#314d70;color:#fff;padding:10px 13px;font-size:12px;font-weight:750;margin-top:7px;}
+.schedule-month-open-day:hover{background:#416994;}
+@media(max-width:850px){.schedule-month-workspace{grid-template-columns:minmax(0,1fr);}.schedule-month-details{max-height:none;}.schedule-month-workspace .schedule-month-cell.schedule-month-compact{height:66px;min-height:66px;}}
+@media(max-width:480px){.schedule-month-workspace{padding:12px;gap:12px;}.schedule-month-filter{align-items:stretch;flex-direction:column;gap:5px;}.schedule-month-filter select{width:100%;}.schedule-month-workspace .schedule-month-cell.schedule-month-compact{height:60px;min-height:60px;padding:5px 2px;gap:3px;}.schedule-month-compact small{font-size:9px;}}
+@media(prefers-color-scheme:dark){
+.schedule-month-filter label,.schedule-month-details>p,.schedule-month-detail-shift small,.schedule-month-empty{color:#b6c5d9;}
+.schedule-month-workspace .schedule-month-grid,.schedule-month-details,.schedule-month-detail-shift{border-color:#41536b;}
+.schedule-month-details{background:#223145;}
+.schedule-month-detail-shift{background:#293a50;}
+.schedule-month-detail-shift span{color:#c1dcff;}
+.schedule-month-compact.selected-date{outline-color:#88b2e7;background:#355174;}
+.schedule-month-open-day{background:#587da9;}
+.schedule-month-open-day:hover{background:#6b92bf;}
+}
