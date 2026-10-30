@@ -37,7 +37,9 @@ function mealLabel(shift: Shift): string { return shift.mealBreak ? shift.mealBr
 export default function ScheduleViews({ assignments, people, startDate, endDate }: Props) {
   const [view, setView] = useState<View>("week");
   const [cursor, setCursor] = useState(startDate);
-  useEffect(() => { setCursor(startDate); setView("week"); }, [startDate, endDate, assignments]);
+  const [monthPerson, setMonthPerson] = useState("all");
+  const [monthSelectedDate, setMonthSelectedDate] = useState<string | null>(startDate);
+  useEffect(() => { setCursor(startDate); setMonthSelectedDate(startDate); setView("week"); }, [startDate, endDate, assignments]);
 
   const names = useMemo(() => new Map(people.map(p => [p.id, p.name])), [people]);
   const getName = (id: string) => names.get(id) ?? id;
@@ -55,6 +57,9 @@ export default function ScheduleViews({ assignments, people, startDate, endDate 
   const visibleDates = view === "day" ? [cursor] : view === "week" ? weekDates : calendarDates.filter(date => date.startsWith(monthKey));
   const visibleShifts = visibleDates.flatMap(date => dateShifts(date));
   const inPeriod = (date: string) => date >= startDate && date <= endDate;
+
+  const filteredShifts = (date: string) => dateShifts(date).filter(shift => monthPerson === "all" || shift.personId === monthPerson);
+  const selectedShifts = monthSelectedDate && inPeriod(monthSelectedDate) ? filteredShifts(monthSelectedDate) : [];
 
   function navigate(amount: number) {
     setCursor(previous => view === "month" ? monthMove(previous, amount) : addDays(previous, amount * (view === "week" ? 7 : 1)));
@@ -108,16 +113,46 @@ export default function ScheduleViews({ assignments, people, startDate, endDate 
             </td>)}</tr>)}</tbody>
       </table>
     </div>}
-    {view === "month" && <div className="schedule-month-grid">
-      {["Seg","Ter","Qua","Qui","Sex","Sáb","Dom"].map(day => <span className="schedule-month-weekday" key={day}>{day}</span>)}
-      {calendarDates.map(date => <button type="button" key={date}
-        className={"schedule-month-cell" + (date.startsWith(monthKey) ? "" : " outside-month") + (!inPeriod(date) ? " outside-period" : "")}
-        onClick={() => { setCursor(date); setView("day"); }}
-        aria-label={label(date,{day:"numeric",month:"long"}) + ": " + dateShifts(date).length + " turnos. Ver dia."}>
-        <strong>{Number(date.slice(8,10))}</strong>
-        {inPeriod(date) && dateShifts(date).slice(0,3).map((shift,index) => <span className="schedule-month-shift" key={shift.personId + index}><b>{getName(shift.personId)}</b><span>{shiftLabel(shift)}</span>{shift.mealBreak && <span className="schedule-month-meal">Pausa {mealLabel(shift)}</span>}</span>)}
-        {inPeriod(date) && dateShifts(date).length > 3 && <small>+{dateShifts(date).length - 3} turnos</small>}
-      </button>)}
+    {view === "month" && <div className="schedule-month-workspace">
+      <div className="schedule-month-main">
+        <div className="schedule-month-filter">
+          <label htmlFor="schedule-month-person">Consultar</label>
+          <select id="schedule-month-person" value={monthPerson} onChange={event => setMonthPerson(event.target.value)}>
+            <option value="all">Toda a equipa</option>
+            {people.filter(person => person.active || assignments.some(shift => shift.personId === person.id)).map(person =>
+              <option key={person.id} value={person.id}>{person.name}</option>)}
+          </select>
+        </div>
+        <div className="schedule-month-grid">
+          {["Seg","Ter","Qua","Qui","Sex","Sáb","Dom"].map(day => <span className="schedule-month-weekday" key={day}>{day}</span>)}
+          {calendarDates.map(date => {
+            const dayShifts = inPeriod(date) ? filteredShifts(date) : [];
+            const selected = monthSelectedDate === date;
+            return <button type="button" key={date}
+              className={"schedule-month-cell schedule-month-compact" + (date.startsWith(monthKey) ? "" : " outside-month") + (!inPeriod(date) ? " outside-period" : "") + (selected ? " selected-date" : "")}
+              onClick={() => setMonthSelectedDate(date)}
+              aria-pressed={selected}
+              aria-label={label(date,{day:"numeric",month:"long"}) + (inPeriod(date) ? ": " + (monthPerson === "all" ? dayShifts.length + " turnos" : dayShifts.length ? dayShifts.map(shiftLabel).join(", ") : "sem turno atribuído") : ": fora do período simulado")}>
+              <strong>{Number(date.slice(8,10))}</strong>
+              {inPeriod(date) && (monthPerson === "all"
+                ? <small>{dayShifts.length ? dayShifts.length + (dayShifts.length === 1 ? " turno" : " turnos") : "—"}</small>
+                : <small>{dayShifts.length ? dayShifts.map(shiftLabel).join(" · ") : "Folga"}</small>)}
+            </button>;
+          })}
+        </div>
+      </div>
+      <aside className="schedule-month-details" aria-live="polite">
+        <h3>{monthSelectedDate ? label(monthSelectedDate, {weekday:"long",day:"numeric",month:"long"}) : "Seleciona um dia"}</h3>
+        <p>{monthPerson === "all" ? "Equipa completa" : getName(monthPerson)}</p>
+        {monthSelectedDate && !inPeriod(monthSelectedDate) && <p className="schedule-month-empty">Dia fora do período simulado. Não existem dados para consultar.</p>}
+        {monthSelectedDate && inPeriod(monthSelectedDate) && selectedShifts.length === 0 && <p className="schedule-month-empty">{monthPerson === "all" ? "Sem turnos atribuídos." : "Sem turno atribuído neste dia."}</p>}
+        {selectedShifts.map((shift, index) => <article className="schedule-month-detail-shift" key={shift.personId + "-" + index}>
+          <strong>{getName(shift.personId)}</strong>
+          <span>{shiftLabel(shift)}</span>
+          <small>{shift.mealBreak ? "Pausa de refeição: " + mealLabel(shift) : "Sem pausa obrigatória"}</small>
+        </article>)}
+        {monthSelectedDate && inPeriod(monthSelectedDate) && <button type="button" className="schedule-month-open-day" onClick={() => {setCursor(monthSelectedDate);setView("day");}}>Abrir vista diária</button>}
+      </aside>
     </div>}
     <p className="schedule-views-footer">Os dias fora do período gerado não contêm dados de turnos aprovados. Mudar de vista não executa novamente o motor.</p>
   </section>;
