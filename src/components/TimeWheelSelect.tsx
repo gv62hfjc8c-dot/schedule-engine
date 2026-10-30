@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import { Children, isValidElement, useEffect, useRef, useState, type ReactNode } from "react";
 
 interface TimeWheelSelectProps {
@@ -51,7 +52,7 @@ export default function TimeWheelSelect({ value, onChange, children, disabled }:
       onClick={(event) => { event.stopPropagation(); open ? setOpen(false) : start(); }}>
       <span>{value}</span><span aria-hidden="true" className="time-wheel-chevrons">⌃<br/>⌄</span>
     </button>
-    {open && <>
+    {open && createPortal(<>
       <button type="button" aria-label="Cancelar seleção de hora" className="picker-backdrop" onClick={(event) => { event.stopPropagation(); setOpen(false); }}/>
       <div className="time-wheel-popover time-wheel-dual" role="dialog" aria-label="Selecionar horas e minutos"
         onKeyDown={event => { if (event.key === "Escape") setOpen(false); }}>
@@ -85,6 +86,6 @@ export default function TimeWheelSelect({ value, onChange, children, disabled }:
           </div>
         </div>
       </div>
-    </>}
+    </>, document.body)}
   </div>;
 }

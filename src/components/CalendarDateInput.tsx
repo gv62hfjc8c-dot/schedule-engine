@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import { useEffect, useRef, useState } from "react";
 
 interface Props {
@@ -28,7 +29,7 @@ export default function CalendarDateInput({value,onChange,id,className, "aria-la
       <span>{valid(value)?new Intl.DateTimeFormat("pt-PT",{day:"2-digit",month:"2-digit",year:"numeric",timeZone:"UTC"}).format(new Date(value+"T12:00:00Z")):"Selecionar data"}</span>
       <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg>
     </button>
-    {open && <><button type="button" className="picker-backdrop" aria-label="Fechar calendário" onClick={(event)=>{event.stopPropagation();setOpen(false);}}/>
+    {open && createPortal(<><button type="button" className="picker-backdrop" aria-label="Fechar calendário" onClick={(event)=>{event.stopPropagation();setOpen(false);}}/>
       <div className="custom-calendar-popover" role="dialog" aria-label="Calendário" ref={dialog}
         onKeyDown={e=>{if(e.key==="Escape")setOpen(false);}}>
         <div className="calendar-toolbar">
@@ -46,6 +47,6 @@ export default function CalendarDateInput({value,onChange,id,className, "aria-la
         </div>
         <div className="calendar-footer"><button type="button" className="calendar-close" onClick={(event)=>{event.stopPropagation();setOpen(false);}}>Concluído</button></div>
         <button type="button" className="calendar-today" onClick={()=>{setOpen(false);const now=new Date();const local=new Date(now.getTime()-now.getTimezoneOffset()*60000);const date=local.toISOString().slice(0,10);onChange({target:{value:date}});}}>Hoje</button>
-      </div></>}
+      </div></>, document.body)}
   </div>;
 }
