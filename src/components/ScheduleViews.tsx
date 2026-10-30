@@ -32,6 +32,7 @@ function label(date: string, options: Intl.DateTimeFormatOptions): string {
 }
 function timeMinutes(time: string): number { return Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5)); }
 function shiftLabel(shift: Shift): string { return shift.interval.start + "–" + shift.interval.end; }
+function mealLabel(shift: Shift): string { return shift.mealBreak ? shift.mealBreak.start + "–" + shift.mealBreak.end : "Sem pausa"; }
 
 export default function ScheduleViews({ assignments, people, startDate, endDate }: Props) {
   const [view, setView] = useState<View>("week");
@@ -101,7 +102,7 @@ export default function ScheduleViews({ assignments, people, startDate, endDate 
         <tbody>{people.filter(person => person.active || assignments.some(s => s.personId === person.id)).map(person =>
           <tr key={person.id}><th scope="row">{person.name}</th>{weekDates.map(date =>
             <td key={date} className={!inPeriod(date) ? "schedule-outside-period" : ""}>{dateShifts(date).filter(s => s.personId === person.id).map((shift,index) =>
-              <div className="schedule-week-shift" key={index} title={shift.mealBreak ? "Refeição: " + shift.mealBreak.start + "–" + shift.mealBreak.end : ""}>{shiftLabel(shift)}</div>)}
+              <div className="schedule-week-shift" key={index} title={shift.mealBreak ? "Refeição: " + shift.mealBreak.start + "–" + shift.mealBreak.end : ""}><strong>{shiftLabel(shift)}</strong>{shift.mealBreak && <small className="schedule-week-meal">Pausa {mealLabel(shift)}</small>}</div>)}
               {inPeriod(date) && !dateShifts(date).some(s => s.personId === person.id) && <span className="schedule-day-off">—</span>}
             </td>)}</tr>)}</tbody>
       </table>
@@ -113,7 +114,7 @@ export default function ScheduleViews({ assignments, people, startDate, endDate 
         onClick={() => { setCursor(date); setView("day"); }}
         aria-label={label(date,{day:"numeric",month:"long"}) + ": " + dateShifts(date).length + " turnos. Ver dia."}>
         <strong>{Number(date.slice(8,10))}</strong>
-        {inPeriod(date) && dateShifts(date).slice(0,3).map((shift,index) => <span className="schedule-month-shift" key={shift.personId + index}>{getName(shift.personId)} · {shift.interval.start}</span>)}
+        {inPeriod(date) && dateShifts(date).slice(0,3).map((shift,index) => <span className="schedule-month-shift" key={shift.personId + index}><b>{getName(shift.personId)}</b><span>{shiftLabel(shift)}</span>{shift.mealBreak && <span className="schedule-month-meal">Pausa {mealLabel(shift)}</span>}</span>)}
         {inPeriod(date) && dateShifts(date).length > 3 && <small>+{dateShifts(date).length - 3} turnos</small>}
       </button>)}
     </div>}
