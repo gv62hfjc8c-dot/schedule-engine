@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { readGeneratorDate, saveGeneratorDate } from "./generatorUiPreferences";
 import CalendarDateInput from "./CalendarDateInput";
+import ScheduleViews from "./ScheduleViews";
 import type {
   OperatingCalendarConfiguration,
   Person,
@@ -404,7 +405,7 @@ export default function ConstrainedPeriodGeneratorPanel({
               </div>
             )}
 
-            {result.days.length > 0 && (
+            {result.status !== "generated" && result.days.length > 0 && (
               <div className="period-day-list">
                 {result.days.map((day) => {
                   // Never show partial assignments for a rejected period.
@@ -488,6 +489,7 @@ export default function ConstrainedPeriodGeneratorPanel({
           </div>
         )}
       </section>
+      {result?.status === "generated" && <ScheduleViews assignments={result.assignments} people={people} startDate={startDate} endDate={endDate} />}
     </div>
   );
 }
