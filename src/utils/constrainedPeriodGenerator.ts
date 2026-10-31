@@ -308,20 +308,24 @@ function improveWeeklyHours(
   // Prefer the largest usable effective duration without claiming optimality.
   const dates = Array.from(new Set(base.map(s => s.date))).sort();
   let extraEvaluations = 0;
-  // Experimental scope: only optimize free days in near-full weekly periods.
-  // Short test periods must not gain incidental extra assignments.
+  // Keep the experimental near-full-week scope; unlike the earlier
+  // implementation, candidates can fill ANY free day, not only trailing days.
+  // Try the largest weekly deficit first to avoid favoring the people already
+  // nearest 40 hours. Every accepted shift passes the full independent validator.
   for (const date of dates.length >= 5 ? dates : []) {
     if (extraEvaluations >= 2000) break;
     const operation = getOperatingIntervalsForDate(date,
       input.operatingCalendar.weeklyOperatingHours,
       input.operatingCalendar.exceptions);
-    for (const person of input.people.filter(p => p.active)) {
+    const candidates = input.people.filter(p => p.active).sort((a, b) => {
+      const total = (id: string) => [...schedule, ...external]
+        .filter(shift => shift.personId === id && weeks(shift.date) === weeks(date))
+        .reduce((n, shift) => n + effective(shift), 0);
+      return total(a.id) - total(b.id) || a.id.localeCompare(b.id);
+    });
+    for (const person of candidates) {
       if (extraEvaluations >= 2000) break;
       if (schedule.some(s => s.date === date && s.personId === person.id)) continue;
-      // Start with trailing free days: avoid destabilizing already validated
-      // inter-day arrangements through speculative earlier extra shifts.
-      if (schedule.some(s => s.personId === person.id && s.date > date &&
-        weeks(s.date) === weeks(date))) continue;
       const availability = input.availabilities.find(a => a.personId === person.id);
       if (!availability) continue;
       const personHours = [...schedule, ...external].filter(s =>
@@ -337,12 +341,12 @@ function improveWeeklyHours(
         const close = mins(period.end);
         const maxEffective = Math.min(remaining, close - open);
         for (let work = Math.floor(maxEffective / 15) * 15;
-          work >= 15 && !added && evaluations < 12000; work -= 15) {
+          work >= 15 && !added && extraEvaluations < 2000; work -= 15) {
           const needsMeal = work > meal.requiredAboveEffectiveMinutes;
           const span = work + (needsMeal ? meal.durationMinutes : 0);
           if (span > close - open) continue;
           for (let start = open; start + span <= close && !added &&
-            evaluations < 12000; start += 15) {
+            extraEvaluations < 2000; start += 15) {
             const mealOffsets = needsMeal
               ? Array.from({length: Math.max(0, Math.floor(
                   (Math.min(meal.latestStartAfterWorkMinutes, work - 1) -
