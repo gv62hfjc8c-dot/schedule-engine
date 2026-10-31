@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { readGeneratorDate, saveGeneratorDate } from "./generatorUiPreferences";
 import CalendarDateInput from "./CalendarDateInput";
+import ScheduleViews from "./ScheduleViews";
 import type {
   OperatingCalendarConfiguration,
   Person,
@@ -105,6 +106,7 @@ export default function ConstrainedPeriodGeneratorPanel({
   workRules,
   presence,
 }: ConstrainedPeriodGeneratorPanelProps) {
+  const [workspaceView, setWorkspaceView] = useState<"settings" | "schedule">("settings");
   const [startDate, setStartDate] = useState(() => readGeneratorDate("constrained:start", todayKey));
   const [endDate, setEndDate] = useState(() => readGeneratorDate("constrained:end", () => addCivilDays(todayKey(), 6)));
   const [timeZone, setTimeZone] = useState("Atlantic/Azores");
@@ -116,6 +118,7 @@ export default function ConstrainedPeriodGeneratorPanel({
     // An edited roster/configuration requires a fresh, explicit declaration.
     setConfirmed(false);
     setSnapshot(null);
+    setWorkspaceView("settings");
   }, [people, availabilities, operatingCalendar, workRules, presence]);
 
   const context = prepareExplicitEmptyContext({
@@ -140,6 +143,7 @@ export default function ConstrainedPeriodGeneratorPanel({
   const stale = snapshot !== null && !sameInputs;
 
   function resetScenario() {
+    setWorkspaceView("settings");
     setConfirmed(false);
     setSnapshot(null);
     setError(null);
@@ -176,6 +180,7 @@ export default function ConstrainedPeriodGeneratorPanel({
         externalContext: prepared.externalContext,
         maxSearchNodes: PREVIEW_MAX_NODES,
       });
+      setWorkspaceView(generated.status === "generated" ? "schedule" : "settings");
       setSnapshot({
         startDate,
         endDate,
@@ -196,7 +201,12 @@ export default function ConstrainedPeriodGeneratorPanel({
   }
 
   return (
-    <div className="generator-layout period-generator-layout">
+    <div className="generator-workspace">
+      <nav className="generator-workspace-tabs" aria-label="Secções de horários">
+        <button type="button" className={workspaceView === "settings" ? "active" : ""} aria-pressed={workspaceView === "settings"} onClick={() => setWorkspaceView("settings")}>Gerar horário</button>
+        <button type="button" className={workspaceView === "schedule" ? "active" : ""} aria-pressed={workspaceView === "schedule"} disabled={result?.status !== "generated"} onClick={() => setWorkspaceView("schedule")}>Visualizar horário</button>
+      </nav>
+      {workspaceView === "settings" && <div className="generator-layout period-generator-layout">
       <section className="panel generator-panel">
         <div className="panel-header">
           <div>
@@ -404,7 +414,7 @@ export default function ConstrainedPeriodGeneratorPanel({
               </div>
             )}
 
-            {result.days.length > 0 && (
+            {result.status !== "generated" && result.days.length > 0 && (
               <div className="period-day-list">
                 {result.days.map((day) => {
                   // Never show partial assignments for a rejected period.
@@ -488,6 +498,8 @@ export default function ConstrainedPeriodGeneratorPanel({
           </div>
         )}
       </section>
+      </div>}
+      {workspaceView === "schedule" && result?.status === "generated" && <ScheduleViews assignments={result.assignments} people={people} startDate={startDate} endDate={endDate} />}
     </div>
   );
 }
