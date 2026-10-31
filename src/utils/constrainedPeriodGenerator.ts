@@ -515,6 +515,97 @@ function regularizeWeekdayShifts(
 }
 
 /**
+ * Soft meal preference after all assignments are generated. Repositioning a
+ * meal never changes effective hours or the shift span. Every candidate must
+ * satisfy the independent work validator and daily coverage validator.
+ *
+ * Preferred starts: 12:00, 13:00, 14:00. These are NOT hard constraints:
+ * a legal meal outside these starts remains preferable to an invalid shift.
+ */
+function staggerPreferredMeals(
+  input: GenerateConstrainedPeriodInput,
+  original: DatedWorkShift[],
+  external: DatedWorkShift[],
+  contextStart: string,
+  contextEnd: string
+): DatedWorkShift[] {
+  const schedule = original.map(s => ({
+    ...s, interval: {...s.interval},
+    mealBreak: s.mealBreak ? {...s.mealBreak} : null,
+  }));
+  const minute = (v: string) => Number(v.slice(0, 2)) * 60 + Number(v.slice(3, 5));
+  const clock = (v: number) => String(Math.floor(v / 60)).padStart(2, "0") +
+    ":" + String(v % 60).padStart(2, "0");
+  const mealRules = input.workConstraints.mealBreak;
+  const overlap = (a: DatedWorkShift, b: DatedWorkShift): number => {
+    if (!a.mealBreak || !b.mealBreak || a.date !== b.date) return 0;
+    return Math.max(0, Math.min(minute(a.mealBreak.end), minute(b.mealBreak.end)) -
+      Math.max(minute(a.mealBreak.start), minute(b.mealBreak.start)));
+  };
+  const preferred = [720, 780, 840];
+  const penalty = (index: number): number => {
+    const current = schedule[index];
+    if (!current.mealBreak) return 0;
+    const start = minute(current.mealBreak.start);
+    const distance = Math.min(...preferred.map(p => Math.abs(start - p)));
+    const collisions = schedule.reduce((total, other, i) =>
+      total + (i === index ? 0 : overlap(current, other)), 0);
+    // Parallel meals are strongly disfavored, but never invalidated.
+    return collisions * 10 + distance;
+  };
+  let checks = 0;
+  for (let round = 0; round < 3 && checks < 3000; round++) {
+    let changed = false;
+    for (let i = 0; i < schedule.length && checks < 3000; i++) {
+      const shift = schedule[i];
+      if (!shift.mealBreak) continue;
+      const old = shift.mealBreak;
+      let best = penalty(i);
+      let chosen = old;
+      const start = minute(shift.interval.start);
+      const end = minute(shift.interval.end);
+      // Existing hard rules determine legal offsets. Keep 15m resolution.
+      for (let offset = mealRules.earliestStartAfterWorkMinutes;
+        offset <= mealRules.latestStartAfterWorkMinutes && checks < 3000;
+        offset += 15) {
+        const proposedStart = start + offset;
+        const proposedEnd = proposedStart + mealRules.durationMinutes;
+        if (proposedEnd > end || proposedStart < start) continue;
+        schedule[i] = {...shift, mealBreak:{
+          start:clock(proposedStart), end:clock(proposedEnd),
+        }};
+        const score = penalty(i);
+        if (score >= best) continue;
+        checks++;
+        const date = shift.date;
+        const operation = getOperatingIntervalsForDate(date,
+          input.operatingCalendar.weeklyOperatingHours,
+          input.operatingCalendar.exceptions);
+        const presence = resolvePresenceForDate(date,
+          input.presence.weeklyPresenceRequirements,
+          input.presence.presenceExceptions,
+          input.operatingCalendar.weeklyOperatingHours,
+          input.operatingCalendar.exceptions);
+        const coverageOk = presence.status === "configured" &&
+          checkPresenceForWorkShifts(date, operation, presence.requirements,
+            schedule.filter(s => s.date === date)).valid;
+        const workOk = coverageOk && validateWorkConstraints({
+          timeZone:input.timeZone, rules:input.workConstraints,
+          targetPeriod:{startDate:input.startDate,endDate:input.endDate},
+          knownSchedule:{startDate:contextStart,endDate:contextEnd,
+            complete:true,shifts:[...external,...schedule]},
+        }).status === "valid";
+        if (workOk) {best = score;chosen = schedule[i].mealBreak!;}
+      }
+      schedule[i] = {...shift,mealBreak:chosen};
+      if (chosen !== old) changed = true;
+    }
+    if (!changed) break;
+  }
+  return schedule;
+}
+
+/**
  * Backtracks ACROSS dates. It does not fix the first valid daily solution
  * and only reject the final period: a daily accepted candidate is passed
  * to a visitor that must also solve the remaining dates.
@@ -744,9 +835,11 @@ export function generateConstrainedPeriodSchedule(
     );
   }
   if (found && accepted !== null) {
-    const assignments: DatedWorkShift[] = regularizeWeekdayShifts(input,
-      improveWeeklyHours(input, accepted, externalShifts,
-        outside.startDate, outside.endDate),
+    const assignments: DatedWorkShift[] = staggerPreferredMeals(input,
+      regularizeWeekdayShifts(input,
+        improveWeeklyHours(input, accepted, externalShifts,
+          outside.startDate, outside.endDate),
+        externalShifts, outside.startDate, outside.endDate),
       externalShifts, outside.startDate, outside.endDate);
     return {
       status: "generated",
