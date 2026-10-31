@@ -524,11 +524,11 @@ assert(totalByPerson("a") === 2400 && totalByPerson("b") === 2400,
 // Friday's existing assignment must not suppress a valid Tuesday extra shift.
 const pr40Dates = ["2026-10-26","2026-10-27","2026-10-28","2026-10-29","2026-10-30"];
 const pr40Operation = Object.fromEntries(pr40Dates.map(date =>
-  [date, interval("09:00", "18:00")]));
+  [date, interval("09:00", "15:00")]));
 const pr40Availability = Object.fromEntries(pr40Dates.map((date, index) =>
   [date, {
-    a: index < 4 ? interval("09:00", "18:00") : [],
-    b: index === 1 || index === 4 ? interval("09:00", "18:00") : [],
+    a: index < 4 ? interval("09:00", "15:00") : [],
+    b: index === 1 || index === 4 ? interval("09:00", "15:00") : [],
   }]));
 const pr40Input = inputs(pr40Dates[0],pr40Dates[4],["a","b"],
   pr40Operation,pr40Availability,
