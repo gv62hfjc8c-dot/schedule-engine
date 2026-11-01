@@ -306,14 +306,19 @@ function improveWeeklyHours(
   // shifts. Every extra candidate is checked against availability, daily
   // coverage and the COMPLETE work schedule, including external shifts.
   // Prefer the largest usable effective duration without claiming optimality.
-  const dates = Array.from(new Set(base.map(s => s.date))).sort();
+  const dates: string[] = [];
+  for (let day = Date.parse(input.endDate + "T00:00:00Z");
+    day >= Date.parse(input.startDate + "T00:00:00Z"); day -= DAY) {
+    dates.push(new Date(day).toISOString().slice(0, 10));
+  }
   let extraEvaluations = 0;
+  const maxExtraEvaluations = 12000;
   // Keep the experimental near-full-week scope; unlike the earlier
   // implementation, candidates can fill ANY free day, not only trailing days.
   // Try the largest weekly deficit first to avoid favoring the people already
   // nearest 40 hours. Every accepted shift passes the full independent validator.
   for (const date of dates.length >= 5 ? dates : []) {
-    if (extraEvaluations >= 2000) break;
+    if (extraEvaluations >= maxExtraEvaluations) break;
     const operation = getOperatingIntervalsForDate(date,
       input.operatingCalendar.weeklyOperatingHours,
       input.operatingCalendar.exceptions);
@@ -324,7 +329,7 @@ function improveWeeklyHours(
       return total(a.id) - total(b.id) || a.id.localeCompare(b.id);
     });
     for (const person of candidates) {
-      if (extraEvaluations >= 2000) break;
+      if (extraEvaluations >= maxExtraEvaluations) break;
       if (schedule.some(s => s.date === date && s.personId === person.id)) continue;
       const availability = input.availabilities.find(a => a.personId === person.id);
       if (!availability) continue;
@@ -336,17 +341,17 @@ function improveWeeklyHours(
       if (remaining < 15) continue;
       let added = false;
       for (const period of operation) {
-        if (added || extraEvaluations >= 2000) break;
+        if (added || extraEvaluations >= maxExtraEvaluations) break;
         const open = mins(period.start);
         const close = mins(period.end);
         const maxEffective = Math.min(remaining, close - open);
         for (let work = Math.floor(maxEffective / 15) * 15;
-          work >= 15 && !added && extraEvaluations < 2000; work -= 15) {
+          work >= 15 && !added && extraEvaluations < maxExtraEvaluations; work -= 15) {
           const needsMeal = work > meal.requiredAboveEffectiveMinutes;
           const span = work + (needsMeal ? meal.durationMinutes : 0);
           if (span > close - open) continue;
           for (let start = open; start + span <= close && !added &&
-            extraEvaluations < 2000; start += 15) {
+            extraEvaluations < maxExtraEvaluations; start += 15) {
             const mealOffsets = needsMeal
               ? Array.from({length: Math.max(0, Math.floor(
                   (Math.min(meal.latestStartAfterWorkMinutes, work - 1) -
@@ -354,7 +359,7 @@ function improveWeeklyHours(
                   (_, i) => meal.earliestStartAfterWorkMinutes + 15*i)
               : [0];
             for (const offset of mealOffsets) {
-              if (++extraEvaluations > 2000) break;
+              if (++extraEvaluations > maxExtraEvaluations) break;
               const candidate: DatedWorkShift = {
                 date, personId: person.id,
                 interval: {start: time(start), end: time(start + span)},
@@ -512,6 +517,104 @@ function regularizeWeekdayShifts(
     }
   }
   return result;
+}
+
+/**
+ * Preserve dominant weekday clock patterns when a same-duration shift can
+ * be moved without reducing effective hours. Only candidates satisfying
+ * availability, coverage, meals and the complete known schedule are accepted.
+ * No changed start time is treated as a hard rule.
+ */
+function alignWeekdayClockPatterns(
+  input: GenerateConstrainedPeriodInput,
+  original: DatedWorkShift[],
+  external: DatedWorkShift[],
+  contextStart: string,
+  contextEnd: string
+): DatedWorkShift[] {
+  const schedule = original.map(s => ({
+    ...s, interval: {...s.interval},
+    mealBreak: s.mealBreak ? {...s.mealBreak} : null,
+  }));
+  const minute = (v: string) => Number(v.slice(0,2))*60 + Number(v.slice(3,5));
+  const clock = (v: number) => String(Math.floor(v/60)).padStart(2,"0") +
+    ":" + String(v%60).padStart(2,"0");
+  const monday = (date: string) => {
+    const d = new Date(date+"T00:00:00Z");
+    d.setUTCDate(d.getUTCDate()-(d.getUTCDay()+6)%7);
+    return d.toISOString().slice(0,10);
+  };
+  const isWeekday = (date: string) =>
+    (new Date(date+"T00:00:00Z").getUTCDay()+6)%7 < 5;
+  let evaluations = 0;
+  for (const person of input.people.filter(p=>p.active)) {
+    const availability = input.availabilities.find(a=>a.personId===person.id);
+    if (!availability) continue;
+    const weeks = new Set(schedule.filter(s=>s.personId===person.id &&
+      isWeekday(s.date)).map(s=>monday(s.date)));
+    for (const week of weeks) {
+      const indices = schedule.map((shift,i)=>({shift,i})).filter(x=>
+        x.shift.personId===person.id && isWeekday(x.shift.date) &&
+        monday(x.shift.date)===week);
+      if (indices.length < 3) continue;
+      const starts = new Map<number,number>();
+      for (const item of indices) {
+        const start = minute(item.shift.interval.start);
+        starts.set(start,(starts.get(start)??0)+1);
+      }
+      const dominant = [...starts.entries()].sort((a,b)=>
+        b[1]-a[1] || a[0]-b[0])[0];
+      if (!dominant || dominant[1]<2) continue;
+      for (const {i} of indices) {
+        if (++evaluations > 3000) return schedule;
+        const current = schedule[i];
+        if (minute(current.interval.start)===dominant[0]) continue;
+        const span = minute(current.interval.end)-minute(current.interval.start);
+        const start = dominant[0], end = start + span;
+        if (end>1440) continue;
+        const meal = current.mealBreak;
+        const offsets = meal ? [
+          minute(meal.start)-minute(current.interval.start),
+          ...Array.from({length: Math.floor(
+            (input.workConstraints.mealBreak.latestStartAfterWorkMinutes-
+              input.workConstraints.mealBreak.earliestStartAfterWorkMinutes)/15)+1},
+            (_,k)=>input.workConstraints.mealBreak.earliestStartAfterWorkMinutes+k*15),
+        ] : [0];
+        for (const offset of [...new Set(offsets)]) {
+          if (++evaluations>3000) return schedule;
+          const next: DatedWorkShift = {
+            ...current, interval:{start:clock(start),end:clock(end)},
+            mealBreak: meal?{start:clock(start+offset),
+              end:clock(start+offset+input.workConstraints.mealBreak.durationMinutes)}:null,
+          };
+          if (!isSchedulableForInterval(current.date,next.interval,
+            availability,input.operatingCalendar.weeklyOperatingHours,
+            input.operatingCalendar.exceptions)) continue;
+          schedule[i]=next;
+          const operating=getOperatingIntervalsForDate(current.date,
+            input.operatingCalendar.weeklyOperatingHours,
+            input.operatingCalendar.exceptions);
+          const presence=resolvePresenceForDate(current.date,
+            input.presence.weeklyPresenceRequirements,
+            input.presence.presenceExceptions,
+            input.operatingCalendar.weeklyOperatingHours,
+            input.operatingCalendar.exceptions);
+          const coverageOk=presence.status==="configured" &&
+            checkPresenceForWorkShifts(current.date,operating,presence.requirements,
+              schedule.filter(s=>s.date===current.date)).valid;
+          const workOk=coverageOk && validateWorkConstraints({
+            timeZone:input.timeZone,rules:input.workConstraints,
+            targetPeriod:{startDate:input.startDate,endDate:input.endDate},
+            knownSchedule:{startDate:contextStart,endDate:contextEnd,
+              complete:true,shifts:[...external,...schedule]},
+          }).status==="valid";
+          if (workOk) break;
+          schedule[i]=current;
+        }
+      }
+    }
+  }
+  return schedule;
 }
 
 /**
@@ -836,9 +939,11 @@ export function generateConstrainedPeriodSchedule(
   }
   if (found && accepted !== null) {
     const assignments: DatedWorkShift[] = staggerPreferredMeals(input,
-      regularizeWeekdayShifts(input,
-        improveWeeklyHours(input, accepted, externalShifts,
-          outside.startDate, outside.endDate),
+      alignWeekdayClockPatterns(input,
+        regularizeWeekdayShifts(input,
+          improveWeeklyHours(input, accepted, externalShifts,
+            outside.startDate, outside.endDate),
+          externalShifts, outside.startDate, outside.endDate),
         externalShifts, outside.startDate, outside.endDate),
       externalShifts, outside.startDate, outside.endDate);
     return {
