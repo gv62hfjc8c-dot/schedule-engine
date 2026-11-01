@@ -357,6 +357,10 @@ assert(centralResult.status === "generated" &&
   centralResult.assignments.length === 3,
   "Mínimo central 2 mantido com três pessoas a fazer refeições.");
 independentlyValidate(central, centralResult.assignments);
+assert(centralResult.assignments.filter(s => s.mealBreak).every(s =>
+  s.mealBreak!.start >= "12:00" && s.mealBreak!.start <= "14:00"),
+  "PR41: quando a cobertura permite, as refeições devem começar entre 12h e 14h.");
+
 
 const acrossSunday = inputs(sun, nextMon, ["a", "b"],
   { [sun]: interval("16:00", "22:00"), [nextMon]: interval("08:00", "12:00") },
