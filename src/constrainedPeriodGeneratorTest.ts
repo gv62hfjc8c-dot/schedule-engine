@@ -559,3 +559,26 @@ assert(shortPolicyResult.assignments.length>0 &&
   shortPolicyResult.assignments.every(s=>
     s.interval.start==="14:00"&&s.interval.end==="19:00"&&s.mealBreak===null),
   "PR41: qualquer turno no domingo de 5h tem de cobrir todas as 5 horas.");
+
+
+// PR41: availability remains optional by default; opting in makes every
+// operating day with schedulable availability a mandatory working day.
+const requiredDates = ["2026-11-05", "2026-11-06"];
+const requiredOperation = Object.fromEntries(requiredDates.map(date =>
+  [date, interval("09:00", "13:00")]));
+const requiredAvailability = Object.fromEntries(requiredDates.map(date =>
+  [date, {a:interval("09:00", "13:00"),b:interval("09:00", "13:00")}]));
+const requiredInput = inputs(requiredDates[0],requiredDates[1],["a","b"],
+  requiredOperation,requiredAvailability,
+  Object.fromEntries(requiredDates.map(date=>[date,one])),
+  {startDate:"2026-11-01",endDate:"2026-11-09"});
+const optionalResult = generateConstrainedPeriodSchedule(requiredInput);
+assert(optionalResult.status==="generated" && optionalResult.assignments.length===2,
+  "Sem política obrigatória, a disponibilidade pode continuar opcional.");
+requiredInput.workRules.requireShiftsOnAvailableDays = true;
+const mandatoryResult = generateConstrainedPeriodSchedule(requiredInput);
+assert(mandatoryResult.status==="generated" &&
+  requiredDates.every(date=>["a","b"].every(personId=>
+    mandatoryResult.assignments.some(s=>s.personId===personId&&s.date===date))),
+  "PR41: uma pessoa disponível não pode receber uma folga adicional num dia obrigatório.");
+independentlyValidate(requiredInput,mandatoryResult.assignments);
