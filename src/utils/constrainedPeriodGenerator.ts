@@ -1153,17 +1153,21 @@ function fillRequiredWorkdays(
           const item=trial[shiftIndex];
           const start=minute(item.interval.start)+((mask&(1<<index))?cut:0);
           const end=minute(item.interval.end)-((mask&(1<<index))?0:cut);
-          if(start>=end ||
-            (item.mealBreak &&
-              (minute(item.mealBreak.start)<start ||
-                minute(item.mealBreak.end)>end))){
-            possible=false;break;
-          }
+          // When a shift begins later, move its meal as well to keep
+          // the legal effective-work-before-meal offset unchanged.
+          const mealOffset=(mask&(1<<index))?cut:0;
+          const adjustedMeal=item.mealBreak?{
+            start:clock(minute(item.mealBreak.start)+mealOffset),
+            end:clock(minute(item.mealBreak.end)+mealOffset),
+          }:null;
+          if(start>=end || (adjustedMeal &&
+            (minute(adjustedMeal.start)<start ||
+              minute(adjustedMeal.end)>end))){possible=false;break;}
           const interval={start:clock(start),end:clock(end)};
           if(!isSchedulableForInterval(donor.date,interval,availability,
             input.operatingCalendar.weeklyOperatingHours,
             input.operatingCalendar.exceptions)){possible=false;break;}
-          trial[shiftIndex]={...item,interval};
+          trial[shiftIndex]={...item,interval,mealBreak:adjustedMeal};
         }
         if(!possible)continue;
         for(const range of allowed){
