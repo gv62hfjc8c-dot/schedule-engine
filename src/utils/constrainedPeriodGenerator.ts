@@ -864,6 +864,139 @@ function satisfiesFullShortDayPolicy(
 }
 
 /**
+ * Bounded multi-day improvement: move effective hours away from long shifts
+ * to enable a complete short operating day. All changes are committed
+ * atomically after independent work and coverage validation.
+ */
+function rebalanceForCompleteShortDays(
+  input: GenerateConstrainedPeriodInput,
+  original: DatedWorkShift[],
+  external: DatedWorkShift[],
+  contextStart: string,
+  contextEnd: string
+): DatedWorkShift[] {
+  let schedule = original.map(s => ({...s,interval:{...s.interval},
+    mealBreak:s.mealBreak?{...s.mealBreak}:null}));
+  const threshold = input.workRules.fullShortDayMaximumMinutes ?? 0;
+  if (!threshold) return schedule;
+  const minutes = (v:string) => Number(v.slice(0,2))*60+Number(v.slice(3,5));
+  const clock = (n:number) => String(Math.floor(n/60)).padStart(2,"0")+":"+
+    String(n%60).padStart(2,"0");
+  const effective = (s:DatedWorkShift) => minutes(s.interval.end)-
+    minutes(s.interval.start)-(s.mealBreak ?
+      minutes(s.mealBreak.end)-minutes(s.mealBreak.start):0);
+  const week = (date:string) => {
+    const d=new Date(date+"T00:00:00Z");
+    d.setUTCDate(d.getUTCDate()-(d.getUTCDay()+6)%7);
+    return d.toISOString().slice(0,10);
+  };
+  const allValid=(proposal:DatedWorkShift[]):boolean => {
+    if(!satisfiesFullShortDayPolicy(input,proposal))return false;
+    const dates=[...new Set(proposal.map(s=>s.date))];
+    for(const date of dates){
+      const operating=getOperatingIntervalsForDate(date,
+        input.operatingCalendar.weeklyOperatingHours,
+        input.operatingCalendar.exceptions);
+      const presence=resolvePresenceForDate(date,
+        input.presence.weeklyPresenceRequirements,
+        input.presence.presenceExceptions,
+        input.operatingCalendar.weeklyOperatingHours,
+        input.operatingCalendar.exceptions);
+      if(presence.status!=="configured" ||
+        !checkPresenceForWorkShifts(date,operating,presence.requirements,
+          proposal.filter(s=>s.date===date)).valid)return false;
+    }
+    return validateWorkConstraints({
+      timeZone:input.timeZone,rules:input.workConstraints,
+      targetPeriod:{startDate:input.startDate,endDate:input.endDate},
+      knownSchedule:{startDate:contextStart,endDate:contextEnd,
+        complete:true,shifts:[...external,...proposal]},
+    }).status==="valid";
+  };
+  let checks=0;
+  for(let stamp=Date.parse(input.startDate+"T00:00:00Z");
+    stamp<=Date.parse(input.endDate+"T00:00:00Z") && checks<1200;
+    stamp+=DAY){
+    const date=new Date(stamp).toISOString().slice(0,10);
+    const op=getOperatingIntervalsForDate(date,
+      input.operatingCalendar.weeklyOperatingHours,
+      input.operatingCalendar.exceptions);
+    if(op.length!==1)continue;
+    const duration=minutes(op[0].end)-minutes(op[0].start);
+    if(duration<=0||duration>threshold||
+      duration>input.workConstraints.maximumDailyEffectiveMinutes)continue;
+    for(const person of input.people.filter(p=>p.active)){
+      if(checks>=1200)break;
+      if(schedule.some(s=>s.personId===person.id&&s.date===date))continue;
+      const availability=input.availabilities.find(a=>a.personId===person.id);
+      if(!availability || !isSchedulableForInterval(date,op[0],availability,
+        input.operatingCalendar.weeklyOperatingHours,
+        input.operatingCalendar.exceptions))continue;
+      const sameWeek=(s:DatedWorkShift)=>s.personId===person.id &&
+        week(s.date)===week(date);
+      const personShifts=schedule.filter(sameWeek);
+      const weeklyMinutes=[...personShifts,...external.filter(sameWeek)]
+        .reduce((sum,s)=>sum+effective(s),0);
+      const reduction=Math.max(0,weeklyMinutes+duration-
+        input.workConstraints.maximumWeeklyEffectiveMinutes);
+      if(reduction%15!==0 || personShifts.length===0 && reduction>0)continue;
+      const donors=personShifts.filter(s=>s.date!==date &&
+        getOperatingIntervalsForDate(s.date,
+          input.operatingCalendar.weeklyOperatingHours,
+          input.operatingCalendar.exceptions).some(i=>
+            minutes(i.end)-minutes(i.start)>threshold));
+      if(!donors.length && reduction>0)continue;
+      const candidate={date,personId:person.id,
+        interval:{...op[0]},mealBreak:null};
+      // Seek the flattest durations first, then test different choices
+      // of trimming the start or end of each donor.
+      const cuts=new Map<string,number>();
+      for(const donor of donors)cuts.set(donor.date,0);
+      let remaining=reduction;
+      while(remaining>0){
+        const eligible=donors.filter(d=>effective(d)-(cuts.get(d.date)??0)>15);
+        if(!eligible.length)break;
+        eligible.sort((a,b)=>(effective(b)-(cuts.get(b.date)??0))-
+          (effective(a)-(cuts.get(a.date)??0)) || a.date.localeCompare(b.date));
+        cuts.set(eligible[0].date,(cuts.get(eligible[0].date)??0)+15);
+        remaining-=15;
+      }
+      if(remaining>0)continue;
+      const cutDonors=donors.filter(d=>(cuts.get(d.date)??0)>0);
+      const patterns=Math.min(1<<Math.min(cutDonors.length,12),256);
+      for(let mask=0;mask<patterns&&checks<1200;mask++){
+        checks++;
+        const trial=schedule.map(s=>({...s,interval:{...s.interval},
+          mealBreak:s.mealBreak?{...s.mealBreak}:null}));
+        let viable=true;
+        for(let j=0;j<cutDonors.length;j++){
+          const donor=cutDonors[j],cut=cuts.get(donor.date)!;
+          const index=trial.findIndex(s=>s.personId===person.id&&s.date===donor.date);
+          const shift=trial[index];
+          const trimStart=Boolean(mask&(1<<j));
+          const start=minutes(shift.interval.start)+(trimStart?cut:0);
+          const end=minutes(shift.interval.end)-(trimStart?0:cut);
+          const adjusted={...shift,interval:{start:clock(start),end:clock(end)}};
+          if(shift.mealBreak){
+            const mealStart=minutes(shift.mealBreak.start);
+            const mealEnd=minutes(shift.mealBreak.end);
+            if(mealStart<start||mealEnd>end){viable=false;break;}
+          }
+          if(!isSchedulableForInterval(shift.date,adjusted.interval,availability,
+            input.operatingCalendar.weeklyOperatingHours,
+            input.operatingCalendar.exceptions)){viable=false;break;}
+          trial[index]=adjusted;
+        }
+        if(!viable)continue;
+        trial.push(candidate);
+        if(allValid(trial)){schedule=trial;break;}
+      }
+    }
+  }
+  return schedule;
+}
+
+/**
  * Backtracks ACROSS dates. It does not fix the first valid daily solution
  * and only reject the final period: a daily accepted candidate is passed
  * to a visitor that must also solve the remaining dates.
@@ -1097,8 +1230,10 @@ export function generateConstrainedPeriodSchedule(
       repairSwappedWeekdayStarts(input,
         alignWeekdayClockPatterns(input,
           regularizeWeekdayShifts(input,
-            improveWeeklyHours(input, accepted, externalShifts,
-              outside.startDate, outside.endDate),
+            rebalanceForCompleteShortDays(input,
+              improveWeeklyHours(input, accepted, externalShifts,
+                outside.startDate, outside.endDate),
+              externalShifts, outside.startDate, outside.endDate),
             externalShifts, outside.startDate, outside.endDate),
           externalShifts, outside.startDate, outside.endDate),
         externalShifts, outside.startDate, outside.endDate),
