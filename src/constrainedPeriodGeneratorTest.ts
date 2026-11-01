@@ -582,3 +582,37 @@ assert(mandatoryResult.status==="generated" &&
     mandatoryResult.assignments.some(s=>s.personId===personId&&s.date===date))),
   "PR41: uma pessoa disponível não pode receber uma folga adicional num dia obrigatório.");
 independentlyValidate(requiredInput,mandatoryResult.assignments);
+
+
+// PR41: a full 40h week must not erase an additional official workday.
+// Four long days + 5h short day can be rebalanced into five shorter days + 5h.
+// Coverage minimum zero isolates the per-person weekly policy from staffing.
+const mandatoryWeekDates=["2026-11-02","2026-11-03","2026-11-05",
+  "2026-11-06","2026-11-07","2026-11-08"];
+const mandatoryWeekOperation=Object.fromEntries(mandatoryWeekDates.map(date=>[
+  date,date==="2026-11-08"?interval("14:00","19:00"):interval("08:30","19:00"),
+]));
+const mandatoryWeekAvailability=Object.fromEntries(mandatoryWeekDates.map(date=>[
+  date,{a:mandatoryWeekOperation[date]},
+]));
+const noPresence:PresenceRequirement={minimumAtOpening:0,
+  minimumDuringOperation:0,minimumAtClosing:0};
+const mandatoryWeekInput=inputs("2026-11-02","2026-11-08",["a"],
+  mandatoryWeekOperation,mandatoryWeekAvailability,
+  Object.fromEntries(mandatoryWeekDates.map(date=>[date,noPresence])),
+  {startDate:"2026-11-01",endDate:"2026-11-09"});
+mandatoryWeekInput.workRules.requireShiftsOnAvailableDays=true;
+mandatoryWeekInput.workRules.fullShortDayMaximumMinutes=300;
+mandatoryWeekInput.workRules.maximumDailyEffectiveMinutes=570;
+mandatoryWeekInput.workConstraints.maximumDailyEffectiveMinutes=570;
+const balancedMandatory=generateConstrainedPeriodSchedule({
+  ...mandatoryWeekInput,maxSearchNodes:5000,
+});
+assert(balancedMandatory.status==="generated",
+  "PR41: seis dias obrigatórios devem ser possíveis com limite 40h e domingo 5h.");
+assert(mandatoryWeekDates.every(date=>balancedMandatory.assignments
+  .some(s=>s.date===date&&s.personId==="a")),
+  "PR41: todos os seis dias de trabalho oficiais devem receber turno.");
+assert(balancedMandatory.assignments.reduce((n,s)=>n+effectiveMinutes(s),0)===2400,
+  "PR41: distribuir por seis dias preserva o objetivo das 40h.");
+independentlyValidate(mandatoryWeekInput,balancedMandatory.assignments);
