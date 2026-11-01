@@ -518,3 +518,27 @@ assert(pr27Weekdays.length === 5 &&
   "PR27: Anabela deve ter 7h efetivas regulares de segunda a sexta.");
 assert(totalByPerson("a") === 2400 && totalByPerson("b") === 2400,
   "PR27 preserva 40h por pessoa após regularização.");
+
+
+// PR #40: a person needed on Friday may also work earlier in the week.
+// Friday's existing assignment must not suppress a valid Tuesday extra shift.
+const pr40Dates = ["2026-10-26","2026-10-27","2026-10-28","2026-10-29","2026-10-30"];
+const pr40Operation = Object.fromEntries(pr40Dates.map(date =>
+  [date, interval("09:00", "15:00")]));
+const pr40Availability = Object.fromEntries(pr40Dates.map((date, index) =>
+  [date, {
+    a: index < 4 ? interval("09:00", "15:00") : [],
+    b: index === 1 || index === 4 ? interval("09:00", "15:00") : [],
+  }]));
+const pr40Input = inputs(pr40Dates[0],pr40Dates[4],["a","b"],
+  pr40Operation,pr40Availability,
+  Object.fromEntries(pr40Dates.map(date => [date,one])));
+const pr40Result = generateConstrainedPeriodSchedule({
+  ...pr40Input, maxSearchNodes: 5000,
+});
+assert(pr40Result.status === "generated", "PR40: cenário de cinco dias válido.");
+independentlyValidate(pr40Input,pr40Result.assignments);
+assert(pr40Result.assignments.some(s => s.personId === "b" &&
+  s.date === "2026-10-27") && pr40Result.assignments.some(s =>
+  s.personId === "b" && s.date === "2026-10-30"),
+  "PR40: turno obrigatório na sexta não impede turno adicional na terça.");
