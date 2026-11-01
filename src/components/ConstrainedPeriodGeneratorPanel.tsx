@@ -121,11 +121,11 @@ export default function ConstrainedPeriodGeneratorPanel({
     setWorkspaceView("settings");
   }, [people, availabilities, operatingCalendar, workRules, presence]);
 
-  const context = prepareExplicitEmptyContext({
+  const effectiveConstraints = { ...INITIAL_WORK_CONSTRAINTS,\n    maximumDailyEffectiveMinutes: workRules.maximumDailyEffectiveMinutes ?? 480,\n  };\n\n  const context = prepareExplicitEmptyContext({
     startDate,
     endDate,
     timeZone,
-    rules: INITIAL_WORK_CONSTRAINTS,
+    rules: effectiveConstraints,
     confirmedNoExternalShifts: confirmed,
   });
 
@@ -158,7 +158,7 @@ export default function ConstrainedPeriodGeneratorPanel({
       startDate,
       endDate,
       timeZone,
-      rules: INITIAL_WORK_CONSTRAINTS,
+      rules: effectiveConstraints,
       confirmedNoExternalShifts: confirmed,
     });
     if (prepared.status !== "ready" || !prepared.externalContext) {
@@ -176,7 +176,7 @@ export default function ConstrainedPeriodGeneratorPanel({
         operatingCalendar,
         workRules,
         presence,
-        workConstraints: INITIAL_WORK_CONSTRAINTS,
+        workConstraints: effectiveConstraints,
         externalContext: prepared.externalContext,
         maxSearchNodes: PREVIEW_MAX_NODES,
       });
