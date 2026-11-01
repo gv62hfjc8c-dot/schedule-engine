@@ -55,6 +55,8 @@ export interface WorkRulesConfiguration {
   standardShiftDurationMinutes: number | null;
   /** Optional company-specific hard ceiling in effective working minutes. Legacy configurations default to 8h. */
   maximumDailyEffectiveMinutes?: number;
+  /** If set, assigned shifts on operating days of at most this duration must span the entire open interval. Disabled by default. */
+  fullShortDayMaximumMinutes?: number;
 }
 
 /**
