@@ -53,6 +53,8 @@ export interface PersonAvailability {
 
 export interface WorkRulesConfiguration {
   standardShiftDurationMinutes: number | null;
+  /** Optional company-specific hard ceiling in effective working minutes. Legacy configurations default to 8h. */
+  maximumDailyEffectiveMinutes?: number;
 }
 
 /**
