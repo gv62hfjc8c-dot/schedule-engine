@@ -151,7 +151,10 @@ function isWorkRulesConfiguration(
   const duration =
     workRules.standardShiftDurationMinutes;
 
-  return (
+  const maximum = workRules.maximumDailyEffectiveMinutes;
+  return (maximum === undefined ||
+    (typeof maximum === "number" && Number.isInteger(maximum) &&
+      maximum >= 15 && maximum <= 1440)) && (
     duration === null ||
     (
       typeof duration === "number" &&
