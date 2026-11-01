@@ -271,7 +271,7 @@ export default function ConstrainedPeriodGeneratorPanel({
         </div>
 
         <div className="generator-facts">
-          <div><span>Trabalho máximo</span><strong>8h/dia · 40h/semana</strong></div>
+          <div><span>Trabalho máximo</span><strong>{`${(effectiveConstraints.maximumDailyEffectiveMinutes / 60).toLocaleString("pt-PT")}h/dia · ${(effectiveConstraints.maximumWeeklyEffectiveMinutes / 60).toLocaleString("pt-PT")}h/semana`}</strong></div>
           <div><span>Descanso mínimo</span><strong>11h entre jornadas</strong></div>
           <div><span>Refeição obrigatória</span><strong>60min se mais de 6h</strong></div>
         </div>
