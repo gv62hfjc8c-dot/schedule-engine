@@ -222,6 +222,22 @@ export default function WorkRulesPanel({
 
             <div className="work-rule-card">
               <div>
+                <strong>Jornada integral em dias curtos</strong>
+                <p>Se um dia tiver até esta duração de funcionamento, quem for escalado cumpre todo o período. Por exemplo, 5h para domingos das 14:00 às 19:00. Introduz 0 para desativar.</p>
+              </div>
+              <label className="work-duration-field">
+                <span>Até (horas)</span>
+                <input type="number" min="0" max="24" step="0.25"
+                  value={(workRules.fullShortDayMaximumMinutes ?? 0)/60}
+                  onChange={(event) => {
+                    const hours=Number(event.target.value);
+                    if(Number.isFinite(hours)&&hours>=0&&hours<=24)
+                      onChange({...workRules,fullShortDayMaximumMinutes:Math.round(hours*60)});
+                  }} />
+              </label>
+            </div>
+            <div className="work-rule-card">
+              <div>
                 <strong>Turnos contínuos</strong>
                 <p>
                   Uma pessoa trabalha um único intervalo
