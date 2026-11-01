@@ -616,3 +616,28 @@ assert(mandatoryWeekDates.every(date=>balancedMandatory.assignments
 assert(balancedMandatory.assignments.reduce((n,s)=>n+effectiveMinutes(s),0)===2400,
   "PR41: distribuir por seis dias preserva o objetivo das 40h.");
 independentlyValidate(mandatoryWeekInput,balancedMandatory.assignments);
+
+const weekDays=["2026-11-02","2026-11-03","2026-11-04","2026-11-05",
+  "2026-11-06","2026-11-07","2026-11-08"];
+const teamIds=["a","b","c","d","e","f","g","h"];
+const off:Record<string,string[]>={a:["2026-11-04"],b:["2026-11-02"],
+  c:["2026-11-07"],d:["2026-11-02","2026-11-06"],
+  e:["2026-11-05","2026-11-06"],f:["2026-11-02","2026-11-03"],
+  g:["2026-11-05","2026-11-06"],h:["2026-11-03","2026-11-04"]};
+const op=Object.fromEntries(weekDays.map(d=>[d,d.endsWith("08")?
+  interval("14:00","19:00"):interval("08:30","19:00")]));
+const av=Object.fromEntries(weekDays.map(d=>[d,Object.fromEntries(teamIds
+  .map(id=>[id,off[id].includes(d)?[]:op[d]]))]));
+const eight=inputs(weekDays[0],weekDays[6],teamIds,op,av,
+  Object.fromEntries(weekDays.map(d=>[d,one])),
+  {startDate:"2026-11-01",endDate:"2026-11-09"});
+eight.workRules.requireShiftsOnAvailableDays=true;
+eight.workRules.fullShortDayMaximumMinutes=300;
+eight.workRules.maximumDailyEffectiveMinutes=570;
+eight.workConstraints.maximumDailyEffectiveMinutes=570;
+const resEight=generateConstrainedPeriodSchedule({...eight,maxSearchNodes:5000});
+assert(resEight.status==="generated","A semana obrigatoria com 8 pessoas deve gerar horario: "+resEight.issues.join("; "));
+assert(teamIds.every(id=>weekDays.every(d=>off[id].includes(d) ===
+  !resEight.assignments.some(s=>s.date===d&&s.personId===id))),
+  "Nao pode gerar folgas adicionais.");
+independentlyValidate(eight,resEight.assignments);
