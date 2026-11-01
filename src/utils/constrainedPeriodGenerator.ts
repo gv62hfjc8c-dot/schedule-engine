@@ -415,8 +415,19 @@ function regularizeWeekdayShifts(
     d.setUTCDate(d.getUTCDate() - (d.getUTCDay()+6)%7);
     return d.toISOString().slice(0,10);
   };
-  const weekday = (date: string) =>
-    (new Date(date+"T00:00:00Z").getUTCDay()+6)%7 < 5;
+  // Balance comparable full-operation days, including Saturdays if long
+  // enough. Short operating days (e.g. Sunday 5h) are intentionally excluded.
+  const weekday = (date: string) => {
+    const duration = input.workRules.standardShiftDurationMinutes ?? 480;
+    const meal = input.workConstraints.mealBreak;
+    const requiredSpan = duration +
+      (duration > meal.requiredAboveEffectiveMinutes ? meal.durationMinutes : 0);
+    const operation = getOperatingIntervalsForDate(date,
+      input.operatingCalendar.weeklyOperatingHours,
+      input.operatingCalendar.exceptions);
+    return operation.some(interval =>
+      minutes(interval.end)-minutes(interval.start) >= requiredSpan);
+  };
   const meal = input.workConstraints.mealBreak;
   const variants = (shift: DatedWorkShift, work: number): DatedWorkShift[] => {
     if (work < 15 || work > input.workConstraints.maximumDailyEffectiveMinutes) return [];
