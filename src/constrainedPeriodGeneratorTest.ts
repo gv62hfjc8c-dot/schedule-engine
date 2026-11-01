@@ -640,4 +640,7 @@ assert(resEight.status==="generated","A semana obrigatoria com 8 pessoas deve ge
 assert(teamIds.every(id=>weekDays.every(d=>off[id].includes(d) ===
   !resEight.assignments.some(s=>s.date===d&&s.personId===id))),
   "Nao pode gerar folgas adicionais.");
+assert(teamIds.every(id=>resEight.assignments.filter(s=>s.personId===id)
+  .reduce((total,shift)=>total+effectiveMinutes(shift),0)===2400),
+  "A equipa com folgas obrigatorias deve cumprir o objetivo semanal quando viavel.");
 independentlyValidate(eight,resEight.assignments);
