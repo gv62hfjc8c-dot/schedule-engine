@@ -121,7 +121,11 @@ export default function ConstrainedPeriodGeneratorPanel({
     setWorkspaceView("settings");
   }, [people, availabilities, operatingCalendar, workRules, presence]);
 
-  const effectiveConstraints = { ...INITIAL_WORK_CONSTRAINTS,\n    maximumDailyEffectiveMinutes: workRules.maximumDailyEffectiveMinutes ?? 480,\n  };\n\n  const context = prepareExplicitEmptyContext({
+  const effectiveConstraints = { ...INITIAL_WORK_CONSTRAINTS,
+    maximumDailyEffectiveMinutes: workRules.maximumDailyEffectiveMinutes ?? 480,
+  };
+
+  const context = prepareExplicitEmptyContext({
     startDate,
     endDate,
     timeZone,
