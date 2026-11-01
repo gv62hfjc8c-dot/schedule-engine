@@ -238,6 +238,28 @@ export default function WorkRulesPanel({
             </div>
             <div className="work-rule-card">
               <div>
+                <strong>Dias disponíveis são dias de trabalho</strong>
+                <p>
+                  Quando ativado, cada dia aberto com disponibilidade escalável
+                  requer um turno para essa pessoa. Folgas e indisponibilidades
+                  mantêm-se obrigatórias. Se não for possível cumprir todos os
+                  dias e limites, o motor não publica uma solução como válida.
+                  Desativado, a disponibilidade significa apenas que pode trabalhar.
+                </p>
+              </div>
+              <label className="work-duration-field">
+                <span>Obrigatório</span>
+                <input type="checkbox"
+                  checked={workRules.requireShiftsOnAvailableDays ?? false}
+                  onChange={(event) => onChange({
+                    ...workRules,
+                    requireShiftsOnAvailableDays: event.target.checked,
+                  })}
+                />
+              </label>
+            </div>
+            <div className="work-rule-card">
+              <div>
                 <strong>Turnos contínuos</strong>
                 <p>
                   Uma pessoa trabalha um único intervalo
