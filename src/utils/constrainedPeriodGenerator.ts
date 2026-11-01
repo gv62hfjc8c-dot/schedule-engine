@@ -618,6 +618,122 @@ function alignWeekdayClockPatterns(
 }
 
 /**
+ * Repair coupled weekday inversions. A single move may violate opening or
+ * closing coverage, while simultaneously exchanging two shifts preserves it.
+ * Only equal-span exchanges are considered; effective hours never change.
+ */
+function repairSwappedWeekdayStarts(
+  input: GenerateConstrainedPeriodInput,
+  original: DatedWorkShift[],
+  external: DatedWorkShift[],
+  contextStart: string,
+  contextEnd: string
+): DatedWorkShift[] {
+  const result = original.map(s=>({...s,interval:{...s.interval},
+    mealBreak:s.mealBreak?{...s.mealBreak}:null}));
+  const mins=(v:string)=>Number(v.slice(0,2))*60+Number(v.slice(3,5));
+  const time=(v:number)=>String(Math.floor(v/60)).padStart(2,"0")+":"+
+    String(v%60).padStart(2,"0");
+  const week=(date:string)=>{
+    const d=new Date(date+"T00:00:00Z");
+    d.setUTCDate(d.getUTCDate()-(d.getUTCDay()+6)%7);
+    return d.toISOString().slice(0,10);
+  };
+  const weekday=(date:string)=>(new Date(date+"T00:00:00Z").getUTCDay()+6)%7<5;
+  const dominant=new Map<string,number>();
+  for(const person of input.people.filter(p=>p.active)){
+    const weeks=new Set(result.filter(s=>s.personId===person.id&&weekday(s.date))
+      .map(s=>week(s.date)));
+    for(const w of weeks){
+      const starts=new Map<number,number>();
+      for(const shift of result.filter(s=>s.personId===person.id&&
+        weekday(s.date)&&week(s.date)===w)){
+        const start=mins(shift.interval.start);
+        starts.set(start,(starts.get(start)??0)+1);
+      }
+      const top=[...starts.entries()].sort((a,b)=>b[1]-a[1]||a[0]-b[0])[0];
+      if(top && top[1]>=2)dominant.set(person.id+"|"+w,top[0]);
+    }
+  }
+  const mealRule=input.workConstraints.mealBreak;
+  const variants=(shift:DatedWorkShift,start:number):DatedWorkShift[]=>{
+    const span=mins(shift.interval.end)-mins(shift.interval.start);
+    if(start<0||start+span>1440)return [];
+    const base={...shift,interval:{start:time(start),end:time(start+span)}};
+    if(!shift.mealBreak)return [{...base,mealBreak:null}];
+    const offsets=[720-start,780-start,840-start,
+      mins(shift.mealBreak.start)-mins(shift.interval.start)];
+    for(let offset=mealRule.earliestStartAfterWorkMinutes;
+      offset<=mealRule.latestStartAfterWorkMinutes;offset+=15)offsets.push(offset);
+    return [...new Set(offsets)].filter(offset=>
+      offset>=mealRule.earliestStartAfterWorkMinutes&&
+      offset<=mealRule.latestStartAfterWorkMinutes&&
+      offset+mealRule.durationMinutes<=span).map(offset=>({
+        ...base,mealBreak:{start:time(start+offset),
+          end:time(start+offset+mealRule.durationMinutes)},
+      }));
+  };
+  let checks=0;
+  for(const date of [...new Set(result.map(s=>s.date))].filter(weekday)){
+    const day=result.map((s,i)=>({s,i})).filter(x=>x.s.date===date);
+    let repaired=false;
+    for(let a=0;a<day.length&&!repaired;a++){
+      for(let b=a+1;b<day.length&&!repaired;b++){
+        const left=day[a],right=day[b];
+        const targetLeft=dominant.get(left.s.personId+"|"+week(date));
+        const targetRight=dominant.get(right.s.personId+"|"+week(date));
+        if(targetLeft===undefined||targetRight===undefined||
+          targetLeft!==mins(right.s.interval.start)||
+          targetRight!==mins(left.s.interval.start)||
+          targetLeft===mins(left.s.interval.start))continue;
+        const spanLeft=mins(left.s.interval.end)-mins(left.s.interval.start);
+        const spanRight=mins(right.s.interval.end)-mins(right.s.interval.start);
+        if(spanLeft!==spanRight)continue;
+        const availabilityLeft=input.availabilities.find(x=>x.personId===left.s.personId);
+        const availabilityRight=input.availabilities.find(x=>x.personId===right.s.personId);
+        if(!availabilityLeft||!availabilityRight)continue;
+        const leftOptions=variants(left.s,targetLeft);
+        const rightOptions=variants(right.s,targetRight);
+        for(const first of leftOptions){
+          if(repaired||checks>=1500)break;
+          if(!isSchedulableForInterval(date,first.interval,availabilityLeft,
+            input.operatingCalendar.weeklyOperatingHours,
+            input.operatingCalendar.exceptions))continue;
+          for(const second of rightOptions){
+            if(++checks>1500)break;
+            if(!isSchedulableForInterval(date,second.interval,availabilityRight,
+              input.operatingCalendar.weeklyOperatingHours,
+              input.operatingCalendar.exceptions))continue;
+            result[left.i]=first;result[right.i]=second;
+            const operation=getOperatingIntervalsForDate(date,
+              input.operatingCalendar.weeklyOperatingHours,
+              input.operatingCalendar.exceptions);
+            const presence=resolvePresenceForDate(date,
+              input.presence.weeklyPresenceRequirements,
+              input.presence.presenceExceptions,
+              input.operatingCalendar.weeklyOperatingHours,
+              input.operatingCalendar.exceptions);
+            const coverage=presence.status==="configured"&&
+              checkPresenceForWorkShifts(date,operation,presence.requirements,
+                result.filter(s=>s.date===date)).valid;
+            const valid=coverage&&validateWorkConstraints({
+              timeZone:input.timeZone,rules:input.workConstraints,
+              targetPeriod:{startDate:input.startDate,endDate:input.endDate},
+              knownSchedule:{startDate:contextStart,endDate:contextEnd,
+                complete:true,shifts:[...external,...result]},
+            }).status==="valid";
+            if(valid){repaired=true;break;}
+            result[left.i]=left.s;result[right.i]=right.s;
+          }
+        }
+        if(!repaired){result[left.i]=left.s;result[right.i]=right.s;}
+      }
+    }
+  }
+  return result;
+}
+
+/**
  * Soft meal preference after all assignments are generated. Repositioning a
  * meal never changes effective hours or the shift span. Every candidate must
  * satisfy the independent work validator and daily coverage validator.
@@ -939,10 +1055,12 @@ export function generateConstrainedPeriodSchedule(
   }
   if (found && accepted !== null) {
     const assignments: DatedWorkShift[] = staggerPreferredMeals(input,
-      alignWeekdayClockPatterns(input,
-        regularizeWeekdayShifts(input,
-          improveWeeklyHours(input, accepted, externalShifts,
-            outside.startDate, outside.endDate),
+      repairSwappedWeekdayStarts(input,
+        alignWeekdayClockPatterns(input,
+          regularizeWeekdayShifts(input,
+            improveWeeklyHours(input, accepted, externalShifts,
+              outside.startDate, outside.endDate),
+            externalShifts, outside.startDate, outside.endDate),
           externalShifts, outside.startDate, outside.endDate),
         externalShifts, outside.startDate, outside.endDate),
       externalShifts, outside.startDate, outside.endDate);
