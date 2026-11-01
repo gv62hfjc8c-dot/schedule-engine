@@ -294,7 +294,7 @@ function improveWeeklyHours(
           availability,input.operatingCalendar.weeklyOperatingHours,
           input.operatingCalendar.exceptions)) continue;
         schedule[i] = proposed;
-        if (valid(original.date)) { selected = proposed; break; }
+        if (valid(original.date) && satisfiesFullShortDayPolicy(input,schedule)) { selected = proposed; break; }
       }
       schedule[i] = selected ?? original;
       if (selected) changed = true;
@@ -372,7 +372,7 @@ function improveWeeklyHours(
                 availability, input.operatingCalendar.weeklyOperatingHours,
                 input.operatingCalendar.exceptions)) continue;
               schedule.push(candidate);
-              if (valid(date)) {added = true; break;}
+              if (valid(date) && satisfiesFullShortDayPolicy(input,schedule)) {added = true; break;}
               schedule.pop();
             }
           }
@@ -836,6 +836,34 @@ function staggerPreferredMeals(
 }
 
 /**
+ * Company-specific hard policy: when a day is short enough, any assigned
+ * person must cover its complete single operating interval. A day with no
+ * assigned shifts remains valid when presence requirements allow it.
+ * Unconfigured / multi-interval days are not implicitly constrained.
+ */
+function satisfiesFullShortDayPolicy(
+  input: GenerateConstrainedPeriodInput,
+  shifts: DatedWorkShift[]
+): boolean {
+  const limit = input.workRules.fullShortDayMaximumMinutes ?? 0;
+  if (limit <= 0) return true;
+  const minutes = (value: string) => Number(value.slice(0,2))*60+Number(value.slice(3,5));
+  for (const shift of shifts) {
+    const operation = getOperatingIntervalsForDate(shift.date,
+      input.operatingCalendar.weeklyOperatingHours,
+      input.operatingCalendar.exceptions);
+    if (operation.length !== 1) continue;
+    const interval = operation[0];
+    const duration = minutes(interval.end)-minutes(interval.start);
+    if (duration > limit || duration <= 0) continue;
+    if (shift.interval.start !== interval.start ||
+        shift.interval.end !== interval.end ||
+        shift.mealBreak !== null) return false;
+  }
+  return true;
+}
+
+/**
  * Backtracks ACROSS dates. It does not fix the first valid daily solution
  * and only reject the final period: a daily accepted candidate is passed
  * to a visitor that must also solve the remaining dates.
@@ -1034,7 +1062,7 @@ export function generateConstrainedPeriodSchedule(
       budget,
       flexibleDurations: true,
       acceptSolution: (assignments) => {
-        if (!checkPartial(assignments)) {
+        if (!satisfiesFullShortDayPolicy(input, assignments) || !checkPartial(assignments)) {
           diagnostic.rejectedByWorkRules++;
           return false;
         }
@@ -1075,6 +1103,9 @@ export function generateConstrainedPeriodSchedule(
           externalShifts, outside.startDate, outside.endDate),
         externalShifts, outside.startDate, outside.endDate),
       externalShifts, outside.startDate, outside.endDate);
+    if (!satisfiesFullShortDayPolicy(input, assignments)) {
+      return resultWith("incomplete", ["A regra de jornada integral em dias curtos não foi cumprida."], diagnostics, required);
+    }
     return {
       status: "generated",
       validationScope: "period_work_and_coverage_when_generated",
