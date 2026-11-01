@@ -542,3 +542,20 @@ assert(pr40Result.assignments.some(s => s.personId === "b" &&
   s.date === "2026-10-27") && pr40Result.assignments.some(s =>
   s.personId === "b" && s.date === "2026-10-30"),
   "PR40: turno obrigatório na sexta não impede turno adicional na terça.");
+
+
+// PR41: a short day never receives partial assignments when the organization
+// explicitly requests complete attendance for short operating days.
+const shortSunday = "2026-11-08";
+const shortPolicyInput = inputs(shortSunday,shortSunday,["a","b"],
+  {[shortSunday]:interval("14:00","19:00")},
+  {[shortSunday]:{a:interval("14:00","19:00"),b:interval("14:00","19:00")}},
+  {[shortSunday]:one},
+  {startDate:"2026-11-02",endDate:"2026-11-09"});
+shortPolicyInput.workRules.fullShortDayMaximumMinutes=300;
+const shortPolicyResult=generateConstrainedPeriodSchedule(shortPolicyInput);
+assert(shortPolicyResult.status==="generated","PR41: dia curto com cobertura viável.");
+assert(shortPolicyResult.assignments.length>0 &&
+  shortPolicyResult.assignments.every(s=>
+    s.interval.start==="14:00"&&s.interval.end==="19:00"&&s.mealBreak===null),
+  "PR41: qualquer turno no domingo de 5h tem de cobrir todas as 5 horas.");
