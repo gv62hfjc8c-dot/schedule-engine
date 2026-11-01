@@ -387,4 +387,15 @@ if (
   throw new Error("Falha no backup deve impedir substituição do estado.");
 }
 
+// PR41: per-organization daily caps round-trip, without changing old records.
+const cappedStorage = new MemoryStorage();
+const cappedRepo = createLocalStorageStateRepository(cappedStorage);
+await cappedRepo.load();
+await cappedRepo.save({...loaded!,workRules:{
+  ...loaded!.workRules,maximumDailyEffectiveMinutes:570,
+}});
+const capped = await cappedRepo.load();
+if(capped?.workRules.maximumDailyEffectiveMinutes !== 570)
+  throw new Error("O máximo diário configurável de 9h30 deve persistir.");
+
 console.log("Persistence V0: todos os testes passaram.");
