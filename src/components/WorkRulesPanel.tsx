@@ -193,6 +193,35 @@ export default function WorkRulesPanel({
 
             <div className="work-rule-card">
               <div>
+                <strong>Máximo diário de trabalho efetivo</strong>
+                <p>
+                  Limite obrigatório por empresa, distinto da duração padrão.
+                  A pausa de refeição não conta como trabalho efetivo.
+                </p>
+              </div>
+              <label className="work-duration-field">
+                <span>Horas</span>
+                <input
+                  type="number"
+                  min="0.25"
+                  max="24"
+                  step="0.25"
+                  value={maximumHours}
+                  onChange={(event) => {
+                    const hours = Number(event.target.value);
+                    if (Number.isFinite(hours) && hours >= 0.25 && hours <= 24) {
+                      onChange({
+                        ...workRules,
+                        maximumDailyEffectiveMinutes: Math.round(hours * 60),
+                      });
+                    }
+                  }}
+                />
+              </label>
+            </div>
+
+            <div className="work-rule-card">
+              <div>
                 <strong>Turnos contínuos</strong>
                 <p>
                   Uma pessoa trabalha um único intervalo
