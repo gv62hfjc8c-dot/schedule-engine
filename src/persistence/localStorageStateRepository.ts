@@ -152,7 +152,9 @@ function isWorkRulesConfiguration(
     workRules.standardShiftDurationMinutes;
 
   const maximum = workRules.maximumDailyEffectiveMinutes;
-  return (maximum === undefined ||
+  const shortDay = workRules.fullShortDayMaximumMinutes;
+  return (shortDay === undefined || (Number.isInteger(shortDay) && shortDay>=0 && shortDay<=1440)) &&
+    (maximum === undefined ||
     (typeof maximum === "number" && Number.isInteger(maximum) &&
       maximum >= 15 && maximum <= 1440)) && (
     duration === null ||
