@@ -47,6 +47,7 @@ export default function WorkRulesPanel({
 }: WorkRulesPanelProps) {
   const duration =
     workRules.standardShiftDurationMinutes;
+  const maximumHours = (workRules.maximumDailyEffectiveMinutes ?? 480) / 60;
 
   const validDuration =
     isValidShiftDurationMinutes(duration)
@@ -66,6 +67,7 @@ export default function WorkRulesPanel({
   ) => {
     if (rawValue.trim() === "") {
       onChange({
+        ...workRules,
         standardShiftDurationMinutes: null,
       });
       return;
@@ -78,6 +80,7 @@ export default function WorkRulesPanel({
     }
 
     onChange({
+      ...workRules,
       standardShiftDurationMinutes:
         Math.round(hours * 60),
     });
