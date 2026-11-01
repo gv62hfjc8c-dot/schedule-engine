@@ -57,6 +57,8 @@ export interface WorkRulesConfiguration {
   maximumDailyEffectiveMinutes?: number;
   /** If set, assigned shifts on operating days of at most this duration must span the entire open interval. Disabled by default. */
   fullShortDayMaximumMinutes?: number;
+  /** Opt-in: a person must have a shift on every open date with schedulable availability. Omitted means optional availability. */
+  requireShiftsOnAvailableDays?: boolean;
 }
 
 /**
