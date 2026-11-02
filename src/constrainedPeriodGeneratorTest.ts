@@ -8,6 +8,7 @@ import type {
 } from "./types";
 import {
   generateConstrainedPeriodSchedule,
+  stabilizeWeeklyMealPatterns,
   type GenerateConstrainedPeriodInput,
 } from "./utils/constrainedPeriodGenerator";
 import { createEmptyWeeklyAvailability } from "./utils/availability";
@@ -648,3 +649,38 @@ assert(teamIds.every(id=>resEight.assignments.filter(s=>s.personId===id)
   .reduce((total,shift)=>total+effectiveMinutes(shift),0)===2400),
   "A equipa com folgas obrigatorias deve cumprir o objetivo semanal quando viavel.");
 independentlyValidate(eight,resEight.assignments);
+
+
+// PR41: a weekly preference must not choose separate meal times each day
+// when the same per-person hour can be kept without sacrificing coverage.
+const mealDays=["2026-11-02","2026-11-03","2026-11-04"];
+const mealPeople=["a","b","c"];
+const mealOp=Object.fromEntries(mealDays.map(d=>[d,interval("09:00","18:00")]));
+const mealAvailable=Object.fromEntries(mealDays.map(d=>[d,
+  Object.fromEntries(mealPeople.map(id=>[id,interval("09:00","18:00")]))]));
+const mealWeekInput=inputs(mealDays[0],mealDays[2],mealPeople,
+  mealOp,mealAvailable,Object.fromEntries(mealDays.map(d=>[d,one])),
+  {startDate:"2026-11-01",endDate:"2026-11-09"});
+const seedLunches=[
+  ["12:00","13:00","14:00"],
+  ["14:00","12:00","13:00"],
+  ["13:00","14:00","12:00"],
+];
+const seededMeals=mealDays.flatMap((date,dayIndex)=>
+  mealPeople.map((personId,personIndex)=>{
+    const lunch=seedLunches[dayIndex][personIndex];
+    const h=Number(lunch.slice(0,2))+1;
+    const end=String(h).padStart(2,"0")+":00";
+    return shift(date,personId,"09:00","18:00",lunch,end);
+  }));
+independentlyValidate(mealWeekInput,seededMeals);
+const stableMeals=stabilizeWeeklyMealPatterns(mealWeekInput,seededMeals,[],
+  mealWeekInput.externalContext.startDate,
+  mealWeekInput.externalContext.endDate);
+independentlyValidate(mealWeekInput,stableMeals);
+assert(mealPeople.every(personId=>new Set(stableMeals.filter(s=>
+  s.personId===personId).map(s=>s.mealBreak?.start)).size===1),
+  "PR41: refeições da mesma pessoa devem manter hora semanal quando viável.");
+assert(stableMeals.every(s=>s.mealBreak?.start==="12:00" ||
+  s.mealBreak?.start==="13:00"||s.mealBreak?.start==="14:00"),
+  "PR41: manter almoços nos períodos preferidos sem perder cobertura.");
