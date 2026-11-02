@@ -976,7 +976,6 @@ export function stabilizeWeeklyMealPatterns(
       ...Array.from({length:9},(_,j)=>720+j*15)])];
     let bestCost=current;
     let best:DatedWorkShift[]|null=null;
-    let bestDates:string[]=[];
     for(const target of candidates){
       const trial=[...schedule];
       const dates:string[]=[];
@@ -990,7 +989,7 @@ export function stabilizeWeeklyMealPatterns(
       const cost=score(trial);
       if(cost>=bestCost-0.001||probes++>=maxProbes)continue;
       if(!valid(trial,dates))continue;
-      best=trial;bestCost=cost;bestDates=dates;
+      best=trial;bestCost=cost;
     }
     if(best){schedule=best;current=bestCost;}
     // When not every date permits the same start, seek the closest valid
