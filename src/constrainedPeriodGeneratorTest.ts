@@ -9,6 +9,7 @@ import type {
 import {
   generateConstrainedPeriodSchedule,
   stabilizeWeeklyMealPatterns,
+  improveCoupledWeeklyClockPatterns,
   type GenerateConstrainedPeriodInput,
 } from "./utils/constrainedPeriodGenerator";
 import { createEmptyWeeklyAvailability } from "./utils/availability";
@@ -684,3 +685,44 @@ assert(mealPeople.every(personId=>new Set(stableMeals.filter(s=>
 assert(stableMeals.every(s=>s.mealBreak?.start==="12:00" ||
   s.mealBreak?.start==="13:00"||s.mealBreak?.start==="14:00"),
   "PR41: manter almoços nos períodos preferidos sem perder cobertura.");
+
+
+// PR41: an isolated move would remove the second closing worker. A coordinated
+// 45-minute later shift for another person can restore the required closing
+// presence and eliminate a 2-hour weekly clock outlier.
+const clockDates=["2026-11-02","2026-11-03","2026-11-04"];
+const clockPeople=["a","b","c","d"];
+const clockOp=Object.fromEntries(clockDates.map(date=>
+  [date,interval("09:00","19:00")]));
+const clockAvailable=Object.fromEntries(clockDates.map(date=>[date,
+  Object.fromEntries(clockPeople.map(id=>[id,interval("09:00","19:00")]))]));
+const twoAtClosing:PresenceRequirement={minimumAtOpening:1,
+  minimumDuringOperation:1,minimumAtClosing:2};
+const clockPresence=Object.fromEntries(clockDates.map((date,i)=>
+  [date,i===2?twoAtClosing:one]));
+const clockInput=inputs(clockDates[0],clockDates[2],clockPeople,
+  clockOp,clockAvailable,clockPresence,
+  {startDate:"2026-11-01",endDate:"2026-11-09"});
+clockInput.workConstraints.maximumDailyEffectiveMinutes=570;
+const initialClockShifts=clockDates.flatMap((date,i)=>[
+  shift(date,"a",i===2?"11:00":"09:00",i===2?"19:00":"17:00",
+    i===2?"14:00":"12:00",i===2?"15:00":"13:00"),
+  shift(date,"b","09:00","17:00","12:00","13:00"),
+  shift(date,"c","09:00","19:00","13:00","14:00"),
+  shift(date,"d","09:00","18:15","13:00","14:00"),
+]);
+independentlyValidate(clockInput,initialClockShifts);
+const adjustedClockShifts=improveCoupledWeeklyClockPatterns(clockInput,
+  initialClockShifts,[],clockInput.externalContext.startDate,
+  clockInput.externalContext.endDate);
+independentlyValidate(clockInput,adjustedClockShifts);
+assert(adjustedClockShifts.some(s=>s.personId==="a"&&
+  s.date===clockDates[2]&&s.interval.start==="09:00"),
+  "PR41: a jornada tardia deve ser antecipada quando é possível compensar cobertura.");
+assert(adjustedClockShifts.some(s=>s.personId==="d"&&
+  s.date===clockDates[2]&&s.interval.end==="19:00"),
+  "PR41: mudança coordenada preserva dois colaboradores no fecho.");
+assert(adjustedClockShifts.every(s=>initialClockShifts.some(original=>
+  original.personId===s.personId&&original.date===s.date&&
+  effectiveMinutes(original)===effectiveMinutes(s))),
+  "PR41: regularizar entradas não altera horas efetivas nem folgas.");
