@@ -873,7 +873,7 @@ function staggerPreferredMeals(
  * provide bounded fallback moves. EVERY accepted change is independently
  * checked against complete work constraints and actual daily coverage.
  */
-function stabilizeWeeklyMealPatterns(
+export function stabilizeWeeklyMealPatterns(
   input: GenerateConstrainedPeriodInput,
   original: DatedWorkShift[],
   external: DatedWorkShift[],
