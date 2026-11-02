@@ -8,6 +8,8 @@ import type {
 } from "./types";
 import {
   generateConstrainedPeriodSchedule,
+  stabilizeWeeklyMealPatterns,
+  improveCoupledWeeklyClockPatterns,
   type GenerateConstrainedPeriodInput,
 } from "./utils/constrainedPeriodGenerator";
 import { createEmptyWeeklyAvailability } from "./utils/availability";
@@ -357,6 +359,10 @@ assert(centralResult.status === "generated" &&
   centralResult.assignments.length === 3,
   "Mínimo central 2 mantido com três pessoas a fazer refeições.");
 independentlyValidate(central, centralResult.assignments);
+assert(centralResult.assignments.filter(s => s.mealBreak).every(s =>
+  s.mealBreak!.start >= "12:00" && s.mealBreak!.start <= "14:00"),
+  "PR41: quando a cobertura permite, as refeições devem começar entre 12h e 14h.");
+
 
 const acrossSunday = inputs(sun, nextMon, ["a", "b"],
   { [sun]: interval("16:00", "22:00"), [nextMon]: interval("08:00", "12:00") },
@@ -542,3 +548,181 @@ assert(pr40Result.assignments.some(s => s.personId === "b" &&
   s.date === "2026-10-27") && pr40Result.assignments.some(s =>
   s.personId === "b" && s.date === "2026-10-30"),
   "PR40: turno obrigatório na sexta não impede turno adicional na terça.");
+
+
+// PR41: a short day never receives partial assignments when the organization
+// explicitly requests complete attendance for short operating days.
+const shortSunday = "2026-11-08";
+const shortPolicyInput = inputs(shortSunday,shortSunday,["a","b"],
+  {[shortSunday]:interval("14:00","19:00")},
+  {[shortSunday]:{a:interval("14:00","19:00"),b:interval("14:00","19:00")}},
+  {[shortSunday]:one},
+  {startDate:"2026-11-02",endDate:"2026-11-09"});
+shortPolicyInput.workRules.fullShortDayMaximumMinutes=300;
+const shortPolicyResult=generateConstrainedPeriodSchedule(shortPolicyInput);
+assert(shortPolicyResult.status==="generated","PR41: dia curto com cobertura viável.");
+assert(shortPolicyResult.assignments.length>0 &&
+  shortPolicyResult.assignments.every(s=>
+    s.interval.start==="14:00"&&s.interval.end==="19:00"&&s.mealBreak===null),
+  "PR41: qualquer turno no domingo de 5h tem de cobrir todas as 5 horas.");
+
+
+// PR41: availability remains optional by default; opting in makes every
+// operating day with schedulable availability a mandatory working day.
+const requiredDates = ["2026-11-05", "2026-11-06"];
+const requiredOperation = Object.fromEntries(requiredDates.map(date =>
+  [date, interval("09:00", "13:00")]));
+const requiredAvailability = Object.fromEntries(requiredDates.map(date =>
+  [date, {a:interval("09:00", "13:00"),b:interval("09:00", "13:00")}]));
+const requiredInput = inputs(requiredDates[0],requiredDates[1],["a","b"],
+  requiredOperation,requiredAvailability,
+  Object.fromEntries(requiredDates.map(date=>[date,one])),
+  {startDate:"2026-11-01",endDate:"2026-11-09"});
+const optionalResult = generateConstrainedPeriodSchedule(requiredInput);
+assert(optionalResult.status==="generated" && optionalResult.assignments.length===2,
+  "Sem política obrigatória, a disponibilidade pode continuar opcional.");
+requiredInput.workRules.requireShiftsOnAvailableDays = true;
+const mandatoryResult = generateConstrainedPeriodSchedule(requiredInput);
+assert(mandatoryResult.status==="generated" &&
+  requiredDates.every(date=>["a","b"].every(personId=>
+    mandatoryResult.assignments.some(s=>s.personId===personId&&s.date===date))),
+  "PR41: uma pessoa disponível não pode receber uma folga adicional num dia obrigatório.");
+independentlyValidate(requiredInput,mandatoryResult.assignments);
+
+
+// PR41: a full 40h week must not erase an additional official workday.
+// Four long days + 5h short day can be rebalanced into five shorter days + 5h.
+// Coverage minimum zero isolates the per-person weekly policy from staffing.
+const mandatoryWeekDates=["2026-11-02","2026-11-03","2026-11-05",
+  "2026-11-06","2026-11-07","2026-11-08"];
+const mandatoryWeekOperation=Object.fromEntries(mandatoryWeekDates.map(date=>[
+  date,date==="2026-11-08"?interval("14:00","19:00"):interval("08:30","19:00"),
+]));
+const mandatoryWeekAvailability=Object.fromEntries(mandatoryWeekDates.map(date=>[
+  date,{a:mandatoryWeekOperation[date]},
+]));
+const noPresence:PresenceRequirement={minimumAtOpening:0,
+  minimumDuringOperation:0,minimumAtClosing:0};
+const mandatoryWeekInput=inputs("2026-11-02","2026-11-08",["a"],
+  mandatoryWeekOperation,mandatoryWeekAvailability,
+  Object.fromEntries(mandatoryWeekDates.map(date=>[date,noPresence])),
+  {startDate:"2026-11-01",endDate:"2026-11-09"});
+mandatoryWeekInput.workRules.requireShiftsOnAvailableDays=true;
+mandatoryWeekInput.workRules.fullShortDayMaximumMinutes=300;
+mandatoryWeekInput.workRules.maximumDailyEffectiveMinutes=570;
+mandatoryWeekInput.workConstraints.maximumDailyEffectiveMinutes=570;
+const balancedMandatory=generateConstrainedPeriodSchedule({
+  ...mandatoryWeekInput,maxSearchNodes:5000,
+});
+assert(balancedMandatory.status==="generated",
+  "PR41: seis dias obrigatórios devem ser possíveis com limite 40h e domingo 5h.");
+assert(mandatoryWeekDates.every(date=>balancedMandatory.assignments
+  .some(s=>s.date===date&&s.personId==="a")),
+  "PR41: todos os seis dias de trabalho oficiais devem receber turno.");
+assert(balancedMandatory.assignments.reduce((n,s)=>n+effectiveMinutes(s),0)===2400,
+  "PR41: distribuir por seis dias preserva o objetivo das 40h.");
+independentlyValidate(mandatoryWeekInput,balancedMandatory.assignments);
+
+const weekDays=["2026-11-02","2026-11-03","2026-11-04","2026-11-05",
+  "2026-11-06","2026-11-07","2026-11-08"];
+const teamIds=["a","b","c","d","e","f","g","h"];
+const off:Record<string,string[]>={a:["2026-11-04"],b:["2026-11-02"],
+  c:["2026-11-07"],d:["2026-11-02","2026-11-06"],
+  e:["2026-11-05","2026-11-06"],f:["2026-11-02","2026-11-03"],
+  g:["2026-11-05","2026-11-06"],h:["2026-11-03","2026-11-04"]};
+const op=Object.fromEntries(weekDays.map(d=>[d,d.endsWith("08")?
+  interval("14:00","19:00"):interval("08:30","19:00")]));
+const av=Object.fromEntries(weekDays.map(d=>[d,Object.fromEntries(teamIds
+  .map(id=>[id,off[id].includes(d)?[]:op[d]]))]));
+const eight=inputs(weekDays[0],weekDays[6],teamIds,op,av,
+  Object.fromEntries(weekDays.map(d=>[d,one])),
+  {startDate:"2026-11-01",endDate:"2026-11-09"});
+eight.workRules.requireShiftsOnAvailableDays=true;
+eight.workRules.fullShortDayMaximumMinutes=300;
+eight.workRules.maximumDailyEffectiveMinutes=570;
+eight.workConstraints.maximumDailyEffectiveMinutes=570;
+const resEight=generateConstrainedPeriodSchedule({...eight,maxSearchNodes:5000});
+assert(resEight.status==="generated","A semana obrigatoria com 8 pessoas deve gerar horario: "+resEight.issues.join("; "));
+assert(teamIds.every(id=>weekDays.every(d=>off[id].includes(d) ===
+  !resEight.assignments.some(s=>s.date===d&&s.personId===id))),
+  "Nao pode gerar folgas adicionais.");
+assert(teamIds.every(id=>resEight.assignments.filter(s=>s.personId===id)
+  .reduce((total,shift)=>total+effectiveMinutes(shift),0)===2400),
+  "A equipa com folgas obrigatorias deve cumprir o objetivo semanal quando viavel.");
+independentlyValidate(eight,resEight.assignments);
+
+
+// PR41: a weekly preference must not choose separate meal times each day
+// when the same per-person hour can be kept without sacrificing coverage.
+const mealDays=["2026-11-02","2026-11-03","2026-11-04"];
+const mealPeople=["a","b","c"];
+const mealOp=Object.fromEntries(mealDays.map(d=>[d,interval("09:00","18:00")]));
+const mealAvailable=Object.fromEntries(mealDays.map(d=>[d,
+  Object.fromEntries(mealPeople.map(id=>[id,interval("09:00","18:00")]))]));
+const mealWeekInput=inputs(mealDays[0],mealDays[2],mealPeople,
+  mealOp,mealAvailable,Object.fromEntries(mealDays.map(d=>[d,one])),
+  {startDate:"2026-11-01",endDate:"2026-11-09"});
+const seedLunches=[
+  ["12:00","13:00","14:00"],
+  ["14:00","12:00","13:00"],
+  ["13:00","14:00","12:00"],
+];
+const seededMeals=mealDays.flatMap((date,dayIndex)=>
+  mealPeople.map((personId,personIndex)=>{
+    const lunch=seedLunches[dayIndex][personIndex];
+    const h=Number(lunch.slice(0,2))+1;
+    const end=String(h).padStart(2,"0")+":00";
+    return shift(date,personId,"09:00","18:00",lunch,end);
+  }));
+independentlyValidate(mealWeekInput,seededMeals);
+const stableMeals=stabilizeWeeklyMealPatterns(mealWeekInput,seededMeals,[],
+  mealWeekInput.externalContext.startDate,
+  mealWeekInput.externalContext.endDate);
+independentlyValidate(mealWeekInput,stableMeals);
+assert(mealPeople.every(personId=>new Set(stableMeals.filter(s=>
+  s.personId===personId).map(s=>s.mealBreak?.start)).size===1),
+  "PR41: refeições da mesma pessoa devem manter hora semanal quando viável.");
+assert(stableMeals.every(s=>s.mealBreak?.start==="12:00" ||
+  s.mealBreak?.start==="13:00"||s.mealBreak?.start==="14:00"),
+  "PR41: manter almoços nos períodos preferidos sem perder cobertura.");
+
+
+// PR41: an isolated move would remove the second closing worker. A coordinated
+// 45-minute later shift for another person can restore the required closing
+// presence and eliminate a 2-hour weekly clock outlier.
+const clockDates=["2026-11-02","2026-11-03","2026-11-04"];
+const clockPeople=["a","b","c","d"];
+const clockOp=Object.fromEntries(clockDates.map(date=>
+  [date,interval("09:00","19:00")]));
+const clockAvailable=Object.fromEntries(clockDates.map(date=>[date,
+  Object.fromEntries(clockPeople.map(id=>[id,interval("09:00","19:00")]))]));
+const twoAtClosing:PresenceRequirement={minimumAtOpening:1,
+  minimumDuringOperation:1,minimumAtClosing:2};
+const clockPresence=Object.fromEntries(clockDates.map((date,i)=>
+  [date,i===2?twoAtClosing:one]));
+const clockInput=inputs(clockDates[0],clockDates[2],clockPeople,
+  clockOp,clockAvailable,clockPresence,
+  {startDate:"2026-11-01",endDate:"2026-11-09"});
+clockInput.workConstraints.maximumDailyEffectiveMinutes=570;
+const initialClockShifts=clockDates.flatMap((date,i)=>[
+  shift(date,"a",i===2?"11:00":"09:00",i===2?"19:00":"17:00",
+    i===2?"14:00":"12:00",i===2?"15:00":"13:00"),
+  shift(date,"b","09:00","17:00","12:00","13:00"),
+  shift(date,"c","09:00","19:00","13:00","14:00"),
+  shift(date,"d","09:00","18:15","13:00","14:00"),
+]);
+independentlyValidate(clockInput,initialClockShifts);
+const adjustedClockShifts=improveCoupledWeeklyClockPatterns(clockInput,
+  initialClockShifts,[],clockInput.externalContext.startDate,
+  clockInput.externalContext.endDate);
+independentlyValidate(clockInput,adjustedClockShifts);
+assert(adjustedClockShifts.some(s=>s.personId==="a"&&
+  s.date===clockDates[2]&&s.interval.start==="09:00"),
+  "PR41: a jornada tardia deve ser antecipada quando é possível compensar cobertura.");
+assert(adjustedClockShifts.some(s=>s.personId==="d"&&
+  s.date===clockDates[2]&&s.interval.end==="19:00"),
+  "PR41: mudança coordenada preserva dois colaboradores no fecho.");
+assert(adjustedClockShifts.every(s=>initialClockShifts.some(original=>
+  original.personId===s.personId&&original.date===s.date&&
+  effectiveMinutes(original)===effectiveMinutes(s))),
+  "PR41: regularizar entradas não altera horas efetivas nem folgas.");

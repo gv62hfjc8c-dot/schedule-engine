@@ -151,7 +151,14 @@ function isWorkRulesConfiguration(
   const duration =
     workRules.standardShiftDurationMinutes;
 
-  return (
+  const maximum = workRules.maximumDailyEffectiveMinutes;
+  const shortDay = workRules.fullShortDayMaximumMinutes;
+  const mandatory = workRules.requireShiftsOnAvailableDays;
+  return (mandatory === undefined || typeof mandatory === "boolean") &&
+    (shortDay === undefined || (typeof shortDay === "number" && Number.isInteger(shortDay) && shortDay>=0 && shortDay<=1440)) &&
+    (maximum === undefined ||
+    (typeof maximum === "number" && Number.isInteger(maximum) &&
+      maximum >= 15 && maximum <= 1440)) && (
     duration === null ||
     (
       typeof duration === "number" &&

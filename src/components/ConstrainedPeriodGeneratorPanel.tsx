@@ -121,11 +121,15 @@ export default function ConstrainedPeriodGeneratorPanel({
     setWorkspaceView("settings");
   }, [people, availabilities, operatingCalendar, workRules, presence]);
 
+  const effectiveConstraints = { ...INITIAL_WORK_CONSTRAINTS,
+    maximumDailyEffectiveMinutes: workRules.maximumDailyEffectiveMinutes ?? 480,
+  };
+
   const context = prepareExplicitEmptyContext({
     startDate,
     endDate,
     timeZone,
-    rules: INITIAL_WORK_CONSTRAINTS,
+    rules: effectiveConstraints,
     confirmedNoExternalShifts: confirmed,
   });
 
@@ -158,7 +162,7 @@ export default function ConstrainedPeriodGeneratorPanel({
       startDate,
       endDate,
       timeZone,
-      rules: INITIAL_WORK_CONSTRAINTS,
+      rules: effectiveConstraints,
       confirmedNoExternalShifts: confirmed,
     });
     if (prepared.status !== "ready" || !prepared.externalContext) {
@@ -176,7 +180,7 @@ export default function ConstrainedPeriodGeneratorPanel({
         operatingCalendar,
         workRules,
         presence,
-        workConstraints: INITIAL_WORK_CONSTRAINTS,
+        workConstraints: effectiveConstraints,
         externalContext: prepared.externalContext,
         maxSearchNodes: PREVIEW_MAX_NODES,
       });
@@ -267,7 +271,7 @@ export default function ConstrainedPeriodGeneratorPanel({
         </div>
 
         <div className="generator-facts">
-          <div><span>Trabalho máximo</span><strong>8h/dia · 40h/semana</strong></div>
+          <div><span>Trabalho máximo</span><strong>{`${(effectiveConstraints.maximumDailyEffectiveMinutes / 60).toLocaleString("pt-PT")}h/dia · ${(effectiveConstraints.maximumWeeklyEffectiveMinutes / 60).toLocaleString("pt-PT")}h/semana`}</strong></div>
           <div><span>Descanso mínimo</span><strong>11h entre jornadas</strong></div>
           <div><span>Refeição obrigatória</span><strong>60min se mais de 6h</strong></div>
         </div>

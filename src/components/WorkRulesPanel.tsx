@@ -47,6 +47,7 @@ export default function WorkRulesPanel({
 }: WorkRulesPanelProps) {
   const duration =
     workRules.standardShiftDurationMinutes;
+  const maximumHours = (workRules.maximumDailyEffectiveMinutes ?? 480) / 60;
 
   const validDuration =
     isValidShiftDurationMinutes(duration)
@@ -66,6 +67,7 @@ export default function WorkRulesPanel({
   ) => {
     if (rawValue.trim() === "") {
       onChange({
+        ...workRules,
         standardShiftDurationMinutes: null,
       });
       return;
@@ -78,6 +80,7 @@ export default function WorkRulesPanel({
     }
 
     onChange({
+      ...workRules,
       standardShiftDurationMinutes:
         Math.round(hours * 60),
     });
@@ -188,6 +191,73 @@ export default function WorkRulesPanel({
               </label>
             </div>
 
+            <div className="work-rule-card">
+              <div>
+                <strong>Máximo diário de trabalho efetivo</strong>
+                <p>
+                  Limite obrigatório por empresa, distinto da duração padrão.
+                  A pausa de refeição não conta como trabalho efetivo.
+                </p>
+              </div>
+              <label className="work-duration-field">
+                <span>Horas</span>
+                <input
+                  type="number"
+                  min="0.25"
+                  max="24"
+                  step="0.25"
+                  value={maximumHours}
+                  onChange={(event) => {
+                    const hours = Number(event.target.value);
+                    if (Number.isFinite(hours) && hours >= 0.25 && hours <= 24) {
+                      onChange({
+                        ...workRules,
+                        maximumDailyEffectiveMinutes: Math.round(hours * 60),
+                      });
+                    }
+                  }}
+                />
+              </label>
+            </div>
+
+            <div className="work-rule-card">
+              <div>
+                <strong>Jornada integral em dias curtos</strong>
+                <p>Se um dia tiver até esta duração de funcionamento, quem for escalado cumpre todo o período. Por exemplo, 5h para domingos das 14:00 às 19:00. Introduz 0 para desativar.</p>
+              </div>
+              <label className="work-duration-field">
+                <span>Até (horas)</span>
+                <input type="number" min="0" max="24" step="0.25"
+                  value={(workRules.fullShortDayMaximumMinutes ?? 0)/60}
+                  onChange={(event) => {
+                    const hours=Number(event.target.value);
+                    if(Number.isFinite(hours)&&hours>=0&&hours<=24)
+                      onChange({...workRules,fullShortDayMaximumMinutes:Math.round(hours*60)});
+                  }} />
+              </label>
+            </div>
+            <div className="work-rule-card">
+              <div>
+                <strong>Dias disponíveis são dias de trabalho</strong>
+                <p>
+                  Quando ativado, cada dia aberto com disponibilidade escalável
+                  requer um turno para essa pessoa. Folgas e indisponibilidades
+                  mantêm-se obrigatórias. Se não for possível cumprir todos os
+                  dias e limites, o motor não publica uma solução como válida.
+                  Desativado, a disponibilidade significa apenas que pode trabalhar.
+                </p>
+              </div>
+              <label className="work-duration-field">
+                <span>Obrigatório</span>
+                <input type="checkbox"
+                  checked={workRules.requireShiftsOnAvailableDays ?? false}
+                  onChange={(event) => onChange({
+                    ...workRules,
+                    requireShiftsOnAvailableDays: event.target.checked,
+                  })}
+                />
+              </label>
+            </div>
             <div className="work-rule-card">
               <div>
                 <strong>Turnos contínuos</strong>
