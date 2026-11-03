@@ -10,9 +10,10 @@
  */
 import { executeApprovedScheduleCommand, type ApprovedScheduleCommand,
   type TrustedApprovalPorts } from "../../../src/application/executeApprovedScheduleCommand.ts";
-import { createApprovedScheduleLedger, validateApprovedScheduleLedger,
+import { validateApprovedScheduleLedger,
   type ApprovedScheduleLedger, type ApprovalEnvironment } from "../../../src/utils/approvedSchedules.ts";
 import { isGeneratedSchedulePayload } from "../../../src/persistence/generatedScheduleRepository.ts";
+import { parseOfficialScheduleRequest } from "../../../src/application/officialScheduleRequest.ts";
 import { INITIAL_WORK_CONSTRAINTS } from "../../../src/utils/workConstraints.ts";
 
 type JsonRecord = Record<string, unknown>;
@@ -138,26 +139,6 @@ async function bootstrapLedger(ownerId: string, zone: string) {
   return initialized as ApprovedScheduleLedger;
 }
 
-interface RequestBody {
-  kind: "approve" | "replace" | "cancel";
-  expectedVersion: number;
-  candidateId?: string;
-  replaceId?: string;
-  scheduleId?: string;
-}
-function parseCommand(raw: unknown): RequestBody | null {
-  if (!isObject(raw) || !["approve","replace","cancel"].includes(String(raw.kind)) ||
-      !Number.isSafeInteger(raw.expectedVersion) ||
-      (raw.expectedVersion as number) < 0) return null;
-  if (raw.kind === "cancel") {
-    if (typeof raw.scheduleId !== "string" || !raw.scheduleId) return null;
-  } else {
-    if (typeof raw.candidateId !== "string" || !raw.candidateId) return null;
-    if (raw.kind === "replace" && (typeof raw.replaceId !== "string" ||
-      !raw.replaceId)) return null;
-  }
-  return raw as unknown as RequestBody;
-}
 
 Deno.serve(async (request: Request) => {
   if (request.method !== "POST") return json({error:"method_not_allowed"},405);
@@ -168,7 +149,7 @@ Deno.serve(async (request: Request) => {
   let body: unknown;
   try { body = await request.json(); }
   catch { return json({ok:false,code:"invalid_input",issues:["Pedido inválido."]},400); }
-  const input=parseCommand(body);
+  const input=parseOfficialScheduleRequest(body);
   if (!input) return json({ok:false,code:"invalid_input",
     issues:["Comando de aprovação inválido."]},400);
 
