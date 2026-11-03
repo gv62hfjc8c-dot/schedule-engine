@@ -79,6 +79,7 @@ export default function GeneratedScheduleHistory({ onExit }: { onExit: () => voi
         setNotice(action.kind==="approve"?"Horário aprovado oficialmente.":
           action.kind==="replace"?"Nova versão oficial aprovada.":
           "Aprovação cancelada e preservada no histórico.");
+        setSelectedOfficial(null);
         refresh();
       }
     }catch(err){
@@ -109,7 +110,14 @@ export default function GeneratedScheduleHistory({ onExit }: { onExit: () => voi
       </div>
       {problem&&<p role="alert" className="generator-issue">{problem}</p>}
       {notice&&<p role="status" className="generator-hint">{notice}</p>}
-      {selected&&(!selectedRecord||selectedRecord.status!=="approved")&&(
+      {selected&&selectedRecord&&selectedRecord.status!=="approved"&&(
+        <p className="generator-hint">
+          Esta proposta já teve uma aprovação oficial que foi
+          {selectedRecord.status==="cancelled"?" cancelada":" substituída"}.
+          Para voltar a planear o período, gera e guarda uma nova proposta.
+        </p>
+      )}
+      {selected&&!selectedRecord&&(
         <div className="p63-action-row">
           {blocked?<p className="generator-issue">
             Já existe um horário aprovado parcialmente sobreposto.
