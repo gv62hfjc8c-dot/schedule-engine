@@ -1,8 +1,9 @@
 import {
   approveSchedule, cancelApprovedSchedule, replaceApprovedSchedule,
   type ApprovalEnvironment, type ApprovalFailure, type ApprovedScheduleLedger,
-  type ApprovedScheduleRecord, type ScheduleDraft,
+  type ApprovedScheduleRecord, type ScheduleDraft, type AbsenceReason,
 } from "../utils/approvedSchedules";
+import { reviseApprovedScheduleForAbsence } from "../utils/partialScheduleRevision";
 
 /**
  * P6.4 server-side application boundary. Not an HTTP endpoint and not
@@ -16,7 +17,11 @@ import {
 export type ApprovedScheduleCommand =
   | { kind: "approve"; expectedVersion: number; draft: ScheduleDraft }
   | { kind: "replace"; expectedVersion: number; replaceId: string; draft: ScheduleDraft }
-  | { kind: "cancel"; expectedVersion: number; scheduleId: string };
+  | { kind: "cancel"; expectedVersion: number; scheduleId: string }
+  | { kind: "revise"; expectedVersion: number; sourceId: string;
+      personId: string; startDate: string; endDate: string;
+      reason: AbsenceReason; note?: string;
+      replacements: {date:string;personId:string}[] };
 
 export interface TrustedApprovalPorts {
   /** Validates an actual server-side authenticated permanent session. */
@@ -27,6 +32,8 @@ export interface TrustedApprovalPorts {
   loadEnvironment(ownerId: string): Promise<ApprovalEnvironment>;
   /** Server-generated ISO instant, not a client clock. */
   now(): string;
+  /** Trusted server-generated ID for each immutable revision. */
+  newRecordId?(): string;
   /**
    * Atomic, owner-scoped write: reject stale expectedVersion, write snapshot
    * + append immutable history in ONE transaction. Privileged credentials
@@ -54,7 +61,7 @@ export async function executeApprovedScheduleCommand(
     return { ok: false, code: "unauthorized", issues: ["Proprietário não autenticado."] };
   }
   if (!command || !Number.isSafeInteger(command.expectedVersion) || command.expectedVersion < 0 ||
-      !["approve", "replace", "cancel"].includes(command.kind)) {
+      !["approve", "replace", "cancel", "revise"].includes(command.kind)) {
     return { ok: false, code: "invalid_input", issues: ["Comando ou versão inválidos."] };
   }
 
@@ -74,7 +81,19 @@ export async function executeApprovedScheduleCommand(
       ? cancelApprovedSchedule({ ...base, scheduleId: command.scheduleId })
       : command.kind === "approve"
         ? approveSchedule({ ...base, draft: command.draft, environment: await ports.loadEnvironment(ownerId) })
-        : replaceApprovedSchedule({ ...base, replaceId: command.replaceId, draft: command.draft, environment: await ports.loadEnvironment(ownerId) });
+        : command.kind === "replace"
+          ? replaceApprovedSchedule({ ...base, replaceId: command.replaceId, draft: command.draft, environment: await ports.loadEnvironment(ownerId) })
+          : reviseApprovedScheduleForAbsence({
+              ledger,environment:await ports.loadEnvironment(ownerId),
+              request:{
+                expectedVersion:command.expectedVersion,at,
+                sourceId:command.sourceId,
+                revisionId:ports.newRecordId?.()??"",
+                personId:command.personId,startDate:command.startDate,
+                endDate:command.endDate,reason:command.reason,
+                note:command.note,replacements:command.replacements,
+              },
+            });
 
     if (!mutation.ok) {
       return { ok: false, code: mutation.failure.code, issues: mutation.failure.issues };
