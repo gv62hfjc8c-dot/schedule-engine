@@ -1,3 +1,15 @@
+## 2026-11-03 — PR #43: horários oficiais com aprovação confiável
+
+- adicionado serviço Supabase Edge autenticado que recebe apenas IDs de propostas e versão esperada;
+- aprovação, substituição e cancelamento executam o núcleo de domínio com configurações e contexto atuais do servidor;
+- versão oficial isolada por proprietário, compare-and-swap transacional e histórico integral de mutações;
+- novas regras da geração (dias obrigatórios, jornada completa em dias curtos) passam também a ser revistas na aprovação;
+- nomes à data da aprovação preservados para consulta histórica;
+- o gerador deixa de ignorar horários oficiais e passa a obter o contexto exterior aprovado, bloqueando períodos ocupados;
+- propostas registam a versão oficial considerada, quando aplicável;
+- interface permanece com as quatro áreas principais, com ações contextuais dentro de Horários;
+- migrações e função Edge aplicadas no projeto Supabase independente do Schedule Engine; confirmação funcional no Safari pendente.
+
 ## 2026-11-02 — PR #42: propostas de horários na base de dados
 
 - cada solução gerada e válida no cenário declarado é guardada automaticamente como proposta **não aprovada**;
