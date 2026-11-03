@@ -93,7 +93,8 @@ export default function GeneratedScheduleHistory({ onExit }: { onExit: () => voi
     const shifts=selected?.payload.shifts??shown?.shifts??[];
     const start=selected?.startDate??shown?.startDate??"";
     const end=selected?.endDate??shown?.endDate??"";
-    const people=selected?.payload.people??shifts.map(s=>s.personId)
+    const people=shown?.people?.map(p=>({...p,active:false}))??
+      selected?.payload.people??shifts.map(s=>s.personId)
       .filter((v,i,a)=>a.indexOf(v)===i)
       .map(id=>({id,name:id,active:false}));
     return <section className="panel generator-panel">
