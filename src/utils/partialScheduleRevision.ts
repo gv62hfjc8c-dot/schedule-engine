@@ -160,8 +160,12 @@ export function reviseApprovedScheduleForAbsence(input:{
     ...(request.note?.trim()?{note:request.note.trim()}:{}),
     changedDates,
   };
+  const rememberedPeople=new Map<string,{id:string;name:string}>();
+  for(const p of [...(source.people??[]),...(outcome.record.people??[])])
+    rememberedPeople.set(p.id,{...p});
   const record:ApprovedScheduleRecord={
     ...outcome.record,absences,revision,
+    people:[...rememberedPeople.values()],
   };
   const next={
     ...outcome.ledger,
