@@ -316,7 +316,11 @@ export default function ConstrainedPeriodGeneratorPanel({
         )}
       </div>
       {workspaceView === "history" && (
-        <GeneratedScheduleHistory onExit={() => setWorkspaceView("settings")} />
+        <GeneratedScheduleHistory onExit={() => setWorkspaceView("settings")}
+          environment={{
+            people,availabilities,operatingCalendar,presence,
+            workConstraints:effectiveConstraints,workRules,
+          }} />
       )}
       {workspaceView === "settings" && <div className="generator-layout period-generator-layout">
       <section className="panel generator-panel">
