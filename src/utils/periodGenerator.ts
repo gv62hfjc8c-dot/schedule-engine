@@ -12,7 +12,8 @@ import type { PresenceShortage } from "./presence";
  * This V0 orchestrates independent daily schedules. It does not enforce
  * weekly quotas, inter-day rest, fairness or contract constraints.
  */
-export const MAX_PERIOD_DAYS = 14;
+import { MAX_PERIOD_DAYS } from "./scheduleLimits";
+export { MAX_PERIOD_DAYS } from "./scheduleLimits";
 
 export interface GeneratePeriodScheduleInput
   extends Omit<GenerateDayScheduleInput, "date"> {
