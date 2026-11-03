@@ -75,4 +75,32 @@ const stale=await createOfficialScheduleRepository(conflict).execute(
 assert(!stale.ok&&stale.code==="stale_version",
   "Conflitos de versão não são tratados como aprovação.");
 
+// A partial revision carries only an incident and possible replacement IDs.
+// The browser must never submit an arbitrary ledger/schedule/environment.
+const revision={
+  kind:"revise" as const,sourceId:"initial",expectedVersion:3,
+  personId:"a",startDate:"2027-01-05",endDate:"2027-01-05",
+  reason:"sick_leave" as const,
+  replacements:[{date:"2027-01-05",personId:"c"}],
+};
+assert(parseOfficialScheduleRequest(revision)?.kind==="revise",
+  "PR43: a revisão estruturada é permitida.");
+for(const payload of [
+  {...revision,ownerId:"another-user"},
+  {...revision,ledger:{}},
+  {...revision,draft:{shifts:[]}},
+  {...revision,reason:"unknown"},
+  {...revision,startDate:"2027-02-30"},
+  {...revision,endDate:"2027-01-04"},
+  {...revision,replacements:[{date:"2027-01-05",personId:"b"},
+    {date:"2027-01-05",personId:"c"}]},
+  {...revision,replacements:[{date:"2027-01-06",personId:"b"}]},
+  {...revision,replacements:[{date:"2027-01-05",personId:"b",interval:{}}]},
+])assert(parseOfficialScheduleRequest(payload)===null,
+  "PR43: recusar revisão adulterada ou com datas duplicadas.");
+const revisionResult=await adapter.execute(revision);
+assert(revisionResult.ok &&
+  JSON.stringify(requests[2].body)===JSON.stringify(revision),
+  "PR43: a API não injeta dados não autorizados na revisão.");
+
 console.log("PR43: teste de API e adaptador oficial passou.");
