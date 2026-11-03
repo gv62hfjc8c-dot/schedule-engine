@@ -630,3 +630,39 @@ de 28 dias. Uma vista mensal agrega horários de um ou mais ciclos, enquanto
 a contabilidade de horas pertence aos ciclos. Objetivos como 160h por
 ciclo, domingos rotativos e compensações semanais são configurações do
 regime aplicável, nunca valores universais.
+
+## D043 — Aprovação oficial só no servidor confiável
+
+**Estado:** aceite (2026-11-03); PR #43
+
+A interface envia apenas ID da proposta persistida, versão esperada e,
+conforme a operação, ID do registo a substituir/cancelar. O serviço autentica
+o proprietário no Supabase, recupera a proposta e a configuração atual,
+executa o núcleo de validação TypeScript, usa o relógio do servidor e
+persiste por compare-and-swap transacional em PostgreSQL. RLS permite ao
+proprietário consultar as versões, mas nunca escrever nelas diretamente.
+
+Um ledger vazio inicializado por este serviço é completo apenas quanto
+às aprovações **oficiais deste sistema**, não prova ausência de jornadas
+ou acordos externos. Horários externos exigem futura integração ou
+importação verificada; não tratar o registo como comprovativo de assiduidade.
+
+Cada mutação grava nova versão e evento histórico imutável para os papéis
+clientes. Nomes dos colaboradores e turnos ficam no snapshot aprovado.
+Regras de jornadas obrigatórias e dias curtos também são revalidadas antes
+de qualquer aprovação. Um conflito de versão não autoriza repetição cega.
+
+## D044 — Geração consulta primeiro contexto oficial
+
+**Estado:** aceite (2026-11-03); PR #43
+
+Depois de existir um ledger oficial, o motor consulta-o novamente antes de
+cada geração, recupera os turnos exteriores relevantes e rejeita
+sobreposições com períodos já aprovados. A declaração manual de contexto
+vazio apenas subsiste para o período inicial sem ledger. A proposta
+persistida regista se foi produzida sob declaração explícita de vazio
+ou contra uma versão concreta do ledger; nenhuma das opções equivale
+a aprovação automática.
+
+Os ciclos de 28 dias e o objetivo de 160 horas são um desenvolvimento
+posterior, não uma propriedade do mecanismo de aprovação V0.
