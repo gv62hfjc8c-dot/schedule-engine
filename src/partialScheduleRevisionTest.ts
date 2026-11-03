@@ -117,6 +117,42 @@ for(const [testName,change] of [
   assert(!refused.ok,"Deve recusar: "+testName);
 }
 
+const withStandby:ApprovalEnvironment={
+  ...environment,
+  people:[...environment.people,{id:"c",name:"Carla",active:true}],
+  availabilities:[...environment.availabilities,{
+    personId:"c",weeklyAvailability:createEmptyWeeklyAvailability(),
+    exceptions:dates.map(date=>({date,intervals:[slot]})),
+  }],
+  workRules:{standardShiftDurationMinutes:480,
+    requireShiftsOnAvailableDays:false},
+};
+const reassigned=reviseApprovedScheduleForAbsence({
+  ledger:first.ledger,environment:withStandby,
+  request:{...request,revisionId:"revision-standby",
+    replacements:[{date:tue,personId:"c"}]},
+});
+assert(reassigned.ok,"Substituir um turno por pessoa disponível deve funcionar.");
+if(!reassigned.ok)throw Error("unexpected");
+assert(reassigned.record.shifts.length===shifts.length &&
+  reassigned.record.shifts.some(s=>s.date===tue&&s.personId==="c") &&
+  reassigned.record.people?.some(p=>p.id==="c"&&p.name==="Carla")===true &&
+  reassigned.record.people?.some(p=>p.id==="a"&&p.name==="Anabela")===true &&
+  reassigned.record.shifts.filter(s=>s.date===mon).length===2,
+  "Substituição preserva horários não afetados e nomes originais.");
+const standbyUnavailable:ApprovalEnvironment={
+  ...withStandby,
+  availabilities:withStandby.availabilities.map(a=>a.personId==="c"
+    ?{...a,exceptions:[]}:a),
+};
+const unavailableSwap=reviseApprovedScheduleForAbsence({
+  ledger:first.ledger,environment:standbyUnavailable,
+  request:{...request,revisionId:"revision-unavailable",
+    replacements:[{date:tue,personId:"c"}]},
+});
+assert(!unavailableSwap.ok,
+  "Substituto sem disponibilidade não pode receber turno.");
+
 const backwards=reviseApprovedScheduleForAbsence({
   ledger:first.ledger,environment,
   request:{...request,at:"2027-01-06T10:00:00Z"},
