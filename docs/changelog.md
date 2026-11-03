@@ -1,3 +1,14 @@
+## 2026-11-03 — PR #43: revisão parcial de horários oficiais
+
+- adicionado formulário contextual de ocorrência no horário vigente;
+- por colaborador e intervalo de datas, retira turnos e permite substituir cada turno diretamente;
+- mantém todos os turnos não afetados, incluindo dias anteriores à alteração;
+- suspende dias de trabalho obrigatórios da pessoa formalmente indisponível no intervalo da ocorrência;
+- pré-visualiza resultados e recusa propostas com falhas de cobertura ou regras obrigatórias;
+- Edge Function autentica, revalida e gera nova versão com motivo, datas e ausências preservadas;
+- histórico oficial imutável e compare-and-swap transacional preservados;
+- impede alterações retroativas neste fluxo e limita os registos administrativos de saúde.
+
 ## 2026-11-03 — PR #43: horários oficiais com aprovação confiável
 
 - adicionado serviço Supabase Edge autenticado que recebe apenas IDs de propostas e versão esperada;
