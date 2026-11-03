@@ -106,11 +106,11 @@ function dayStatus(status: string | null): string {
  * Deliberately narrow read-only experiment:
  * - the app has configuration data, NOT a persisted approved roster;
  * - no empty external schedule is assumed by default;
- * - the user must explicitly declare no other shifts over the whole
- *   required period, including dates outside the chosen target;
- * - generated proposals are archived, but never approved by the browser.
- *
- * This declaration only makes the result valid IN THAT SCENARIO.
+ * - if the official schedule archive exists, its approved commitments
+ *   are consulted immediately before each generation;
+ * - only when no official archive exists is an explicit empty-context
+ *   declaration allowed;
+ * - generated proposals are archived, never approved by the browser.
  */
 export default function ConstrainedPeriodGeneratorPanel({
   people,
@@ -470,9 +470,10 @@ export default function ConstrainedPeriodGeneratorPanel({
             {result.status === "generated" && (
               <p className="generator-hint">
                 Cobertura, refeições, descanso e limites diários/semanais
-                verificados <strong>apenas sob a declaração de ausência de
-                outros turnos exteriores ao período</strong>. Isto não
-                representa uma aprovação oficial. A gravação é indicada separadamente.
+                verificados <strong>{snapshot?.contextSource==="official"
+                  ? "considerando os horários oficialmente aprovados"
+                  : "sob a declaração explícita de ausência de turnos exteriores"}</strong>.
+                A geração não constitui uma aprovação oficial.
               </p>
             )}
             {result.status === "generated" &&
