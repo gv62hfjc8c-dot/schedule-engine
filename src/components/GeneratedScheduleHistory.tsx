@@ -4,7 +4,9 @@ import { createSupabaseGeneratedScheduleRepository } from "../persistence/supaba
 import { createOfficialScheduleRepository,
   type OfficialScheduleAction } from "../persistence/officialScheduleRepository";
 import type { StoredGeneratedSchedule } from "../persistence/generatedScheduleRepository";
-import type { ApprovedScheduleLedger, ApprovedScheduleRecord } from "../utils/approvedSchedules";
+import type { ApprovedScheduleLedger, ApprovedScheduleRecord,
+  ApprovalEnvironment } from "../utils/approvedSchedules";
+import PartialRevisionEditor from "./PartialRevisionEditor";
 import ScheduleViews from "./ScheduleViews";
 
 const proposals = supabaseAuthClient
@@ -21,13 +23,16 @@ const overlaps=(a:{startDate:string;endDate:string},
   b:{startDate:string;endDate:string})=>
   a.startDate<=b.endDate && b.startDate<=a.endDate;
 
-export default function GeneratedScheduleHistory({ onExit }: { onExit: () => void }) {
+export default function GeneratedScheduleHistory({
+  onExit,environment,
+}: { onExit: () => void; environment: ApprovalEnvironment }) {
   const [items,setItems]=useState<StoredGeneratedSchedule[]>([]);
   const [ledger,setLedger]=useState<ApprovedScheduleLedger|null>(null);
   const [selected,setSelected]=useState<StoredGeneratedSchedule|null>(null);
   const [selectedOfficial,setSelectedOfficial]=useState<ApprovedScheduleRecord|null>(null);
   const [loading,setLoading]=useState(false);
   const [mutating,setMutating]=useState(false);
+  const [editingRevision,setEditingRevision]=useState(false);
   const [problem,setProblem]=useState<string|null>(null);
   const [notice,setNotice]=useState<string|null>(null);
   const [attempt,setAttempt]=useState(0);
@@ -78,8 +83,11 @@ export default function GeneratedScheduleHistory({ onExit }: { onExit: () => voi
       }else{
         setNotice(action.kind==="approve"?"Horário aprovado oficialmente.":
           action.kind==="replace"?"Nova versão oficial aprovada.":
+          action.kind==="revise"?"Revisão parcial aprovada e registada.":
           "Aprovação cancelada e preservada no histórico.");
         setSelectedOfficial(null);
+        setSelected(null);
+        setEditingRevision(false);
         refresh();
       }
     }catch(err){
@@ -107,6 +115,7 @@ export default function GeneratedScheduleHistory({ onExit }: { onExit: () => voi
         </div>
         <button type="button" onClick={()=>{
           setSelected(null);setSelectedOfficial(null);
+          setEditingRevision(false);
         }}>Voltar ao histórico</button>
       </div>
       {problem&&<p role="alert" className="generator-issue">{problem}</p>}
@@ -138,12 +147,25 @@ export default function GeneratedScheduleHistory({ onExit }: { onExit: () => voi
         </div>
       )}
       {shown?.status==="approved"&&(
-        <div className="p63-action-row">
-          <button type="button" disabled={mutating}
-            onClick={()=>void perform({
-              kind:"cancel",scheduleId:shown.id,expectedVersion:version,
-            })}>Cancelar aprovação</button>
-        </div>
+        <>
+          {!editingRevision&&<div className="p63-action-row">
+            <button type="button" className="primary-button"
+              disabled={mutating} onClick={()=>setEditingRevision(true)}>
+              Registar ocorrência / rever horário
+            </button>
+            <button type="button" disabled={mutating}
+              onClick={()=>void perform({
+                kind:"cancel",scheduleId:shown.id,expectedVersion:version,
+              })}>Cancelar aprovação</button>
+          </div>}
+          {editingRevision&&ledger&&(
+            <PartialRevisionEditor key={shown.id} source={shown}
+              ledger={ledger} environment={environment}
+              busy={mutating}
+              onCancel={()=>setEditingRevision(false)}
+              onApprove={perform}/>
+          )}
+        </>
       )}
       <ScheduleViews assignments={shifts} people={people}
         startDate={start} endDate={end}/>
@@ -178,13 +200,17 @@ export default function GeneratedScheduleHistory({ onExit }: { onExit: () => voi
             <div className="period-day-heading">
               <div>
                 <strong>{record.startDate} a {record.endDate}</strong>
-                <span>{record.approvedAt} · {record.shifts.length} turnos</span>
+                <span>{record.approvedAt} · {record.shifts.length} turnos
+                  {record.revision ? ` · Revisão por ${record.revision.reason}
+                    (${record.revision.startDate} a ${record.revision.endDate})` : ""}
+                </span>
               </div>
               <span className="work-rule-badge">{statusLabel(record.status)}</span>
             </div>
             <button type="button" onClick={()=>{
               setSelected(items.find(item=>item.id===record.id)??null);
               setSelectedOfficial(record);
+              setEditingRevision(false);
             }}>Consultar versão</button>
           </article>
         ))}
@@ -207,6 +233,7 @@ export default function GeneratedScheduleHistory({ onExit }: { onExit: () => voi
           </div>
           <button type="button" onClick={()=>{
             setSelected(item);setSelectedOfficial(null);
+            setEditingRevision(false);
           }}>Consultar proposta</button>
         </article>;
       })}
