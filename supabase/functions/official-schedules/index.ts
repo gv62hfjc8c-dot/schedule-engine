@@ -154,9 +154,9 @@ Deno.serve(async (request: Request) => {
     issues:["Comando de aprovação inválido."]},400);
 
   try {
-    const candidate = input.kind === "cancel" ? null :
-      await lookupCandidate(ownerId,input.candidateId!);
-    if (input.kind !== "cancel" && !candidate)
+    const candidate = input.kind === "approve" || input.kind === "replace"
+      ? await lookupCandidate(ownerId,input.candidateId) : null;
+    if ((input.kind === "approve" || input.kind === "replace") && !candidate)
       return json({ok:false,code:"invalid_input",
         issues:["Proposta não encontrada nesta conta."]},404);
 
@@ -179,13 +179,20 @@ Deno.serve(async (request: Request) => {
           issues:["O fuso horário da proposta não é válido."]},400);
       }
     }
+    const revisionId = input.kind === "revise" ? crypto.randomUUID() : null;
     const command: ApprovedScheduleCommand = input.kind === "cancel"
       ? {kind:"cancel",expectedVersion:input.expectedVersion,
-         scheduleId:input.scheduleId!}
-      : input.kind === "replace"
-        ? {kind:"replace",expectedVersion:input.expectedVersion,
-          replaceId:input.replaceId!,draft:draft!}
-        : {kind:"approve",expectedVersion:input.expectedVersion,draft:draft!};
+         scheduleId:input.scheduleId}
+      : input.kind === "revise"
+        ? {kind:"revise",expectedVersion:input.expectedVersion,
+          sourceId:input.sourceId,personId:input.personId,
+          startDate:input.startDate,endDate:input.endDate,
+          reason:input.reason,note:input.note,
+          replacements:input.replacements}
+        : input.kind === "replace"
+          ? {kind:"replace",expectedVersion:input.expectedVersion,
+            replaceId:input.replaceId,draft:draft!}
+          : {kind:"approve",expectedVersion:input.expectedVersion,draft:draft!};
 
     const ports: TrustedApprovalPorts = {
       authenticateOwner: async () => ownerId,
@@ -199,6 +206,7 @@ Deno.serve(async (request: Request) => {
       },
       loadEnvironment: loadAuthoritativeEnvironment,
       now: () => new Date().toISOString(),
+      newRecordId: () => revisionId ?? crypto.randomUUID(),
       commit: async (id,next,expected) => {
         if (validateApprovedScheduleLedger(next).length > 0)
           throw new Error("Invalid proposed ledger update");
@@ -207,8 +215,8 @@ Deno.serve(async (request: Request) => {
           {method:"POST",body:JSON.stringify({
             p_owner_id:id,p_expected_version:expected,
             p_next_payload:next,p_operation:input.kind,
-            p_record_id:input.kind==="cancel" ?
-              input.scheduleId : input.candidateId,
+            p_record_id:input.kind==="cancel" ? input.scheduleId :
+              input.kind==="revise" ? revisionId : input.candidateId,
           })}
         );
         return ok === true ? "saved" : "conflict";
