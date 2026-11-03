@@ -5,6 +5,7 @@ import type {
   PersonAvailability,
   PresenceConfiguration,
   WorkConstraintConfiguration,
+  WorkRulesConfiguration,
 } from "../types";
 import type { ConfirmedExternalWorkContext } from "./constrainedPeriodGenerator";
 import {
@@ -12,7 +13,7 @@ import {
   type WorkValidationDateRange,
   type WorkConstraintViolation,
 } from "./workConstraints";
-import { isSchedulableForInterval } from "./availability";
+import { isSchedulableForInterval, getSchedulableIntervalsForDate } from "./availability";
 import { getOperatingIntervalsForDate, getWeekday } from "./operatingCalendar";
 import { resolvePresenceForDate } from "./presence";
 import { checkPresenceForWorkShifts } from "./workCoverage";
@@ -64,6 +65,8 @@ export interface ApprovalEnvironment {
   operatingCalendar: OperatingCalendarConfiguration;
   presence: PresenceConfiguration;
   workConstraints: WorkConstraintConfiguration;
+  /** Company-specific hard policies; optional for legacy callers. */
+  workRules?: WorkRulesConfiguration;
 }
 
 /** Core mutations never throw for expected domain conflicts. */
@@ -576,6 +579,38 @@ function validateDraft(
     if (presence.status !== "configured") {
       problems.push(date + ": requisitos de presença não configurados.");
       continue;
+    }
+    // PR #43: approval must validate the same mandatory-day and complete
+    // short-day policies used by the generator, not just work-duration limits.
+    const shortLimit = environment.workRules?.fullShortDayMaximumMinutes;
+    if (shortLimit !== undefined && shortLimit !== null &&
+        (!Number.isSafeInteger(shortLimit) || shortLimit < 1)) {
+      problems.push(date + ": limite de dia curto inválido.");
+    }
+    if (shortLimit && operating.length === 1) {
+      const open = operating[0];
+      const span = Number(open.end.slice(0,2))*60 + Number(open.end.slice(3,5)) -
+        Number(open.start.slice(0,2))*60 - Number(open.start.slice(3,5));
+      if (span <= shortLimit && proposed.some(shift =>
+        shift.interval.start !== open.start ||
+        shift.interval.end !== open.end || shift.mealBreak !== null)) {
+        problems.push(date + ": jornadas de dia curto têm de ser integrais.");
+      }
+    }
+    if (environment.workRules?.requireShiftsOnAvailableDays === true) {
+      for (const person of environment.people.filter(person=>person.active)) {
+        const available = availability.get(person.id);
+        if (!available) continue;
+        const windows = getSchedulableIntervalsForDate(
+          date, available,
+          environment.operatingCalendar.weeklyOperatingHours,
+          environment.operatingCalendar.exceptions
+        );
+        if (windows.length && !proposed.some(s=>s.personId===person.id)) {
+          problems.push(date + ": dia de trabalho obrigatório sem turno para " +
+            person.id + ".");
+        }
+      }
     }
     for (const shift of proposed) {
       const person = people.get(shift.personId);
