@@ -169,6 +169,16 @@ Deno.serve(async (request: Request) => {
       timeZone: candidate.payload.timeZone,
       shifts: candidate.payload.shifts,
     } : null;
+    // Reject an invalid or injected time zone before initializing a ledger.
+    // A malformed candidate must not poison the owner's official archive.
+    if (draft) {
+      try {
+        new Intl.DateTimeFormat("en", {timeZone:draft.timeZone});
+      } catch {
+        return json({ok:false,code:"invalid_input",
+          issues:["O fuso horário da proposta não é válido."]},400);
+      }
+    }
     const command: ApprovedScheduleCommand = input.kind === "cancel"
       ? {kind:"cancel",expectedVersion:input.expectedVersion,
          scheduleId:input.scheduleId!}
