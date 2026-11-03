@@ -666,3 +666,34 @@ a aprovação automática.
 
 Os ciclos de 28 dias e o objetivo de 160 horas são um desenvolvimento
 posterior, não uma propriedade do mecanismo de aprovação V0.
+
+## D045 — Revisões parciais por ocorrência, sem modificar o passado
+
+**Estado:** aceite (2026-11-03); PR #43 ainda em validação
+
+Depois da aprovação inicial, um horário oficial pode receber revisões
+parciais motivadas por baixa, férias, licença, acidente, saída da equipa ou
+outro impedimento. A operação aponta para a versão vigente e identifica
+colaborador, datas e motivo. Os turnos fora deste âmbito são copiados
+integralmente, sem voltarem a ser gerados.
+
+A primeira implementação retira os turnos da pessoa indisponível e
+permite uma substituição direta por dia (com o mesmo intervalo/refeição).
+Uma proposta é rejeitada quando viola cobertura, limites de horas,
+descanso, disponibilidades ou políticas de dias obrigatórios. A ausência
+temporária suspende a obrigação de trabalhar nesses dias, sem transformar
+uma disponibilidade em um turno fictício. Não há aprovação parcial inválida.
+
+A interface apresenta uma pré-visualização, mas só a validação no servidor
+pode confirmar a revisão. O servidor gera o identificador oficial, carrega
+regras atuais, valida todos os turnos da versão resultante e grava por
+CAS transacional. A versão anterior passa a substituída, preservando o
+histórico imutável e o motivo resumido da ocorrência. Revisões de datas
+já decorridas não fazem parte deste fluxo operacional.
+
+**Limites do V0:** o período oficial ainda é de até 14 dias (não 28);
+a reatribuição é direta, sem reotimização coordenada automática;
+ausências pluriciclo e correções retroativas precisam de um modelo próprio;
+o apuramento de trabalho realmente prestado é separado das horas planeadas.
+Ocorrências de saúde devem guardar apenas a categoria administrativa,
+sem diagnóstico nem informação clínica.
