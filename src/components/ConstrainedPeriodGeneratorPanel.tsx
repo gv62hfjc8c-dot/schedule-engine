@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { supabaseAuthClient } from "../persistence/supabaseInstance";
 import { createSupabaseGeneratedScheduleRepository } from "../persistence/supabaseGeneratedScheduleRepository";
+import { createOfficialScheduleRepository } from "../persistence/officialScheduleRepository";
+import { queryApprovedExternalContext, type ApprovedScheduleLedger } from "../utils/approvedSchedules";
 import type { GeneratedSchedulePayload } from "../persistence/generatedScheduleRepository";
 import GeneratedScheduleHistory from "./GeneratedScheduleHistory";
 import { readGeneratorDate, saveGeneratorDate } from "./generatorUiPreferences";
@@ -33,13 +35,17 @@ interface Snapshot extends ConstrainedPeriodGeneratorPanelProps {
   startDate: string;
   endDate: string;
   timeZone: string;
-  confirmedNoExternalShifts: true;
+  contextSource: "explicit_empty" | "official";
+  approvedContextVersion?: number;
   result: GenerateConstrainedPeriodResult;
 }
 
 const PREVIEW_MAX_NODES = 5_000;
 const archive = supabaseAuthClient
   ? createSupabaseGeneratedScheduleRepository(supabaseAuthClient)
+  : null;
+const officialArchive = supabaseAuthClient
+  ? createOfficialScheduleRepository(supabaseAuthClient)
   : null;
 
 function todayKey(): string {
@@ -123,6 +129,31 @@ export default function ConstrainedPeriodGeneratorPanel({
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "failed">("idle");
   const [saveProblem, setSaveProblem] = useState<string | null>(null);
   const generationRun = useRef(0);
+  const [officialLedger,setOfficialLedger] = useState<ApprovedScheduleLedger|null>(null);
+  const [officialReady,setOfficialReady] = useState(false);
+  const [officialProblem,setOfficialProblem] = useState<string|null>(null);
+
+  useEffect(()=>{
+    if(workspaceView!=="settings")return;
+    let alive=true;
+    setOfficialReady(false);
+    setOfficialProblem(null);
+    if(!officialArchive){
+      setOfficialProblem("A ligação Supabase não está configurada.");
+      setOfficialReady(true);
+      return;
+    }
+    void officialArchive.load().then(ledger=>{
+      if(alive){setOfficialLedger(ledger);setOfficialReady(true);}
+    }).catch(err=>{
+      if(alive){
+        setOfficialProblem(err instanceof Error?err.message:
+          "Não foi possível confirmar o contexto oficial.");
+        setOfficialReady(true);
+      }
+    });
+    return ()=>{alive=false;};
+  },[workspaceView]);
 
   useEffect(() => {
     // An edited roster/configuration requires a fresh, explicit declaration.
@@ -138,15 +169,23 @@ export default function ConstrainedPeriodGeneratorPanel({
     maximumDailyEffectiveMinutes: workRules.maximumDailyEffectiveMinutes ?? 480,
   };
 
-  const context = prepareExplicitEmptyContext({
-    startDate,
-    endDate,
-    timeZone,
-    rules: effectiveConstraints,
-    confirmedNoExternalShifts: confirmed,
-  });
+  const context = officialLedger
+    ? queryApprovedExternalContext({
+        ledger:officialLedger,
+        targetPeriod:{startDate,endDate},
+        workConstraints:effectiveConstraints,
+        timeZone,
+      })
+    : prepareExplicitEmptyContext({
+        startDate,endDate,timeZone,rules:effectiveConstraints,
+        confirmedNoExternalShifts:confirmed,
+      });
 
-  const sameInputs = snapshot !== null && confirmed &&
+  const sameInputs = snapshot !== null &&
+    (snapshot.contextSource === "official"
+      ? officialLedger !== null &&
+        snapshot.approvedContextVersion === officialLedger.version
+      : officialLedger === null && confirmed) &&
     snapshot.startDate === startDate &&
     snapshot.endDate === endDate &&
     snapshot.timeZone === timeZone &&
@@ -169,85 +208,88 @@ export default function ConstrainedPeriodGeneratorPanel({
     setError(null);
   }
 
-  function handleGenerate() {
-    const run = ++generationRun.current;
+  async function handleGenerate() {
+    const run=++generationRun.current;
     setSnapshot(null);
     setError(null);
     setSaveState("idle");
     setSaveProblem(null);
-    // Independent gate immediately before engine execution. This prevents
-    // the UI from supplying a fabricated complete empty context.
-    const prepared = prepareExplicitEmptyContext({
-      startDate,
-      endDate,
-      timeZone,
-      rules: effectiveConstraints,
-      confirmedNoExternalShifts: confirmed,
-    });
-    if (prepared.status !== "ready" || !prepared.externalContext) {
-      setError(prepared.issues.join(" ") ||
-        "É necessária a confirmação do contexto exterior.");
+    if(!officialArchive){
+      setError("Sem ligação ao arquivo oficial. Não é seguro gerar.");
       return;
     }
     try {
-      const generated = generateConstrainedPeriodSchedule({
-        startDate,
-        endDate,
-        timeZone,
-        people,
-        availabilities,
-        operatingCalendar,
-        workRules,
-        presence,
-        workConstraints: effectiveConstraints,
-        externalContext: prepared.externalContext,
-        maxSearchNodes: PREVIEW_MAX_NODES,
+      // An approved record in another tab invalidates stale empty-context
+      // declarations. Re-read the authority immediately before generation.
+      const latest=await officialArchive.load();
+      if(generationRun.current!==run)return;
+      setOfficialLedger(latest);
+      setOfficialReady(true);
+      setOfficialProblem(null);
+      const prepared=latest
+        ? queryApprovedExternalContext({
+            ledger:latest,targetPeriod:{startDate,endDate},
+            workConstraints:effectiveConstraints,timeZone,
+          })
+        : prepareExplicitEmptyContext({
+            startDate,endDate,timeZone,rules:effectiveConstraints,
+            confirmedNoExternalShifts:confirmed,
+          });
+      if(prepared.status!=="ready"||!prepared.externalContext){
+        setError(prepared.issues.join(" ") ||
+          "O contexto exterior não permite gerar este período.");
+        return;
+      }
+      const generated=generateConstrainedPeriodSchedule({
+        startDate,endDate,timeZone,people,availabilities,
+        operatingCalendar,workRules,presence,
+        workConstraints:effectiveConstraints,
+        externalContext:prepared.externalContext,
+        maxSearchNodes:PREVIEW_MAX_NODES,
       });
-      setWorkspaceView(generated.status === "generated" ? "schedule" : "settings");
+      if(generationRun.current!==run)return;
+      setWorkspaceView(generated.status==="generated"?"schedule":"settings");
       setSnapshot({
-        startDate,
-        endDate,
-        timeZone,
-        people,
-        availabilities,
-        operatingCalendar,
-        workRules,
-        presence,
-        confirmedNoExternalShifts: true,
-        result: generated,
+        startDate,endDate,timeZone,people,availabilities,
+        operatingCalendar,workRules,presence,
+        contextSource:latest?"official":"explicit_empty",
+        approvedContextVersion:latest?.version,
+        result:generated,
       });
-      if (generated.status === "generated") {
-        const payload: GeneratedSchedulePayload = {
-          schemaVersion: 1,
-          validationScope: "user_attested_no_external_shifts",
-          startDate, endDate, timeZone,
-          shifts: structuredClone(generated.assignments),
-          people: structuredClone(people),
-          configuration: structuredClone({
-            availabilities, operatingCalendar, workRules, presence,
-            workConstraints: effectiveConstraints,
+      if(generated.status==="generated"){
+        const payload:GeneratedSchedulePayload={
+          schemaVersion:1,
+          validationScope:latest?"official_approved_context":
+            "user_attested_no_external_shifts",
+          ...(latest?{approvedContextVersion:latest.version}:{}),
+          startDate,endDate,timeZone,
+          shifts:structuredClone(generated.assignments),
+          people:structuredClone(people),
+          configuration:structuredClone({
+            availabilities,operatingCalendar,workRules,presence,
+            workConstraints:effectiveConstraints,
           }),
         };
-        if (!archive) {
+        if(!archive){
           setSaveState("failed");
           setSaveProblem("A ligação Supabase não está configurada.");
-        } else {
+        }else{
           setSaveState("saving");
-          void archive.save(payload).then(() => {
-            if (generationRun.current === run) setSaveState("saved");
-          }).catch(problem => {
-            if (generationRun.current === run) {
+          void archive.save(payload).then(()=>{
+            if(generationRun.current===run)setSaveState("saved");
+          }).catch(err=>{
+            if(generationRun.current===run){
               setSaveState("failed");
-              setSaveProblem(problem instanceof Error ? problem.message :
+              setSaveProblem(err instanceof Error?err.message:
                 "A base de dados não confirmou a gravação.");
             }
           });
         }
       }
     } catch (unexpected) {
-      setError(unexpected instanceof Error
-        ? unexpected.message
-        : "Ocorreu um erro inesperado. Nenhum horário foi publicado.");
+      if(generationRun.current!==run)return;
+      setError(unexpected instanceof Error ? unexpected.message :
+        "Não foi possível confirmar o contexto oficial. Nada foi publicado.");
     }
   }
 
@@ -342,53 +384,49 @@ export default function ConstrainedPeriodGeneratorPanel({
           <div><span>Refeição obrigatória</span><strong>60min se mais de 6h</strong></div>
         </div>
 
-        <div className="period-generator-disclaimer p63-context-box" role="group" aria-label="Contexto exterior ao período">
-          <strong>Contexto exterior — confirmação obrigatória</strong>
-          {context.requiredContext ? (
+        <div className="period-generator-disclaimer p63-context-box"
+          role="group" aria-label="Contexto exterior ao período">
+          <strong>Contexto exterior — validação de horários oficiais</strong>
+          {!officialReady && <p role="status">A consultar os horários aprovados…</p>}
+          {officialProblem && <p role="alert" className="generator-issue">{officialProblem}</p>}
+          {officialReady && !officialProblem && officialLedger ? (
             <>
-              <p>
-                Para verificar horas semanais e descanso, o motor precisa
-                de conhecer todos os turnos dos colaboradores entre
-                <b> {context.requiredContext.startDate}</b> e
-                <b> {context.requiredContext.endDate}</b>.
-              </p>
-              <p>
-                O histórico de propostas não comprova horários aprovados.
-                Continua a ser necessária a declaração explícita de que
-                <b> não existem quaisquer outros turnos atribuídos fora
-                do período escolhido</b>, dentro destas datas.
-              </p>
-              <label className="p63-confirmation">
-                <input
-                  type="checkbox"
-                  checked={confirmed}
-                  onChange={(event) => {
-                    setConfirmed(event.target.checked);
-                    setSnapshot(null);
-                    setError(null);
-                  }}
-                />
-                <span>
-                  Confirmo explicitamente que não existem turnos já
-                  atribuídos aos colaboradores nos dias fora do período
-                  selecionado, entre {context.requiredContext.startDate} e
-                  {" "}{context.requiredContext.endDate}.
-                </span>
-              </label>
+              <p>Contexto oficial confirmado na base de dados ·
+                versão <b>{officialLedger.version}</b>.
+                O motor considera automaticamente os turnos aprovados
+                fora do período selecionado, sem pedir uma declaração
+                artificial de ausência.</p>
+              {context.status !== "ready" && context.issues.map((issue,i)=>
+                <p key={i} className="generator-issue">{issue}</p>)}
             </>
-          ) : (
-            <p>Indica datas válidas e um fuso IANA para calcular o contexto necessário.</p>
+          ) : officialReady && !officialProblem && (
+            <>
+              <p>O arquivo oficial ainda não foi inicializado.
+                Nesta primeira geração, só é possível simular um cenário
+                onde não existam turnos exteriores ao período.</p>
+              {context.requiredContext && <label className="p63-confirmation">
+                <input type="checkbox" checked={confirmed}
+                  onChange={event=>{
+                    setConfirmed(event.target.checked);
+                    setSnapshot(null);setError(null);
+                  }}/>
+                <span>Confirmo que não há turnos já atribuídos entre
+                  {" "}{context.requiredContext.startDate} e
+                  {" "}{context.requiredContext.endDate} fora das datas
+                  desta proposta.</span>
+              </label>}
+              {context.status==="invalid_input"&&context.issues.map((issue,i)=>
+                <p key={i} className="generator-issue">{issue}</p>)}
+            </>
           )}
-          {context.status === "invalid_input" && context.issues.map((issue, i) => (
-            <p className="generator-issue" key={i}>{issue}</p>
-          ))}
         </div>
 
         <div className="p63-action-row">
           <button
             type="button"
             className="primary-button"
-            disabled={context.status !== "ready" || !startDate || !endDate}
+            disabled={!officialReady || Boolean(officialProblem) ||
+              context.status !== "ready" || !startDate || !endDate}
             onClick={handleGenerate}
           >
             Simular período com regras
@@ -400,9 +438,9 @@ export default function ConstrainedPeriodGeneratorPanel({
         </div>
 
         <p className="generator-footnote">
-          O resultado é válido apenas para o cenário exterior expressamente
-          declarado. Se existirem outros turnos conhecidos, não confirmes
-          ausência: o motor precisa desses turnos para os considerar.
+          Sem arquivo oficial, não confirmes ausência de turnos se
+          existirem compromissos conhecidos. Quando há arquivo oficial,
+          o motor consulta-o automaticamente e bloqueia períodos ocupados.
           As propostas válidas são guardadas automaticamente como não aprovadas; a aprovação oficial será implementada separadamente.
         </p>
       </section>
