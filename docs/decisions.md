@@ -605,3 +605,28 @@ inacessível aos papéis cliente enquanto não existir o executor confiável.
 O adaptador TS existente continua apenas experimental; os seus testes com
 mock não demonstram permissões reais na base. Não aplicar esta migração
 nem disponibilizar aprovação na UI antes de testes de integração reais.
+
+## D041 — Histórico de propostas separado da aprovação oficial
+
+**Estado:** aceite (2026-11-02); PR #42
+
+O motor gera candidatos válidos num cenário explícito. A aplicação guarda
+propostas como registos imutáveis, isolados por proprietário autenticado;
+são consultáveis posteriormente com os turnos e a configuração do momento.
+As propostas não são aprovação, nem comprovam trabalho realizado ou
+existência/ausência de compromissos aprovados.
+
+Só uma operação confiável no servidor poderá transformar uma proposta
+em horário oficial, depois de revalidar as hard constraints com contexto
+autoritativo. O browser não recebe permissão para UPDATE, DELETE ou
+aprovação. Erros de gravação devem permanecer visíveis.
+
+## D042 — Ciclos fixos de 28 dias independentes do calendário mensal
+
+**Estado:** decisão de domínio aceite (2026-11-02); implementação futura
+
+Uma empresa pode definir uma data de referência para ciclos consecutivos
+de 28 dias. Uma vista mensal agrega horários de um ou mais ciclos, enquanto
+a contabilidade de horas pertence aos ciclos. Objetivos como 160h por
+ciclo, domingos rotativos e compensações semanais são configurações do
+regime aplicável, nunca valores universais.
