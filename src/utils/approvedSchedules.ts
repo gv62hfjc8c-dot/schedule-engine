@@ -29,6 +29,20 @@ import { MAX_PERIOD_DAYS } from "./scheduleLimits";
  * Persistence will need an atomic compare-and-swap by ledger version.
  */
 export type ApprovedScheduleStatus = "approved" | "cancelled" | "superseded";
+export type AbsenceReason = "sick_leave" | "vacation" | "leave" |
+  "accident" | "departure" | "other";
+export interface ScheduleAbsence extends WorkValidationDateRange {
+  personId: string;
+  reason: AbsenceReason;
+}
+export interface PartialRevisionMetadata extends WorkValidationDateRange {
+  sourceId: string;
+  personId: string;
+  reason: AbsenceReason;
+  note?: string;
+  /** Dates of turns actually removed/reassigned; no other days were edited. */
+  changedDates: string[];
+}
 
 export interface ApprovedScheduleRecord extends WorkValidationDateRange {
   id: string;
@@ -38,6 +52,10 @@ export interface ApprovedScheduleRecord extends WorkValidationDateRange {
   shifts: DatedWorkShift[];
   /** Names at approval time remain consultable after people are renamed. */
   people?: {id:string;name:string}[];
+  /** Active absences inherited by later partial revisions of this schedule. */
+  absences?: ScheduleAbsence[];
+  /** A traceable reason and scope for an approved partial revision. */
+  revision?: PartialRevisionMetadata;
   approvedAt: string;
   changedAt: string | null;
   replacementId: string | null;
@@ -196,6 +214,9 @@ function cloneRecord(record: ApprovedScheduleRecord): ApprovedScheduleRecord {
     ...record,
     shifts: record.shifts.map(cloneShift),
     ...(record.people?{people:record.people.map(p=>({...p}))}:{}),
+    ...(record.absences?{absences:record.absences.map(a=>({...a}))}:{}),
+    ...(record.revision?{revision:{...record.revision,
+      changedDates:[...record.revision.changedDates]}}:{}),
   };
 }
 
@@ -270,6 +291,24 @@ function ledgerIssues(ledger: ApprovedScheduleLedger): string[] {
           record.people.some(p=>!p||typeof p.id!=="string"||!p.id||
             typeof p.name!=="string"||!p.name) ||
           new Set(record.people.map(p=>p.id)).size!==record.people.length)) ||
+        (record.absences !== undefined &&
+          (!Array.isArray(record.absences) || record.absences.some(a=>
+            !a || !a.personId?.trim() || !dateRangeOK(a) ||
+            a.startDate < record.startDate || a.endDate > record.endDate ||
+            !["sick_leave","vacation","leave","accident","departure","other"].includes(a.reason)
+          ))) ||
+        (record.revision !== undefined &&
+          (!record.revision.sourceId?.trim() ||
+            !record.revision.personId?.trim() ||
+            !dateRangeOK(record.revision) ||
+            record.revision.startDate < record.startDate ||
+            record.revision.endDate > record.endDate ||
+            !["sick_leave","vacation","leave","accident","departure","other"].includes(record.revision.reason) ||
+            (record.revision.note !== undefined &&
+              (typeof record.revision.note !== "string" ||
+                record.revision.note.length > 240)) ||
+            !Array.isArray(record.revision.changedDates) ||
+            record.revision.changedDates.some(d=>!inside(d,record.revision)))) ||
         !["approved", "cancelled", "superseded"].includes(record.status) ||
         (record.status === "approved" &&
           (record.changedAt !== null || record.replacementId !== null)) ||
