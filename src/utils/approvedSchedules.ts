@@ -7,7 +7,7 @@ import type {
   WorkConstraintConfiguration,
   WorkRulesConfiguration,
 } from "../types";
-import type { ConfirmedExternalWorkContext } from "./constrainedPeriodGenerator";
+
 import {
   validateWorkConstraints,
   type WorkValidationDateRange,
@@ -17,7 +17,7 @@ import { isSchedulableForInterval, getSchedulableIntervalsForDate } from "./avai
 import { getOperatingIntervalsForDate, getWeekday } from "./operatingCalendar";
 import { resolvePresenceForDate } from "./presence";
 import { checkPresenceForWorkShifts } from "./workCoverage";
-import { MAX_PERIOD_DAYS } from "./periodGenerator";
+import { MAX_PERIOD_DAYS } from "./scheduleLimits";
 
 /**
  * P6.4: immutable approval ledger. One APPROVED record owns every civil date
@@ -40,6 +40,12 @@ export interface ApprovedScheduleRecord extends WorkValidationDateRange {
   changedAt: string | null;
   replacementId: string | null;
   replacesId: string | null;
+}
+
+/** The approval module does not depend on the search/generator runtime. */
+interface ConfirmedExternalWorkContext extends WorkValidationDateRange {
+  completeOutsideTarget: boolean;
+  shifts: DatedWorkShift[];
 }
 
 export interface ApprovedScheduleLedger {
