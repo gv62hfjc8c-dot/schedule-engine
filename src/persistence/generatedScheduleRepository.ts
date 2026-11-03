@@ -11,7 +11,9 @@ import type {
  */
 export interface GeneratedSchedulePayload {
   schemaVersion: 1;
-  validationScope: "user_attested_no_external_shifts";
+  validationScope: "user_attested_no_external_shifts" | "official_approved_context";
+  /** Ledger version observed when generating against the official archive. */
+  approvedContextVersion?: number;
   startDate: string;
   endDate: string;
   timeZone: string;
@@ -56,7 +58,13 @@ const duration = (start: string, end: string) => {
 
 export function isGeneratedSchedulePayload(value: unknown): value is GeneratedSchedulePayload {
   if (!isObject(value) || value.schemaVersion !== 1 ||
-    value.validationScope !== "user_attested_no_external_shifts" ||
+    !["user_attested_no_external_shifts","official_approved_context"].includes(
+      String(value.validationScope)) ||
+    (value.validationScope === "official_approved_context" &&
+      (!Number.isSafeInteger(value.approvedContextVersion) ||
+      (value.approvedContextVersion as number) < 0)) ||
+    (value.validationScope === "user_attested_no_external_shifts" &&
+      value.approvedContextVersion !== undefined) ||
     !validDate(value.startDate) || !validDate(value.endDate) ||
     value.startDate > value.endDate || typeof value.timeZone !== "string" ||
     !value.timeZone || !Array.isArray(value.shifts) ||
