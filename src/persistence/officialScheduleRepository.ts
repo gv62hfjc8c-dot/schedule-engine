@@ -4,11 +4,9 @@ import {
   type ApprovedScheduleLedger, type ApprovedScheduleRecord,
 } from "../utils/approvedSchedules";
 
+import type { OfficialScheduleRequest } from "../application/officialScheduleRequest";
 type Client = Pick<SupabaseAuthClient,"request"|"user">;
-export type OfficialScheduleAction =
-  | {kind:"approve";candidateId:string;expectedVersion:number}
-  | {kind:"replace";candidateId:string;replaceId:string;expectedVersion:number}
-  | {kind:"cancel";scheduleId:string;expectedVersion:number};
+export type OfficialScheduleAction = OfficialScheduleRequest;
 export type OfficialScheduleActionResult =
   | {ok:true;record:ApprovedScheduleRecord;version:number}
   | {ok:false;code:string;issues:string[]};
