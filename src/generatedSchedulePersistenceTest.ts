@@ -43,6 +43,15 @@ assert(!isGeneratedSchedulePayload({...payload, shifts: [
 assert(!isGeneratedSchedulePayload({...payload, shifts: [
   payload.shifts[0], payload.shifts[0],
 ]}), "Turnos duplicados na mesma data não podem ser guardados.");
+assert(isGeneratedSchedulePayload({...payload,
+  validationScope:"official_approved_context",approvedContextVersion:3}),
+  "PR43: histórico de propostas distingue contexto oficial versionado.");
+assert(!isGeneratedSchedulePayload({...payload,
+  validationScope:"official_approved_context"}),
+  "PR43: não aceitar contexto oficial sem versão.");
+assert(!isGeneratedSchedulePayload({...payload,
+  approvedContextVersion:3}),
+  "PR43: contexto explicitamente vazio não pode alegar versão oficial.");
 assert(!isGeneratedSchedulePayload({...payload, validationScope: "approved"}),
   "Um browser não pode identificar a proposta como aprovada.");
 
