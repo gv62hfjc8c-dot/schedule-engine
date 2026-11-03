@@ -14,6 +14,11 @@ const proposals = supabaseAuthClient
 const official = supabaseAuthClient
   ? createOfficialScheduleRepository(supabaseAuthClient) : null;
 
+const incidentLabel=(reason:string)=>(({
+  sick_leave:"Ausência por doença",vacation:"Férias",leave:"Licença",
+  accident:"Acidente",departure:"Saída da equipa",other:"Outro impedimento",
+} as Record<string,string>)[reason]??"Ocorrência");
+
 const statusLabel=(status:ApprovedScheduleRecord["status"]|null)=>
   status==="approved"?"Aprovado":
   status==="superseded"?"Substituído":
@@ -120,6 +125,14 @@ export default function GeneratedScheduleHistory({
       </div>
       {problem&&<p role="alert" className="generator-issue">{problem}</p>}
       {notice&&<p role="status" className="generator-hint">{notice}</p>}
+      {shown?.revision&&(
+        <p className="generator-hint">
+          Revisão: {incidentLabel(shown.revision.reason)} ·
+          {" "}{shown.revision.startDate} a {shown.revision.endDate} ·
+          {" "}{shown.revision.changedDates.length} dia(s) alterado(s).
+          {shown.revision.note? ` Observação: ${shown.revision.note}` : ""}
+        </p>
+      )}
       {selected&&selectedRecord&&selectedRecord.status!=="approved"&&(
         <p className="generator-hint">
           Esta proposta já teve uma aprovação oficial que foi
@@ -201,7 +214,7 @@ export default function GeneratedScheduleHistory({
               <div>
                 <strong>{record.startDate} a {record.endDate}</strong>
                 <span>{record.approvedAt} · {record.shifts.length} turnos
-                  {record.revision ? ` · Revisão por ${record.revision.reason}
+                  {record.revision ? ` · ${incidentLabel(record.revision.reason)}
                     (${record.revision.startDate} a ${record.revision.endDate})` : ""}
                 </span>
               </div>
