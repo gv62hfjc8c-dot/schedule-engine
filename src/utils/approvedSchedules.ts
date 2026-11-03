@@ -308,7 +308,7 @@ function ledgerIssues(ledger: ApprovedScheduleLedger): string[] {
               (typeof record.revision.note !== "string" ||
                 record.revision.note.length > 240)) ||
             !Array.isArray(record.revision.changedDates) ||
-            record.revision.changedDates.some(d=>!inside(d,record.revision)))) ||
+            record.revision.changedDates.some(d=>!inside(d,record.revision!)))) ||
         !["approved", "cancelled", "superseded"].includes(record.status) ||
         (record.status === "approved" &&
           (record.changedAt !== null || record.replacementId !== null)) ||
