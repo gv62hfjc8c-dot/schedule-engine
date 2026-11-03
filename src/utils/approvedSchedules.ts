@@ -36,6 +36,8 @@ export interface ApprovedScheduleRecord extends WorkValidationDateRange {
   /** IANA zone in which the civil dates and shift clock times are defined. */
   timeZone: string;
   shifts: DatedWorkShift[];
+  /** Names at approval time remain consultable after people are renamed. */
+  people?: {id:string;name:string}[];
   approvedAt: string;
   changedAt: string | null;
   replacementId: string | null;
@@ -193,6 +195,7 @@ function cloneRecord(record: ApprovedScheduleRecord): ApprovedScheduleRecord {
   return {
     ...record,
     shifts: record.shifts.map(cloneShift),
+    ...(record.people?{people:record.people.map(p=>({...p}))}:{}),
   };
 }
 
@@ -263,6 +266,10 @@ function ledgerIssues(ledger: ApprovedScheduleLedger): string[] {
         !validInstant(record.approvedAt) ||
         (record.changedAt !== null && !validInstant(record.changedAt)) ||
         !Array.isArray(record.shifts) ||
+        (record.people !== undefined && (!Array.isArray(record.people) ||
+          record.people.some(p=>!p||typeof p.id!=="string"||!p.id||
+            typeof p.name!=="string"||!p.name) ||
+          new Set(record.people.map(p=>p.id)).size!==record.people.length)) ||
         !["approved", "cancelled", "superseded"].includes(record.status) ||
         (record.status === "approved" &&
           (record.changedAt !== null || record.replacementId !== null)) ||
@@ -697,6 +704,9 @@ function commitDraft(
     endDate: input.draft.endDate,
     timeZone: input.draft.timeZone,
     shifts: input.draft.shifts.map(cloneShift),
+    people: input.environment.people.filter(p=>
+      input.draft.shifts.some(s=>s.personId===p.id))
+      .map(p=>({id:p.id,name:p.name})),
     approvedAt: input.at,
     changedAt: null,
     replacementId: null,
