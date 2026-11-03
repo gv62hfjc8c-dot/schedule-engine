@@ -634,6 +634,9 @@ const completeMandatory = approveSchedule({
 });
 assert(completeMandatory.ok,
   "PR43: todas as jornadas obrigatórias válidas continuam aprováveis.");
+assert(completeMandatory.ok && completeMandatory.record.people?.length===2 &&
+  completeMandatory.record.people.some(p=>p.id==="a"&&p.name==="A"),
+  "PR43: o horário oficial preserva nomes do momento de aprovação.");
 
 // Short operating days are integral when the company enabled the policy.
 const shortPolicy = workDayEnvironment([sun],interval("14:00","19:00"),zero);
