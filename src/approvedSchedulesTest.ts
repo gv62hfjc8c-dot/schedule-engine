@@ -610,4 +610,48 @@ assert(queryCorrupted.status === "invalid_input" &&
   queryCorrupted.externalContext === null,
   "Consulta com registos incoerentes nunca declara contexto completo.");
 
+
+// PR43: official approval must apply company-specific mandatory workdays.
+// Merely satisfying minimum presence is insufficient when all available
+// workdays are contractually mandatory.
+const mandatoryPolicy = workDayEnvironment([mon,tue], interval("09:00","13:00"), zero);
+mandatoryPolicy.workRules = {
+  standardShiftDurationMinutes: 480,
+  requireShiftsOnAvailableDays: true,
+};
+assertFailure(approveSchedule({
+  ledger: ledger(), expectedVersion: 0, at: now1,
+  draft: draft("missing-required",mon,[shift(mon,"a"),shift(tue,"a")],tue),
+  environment: mandatoryPolicy,
+}),"operational_constraint",
+"PR43: aprovar não pode introduzir folgas adicionais em dias de trabalho obrigatórios.");
+const completeMandatory = approveSchedule({
+  ledger: ledger(), expectedVersion: 0, at: now1,
+  draft: draft("all-required",mon,[
+    shift(mon,"a"),shift(mon,"b"),shift(tue,"a"),shift(tue,"b"),
+  ],tue),
+  environment: mandatoryPolicy,
+});
+assert(completeMandatory.ok,
+  "PR43: todas as jornadas obrigatórias válidas continuam aprováveis.");
+
+// Short operating days are integral when the company enabled the policy.
+const shortPolicy = workDayEnvironment([sun],interval("14:00","19:00"),zero);
+shortPolicy.workRules = {
+  standardShiftDurationMinutes: 480,
+  fullShortDayMaximumMinutes: 300,
+};
+assertFailure(approveSchedule({
+  ledger:ledger(),expectedVersion:0,at:now1,
+  draft:draft("partial-sunday",sun,[shift(sun,"a","14:00","18:00")]),
+  environment:shortPolicy,
+}),"operational_constraint",
+"PR43: não aprovar turno parcial num domingo de cinco horas.");
+const fullSunday = approveSchedule({
+  ledger:ledger(),expectedVersion:0,at:now1,
+  draft:draft("whole-sunday",sun,[shift(sun,"a","14:00","19:00")]),
+  environment:shortPolicy,
+});
+assert(fullSunday.ok,"PR43: jornada completa no domingo mantém-se válida.");
+
 console.log("Approved Schedules Core V0: todos os testes passaram.");
