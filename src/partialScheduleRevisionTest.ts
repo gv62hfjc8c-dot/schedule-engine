@@ -21,7 +21,8 @@ const dates=[mon,tue];
 const shifts:DatedWorkShift[]=dates.flatMap(date=>["a","b"].map(personId=>({
   date,personId,interval:{...slot},mealBreak:null,
 })));
-const zero=Object.fromEntries(WEEKDAYS.map(day=>[day,[]])) as WeeklyOperatingHours;
+const zero=WEEKDAYS.reduce((week,day)=>{week[day]=[];return week;},
+  {} as WeeklyOperatingHours);
 const calendar:OperatingCalendarConfiguration={
   weeklyOperatingHours:zero,
   exceptions:dates.map(date=>({date,intervals:[slot]})),
