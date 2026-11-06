@@ -105,6 +105,21 @@ export function createSupabaseGeneratedScheduleRepository(
           "A sessão mudou durante a gravação. Reconsulta o histórico.");
       return readRow(rows[0]);
     },
+    async latest() {
+      const ownerId = owner();
+      const response = await client.request(
+        "/rest/v1/schedule_engine_generated_schedules" +
+        "?select=id,created_at,start_date,end_date,time_zone,payload" +
+        "&order=created_at.desc,id.desc&limit=1"
+      );
+      const rows = await checked(response);
+      if (!Array.isArray(rows) || rows.length > 1)
+        throw new GeneratedScheduleStoreError("Última proposta incompatível.");
+      if (client.user?.id !== ownerId)
+        throw new GeneratedScheduleStoreError(
+          "A sessão mudou. Atualiza os horários.");
+      return rows.length === 1 ? readRow(rows[0]) : null;
+    },
     async listBetween(startDate, endDate) {
       const ownerId = owner();
       if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) ||
