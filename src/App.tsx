@@ -202,6 +202,7 @@ export default function App() {
   const [persistenceProblem, setPersistenceProblem] = useState<string | null>(null);
   const [needsLegacyConsent, setNeedsLegacyConsent] = useState(false);
   const skipInitialSave = useRef(true);
+  const wasHydrated = useRef(false);
   const [persistenceStatus, setPersistenceStatus] = useState<
     "loading" | "saving" | "saved" | "error"
   >("loading");
@@ -243,6 +244,7 @@ export default function App() {
           setPresenceExceptions(persisted.presenceExceptions);
         }
 
+        wasHydrated.current = true;
         setPersistenceReady(true);
         setPersistenceStatus("saved");
       } catch (error) {
@@ -759,6 +761,23 @@ export default function App() {
     });
   };
 
+  function exportPendingConfiguration(): void {
+    if (!wasHydrated.current) return;
+    const pending = {
+      version: APP_STATE_VERSION,
+      weeklyOperatingHours: weeklyHours, exceptions, people,
+      availabilities, workRules,
+      weeklyPresenceRequirements, presenceExceptions,
+    };
+    const url = URL.createObjectURL(new Blob([JSON.stringify(pending, null, 2)],
+      {type: "application/json"}));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "schedule-engine-configuracao-pendente.json";
+    link.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
   if (persistenceProblem) {
     return (
       <main className="app-shell">
@@ -773,6 +792,12 @@ export default function App() {
           <p style={{ marginTop: "12px" }}>
             {persistenceProblem}
           </p>
+          {wasHydrated.current && <>
+            <p>As alterações locais ainda não confirmadas podem ser exportadas antes de voltares a carregar a aplicação. Esta cópia não é um horário aprovado.</p>
+            <button type="button" className="se-outline" onClick={exportPendingConfiguration}>
+              Descarregar cópia das alterações pendentes (JSON)
+            </button>
+          </>}
           {needsLegacyConsent && <>
             <p>
               A configuração antiga guardada neste navegador não identifica o seu proprietário.
