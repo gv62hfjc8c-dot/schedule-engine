@@ -1,18 +1,23 @@
 import { useEffect, useMemo, useState } from "react";
+import { supabaseAuthClient } from "../persistence/supabaseInstance";
+import { createSupabaseGeneratedScheduleRepository } from "../persistence/supabaseGeneratedScheduleRepository";
+import type { StoredGeneratedSchedule } from "../persistence/generatedScheduleRepository";
+import { proposalsForDay, selectedProposalForDay, previewFromStored, savedProposalLabel } from "../utils/savedScheduleView";
 import type {
   OperatingCalendarConfiguration, Person, PersonAvailability,
 } from "../types";
 import {
   dayKind, dailyTeamRows, daySummary, effectiveShiftMinutes, filterDailyTeam,
   monthCalendarDates, monthStart, moveCalendarMonth, todayInTimeZone,
-  toggleFilteredSelection, type DayTeamRow, type SchedulePreview, type TeamFilter,
+  toggleFilteredSelection, type DayTeamRow, type TeamFilter,
 } from "../utils/monthlyScheduleView";
 
 interface Props {
   people: Person[];
   availabilities: PersonAvailability[];
   operatingCalendar: OperatingCalendarConfiguration;
-  preview: SchedulePreview | null;
+  savedRevision: number;
+  initialMonth?: string;
   onCreate(date?: string): void;
   onConfigureTeam(): void;
 }
@@ -39,6 +44,9 @@ function clockLabel(shift: NonNullable<DayTeamRow["shift"]>): string {
   return shift.interval.start + "–" + shift.interval.end;
 }
 const PAGE_SIZE = 12;
+const archive = supabaseAuthClient
+  ? createSupabaseGeneratedScheduleRepository(supabaseAuthClient)
+  : null;
 
 /**
  * One main entry screen, one quick-inspection side panel, one full-width
@@ -46,11 +54,11 @@ const PAGE_SIZE = 12;
  * and revisions are out of scope; never present simulated shifts as official.
  */
 export default function ScheduleHome({
-  people, availabilities, operatingCalendar, preview,
+  people, availabilities, operatingCalendar, savedRevision, initialMonth,
   onCreate, onConfigureTeam,
 }: Props) {
   const today = todayInTimeZone(ZONE);
-  const [month, setMonth] = useState(() => monthStart(today));
+  const [month, setMonth] = useState(() => monthStart(initialMonth ?? today));
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [screen, setScreen] = useState<"month" | "manage">("month");
   const [filter, setFilter] = useState<TeamFilter>("all");
@@ -58,17 +66,54 @@ export default function ScheduleHome({
   const [page, setPage] = useState(1);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [showSelectedSummary, setShowSelectedSummary] = useState(false);
+  const [savedRows, setSavedRows] = useState<StoredGeneratedSchedule[]>([]);
+  const [loadState, setLoadState] = useState<"loading"|"ready"|"failed">("loading");
+  const [loadProblem, setLoadProblem] = useState<string | null>(null);
+  const [retryLoad, setRetryLoad] = useState(0);
+  const [selectedProposalId, setSelectedProposalId] = useState<string | null>(null);
+  const dates = useMemo(() => monthCalendarDates(month), [month]);
 
   useEffect(() => {
-    // A new simulation invalidates any selection based on the previous one.
+    let current = true;
+    setSavedRows([]);
+    setLoadProblem(null);
+    setLoadState("loading");
+    if (!archive) {
+      setLoadProblem("A ligação Supabase não está configurada.");
+      setLoadState("failed");
+      return;
+    }
+    const windowDates = monthCalendarDates(month);
+    void archive.listBetween(windowDates[0], windowDates[windowDates.length - 1])
+      .then(records => {
+        if (!current) return;
+        setSavedRows(records);
+        setLoadState("ready");
+      }).catch(problem => {
+        if (!current) return;
+        setLoadProblem(problem instanceof Error ? problem.message :
+          "Não foi possível recuperar os horários guardados.");
+        setLoadState("failed");
+      });
+    return () => {current = false;};
+  }, [month, savedRevision, retryLoad]);
+
+  useEffect(() => {
     setSelectedIds(new Set());
     setShowSelectedSummary(false);
-  }, [preview]);
+  }, [savedRevision]);
+
+  const proposals = selectedDate ? proposalsForDay(savedRows, selectedDate) : [];
+  const stored = selectedDate ? selectedProposalForDay(savedRows, selectedDate, selectedProposalId) : null;
+  const snapshotPeople = stored?.payload.people ?? people;
+  const snapshotAvailability = stored?.payload.configuration.availabilities ?? availabilities;
+  const snapshotOperation = stored?.payload.configuration.operatingCalendar ?? operatingCalendar;
+  const preview = stored ? previewFromStored(stored) : null;
 
   const rows = useMemo(() => selectedDate ? dailyTeamRows({
-    date: selectedDate, people, availabilities,
-    operation: operatingCalendar, preview,
-  }) : [], [selectedDate, people, availabilities, operatingCalendar, preview]);
+    date: selectedDate, people: snapshotPeople, availabilities: snapshotAvailability,
+    operation: snapshotOperation, preview,
+  }) : [], [selectedDate, people, availabilities, operatingCalendar, stored]);
   const summary = useMemo(() => daySummary(rows), [rows]);
   const matching = useMemo(() =>
     filterDailyTeam(rows, filter, search, selectedIds),
@@ -76,10 +121,10 @@ export default function ScheduleHome({
   const totalPages = Math.max(1, Math.ceil(matching.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
   const visible = matching.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
-  const dates = useMemo(() => monthCalendarDates(month), [month]);
-  const kind = selectedDate ? dayKind(selectedDate, operatingCalendar, preview) : null;
-  const statusLabel = kind === "closed" ? "Operação encerrada" :
-    kind === "proposal" ? "Proposta temporária" : "Ainda por planear";
+  const kind = selectedDate ? dayKind(selectedDate, snapshotOperation, preview) : null;
+  const statusLabel = loadState !== "ready" ? "Estado por confirmar" :
+    kind === "closed" ? "Operação encerrada" :
+    kind === "proposal" ? "Proposta guardada · não aprovada" : "Ainda por planear";
 
   function browseMonth(offset: number) {
     setMonth(previous => moveCalendarMonth(previous, offset));
@@ -89,12 +134,14 @@ export default function ScheduleHome({
     setPage(1);
     setSelectedIds(new Set());
     setShowSelectedSummary(false);
+    setSelectedProposalId(null);
   }
 
   function selectDate(date: string) {
     const nextMonth = monthStart(date);
     if (nextMonth !== month) setMonth(nextMonth);
     setSelectedDate(date);
+    setSelectedProposalId(null);
     setScreen("month");
     setFilter("all");
     setSearch("");
@@ -140,12 +187,13 @@ export default function ScheduleHome({
         <button type="button" className="primary-button"
           onClick={() => onCreate(selectedDate)}>Gerar proposta para este dia</button>
       </div>
+      {loadState !== "ready" && <p className="generator-issue" role="alert">Os dados ainda não foram confirmados pelo servidor.</p>}
       <div className="se-readonly-note" role="note">
         {kind === "proposal"
-          ? "Estás a consultar a última simulação desta sessão. Os turnos não estão aprovados nem guardados."
+          ? "Estás a consultar o horário tal como foi guardado no Supabase. É uma proposta, não uma escala oficialmente aprovada."
           : kind === "closed"
             ? "A operação está encerrada neste dia. Não existem turnos para gerir."
-            : "Não existe uma proposta carregada para este dia. Não é possível inferir folgas ou ausências a partir desta situação."}
+            : "Não existe uma proposta guardada para este dia. Não é possível inferir folgas ou ausências a partir desta situação."}
         {" "}A edição e aprovação oficial não fazem parte da base PR #41.
       </div>
       <div className="se-manage-stats">
@@ -237,9 +285,14 @@ export default function ScheduleHome({
       </button>
     </div>
     <div className="se-readonly-note" role="note">
-      Base PR #41: sem horários oficiais carregados. Apenas a última proposta gerada nesta
-      sessão pode aparecer no calendário; desaparece ao atualizar a página.
+      Os horários gerados e guardados são recuperados automaticamente do Supabase.
+      São propostas, não escalas oficialmente aprovadas.
     </div>
+    {loadState === "loading" && <div className="se-readonly-note" role="status">A recuperar horários guardados…</div>}
+    {loadState === "failed" && <div className="se-readonly-note" role="alert">
+      Não foi possível carregar os horários guardados: {loadProblem}
+      <button type="button" className="se-outline" onClick={() => setRetryLoad(value=>value+1)}>Tentar novamente</button>
+    </div>}
     {!activeCount && <div className="se-empty-team">
       A equipa ainda não tem colaboradores ativos. Configura a equipa antes de gerar horários.
       <button type="button" className="se-outline" onClick={onConfigureTeam}>Configurar equipa</button>
@@ -261,26 +314,30 @@ export default function ScheduleHome({
             <span className="se-weekday" key={index}>{label}</span>)}
           {dates.map(date => {
             const active = selectedDate === date;
-            const state = dayKind(date, operatingCalendar, preview);
+            const latest = selectedProposalForDay(savedRows, date, null);
+            const state = loadState === "ready"
+              ? dayKind(date, latest?.payload.configuration.operatingCalendar ?? operatingCalendar,
+                  latest ? previewFromStored(latest) : null)
+              : "loading";
             const inMonth = date.slice(0,7) === currentMonth;
-            const proposalCount = state === "proposal" && preview
-              ? preview.assignments.filter(shift => shift.date === date).length : 0;
+            const proposalCount = latest && state === "proposal"
+              ? latest.payload.shifts.filter(shift => shift.date === date).length : 0;
             return <button type="button" key={date}
               className={"se-day " + (active ? "selected " : "") +
                 (inMonth ? "" : "outside ") + state + (date === today ? " today" : "")}
               aria-label={dateLabel(date,{day:"numeric",month:"long"}) + " · " +
-                (state === "proposal" ? "proposta com " + proposalCount + " turnos" :
-                 state === "closed" ? "operação encerrada" : "por planear")}
+                (state === "proposal" ? "proposta guardada com " + proposalCount + " turnos" :
+                 state === "closed" ? "operação encerrada" : state === "loading" ? "a carregar" : "por planear")}
               aria-pressed={active}
               onClick={() => selectDate(date)}>
               <strong>{Number(date.slice(8,10))}</strong>
               <small>{state === "proposal" ? proposalCount + " turno(s)" :
-                state === "closed" ? "Fechado" : "Por planear"}</small>
+                state === "closed" ? "Fechado" : state === "loading" ? "A carregar" : "Por planear"}</small>
             </button>;
           })}
         </div>
         <div className="se-legend">
-          <span><i className="proposal" /> Proposta da sessão</span>
+          <span><i className="proposal" /> Proposta guardada</span>
           <span><i className="unplanned" /> Por planear</span>
           <span><i className="closed" /> Fechado</span>
         </div>
@@ -295,6 +352,17 @@ export default function ScheduleHome({
             onClick={() => setSelectedDate(null)}>×</button>
         </div>
         <div className={"se-panel-status " + (kind ?? "unplanned")}>{statusLabel}</div>
+        {stored && <div className="se-archive-meta">
+          <span>Guardada em {savedProposalLabel(stored)} · {stored.startDate} a {stored.endDate}</span>
+          {proposals.length > 1 && <label className="se-control">
+            <span>Versão guardada ({proposals.length})</span>
+            <select value={stored.id} onChange={event => {setSelectedProposalId(event.target.value);setSelectedIds(new Set());}}>
+              {proposals.map((item, index) => <option key={item.id} value={item.id}>
+                {index===0?"Mais recente":"Anterior"} · {savedProposalLabel(item)}
+              </option>)}
+            </select>
+          </label>}
+        </div>}
         <div className="se-panel-team">
           <h4>Resumo da equipa</h4>
           <div className="se-team-total">Equipa ativa: <strong>{summary.total}</strong></div>
