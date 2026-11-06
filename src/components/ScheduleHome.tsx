@@ -123,6 +123,8 @@ export default function ScheduleHome({
     setShowSelectedSummary(false);
   }, [savedRevision]);
 
+  const proposalSourcesInMonth = new Set(dates.map(date =>
+    selectedProposalForDay(savedRows, date, null)?.id).filter(Boolean));
   const proposals = selectedDate ? proposalsForDay(savedRows, selectedDate) : [];
   const stored = selectedDate ? selectedProposalForDay(savedRows, selectedDate, selectedProposalId) : null;
   const snapshotPeople = stored?.payload.people ?? people;
@@ -334,6 +336,11 @@ export default function ScheduleHome({
       Os horários gerados e guardados são recuperados automaticamente do Supabase.
       São propostas, não escalas oficialmente aprovadas.
     </div>
+    {loadState === "ready" && proposalSourcesInMonth.size > 1 && <div className="se-readonly-note" role="note">
+      Este calendário contém dias de propostas diferentes. Cada proposta foi gerada separadamente;
+      a combinação mensal não foi validada como um único horário de trabalho.
+      Seleciona um dia para identificar a proposta guardada que está a ser apresentada.
+    </div>}
     {loadState === "loading" && <div className="se-readonly-note" role="status">A recuperar horários guardados…</div>}
     {loadState === "failed" && <div className="se-readonly-note" role="alert">
       Não foi possível carregar os horários guardados: {loadProblem}
@@ -371,6 +378,7 @@ export default function ScheduleHome({
             return <button type="button" key={date}
               className={"se-day " + (active ? "selected " : "") +
                 (inMonth ? "" : "outside ") + state + (date === today ? " today" : "")}
+              title={latest ? "Proposta " + latest.id + " · guardada em " + savedProposalLabel(latest) : undefined}
               aria-label={dateLabel(date,{day:"numeric",month:"long"}) + " · " +
                 (state === "proposal" ? "proposta guardada com " + proposalCount + " turnos" :
                  state === "closed" ? "operação encerrada" : state === "loading" ? "a carregar" : "por planear")}
