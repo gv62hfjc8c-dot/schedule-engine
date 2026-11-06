@@ -14,6 +14,7 @@ import type {
   WorkRulesConfiguration,
 } from "../types";
 import ConstrainedPeriodGeneratorPanel from "./ConstrainedPeriodGeneratorPanel";
+import type { SchedulePreview } from "../utils/monthlyScheduleView";
 
 interface ScheduleGeneratorPanelProps {
   people: Person[];
@@ -21,6 +22,9 @@ interface ScheduleGeneratorPanelProps {
   operatingCalendar: OperatingCalendarConfiguration;
   workRules: WorkRulesConfiguration;
   presence: PresenceConfiguration;
+  initialDate?: string;
+  onGenerated?(preview: SchedulePreview): void;
+  onBackToCalendar?(): void;
 }
 
 /** PR #32: single public generator. Legacy experiments remain in source for tests. */
