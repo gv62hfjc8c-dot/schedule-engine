@@ -1,6 +1,12 @@
 # Arquitetura
 
-## Estado atual
+## Estado atual após PR #46
+
+O núcleo permanece independente de React e Supabase. A aplicação suporta geração de horários, validação de trabalho e cobertura, arquivo de propostas imutáveis no Supabase e consulta mensal, semanal e diária. O calendário mensal pode apresentar propostas diferentes em dias adjacentes; essa combinação não é uma escala oficial nem uma validação global conjunta. Aprovação, revisão oficial e ciclos de 28 dias continuam fora do fluxo operacional ativo.
+
+As secções abaixo registam a evolução histórica das fundações e devem ser lidas juntamente com `docs/audit-pr47.md`.
+
+## Fundação histórica — etapas 1 a 5
 
 O Schedule Engine tem agora cinco fundações independentes do algoritmo de geração:
 
@@ -153,7 +159,7 @@ O estado persistido inclui:
 
 O formato é versionado. A versão 4 introduz requisitos de presença e migra automaticamente estados v3 sem inventar mínimos. As migrações v1 e v2 continuam suportadas.
 
-Uma futura persistência por API/base de dados deverá implementar o mesmo contrato, sem introduzir dependências de storage no domínio.
+A persistência remota já implementa este contrato; propostas arquivadas usam um contrato de armazenamento separado, sem dependências de Supabase no motor.
 
 ### Interface
 
@@ -163,13 +169,15 @@ A UI não define o domínio e não deve introduzir regras de scheduling.
 
 ## Limites
 
-Ainda não existem:
+Ainda não existem no fluxo ativo:
 
-- gerador de horários e otimização;
-- contratos;
-- horas semanais.
+- aprovação e revisões oficiais de escalas;
+- contratos e objetivos de horas individualizados;
+- ciclos operacionais de 28 dias.
 
-Autenticação, permissões e persistência continuam fora do núcleo. A persistência local atual pertence apenas à aplicação.
+O motor já valida limites de horas diárias e semanais.
+
+Autenticação, permissões e persistência continuam fora do núcleo. A fonte principal da configuração e das propostas é o Supabase; o armazenamento local é apenas origem controlada de importação histórica.
 
 ## Regra arquitetural
 
