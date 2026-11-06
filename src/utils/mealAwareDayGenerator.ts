@@ -198,7 +198,8 @@ function createCandidates(
   constraints: WorkConstraintConfiguration,
   firstOpening: number,
   lastClosing: number,
-  flexibleDurations = false
+  flexibleDurations = false,
+  fullShortDayMaximumMinutes = 0
 ): Candidate[] {
   const result = new Map<string, Candidate>();
   const meal = constraints.mealBreak;
@@ -219,9 +220,18 @@ function createCandidates(
     for (const requestedEffective of effectiveChoices) {
       const effectiveWithMeal = Math.min(requestedEffective,
         operatingDuration - meal.durationMinutes);
+      // A complete short-day attendance span can contain an optional meal.
+      // Example: 09:00–16:00 with one hour of meal is 6h effective work.
+      // Without this candidate, a full 7h short day becomes unrepresentable.
+      const optionalFullShortDayMeal =
+        flexibleDurations && fullShortDayMaximumMinutes > 0 &&
+        operatingDuration <= fullShortDayMaximumMinutes &&
+        requestedEffective + meal.durationMinutes === operatingDuration &&
+        requestedEffective <= meal.requiredAboveEffectiveMinutes;
       const withMeal =
-        requestedEffective > meal.requiredAboveEffectiveMinutes &&
-        effectiveWithMeal > meal.requiredAboveEffectiveMinutes &&
+        (requestedEffective > meal.requiredAboveEffectiveMinutes &&
+          effectiveWithMeal > meal.requiredAboveEffectiveMinutes ||
+          optionalFullShortDayMeal) &&
         effectiveWithMeal > meal.earliestStartAfterWorkMinutes &&
         meal.earliestStartAfterWorkMinutes <= meal.latestStartAfterWorkMinutes &&
         (!flexibleDurations ||
@@ -472,7 +482,8 @@ export function searchMealAwareDaySchedule(
     input.workConstraints,
     operating[0].start,
     operating[operating.length - 1].end,
-    options.flexibleDurations ?? false
+    options.flexibleDurations ?? false,
+    input.workRules.fullShortDayMaximumMinutes ?? 0
   )).filter(candidate => candidateValidForDailyWork(
     input.date, candidate, input.workConstraints, input.timeZone
   ));
