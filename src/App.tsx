@@ -17,7 +17,9 @@ import CalendarDateInput from "./components/CalendarDateInput";
 import PresencePanel from "./components/PresencePanel";
 import ScheduleGeneratorPanel from "./components/ScheduleGeneratorPanel";
 import ScheduleHome from "./components/ScheduleHome";
-import type { SchedulePreview } from "./utils/monthlyScheduleView";
+import { supabaseAuthClient } from "./persistence/supabaseInstance";
+import { createSupabaseGeneratedScheduleRepository } from "./persistence/supabaseGeneratedScheduleRepository";
+import type { GeneratedSchedulePayload, StoredGeneratedSchedule } from "./persistence/generatedScheduleRepository";
 import { createEmptyWeeklyPresenceRequirements } from "./utils/presence";
 import { appStateRepository } from "./persistence/appStateRepository";
 import { APP_STATE_VERSION } from "./persistence/stateRepository";
@@ -200,12 +202,22 @@ export default function App() {
     "loading" | "saving" | "saved" | "error"
   >("loading");
   const saveRequestId = useRef(0);
-  const [latestPreview, setLatestPreview] = useState<SchedulePreview | null>(null);
+  const [lastSavedStart, setLastSavedStart] = useState<string | undefined>();
+  const [savedRevision, setSavedRevision] = useState(0);
   const [generatorInitialDate, setGeneratorInitialDate] = useState<string | undefined>();
 
   function openGenerator(date?: string) {
     setGeneratorInitialDate(date);
     setActiveSection("generator");
+  }
+
+  async function saveGenerated(payload: GeneratedSchedulePayload): Promise<StoredGeneratedSchedule> {
+    if (!supabaseAuthClient) throw new Error("A ligação Supabase não está configurada.");
+    const repository = createSupabaseGeneratedScheduleRepository(supabaseAuthClient);
+    const stored = await repository.save(payload);
+    setLastSavedStart(stored.startDate);
+    setSavedRevision(value => value + 1);
+    return stored;
   }
 
   useEffect(() => {
@@ -305,12 +317,6 @@ export default function App() {
     weeklyPresenceRequirements,
     presenceExceptions,
   ]);
-
-  // A generated proposal is session-only and is invalidated by context edits.
-  useEffect(() => {
-    setLatestPreview(null);
-  }, [weeklyHours, exceptions, people, availabilities, workRules,
-      weeklyPresenceRequirements, presenceExceptions]);
 
   const summary = useMemo(() => {
     const openDays = WEEKDAYS.filter(
@@ -825,7 +831,8 @@ export default function App() {
           people={people}
           availabilities={availabilities}
           operatingCalendar={generatorOperatingCalendar}
-          preview={latestPreview}
+          savedRevision={savedRevision}
+          initialMonth={lastSavedStart}
           onCreate={openGenerator}
           onConfigureTeam={() => setActiveSection("people")}
         />
@@ -1727,7 +1734,7 @@ export default function App() {
           workRules={workRules}
           presence={generatorPresence}
           initialDate={generatorInitialDate}
-          onGenerated={setLatestPreview}
+          onSaveGenerated={saveGenerated}
           onBackToCalendar={() => setActiveSection("schedules")}
         />
       )}
