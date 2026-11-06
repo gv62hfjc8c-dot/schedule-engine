@@ -241,7 +241,7 @@ export default function ScheduleHome({
           : kind === "closed"
             ? "A operação está encerrada neste dia. Não existem turnos para gerir."
             : "Não existe uma proposta guardada para este dia. Não é possível inferir folgas ou ausências a partir desta situação."}
-        {" "}A edição e aprovação oficial não fazem parte da base PR #41.
+        {" "}A edição e a aprovação oficiais ainda não estão disponíveis nesta interface.
       </div>
       <div className="se-manage-stats">
         <div><strong>{summary.total}</strong><span>Equipa ativa</span></div>
