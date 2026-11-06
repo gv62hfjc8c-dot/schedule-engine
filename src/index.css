@@ -2289,3 +2289,341 @@ h2 {
 .schedule-month-open-day{background:#587da9;}
 .schedule-month-open-day:hover{background:#6b92bf;}
 }
+
+
+/* PR45 — mensal, painel de resumo e gestão diária: estrutura visual isolada. */
+.se-home {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+}
+.se-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+.se-heading h2 {
+  font-size: clamp(24px, 3vw, 31px);
+  letter-spacing: -.035em;
+}
+.se-heading p:not(.section-kicker) {
+  color: #6d7889;
+  font-size: 14px;
+  margin: 8px 0 0;
+  max-width: 720px;
+  line-height: 1.5;
+}
+.se-readonly-note {
+  border: 1px solid #dce5ee;
+  background: #f0f5fa;
+  border-radius: 12px;
+  color: #45566a;
+  font-size: 12px;
+  line-height: 1.6;
+  padding: 13px 16px;
+}
+.se-empty-team {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid #e3e9f0;
+  border-radius: 12px;
+  background: #fff;
+  padding: 14px 18px;
+  color: #5c6879;
+  font-size: 13px;
+}
+.se-outline {
+  border: 1px solid #d7dfe8;
+  border-radius: 9px;
+  background: #fff;
+  color: #35485d;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 10px 13px;
+}
+.se-outline:hover:not(:disabled) {
+  background: #edf3f9;
+}
+.se-outline:disabled {
+  cursor: not-allowed;
+  opacity: .45;
+}
+.se-calendar-toolbar,
+.se-month-actions,
+.se-management-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.se-calendar-toolbar h3 {
+  font-size: 18px;
+  font-weight: 800;
+  text-transform: capitalize;
+  margin: 0;
+}
+.se-month-actions {
+  justify-content: flex-end;
+}
+.se-month-actions .se-outline:first-child,
+.se-month-actions .se-outline:last-child {
+  font-size: 21px;
+  line-height: 1;
+  padding: 7px 15px;
+}
+.se-calendar-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: 18px;
+}
+.se-calendar-layout.with-panel {
+  grid-template-columns: minmax(0, 1fr) minmax(310px, 370px);
+}
+.se-calendar-area { min-width: 0; }
+.se-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 5px;
+}
+.se-weekday {
+  text-align: center;
+  padding: 8px 0;
+  font-size: 12px;
+  font-weight: 800;
+  color: #738095;
+}
+.se-day {
+  min-width: 0;
+  min-height: 82px;
+  padding: 10px 5px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 9px;
+  background: #fff;
+  color: #26364b;
+  border: 1px solid #e3e8ef;
+  border-radius: 11px;
+}
+.se-day strong { font-size: 17px; line-height: 1.2; }
+.se-day small {
+  font-size: 10px;
+  font-weight: 700;
+  text-align: center;
+  color: #6c7889;
+  line-height: 1.3;
+}
+.se-day.proposal {
+  background: #e9f6ef;
+  border-color: #cce7d7;
+}
+.se-day.proposal small { color: #1b7850; }
+.se-day.closed { background: #f0f2f5; }
+.se-day.unplanned { background: #fff; }
+.se-day.outside { opacity: .38; }
+.se-day.selected {
+  outline: 2px solid #2c67a4;
+  outline-offset: -2px;
+}
+.se-day.today strong {
+  border-radius: 50%;
+  background: #244a72;
+  color: #fff;
+  min-width: 28px;
+  min-height: 28px;
+  display: grid;
+  place-items: center;
+  margin-top: -4px;
+}
+.se-legend {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding-top: 15px;
+  color: #68788b;
+  font-size: 11px;
+  font-weight: 600;
+}
+.se-legend span { display: inline-flex; gap: 7px; align-items: center; }
+.se-legend i { width: 9px; height: 9px; border-radius: 50%; background: #d8dee8; }
+.se-legend i.proposal { background: #289164; }
+.se-legend i.unplanned { background: #d6a63f; }
+.se-legend i.closed { background: #8c9aae; }
+.se-day-panel {
+  display: grid;
+  align-content: start;
+  gap: 19px;
+  min-width: 0;
+  background: #fff;
+  border: 1px solid #e3e8ee;
+  border-radius: 17px;
+  padding: 21px;
+  box-shadow: 0 8px 34px #1930460e;
+}
+.se-panel-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 12px;
+}
+.se-panel-title span { color: #78869a; font-size: 12px; font-weight: 700; }
+.se-panel-title h3 {
+  margin: 5px 0 0;
+  font-size: 22px;
+  text-transform: capitalize;
+}
+.se-close { font-size: 22px; line-height: 1; padding: 4px 10px; }
+.se-panel-status {
+  background: #edf1f7;
+  border-radius: 9px;
+  color: #556478;
+  font-weight: 800;
+  font-size: 12px;
+  padding: 10px 12px;
+}
+.se-panel-status.proposal { color: #19794e; background: #e4f4ea; }
+.se-panel-team { display: grid; gap: 13px; }
+.se-panel-team h4 { margin: 0; color: #29394e; font-size: 15px; }
+.se-team-total { display: flex; justify-content: space-between; font-size: 13px; color: #68778b; }
+.se-team-total strong { color: #283c52; }
+.se-count-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.se-count-grid button {
+  display: grid;
+  justify-items: center;
+  gap: 5px;
+  padding: 12px 3px;
+  min-width: 0;
+  border: 1px solid #e1e6ed;
+  border-radius: 10px;
+  color: #293b51;
+  background: #f5f7fa;
+}
+.se-count-grid button.active { background: #e6f1fb; border-color: #6b9ac7; }
+.se-count-grid strong { font-size: 22px; }
+.se-count-grid span { font-size: 10px; color: #637286; text-align: center; }
+.se-control { display: grid; min-width: 0; gap: 6px; }
+.se-control span { font-weight: 800; font-size: 12px; color: #5a6a7e; }
+.se-control select, .se-control input { width: 100%; min-width: 0; }
+.se-panel-hint { font-size: 12px; line-height: 1.5; color: #69798e; margin: 0; }
+.se-manage-action { width: 100%; }
+.se-management-top .se-context { color: #748196; font-size: 12px; }
+.se-manage-stats { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 10px; }
+.se-manage-stats > div {
+  display: grid;
+  gap: 7px;
+  background: #fff;
+  border: 1px solid #e3e9ef;
+  border-radius: 12px;
+  padding: 17px;
+}
+.se-manage-stats strong { font-size: 27px; }
+.se-manage-stats span { color: #738096; font-size: 12px; }
+.se-controls { display: grid; grid-template-columns: 1.4fr 1fr; gap: 14px; }
+.se-controls input[type=search] {
+  min-height: 43px; border: 1px solid #d8dee8; border-radius: 10px;
+  padding: 0 12px; background: #fff; color: #172033;
+}
+.se-list-bar, .se-pagination, .se-selection-bar, .se-selection-actions {
+  display: flex; justify-content: space-between; align-items: center; gap: 12px;
+}
+.se-list-bar strong { font-size: 13px; }
+.se-team-list {
+  height: 460px;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid #e1e7ef;
+  border-radius: 13px;
+}
+.se-person-row {
+  display: flex; align-items: center; gap: 13px;
+  min-height: 70px; padding: 11px 16px;
+  border-bottom: 1px solid #eef1f5;
+  cursor: pointer;
+}
+.se-person-row:hover { background: #f9fbfd; }
+.se-person-row:last-child { border-bottom: 0; }
+.se-person-row > input { width: 17px; height: 17px; flex: 0 0 auto; }
+.se-person-identity { flex: 1; min-width: 0; display: grid; gap: 5px; }
+.se-person-identity strong { font-size: 13px; color: #25384e; }
+.se-person-identity small { font-size: 11px; color: #728096; line-height: 1.5; }
+.se-person-status {
+  font-size: 10px; font-weight: 800; border-radius: 8px; padding: 6px 9px;
+  color: #536478; background: #f0f3f7;
+  text-align: center;
+}
+.se-person-status.assigned { background: #e3f4e9; color: #217b51; }
+.se-person-status.unavailable { background: #f9eed9; color: #936b2b; }
+.se-empty-list { color: #77859a; padding: 22px; font-size: 13px; }
+.se-pagination span { font-size: 12px; color: #6b7888; }
+.se-selection-bar {
+  flex-wrap: wrap;
+  border: 1px solid #e1e6ef;
+  border-radius: 13px;
+  background: #f6f8fb;
+  padding: 14px 17px;
+}
+.se-selection-bar > div:first-child { display: grid; gap: 4px; }
+.se-selection-bar strong { color: #24384e; font-size: 14px; }
+.se-selection-bar small { color: #68778c; font-size: 11px; }
+.se-selection-summary {
+  padding: 17px;
+  background: #fff;
+  border: 1px solid #e3e9ef;
+  border-radius: 12px;
+}
+.se-selection-summary h3 { margin-top: 0; font-size: 15px; }
+.se-selected-names { display: flex; flex-wrap: wrap; gap: 8px; }
+.se-selected-names span {
+  font-size: 12px; padding: 8px; border-radius: 8px;
+  background: #eef3f8; color: #40536b;
+}
+.se-selection-summary p { font-size: 11px; color: #68798c; margin: 12px 0 0; }
+@media (max-width: 900px) {
+  .se-calendar-layout.with-panel { grid-template-columns: minmax(0,1fr); }
+  .se-day-panel {
+    position: fixed; z-index: 80;
+    left: 14px; right: 14px; bottom: 12px;
+    max-height: 72dvh; overflow-y: auto;
+    box-shadow: 0 16px 50px #13263f44;
+  }
+  .se-day { min-height: 63px; gap: 5px; }
+  .se-day strong { font-size: 14px; }
+  .se-day small { font-size: 9px; }
+}
+@media (max-width: 600px) {
+  .se-heading .primary-button { width: 100%; }
+  .se-weekday { font-size: 10px; }
+  .se-day { min-height: 54px; padding: 9px 1px; }
+  .se-day strong { font-size: 12px; }
+  .se-day small { font-size: 8px; }
+  .se-manage-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .se-controls { grid-template-columns: minmax(0,1fr); }
+  .se-management-top { flex-wrap: wrap; }
+  .se-person-status { display: none; }
+  .se-selection-actions { width: 100%; justify-content: flex-end; }
+}
+@media (prefers-color-scheme: dark) {
+  .se-readonly-note { background: #1c2c3e; border-color: #3a5068; color: #c4d2e4; }
+  .se-empty-team,.se-day,.se-day-panel,.se-manage-stats > div,
+  .se-team-list,.se-selection-summary {background: #253347; border-color: #3a4c63; color: #ecf2f9;}
+  .se-day.unplanned {background: #253347;}
+  .se-day.closed,.se-count-grid button,.se-selection-bar {background: #1e2b3b; border-color: #3a4c63;}
+  .se-day.proposal {background: #16392c; border-color: #356b51;}
+  .se-day strong,.se-panel-title h3,.se-panel-team h4,
+  .se-person-identity strong,.se-selection-bar strong,.se-team-total strong {color: #f1f5fb;}
+  .se-outline,.se-control select,.se-controls input[type=search] {
+    background: #26364a; color: #f1f5fb; border-color: #486077;
+  }
+  .se-person-row {border-color: #3a4c63;}
+  .se-person-row:hover {background: #2c4057;}
+  .se-person-status {background: #334861; color: #d2dfef;}
+  .se-person-status.assigned {background: #214a37; color: #b7ebc9;}
+  .se-person-status.unavailable {background: #524127; color: #f6deaa;}
+  .se-selected-names span {background: #34475c; color: #d5e2f3;}
+}
