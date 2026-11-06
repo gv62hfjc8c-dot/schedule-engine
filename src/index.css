@@ -2627,3 +2627,22 @@ h2 {
   .se-person-status.unavailable {background: #524127; color: #f6deaa;}
   .se-selected-names span {background: #34475c; color: #d5e2f3;}
 }
+
+/* PR46 — historical snapshots and version selection remain compact. */
+.se-archive-meta {
+  display: grid;
+  gap: 10px;
+  padding: 10px 12px;
+  background: #f3f7fb;
+  border: 1px solid #dfe6ef;
+  border-radius: 10px;
+  font-size: 12px;
+  color: #54667b;
+}
+.se-archive-meta .se-control span { font-size: 11px; }
+.se-day.loading { background: #f7f8fa; color: #79879a; }
+.se-day.loading small { color: #8a96a6; }
+@media (prefers-color-scheme: dark) {
+  .se-archive-meta { background: #1c2c3e; border-color: #3a5068; color: #cfdae9; }
+  .se-day.loading { background: #202d3f; color: #c1ccda; }
+}
