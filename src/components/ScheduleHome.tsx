@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { supabaseAuthClient } from "../persistence/supabaseInstance";
 import { createSupabaseGeneratedScheduleRepository } from "../persistence/supabaseGeneratedScheduleRepository";
 import type { StoredGeneratedSchedule } from "../persistence/generatedScheduleRepository";
@@ -71,6 +71,8 @@ export default function ScheduleHome({
   const [loadProblem, setLoadProblem] = useState<string | null>(null);
   const [retryLoad, setRetryLoad] = useState(0);
   const [selectedProposalId, setSelectedProposalId] = useState<string | null>(null);
+  const initialLookupDone = useRef(false);
+  const manuallyNavigated = useRef(false);
   const dates = useMemo(() => monthCalendarDates(month), [month]);
 
   useEffect(() => {
@@ -97,6 +99,23 @@ export default function ScheduleHome({
       });
     return () => {current = false;};
   }, [month, savedRevision, retryLoad]);
+
+  useEffect(() => {
+    if (initialMonth || loadState !== "ready" || savedRows.length > 0 ||
+        initialLookupDone.current || !archive) return;
+    initialLookupDone.current = true;
+    let active = true;
+    void archive.latest().then(last => {
+      if (active && !manuallyNavigated.current && last)
+        setMonth(monthStart(last.startDate));
+    }).catch(problem => {
+      if (!active || manuallyNavigated.current) return;
+      setLoadProblem(problem instanceof Error ? problem.message :
+        "Não foi possível localizar o último horário guardado.");
+      setLoadState("failed");
+    });
+    return () => {active = false;};
+  }, [initialMonth, loadState, savedRows]);
 
   useEffect(() => {
     setSelectedIds(new Set());
@@ -127,6 +146,7 @@ export default function ScheduleHome({
     kind === "proposal" ? "Proposta guardada · não aprovada" : "Ainda por planear";
 
   function browseMonth(offset: number) {
+    manuallyNavigated.current = true;
     setMonth(previous => moveCalendarMonth(previous, offset));
     setSelectedDate(null);
     setFilter("all");
@@ -138,6 +158,7 @@ export default function ScheduleHome({
   }
 
   function selectDate(date: string) {
+    manuallyNavigated.current = true;
     const nextMonth = monthStart(date);
     if (nextMonth !== month) setMonth(nextMonth);
     setSelectedDate(date);
