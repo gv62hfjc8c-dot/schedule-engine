@@ -232,7 +232,7 @@ export default function ScheduleHome({
         <h2>Calendário mensal</h2>
         <p>Consulta a operação por dia. Seleciona uma data para abrir o resumo lateral.</p>
       </div>
-      <button type="button" className="primary-button" onClick={() => onCreate(selectedDate ?? today)}>
+      <button type="button" className="primary-button" onClick={() => onCreate(selectedDate ?? undefined)}>
         + Criar horário
       </button>
     </div>
