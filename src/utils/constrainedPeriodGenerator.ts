@@ -15,6 +15,7 @@ import { MAX_PERIOD_DAYS } from "./periodGenerator";
 import { getOperatingIntervalsForDate } from "./operatingCalendar";
 import { getSchedulableIntervalsForDate, isSchedulableForInterval } from "./availability";
 import { checkPresenceForWorkShifts } from "./workCoverage";
+import { certifyFinalGeneratedSchedule } from "./finalScheduleCertification";
 import { getPresencePhaseWindows, resolvePresenceForDate } from "./presence";
 
 /**
@@ -1817,6 +1818,14 @@ export function generateConstrainedPeriodSchedule(
     }
     if (!satisfiesFullShortDayPolicy(input, assignments)) {
       return resultWith("incomplete", ["A regra de jornada integral em dias curtos não foi cumprida."], diagnostics, required);
+    }
+    const certification = certifyFinalGeneratedSchedule(input, assignments);
+    if (!certification.valid) {
+      return resultWith("incomplete", [
+        "A validação independente rejeitou o resultado depois da otimização.",
+        ...certification.issues,
+      ], diagnostics, required, certification.workViolations,
+      budget.exploredNodes, rejectedByWorkRules);
     }
     return {
       status: "generated",
