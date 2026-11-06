@@ -30,6 +30,17 @@ Os 23 pontos originais misturavam defeitos concretos, riscos, dívida técnica e
 | 22 | Terminologia antiga na interface | Corrigido | Gravação Supabase e menções ao PR41 atualizadas |
 | 23 | Invariantes sem regressões dedicadas | Reforçado | `consistencyAuditTest.ts` integrado em `npm test`; ensaios manuais completos e carga ficam para fase de validação |
 
+## Checkpoint A — integridade do motor (implementado na branch PR #47)
+
+- Introduzida uma barreira final independente que certifica disponibilidade, pessoas ativas, cobertura sem contar refeições, regras de descanso, limites diários/semanais, dias obrigatórios e jornada integral curta.
+- A preparação de turnos para dias curtos passou a distinguir **tempo de presença** de **trabalho efetivo**, permitindo uma pausa válida dentro de uma jornada integral.
+- Corrigidas três partes do processo: geração diária de candidatos de jornada curta com refeição opcional, reequilíbrio de dias curtos e reparação de dias obrigatórios sem turno.
+- Regressões adicionadas para jornadas de 7h (6h efetivas + 1h de refeição), jornadas de 9h (8h efetivas + 1h de refeição) e dia curto de 7h obrigatório mesmo quando os mínimos de cobertura são zero.
+- Testes de domínio, `npm run typecheck` e `npm run build` aprovados no GitHub Actions do commit `0a0170890c8bc236287f9440150ef7e6505e4bc8` (run `42314911389`).
+- A `main` permanece inalterada, em `1467136e081087aa724875176c6de70428175249` (PR #46). Criada a branch de segurança `safety/pr46-baseline` apontada para esse commit, sem abrir outro Pull Request.
+
+**Limites:** o Checkpoint A reforça a validade das propostas mas não introduz contratos individuais, novos ciclos de 28 dias nem a aprovação oficial. Estes aspetos permanecem como decisões de domínio e arquitetura dos checkpoints seguintes.
+
 ## Critérios antes de qualquer merge
 
 1. `npm test`, `npm run typecheck` e `npm run build` aprovados em CI.
