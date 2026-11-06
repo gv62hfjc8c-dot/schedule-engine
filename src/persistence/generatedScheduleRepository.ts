@@ -3,6 +3,8 @@ import type {
   PersonAvailability, PresenceConfiguration, WorkConstraintConfiguration,
   WorkRulesConfiguration,
 } from "../types";
+import { APP_STATE_VERSION } from "./stateRepository";
+import { isPersistedAppState } from "./localStorageStateRepository";
 
 /**
  * A stored generated proposal is never an approved or authoritative schedule.
@@ -57,6 +59,69 @@ const duration = (start: string, end: string) => {
   return m(end) - m(start);
 };
 
+
+const WEEKDAYS = ["monday","tuesday","wednesday","thursday","friday","saturday","sunday"] as const;
+
+function validScheduleIntervals(value: unknown): boolean {
+  if (!Array.isArray(value)) return false;
+  const intervals: Array<{start:number;end:number}> = [];
+  for (const interval of value) {
+    if (!isObject(interval) || typeof interval.start !== "string" ||
+        typeof interval.end !== "string" ||
+        !timePattern.test(interval.start) || !timePattern.test(interval.end) ||
+        interval.start === "24:00" || duration(interval.start,interval.end) <= 0)
+      return false;
+    const toMinutes = (v:string) => Number(v.slice(0,2))*60 + Number(v.slice(3,5));
+    intervals.push({start:toMinutes(interval.start),end:toMinutes(interval.end)});
+  }
+  intervals.sort((a,b)=>a.start-b.start);
+  return intervals.every((interval,i)=>i===0 || intervals[i-1].end <= interval.start);
+}
+
+function validStoredConfiguration(value: GeneratedSchedulePayload): boolean {
+  const c=value.configuration;
+  if (!isPersistedAppState({
+    version: APP_STATE_VERSION,
+    weeklyOperatingHours:c.operatingCalendar.weeklyOperatingHours,
+    exceptions:c.operatingCalendar.exceptions,
+    people:value.people, availabilities:c.availabilities,
+    workRules:c.workRules,
+    weeklyPresenceRequirements:c.presence.weeklyPresenceRequirements,
+    presenceExceptions:c.presence.presenceExceptions,
+  })) return false;
+  try { new Intl.DateTimeFormat("en",{timeZone:value.timeZone}); }
+  catch { return false; }
+  const rules = c.workConstraints;
+  const meal = rules.mealBreak;
+  const integer = (n:unknown) => typeof n==="number" && Number.isSafeInteger(n);
+  if (!meal || !integer(rules.minimumRestBetweenShiftsMinutes) ||
+      rules.minimumRestBetweenShiftsMinutes <= 0 ||
+      !integer(rules.maximumDailyEffectiveMinutes) ||
+      rules.maximumDailyEffectiveMinutes <= 0 ||
+      !integer(rules.maximumWeeklyEffectiveMinutes) ||
+      rules.maximumWeeklyEffectiveMinutes <= 0 ||
+      !integer(meal.requiredAboveEffectiveMinutes) ||
+      meal.requiredAboveEffectiveMinutes < 0 ||
+      !integer(meal.durationMinutes) || meal.durationMinutes <= 0 ||
+      !integer(meal.earliestStartAfterWorkMinutes) ||
+      !integer(meal.latestStartAfterWorkMinutes) ||
+      meal.earliestStartAfterWorkMinutes < 0 ||
+      meal.latestStartAfterWorkMinutes < meal.earliestStartAfterWorkMinutes)
+    return false;
+
+  if (!WEEKDAYS.every(day=>validScheduleIntervals(
+    c.operatingCalendar.weeklyOperatingHours[day]))) return false;
+  if (!c.operatingCalendar.exceptions.every(e=>
+    validDate(e.date) && validScheduleIntervals(e.intervals))) return false;
+  const ids = new Set(value.people.map(p=>p.id));
+  if (!c.availabilities.every(a=>ids.has(a.personId) &&
+      WEEKDAYS.every(day=>validScheduleIntervals(a.weeklyAvailability[day])) &&
+      a.exceptions.every(e=>validDate(e.date)&&validScheduleIntervals(e.intervals))))
+    return false;
+  if (!c.presence.presenceExceptions.every(e=>validDate(e.date))) return false;
+  return true;
+}
+
 export function isGeneratedSchedulePayload(value: unknown): value is GeneratedSchedulePayload {
   if (!isObject(value) || value.schemaVersion !== 1 ||
     value.validationScope !== "user_attested_no_external_shifts" ||
@@ -99,5 +164,5 @@ export function isGeneratedSchedulePayload(value: unknown): value is GeneratedSc
         shift.mealBreak.end >= shift.interval.end) return false;
     }
   }
-  return true;
+  return validStoredConfiguration(value as unknown as GeneratedSchedulePayload);
 }
