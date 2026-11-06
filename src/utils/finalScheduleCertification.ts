@@ -88,7 +88,7 @@ export function certifyFinalGeneratedSchedule(
       if (duration > 0 && duration <= shortLimit) {
         for (const shift of shifts) {
           if (shift.interval.start !== operating[0].start ||
-              shift.interval.end !== operating[0].end || shift.mealBreak !== null)
+              shift.interval.end !== operating[0].end)
             issues.push(date + ": jornada integral de dia curto incumprida.");
         }
       }
