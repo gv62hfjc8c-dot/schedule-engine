@@ -81,6 +81,16 @@ export default function ScheduleHome({
   const statusLabel = kind === "closed" ? "Operação encerrada" :
     kind === "proposal" ? "Proposta temporária" : "Ainda por planear";
 
+  function browseMonth(offset: number) {
+    setMonth(previous => moveCalendarMonth(previous, offset));
+    setSelectedDate(null);
+    setFilter("all");
+    setSearch("");
+    setPage(1);
+    setSelectedIds(new Set());
+    setShowSelectedSummary(false);
+  }
+
   function selectDate(date: string) {
     const nextMonth = monthStart(date);
     if (nextMonth !== month) setMonth(nextMonth);
@@ -238,10 +248,10 @@ export default function ScheduleHome({
       <h3>{dateLabel(month, {month: "long", year: "numeric"})}</h3>
       <div className="se-month-actions">
         <button type="button" className="se-outline" aria-label="Mês anterior"
-          onClick={() => setMonth(previous => moveCalendarMonth(previous, -1))}>‹</button>
+          onClick={() => browseMonth(-1)}>‹</button>
         <button type="button" className="se-outline" onClick={() => selectDate(today)}>Hoje</button>
         <button type="button" className="se-outline" aria-label="Mês seguinte"
-          onClick={() => setMonth(previous => moveCalendarMonth(previous, 1))}>›</button>
+          onClick={() => browseMonth(1)}>›</button>
       </div>
     </div>
     <div className={"se-calendar-layout " + (selectedDate ? "with-panel" : "")}>
