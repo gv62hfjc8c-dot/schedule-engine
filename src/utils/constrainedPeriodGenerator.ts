@@ -1208,9 +1208,10 @@ function satisfiesFullShortDayPolicy(
     const interval = operation[0];
     const duration = minutes(interval.end)-minutes(interval.start);
     if (duration > limit || duration <= 0) continue;
+    // Full attendance can include a mandatory meal break; work/coverage
+    // validators decide whether that break is legal.
     if (shift.interval.start !== interval.start ||
-        shift.interval.end !== interval.end ||
-        shift.mealBreak !== null) return false;
+        shift.interval.end !== interval.end) return false;
   }
   return true;
 }
