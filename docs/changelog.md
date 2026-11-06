@@ -1,13 +1,3 @@
-## 2026-11-02 — PR #42: propostas de horários na base de dados
-
-- cada solução gerada e válida no cenário declarado é guardada automaticamente como proposta **não aprovada**;
-- introduzido repositório de propostas e tabela PostgreSQL append-only com RLS por proprietário autenticado;
-- consulta do histórico dentro de Horários sem novo separador principal, com vistas dia/semana/mês;
-- guardados turnos, nomes dos colaboradores e configuração utilizada na geração para consulta futura;
-- erros de gravação visíveis: uma proposta não guardada nunca é apresentada como persistida;
-- a aprovação continua bloqueada no browser; o histórico de propostas não constitui contexto aprovado;
-- migração aplicada ao projeto Supabase independente do Schedule Engine; testes automáticos e permissões verificados.
-
 # Changelog
 
 ## 2026-10-26 — P6.4: restringir escrita de horários aprovados
