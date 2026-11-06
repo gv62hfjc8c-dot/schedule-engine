@@ -1,8 +1,4 @@
-import { useEffect, useRef, useState } from "react";
-import { supabaseAuthClient } from "../persistence/supabaseInstance";
-import { createSupabaseGeneratedScheduleRepository } from "../persistence/supabaseGeneratedScheduleRepository";
-import type { GeneratedSchedulePayload } from "../persistence/generatedScheduleRepository";
-import GeneratedScheduleHistory from "./GeneratedScheduleHistory";
+import { useEffect, useState } from "react";
 import { readGeneratorDate, saveGeneratorDate } from "./generatorUiPreferences";
 import CalendarDateInput from "./CalendarDateInput";
 import ScheduleViews from "./ScheduleViews";
@@ -38,9 +34,6 @@ interface Snapshot extends ConstrainedPeriodGeneratorPanelProps {
 }
 
 const PREVIEW_MAX_NODES = 5_000;
-const archive = supabaseAuthClient
-  ? createSupabaseGeneratedScheduleRepository(supabaseAuthClient)
-  : null;
 
 function todayKey(): string {
   const now = new Date();
@@ -102,7 +95,7 @@ function dayStatus(status: string | null): string {
  * - no empty external schedule is assumed by default;
  * - the user must explicitly declare no other shifts over the whole
  *   required period, including dates outside the chosen target;
- * - generated proposals are archived, but never approved by the browser.
+ * - no Supabase writes or modifications to the existing generator.
  *
  * This declaration only makes the result valid IN THAT SCENARIO.
  */
@@ -113,25 +106,19 @@ export default function ConstrainedPeriodGeneratorPanel({
   workRules,
   presence,
 }: ConstrainedPeriodGeneratorPanelProps) {
-  const [workspaceView, setWorkspaceView] = useState<"settings" | "schedule" | "history">("settings");
+  const [workspaceView, setWorkspaceView] = useState<"settings" | "schedule">("settings");
   const [startDate, setStartDate] = useState(() => readGeneratorDate("constrained:start", todayKey));
   const [endDate, setEndDate] = useState(() => readGeneratorDate("constrained:end", () => addCivilDays(todayKey(), 6)));
   const [timeZone, setTimeZone] = useState("Atlantic/Azores");
   const [confirmed, setConfirmed] = useState(false);
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "failed">("idle");
-  const [saveProblem, setSaveProblem] = useState<string | null>(null);
-  const generationRun = useRef(0);
 
   useEffect(() => {
     // An edited roster/configuration requires a fresh, explicit declaration.
     setConfirmed(false);
     setSnapshot(null);
     setWorkspaceView("settings");
-    generationRun.current++;
-    setSaveState("idle");
-    setSaveProblem(null);
   }, [people, availabilities, operatingCalendar, workRules, presence]);
 
   const effectiveConstraints = { ...INITIAL_WORK_CONSTRAINTS,
@@ -160,9 +147,6 @@ export default function ConstrainedPeriodGeneratorPanel({
   const stale = snapshot !== null && !sameInputs;
 
   function resetScenario() {
-    generationRun.current++;
-    setSaveState("idle");
-    setSaveProblem(null);
     setWorkspaceView("settings");
     setConfirmed(false);
     setSnapshot(null);
@@ -170,11 +154,8 @@ export default function ConstrainedPeriodGeneratorPanel({
   }
 
   function handleGenerate() {
-    const run = ++generationRun.current;
     setSnapshot(null);
     setError(null);
-    setSaveState("idle");
-    setSaveProblem(null);
     // Independent gate immediately before engine execution. This prevents
     // the UI from supplying a fabricated complete empty context.
     const prepared = prepareExplicitEmptyContext({
@@ -216,34 +197,6 @@ export default function ConstrainedPeriodGeneratorPanel({
         confirmedNoExternalShifts: true,
         result: generated,
       });
-      if (generated.status === "generated") {
-        const payload: GeneratedSchedulePayload = {
-          schemaVersion: 1,
-          validationScope: "user_attested_no_external_shifts",
-          startDate, endDate, timeZone,
-          shifts: structuredClone(generated.assignments),
-          people: structuredClone(people),
-          configuration: structuredClone({
-            availabilities, operatingCalendar, workRules, presence,
-            workConstraints: effectiveConstraints,
-          }),
-        };
-        if (!archive) {
-          setSaveState("failed");
-          setSaveProblem("A ligação Supabase não está configurada.");
-        } else {
-          setSaveState("saving");
-          void archive.save(payload).then(() => {
-            if (generationRun.current === run) setSaveState("saved");
-          }).catch(problem => {
-            if (generationRun.current === run) {
-              setSaveState("failed");
-              setSaveProblem(problem instanceof Error ? problem.message :
-                "A base de dados não confirmou a gravação.");
-            }
-          });
-        }
-      }
     } catch (unexpected) {
       setError(unexpected instanceof Error
         ? unexpected.message
@@ -257,25 +210,6 @@ export default function ConstrainedPeriodGeneratorPanel({
         <button type="button" className={workspaceView === "settings" ? "active" : ""} aria-pressed={workspaceView === "settings"} onClick={() => setWorkspaceView("settings")}>Gerar horário</button>
         <button type="button" className={workspaceView === "schedule" ? "active" : ""} aria-pressed={workspaceView === "schedule"} disabled={result?.status !== "generated"} onClick={() => setWorkspaceView("schedule")}>Visualizar horário</button>
       </nav>
-      <div className="p63-action-row">
-        {workspaceView !== "history" && (
-          <button type="button" onClick={() => setWorkspaceView("history")}>
-            Consultar histórico
-          </button>
-        )}
-        {saveState !== "idle" && (
-          <span className="generator-hint"
-            role={saveState === "failed" ? "alert" : "status"}>
-            {saveState === "saving" && "A guardar proposta…"}
-            {saveState === "saved" && "Proposta guardada no Supabase · não aprovada"}
-            {saveState === "failed" &&
-              ("Não guardado: " + (saveProblem ?? "Falha de armazenamento"))}
-          </span>
-        )}
-      </div>
-      {workspaceView === "history" && (
-        <GeneratedScheduleHistory onExit={() => setWorkspaceView("settings")} />
-      )}
       {workspaceView === "settings" && <div className="generator-layout period-generator-layout">
       <section className="panel generator-panel">
         <div className="panel-header">
@@ -289,7 +223,7 @@ export default function ConstrainedPeriodGeneratorPanel({
         <p className="section-description">
           Pesquisa turnos, refeições e alternativas entre dias, respeitando
           cobertura, 11 horas de descanso e o limite de 40 horas semanais.
-          As propostas geradas com sucesso são guardadas no Supabase para consulta, sem aprovação automática.
+          Esta simulação não grava nem altera dados no Supabase.
         </p>
 
         <div className="generator-controls period-generator-controls">
@@ -353,9 +287,10 @@ export default function ConstrainedPeriodGeneratorPanel({
                 <b> {context.requiredContext.endDate}</b>.
               </p>
               <p>
-                O histórico de propostas não comprova horários aprovados.
-                Continua a ser necessária a declaração explícita de que
-                <b> não existem quaisquer outros turnos atribuídos fora
+                Ainda não existe um registo persistido de horários gerados
+                que permita consultar automaticamente estes turnos.
+                Nesta primeira experiência, só é suportado o cenário
+                em que <b>não há quaisquer outros turnos atribuídos fora
                 do período escolhido</b>, dentro destas datas.
               </p>
               <label className="p63-confirmation">
@@ -403,7 +338,7 @@ export default function ConstrainedPeriodGeneratorPanel({
           O resultado é válido apenas para o cenário exterior expressamente
           declarado. Se existirem outros turnos conhecidos, não confirmes
           ausência: o motor precisa desses turnos para os considerar.
-          As propostas válidas são guardadas automaticamente como não aprovadas; a aprovação oficial será implementada separadamente.
+          Os horários não são guardados nem aprovados nesta experiência.
         </p>
       </section>
 
@@ -424,7 +359,7 @@ export default function ConstrainedPeriodGeneratorPanel({
           <div className="generator-result-body" role="alert">
             <h3>Não foi possível simular</h3>
             <p>{error}</p>
-            <p>A simulação falhou; nenhuma proposta nova foi guardada.</p>
+            <p>Nenhuma escala foi guardada.</p>
           </div>
         ) : result ? (
           <div className="generator-result-body">
@@ -434,7 +369,7 @@ export default function ConstrainedPeriodGeneratorPanel({
                 Cobertura, refeições, descanso e limites diários/semanais
                 verificados <strong>apenas sob a declaração de ausência de
                 outros turnos exteriores ao período</strong>. Isto não
-                representa uma aprovação oficial. A gravação é indicada separadamente.
+                representa uma aprovação nem persistência de escala.
               </p>
             )}
             {result.status === "generated" &&
