@@ -136,6 +136,18 @@ export default function ConstrainedPeriodGeneratorPanel({
     setRetryPayload(null);
   }, [people, availabilities, operatingCalendar, workRules, presence]);
 
+  // A generated result is not guaranteed persisted until the server confirms.
+  // Protect a browser reload/close during the in-flight write.
+  useEffect(() => {
+    if (saveState !== "saving") return;
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [saveState]);
+
   const effectiveConstraints = { ...INITIAL_WORK_CONSTRAINTS,
     maximumDailyEffectiveMinutes: workRules.maximumDailyEffectiveMinutes ?? 480,
   };
