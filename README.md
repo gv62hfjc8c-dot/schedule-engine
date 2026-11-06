@@ -14,7 +14,7 @@ Estão implementados:
 4. **regras de trabalho** — duração padrão e turnos diários contínuos;
 5. **requisitos mínimos de presença** — abertura, operação e fecho.
 
-Ainda não existe geração automática de horários.
+A aplicação já contém geradores de horários (incluindo geração conjunta de vários dias com validação de trabalho e cobertura). O fluxo principal guarda automaticamente propostas válidas e permite recuperá-las no calendário mensal. Propostas guardadas NÃO são horários oficialmente aprovados.
 
 ## Princípios atuais
 
@@ -43,13 +43,13 @@ A aplicação guarda automaticamente:
 - regras de trabalho;
 - requisitos mínimos de presença e exceções.
 
-**Em validação:** substituição do armazenamento principal por Supabase/PostgreSQL com autenticação, RLS, histórico e controlo de revisão. O `localStorage` fica como origem de migração inicial e cópia histórica; deixa de ser utilizado para gravações novas. Consulta [configuração do Supabase](docs/supabase-setup.md).
+**Ativo:** Supabase/PostgreSQL guarda a configuração com autenticação, RLS, histórico e controlo de revisão; guarda também snapshots imutáveis de propostas geradas. A aprovação oficial permanece fora da interface ativa. A importação inicial de dados antigos do navegador exige confirmação explícita de titularidade. O `localStorage` fica como origem de migração inicial e cópia histórica; deixa de ser utilizado para gravações novas. Consulta [configuração do Supabase](docs/supabase-setup.md).
 
 O formato é versionado e suporta migração automática entre as versões introduzidas.
 
 ## Executar
 
-Antes de abrir esta branch, configura o projeto Supabase seguindo [o guia](docs/supabase-setup.md) e preenche `.env.local` a partir de `.env.example`. O servidor Vite existente é suficiente; não é necessário um backend adicional.
+Antes de abrir esta branch, configura o projeto Supabase seguindo [o guia](docs/supabase-setup.md) e preenche `.env.local` a partir de `.env.example`. O servidor Vite é suficiente para desenvolvimento da interface e geração local. Aprovações oficiais, quando reintroduzidas, exigem uma fronteira confiável executada no servidor.
 
 ## Verificar
 
