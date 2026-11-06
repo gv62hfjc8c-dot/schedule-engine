@@ -1,5 +1,8 @@
 # Supabase — Persistência V0 do Schedule Engine
 
+> **Nota de estado (PR #47, proposta):** além do estado de configuração v4, a instância utilizada no desenvolvimento contém propostas geradas, estruturas de ledger aprovado e uma Edge Function `official-schedules` herdada de experiências anteriores. Esses objetos não fazem parte do fluxo ativo pós-PR #41 e a migração/reconciliação completa com os ficheiros Git está pendente. Não eliminar tabelas nem funções sem cópia do esquema, análise de dependências e plano de reversão. A importação de dados do navegador para uma conta nova passa a exigir consentimento explícito.
+
+
 ## Objetivo
 
 Manter colaboradores, disponibilidades, calendário, regras e mínimos de
