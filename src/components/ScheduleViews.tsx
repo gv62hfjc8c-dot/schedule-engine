@@ -138,7 +138,7 @@ export default function ScheduleViews({ assignments, people, startDate, endDate,
               <strong>{Number(date.slice(8,10))}</strong>
               {inPeriod(date) && (monthPerson === "all"
                 ? <small>{dayShifts.length ? dayShifts.length + (dayShifts.length === 1 ? " turno" : " turnos") : "—"}</small>
-                : <small>{dayShifts.length ? dayShifts.map(shiftLabel).join(" · ") : "Folga"}</small>)}
+                : <small>{dayShifts.length ? dayShifts.map(shiftLabel).join(" · ") : "Sem turno"}</small>)}
             </button>;
           })}
         </div>
