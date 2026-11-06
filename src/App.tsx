@@ -188,6 +188,8 @@ export default function App() {
   );
   const [editingPersonName, setEditingPersonName] = useState("");
   const [personError, setPersonError] = useState("");
+  const [exceptionIssue, setExceptionIssue] = useState("");
+  const [availabilityExceptionIssue, setAvailabilityExceptionIssue] = useState("");
   const [activeSection, setActiveSection] = useState<
     "schedules" | "calendar" | "people" | "availability" | "workRules" | "presence" | "generator"
   >("schedules");
@@ -456,6 +458,11 @@ export default function App() {
     index: number,
     next: OperatingHoursException
   ) => {
+    if (exceptions.some((item, i) => i !== index && item.date === next.date)) {
+      setExceptionIssue("Já existe uma exceção operacional para essa data.");
+      return;
+    }
+    setExceptionIssue("");
     setExceptions((current) =>
       current.map((exception, currentIndex) =>
         currentIndex === index ? next : exception
@@ -678,6 +685,11 @@ export default function App() {
     next: AvailabilityException
   ) => {
     if (!selectedAvailability) return;
+    if (selectedAvailability.exceptions.some((item, i) => i !== index && item.date === next.date)) {
+      setAvailabilityExceptionIssue("Já existe uma exceção de disponibilidade para essa data.");
+      return;
+    }
+    setAvailabilityExceptionIssue("");
 
     upsertAvailability({
       ...selectedAvailability,
@@ -988,6 +1000,9 @@ export default function App() {
           <p className="section-description">
             Feriados, encerramentos ou horários diferentes do padrão.
           </p>
+          {exceptionIssue && <p className="presence-validation" role="alert">{exceptionIssue}</p>}
+          {exceptions.length !== new Set(exceptions.map(item => item.date)).size &&
+            <p className="presence-validation" role="alert">Existem exceções operacionais repetidas na configuração. Corrige as datas duplicadas.</p>}
 
           {exceptions.length === 0 ? (
             <div className="empty-state">
@@ -1521,6 +1536,9 @@ export default function App() {
                     <p className="section-description">
                       Altera a disponibilidade apenas numa data.
                     </p>
+                    {availabilityExceptionIssue && <p className="presence-validation" role="alert">{availabilityExceptionIssue}</p>}
+                    {selectedAvailability && selectedAvailability.exceptions.length !== new Set(selectedAvailability.exceptions.map(item => item.date)).size &&
+                      <p className="presence-validation" role="alert">Existem exceções de disponibilidade repetidas. Corrige as datas duplicadas.</p>}
 
                     {selectedAvailability.exceptions
                       .length === 0 ? (
