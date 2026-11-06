@@ -39,6 +39,8 @@ export interface GeneratedScheduleRepository {
   save(payload: GeneratedSchedulePayload): Promise<StoredGeneratedSchedule>;
   /** All proposals overlapping a civil date interval. No arbitrary recent-only cap. */
   listBetween(startDate: string, endDate: string): Promise<StoredGeneratedSchedule[]>;
+  /** Most recently persisted proposal across all periods. */
+  latest(): Promise<StoredGeneratedSchedule | null>;
 }
 
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
