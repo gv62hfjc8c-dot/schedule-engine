@@ -1,4 +1,4 @@
-import type { DatedWorkShift } from "../types";
+import type { DatedWorkShift, TimeInterval, WorkConstraintConfiguration } from "../types";
 import {
   searchMealAwareDaySchedule,
   type GenerateMealAwareDayInput,
@@ -1217,6 +1217,49 @@ function satisfiesFullShortDayPolicy(
 }
 
 /**
+ * Full attendance is an interval, not necessarily continuous effective work.
+ * A mandatory/optional meal must be represented when it fits inside that
+ * exact attendance span. The work validator remains the final authority.
+ */
+function fullShortDayShiftCandidates(
+  date: string,
+  personId: string,
+  interval: TimeInterval,
+  rules: WorkConstraintConfiguration
+): DatedWorkShift[] {
+  const minute = (value: string) =>
+    Number(value.slice(0,2)) * 60 + Number(value.slice(3,5));
+  const clock = (value: number) =>
+    String(Math.floor(value/60)).padStart(2,"0") + ":" +
+    String(value%60).padStart(2,"0");
+  const start = minute(interval.start);
+  const end = minute(interval.end);
+  const span = end - start;
+  if (!Number.isSafeInteger(span) || span <= 0) return [];
+  const variants: DatedWorkShift[] = [];
+  if (span <= rules.mealBreak.requiredAboveEffectiveMinutes &&
+      span <= rules.maximumDailyEffectiveMinutes) {
+    variants.push({date,personId,interval:{...interval},mealBreak:null});
+  }
+  const work = span - rules.mealBreak.durationMinutes;
+  if (work > 0 && work <= rules.maximumDailyEffectiveMinutes) {
+    for (let offset=rules.mealBreak.earliestStartAfterWorkMinutes;
+      offset <= rules.mealBreak.latestStartAfterWorkMinutes; offset+=15) {
+      if (offset <= 0 || offset + rules.mealBreak.durationMinutes >= span)
+        continue;
+      variants.push({
+        date,personId,interval:{...interval},
+        mealBreak:{
+          start:clock(start+offset),
+          end:clock(start+offset+rules.mealBreak.durationMinutes),
+        },
+      });
+    }
+  }
+  return variants;
+}
+
+/**
  * Bounded multi-day improvement: move effective hours away from long shifts
  * to enable a complete short operating day. All changes are committed
  * atomically after independent work and coverage validation.
@@ -1276,8 +1319,7 @@ function rebalanceForCompleteShortDays(
       input.operatingCalendar.exceptions);
     if(op.length!==1)continue;
     const duration=minutes(op[0].end)-minutes(op[0].start);
-    if(duration<=0||duration>threshold||
-      duration>input.workConstraints.maximumDailyEffectiveMinutes)continue;
+    if(duration<=0||duration>threshold)continue;
     for(const person of input.people.filter(p=>p.active)){
       if(checks>=1200)break;
       if(schedule.some(s=>s.personId===person.id&&s.date===date))continue;
@@ -1290,7 +1332,12 @@ function rebalanceForCompleteShortDays(
       const personShifts=schedule.filter(sameWeek);
       const weeklyMinutes=[...personShifts,...external.filter(sameWeek)]
         .reduce((sum,s)=>sum+effective(s),0);
-      const reduction=Math.max(0,weeklyMinutes+duration-
+      const fullDayCandidates=fullShortDayShiftCandidates(
+        date,person.id,op[0],input.workConstraints);
+      for(const candidate of fullDayCandidates){
+      const candidateEffective=duration-(candidate.mealBreak
+        ? minutes(candidate.mealBreak.end)-minutes(candidate.mealBreak.start):0);
+      const reduction=Math.max(0,weeklyMinutes+candidateEffective-
         input.workConstraints.maximumWeeklyEffectiveMinutes);
       if(reduction%15!==0 || personShifts.length===0 && reduction>0)continue;
       const donors=personShifts.filter(s=>s.date!==date &&
@@ -1299,8 +1346,6 @@ function rebalanceForCompleteShortDays(
           input.operatingCalendar.exceptions).some(i=>
             minutes(i.end)-minutes(i.start)>threshold));
       if(!donors.length && reduction>0)continue;
-      const candidate={date,personId:person.id,
-        interval:{...op[0]},mealBreak:null};
       // Seek the flattest durations first, then test different choices
       // of trimming the start or end of each donor.
       const cuts=new Map<string,number>();
@@ -1343,6 +1388,8 @@ function rebalanceForCompleteShortDays(
         if(!viable)continue;
         trial.push(candidate);
         if(allValid(trial)){schedule=trial;break;}
+      }
+      if(schedule.some(s=>s.personId===person.id&&s.date===date))break;
       }
     }
   }
