@@ -40,7 +40,7 @@ const proposal: SchedulePreview = {
 };
 
 const nov=monthCalendarDates("2026-11-10");
-assert(nov.length===42&&nov[0]==="2026-10-26"&&nov.at(-1)==="2026-12-06",
+assert(nov.length===42&&nov[0]==="2026-10-26"&&nov[nov.length-1]==="2026-12-06",
   "O mês inclui semanas completas, sem cortar dias entre meses.");
 assert(monthCalendarDates("2026-12-15").length===35,
   "O mês de dezembro deve ocupar cinco linhas.");
