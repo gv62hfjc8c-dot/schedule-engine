@@ -1503,8 +1503,12 @@ function fillRequiredWorkdays(
       Math.round((Math.min(current,maxWeekly)-shortTotal)/fullCount/15)*15:0;
     const proposedWork: number[]=[];
     if(short(date) && operating(date).length===1){
-      proposedWork.push(minute(operating(date)[0].end)-
-        minute(operating(date)[0].start));
+      const attendanceMinutes=minute(operating(date)[0].end)-
+        minute(operating(date)[0].start);
+      proposedWork.push(attendanceMinutes);
+      const withMeal=attendanceMinutes-meal.durationMinutes;
+      if(withMeal>0 && !proposedWork.includes(withMeal))
+        proposedWork.push(withMeal);
     }else{
       // Prefer equal full-day effective hours, then nearby alternatives.
       for(let deviation=0;deviation<=180;deviation+=15){
@@ -1518,7 +1522,12 @@ function fillRequiredWorkdays(
     let fixed=false;
     for(const work of proposedWork){
       if(fixed||checks>=budget)break;
-      const needsMeal=work>meal.requiredAboveEffectiveMinutes;
+      if(work>maxDaily)continue;
+      const operation=operating(date);
+      const shortMeal=short(date) && operation.length===1 &&
+        minute(operation[0].end)-minute(operation[0].start)===
+          work+meal.durationMinutes;
+      const needsMeal=work>meal.requiredAboveEffectiveMinutes || shortMeal;
       const span=work+(needsMeal?meal.durationMinutes:0);
       const reduction=Math.max(0,current+work-maxWeekly);
       if(reduction%15!==0||(!donors.length&&reduction>0))continue;
