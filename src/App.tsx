@@ -16,6 +16,8 @@ import TimeWheelSelect from "./components/TimeWheelSelect";
 import CalendarDateInput from "./components/CalendarDateInput";
 import PresencePanel from "./components/PresencePanel";
 import ScheduleGeneratorPanel from "./components/ScheduleGeneratorPanel";
+import ScheduleHome from "./components/ScheduleHome";
+import type { SchedulePreview } from "./utils/monthlyScheduleView";
 import { createEmptyWeeklyPresenceRequirements } from "./utils/presence";
 import { appStateRepository } from "./persistence/appStateRepository";
 import { APP_STATE_VERSION } from "./persistence/stateRepository";
@@ -185,8 +187,8 @@ export default function App() {
   const [editingPersonName, setEditingPersonName] = useState("");
   const [personError, setPersonError] = useState("");
   const [activeSection, setActiveSection] = useState<
-    "calendar" | "people" | "availability" | "workRules" | "presence" | "generator"
-  >("calendar");
+    "schedules" | "calendar" | "people" | "availability" | "workRules" | "presence" | "generator"
+  >("schedules");
   const [
     selectedAvailabilityPersonId,
     setSelectedAvailabilityPersonId,
@@ -198,6 +200,13 @@ export default function App() {
     "loading" | "saving" | "saved" | "error"
   >("loading");
   const saveRequestId = useRef(0);
+  const [latestPreview, setLatestPreview] = useState<SchedulePreview | null>(null);
+  const [generatorInitialDate, setGeneratorInitialDate] = useState<string | undefined>();
+
+  function openGenerator(date?: string) {
+    setGeneratorInitialDate(date);
+    setActiveSection("generator");
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -296,6 +305,12 @@ export default function App() {
     weeklyPresenceRequirements,
     presenceExceptions,
   ]);
+
+  // A generated proposal is session-only and is invalidated by context edits.
+  useEffect(() => {
+    setLatestPreview(null);
+  }, [weeklyHours, exceptions, people, availabilities, workRules,
+      weeklyPresenceRequirements, presenceExceptions]);
 
   const summary = useMemo(() => {
     const openDays = WEEKDAYS.filter(
@@ -742,11 +757,11 @@ export default function App() {
     <main className="app-shell">
       <header className="page-header">
         <div>
-          <p className="eyebrow">Configuração operacional</p>
+          <p className="eyebrow">Horários e planeamento</p>
           <h1>Schedule Engine</h1>
           <p className="page-subtitle">
-            Define a base que o motor irá usar continuamente:
-            funcionamento, pessoas, disponibilidade, regras de trabalho e presença mínima.
+            Consulta o calendário mensal, prepara horários e gere a configuração operacional
+            sem confundir propostas de simulação com horários aprovados.
           </p>
         </div>
 
@@ -768,10 +783,10 @@ export default function App() {
 
       <nav className="workspace-tabs" aria-label="Áreas principais">
         {([
+          {id:"schedules",label:"Horários",sections:["schedules","generator"]},
           {id:"operation",label:"Operação",sections:["calendar","presence"]},
           {id:"team",label:"Equipa",sections:["people","availability"]},
           {id:"rules",label:"Regras",sections:["workRules"]},
-          {id:"schedules",label:"Horários",sections:["generator"]},
         ] as const).map(group => (
           <button key={group.id} type="button"
             className={`workspace-tab ${(group.sections as readonly string[]).includes(activeSection) ? "active" : ""}`}
@@ -803,6 +818,17 @@ export default function App() {
             </button>
           ))}
         </nav>
+      )}
+
+      {activeSection === "schedules" && (
+        <ScheduleHome
+          people={people}
+          availabilities={availabilities}
+          operatingCalendar={generatorOperatingCalendar}
+          preview={latestPreview}
+          onCreate={openGenerator}
+          onConfigureTeam={() => setActiveSection("people")}
+        />
       )}
 
       {activeSection === "calendar" && (
@@ -1700,6 +1726,9 @@ export default function App() {
           operatingCalendar={generatorOperatingCalendar}
           workRules={workRules}
           presence={generatorPresence}
+          initialDate={generatorInitialDate}
+          onGenerated={setLatestPreview}
+          onBackToCalendar={() => setActiveSection("schedules")}
         />
       )}
     </main>
