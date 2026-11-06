@@ -246,6 +246,7 @@ export default function ScheduleHome({
         <div><strong>{summary.assigned}</strong><span>Escalados (proposta)</span></div>
         <div><strong>{summary.available}</strong><span>Disponíveis sem turno</span></div>
         <div><strong>{summary.unavailable}</strong><span>Sem disponibilidade</span></div>
+        <div><strong>{summary.unplanned}</strong><span>Por planear</span></div>
       </div>
       <div className="se-controls">
         <label className="se-control">
