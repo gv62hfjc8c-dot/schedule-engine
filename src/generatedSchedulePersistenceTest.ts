@@ -65,6 +65,7 @@ const client = {
     }
     assert(method==="GET","only reading and appending allowed");
     const url=new URL(path,"https://example.invalid");
+    if (!url.searchParams.has("end_date")) return Response.json(records.slice(0,1));
     const start=url.searchParams.get("end_date")!.replace("gte.","");
     const end=url.searchParams.get("start_date")!.replace("lte.","");
     const eligible=records.filter(row =>
@@ -83,6 +84,8 @@ const changed={...payload,shifts:[{
   mealBreak:{start:"13:00",end:"14:00"},
 }]};
 const newer=await repo.save(changed);
+const latestRecord=await repo.latest();
+assert(latestRecord?.id===newer.id,"recover last stored schedule before loading calendar");
 const afterRestart=await createSupabaseGeneratedScheduleRepository(client)
   .listBetween("2026-11-01","2026-11-30");
 assert(afterRestart.length===2,"restore saved records on a new repository instance");
