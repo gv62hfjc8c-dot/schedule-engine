@@ -1,5 +1,8 @@
 # Roadmap
 
+> Estado consolidado após PR #46: interface mensal e gestão diária, gerador com validação de trabalho e cobertura e arquivo de propostas no Supabase estão integrados. Propostas não equivalem a escalas oficialmente aprovadas. A análise de consistência do PR #47 está em `docs/audit-pr47.md`; não confundir alterações propostas com funcionalidades integradas.
+
+
 ## Ponto 1 — Calendário operacional
 
 Estado: **fechado**
@@ -212,8 +215,7 @@ Primeiro incremento técnico:
 
 **Atenção:** o novo gerador de período P6.3 só certifica regras globais quando
 `status: "generated"` **e** quando o contexto exterior ao período está confirmado.
-O gerador na interface ainda é anterior ao P6.3; não certifica
-refeições, descanso ou horas semanais.
+O gerador condicionado P6.3 está disponível no fluxo principal; apenas resultados `generated` podem ser guardados como propostas, após validação no cenário declarado. O arquivo não é contexto oficial aprovado.
 
 ### Etapa 6.4 — Núcleo de horários aprovados
 
