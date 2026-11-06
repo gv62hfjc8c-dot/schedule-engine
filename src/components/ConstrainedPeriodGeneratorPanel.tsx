@@ -361,8 +361,8 @@ export default function ConstrainedPeriodGeneratorPanel({
                 <b> {context.requiredContext.endDate}</b>.
               </p>
               <p>
-                As propostas guardadas não comprovam horários oficialmente aprovados.
-                que permita consultar automaticamente estes turnos.
+                As propostas guardadas não constituem horários oficialmente
+                aprovados nem permitem verificar outros turnos existentes.
                 Nesta primeira experiência, só é suportado o cenário
                 em que <b>não há quaisquer outros turnos atribuídos fora
                 do período escolhido</b>, dentro destas datas.
