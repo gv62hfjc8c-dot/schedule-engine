@@ -83,15 +83,15 @@ assert(!isGeneratedSchedulePayload({...saved,timeZone:"Invalid/Unknown"}),
 assert(!isGeneratedSchedulePayload({...saved,configuration:{
   ...saved.configuration,
   operatingCalendar:{weeklyOperatingHours:{monday:op.monday},exceptions:[]},
-}},"Archive rejects incomplete weekly operation.");
+}}),"Archive rejects incomplete weekly operation.");
 assert(!isGeneratedSchedulePayload({...saved,configuration:{
   ...saved.configuration,
   workConstraints:{...INITIAL_WORK_CONSTRAINTS,maximumWeeklyEffectiveMinutes:-1},
-}},"Archive rejects invalid work rules.");
+}}),"Archive rejects invalid work rules.");
 assert(!isGeneratedSchedulePayload({...saved,configuration:{
   ...saved.configuration,
   availabilities:[{...availability,
     weeklyAvailability:{...availability.weeklyAvailability,
       monday:[{start:"18:00",end:"09:00"}]}}],
-}},"Archive rejects invalid availability intervals.");
+}}),"Archive rejects invalid availability intervals.");
 console.log("PR47: final certification and archived snapshot regression checks passed.");
