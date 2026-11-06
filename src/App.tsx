@@ -19,6 +19,7 @@ import ScheduleGeneratorPanel from "./components/ScheduleGeneratorPanel";
 import ScheduleHome from "./components/ScheduleHome";
 import { supabaseAuthClient } from "./persistence/supabaseInstance";
 import { createSupabaseGeneratedScheduleRepository } from "./persistence/supabaseGeneratedScheduleRepository";
+import { authorizeLegacyImportForOwner, LegacyImportConsentRequiredError } from "./persistence/supabaseStateRepository";
 import type { GeneratedSchedulePayload, StoredGeneratedSchedule } from "./persistence/generatedScheduleRepository";
 import { createEmptyWeeklyPresenceRequirements } from "./utils/presence";
 import { appStateRepository } from "./persistence/appStateRepository";
@@ -199,6 +200,7 @@ export default function App() {
   ] = useState<string | null>(null);
   const [persistenceReady, setPersistenceReady] = useState(false);
   const [persistenceProblem, setPersistenceProblem] = useState<string | null>(null);
+  const [needsLegacyConsent, setNeedsLegacyConsent] = useState(false);
   const skipInitialSave = useRef(true);
   const [persistenceStatus, setPersistenceStatus] = useState<
     "loading" | "saving" | "saved" | "error"
@@ -248,6 +250,7 @@ export default function App() {
 
         // Never enable autosave when hydration fails.
         setPersistenceReady(false);
+        setNeedsLegacyConsent(error instanceof LegacyImportConsentRequiredError);
         setPersistenceProblem(
           error instanceof Error
             ? error.message
@@ -770,6 +773,21 @@ export default function App() {
           <p style={{ marginTop: "12px" }}>
             {persistenceProblem}
           </p>
+          {needsLegacyConsent && <>
+            <p>
+              A configuração antiga guardada neste navegador não identifica o seu proprietário.
+              Para impedir que os dados de outra pessoa sejam importados para a tua conta,
+              confirma expressamente que esses dados te pertencem.
+            </p>
+            <button type="button" className="primary-button" onClick={() => {
+              const ownerId = supabaseAuthClient?.user?.id;
+              if (!ownerId) return;
+              authorizeLegacyImportForOwner(window.localStorage, ownerId);
+              window.location.reload();
+            }}>
+              Confirmo que estes dados são meus — importar para a conta
+            </button>
+          </>}
           <p>
             Para evitar substituir dados existentes por um estado vazio,
             a aplicação bloqueou a edição e a gravação automática.
