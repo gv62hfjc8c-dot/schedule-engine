@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabaseAuthClient } from "../persistence/supabaseInstance";
+import ScheduleViews from "./ScheduleViews";
 import { createSupabaseGeneratedScheduleRepository } from "../persistence/supabaseGeneratedScheduleRepository";
 import type { StoredGeneratedSchedule } from "../persistence/generatedScheduleRepository";
 import { proposalsForDay, selectedProposalForDay, previewFromStored, savedProposalLabel } from "../utils/savedScheduleView";
@@ -60,7 +61,7 @@ export default function ScheduleHome({
   const today = todayInTimeZone(ZONE);
   const [month, setMonth] = useState(() => monthStart(initialMonth ?? today));
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  const [screen, setScreen] = useState<"month" | "manage">("month");
+  const [screen, setScreen] = useState<"month" | "manage" | "saved">("month");
   const [filter, setFilter] = useState<TeamFilter>("all");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -188,6 +189,29 @@ export default function ScheduleHome({
   const visibleFilters = selectedIds.size ? [...filters, "selected" as const] : filters;
   const currentMonth = month.slice(0, 7);
   const activeCount = people.filter(p => p.active).length;
+
+  if (screen === "saved" && stored) {
+    return <section className="se-home" aria-label="Horário guardado">
+      <div className="se-management-top">
+        <button type="button" className="se-outline" onClick={() => setScreen("month")}>
+          ← Voltar ao calendário
+        </button>
+        <span className="se-context">Proposta guardada · não aprovada</span>
+      </div>
+      <div className="se-readonly-note">
+        Horário arquivado em {savedProposalLabel(stored)}. A vista utiliza os turnos
+        e os nomes originais da geração e não executa novamente o motor.
+      </div>
+      <ScheduleViews
+        assignments={stored.payload.shifts}
+        people={stored.payload.people}
+        startDate={stored.startDate}
+        endDate={stored.endDate}
+        storageState="saved"
+        sourceLabel="Horário guardado"
+      />
+    </section>;
+  }
 
   if (screen === "manage" && selectedDate) {
     const selectedPeople = rows.filter(row => selectedIds.has(row.id));
@@ -384,6 +408,9 @@ export default function ScheduleHome({
             </select>
           </label>}
         </div>}
+        {stored && <button type="button" className="se-outline" onClick={() => setScreen("saved")}>
+          Consultar horário completo →
+        </button>}
         <div className="se-panel-team">
           <h4>Resumo da equipa</h4>
           <div className="se-team-total">Equipa ativa: <strong>{summary.total}</strong></div>
