@@ -393,6 +393,19 @@ export default function App() {
     };
   }, [selectedAvailability, weeklyHours]);
 
+  // The compact editor only changes the first interval; imported extra
+  // intervals must remain intact until the full editor is available.
+  const nextUnusedExceptionDate = (items: {date: string}[]): string => {
+    const used = new Set(items.map(item => item.date));
+    const date = new Date(todayKey() + "T00:00:00Z");
+    for (let i = 0; i < 36525; i++) {
+      const candidate = date.toISOString().slice(0, 10);
+      if (!used.has(candidate)) return candidate;
+      date.setUTCDate(date.getUTCDate() + 1);
+    }
+    throw new Error("Não existe data livre para uma nova exceção.");
+  };
+
   const updateDayInterval = (
     weekday: Weekday,
     field: "start" | "end",
@@ -417,7 +430,7 @@ export default function App() {
 
       return {
         ...current,
-        [weekday]: [next],
+        [weekday]: [next, ...current[weekday].slice(1)],
       };
     });
   };
@@ -433,12 +446,9 @@ export default function App() {
   };
 
   const addException = () => {
-    setExceptions((current) => [
+    setExceptions(current => [
       ...current,
-      {
-        date: todayKey(),
-        intervals: [],
-      },
+      { date: nextUnusedExceptionDate(current), intervals: [] },
     ]);
   };
 
@@ -477,7 +487,7 @@ export default function App() {
 
     updateException(index, {
       ...exception,
-      intervals: [nextInterval],
+      intervals: [nextInterval, ...exception.intervals.slice(1)],
     });
   };
 
@@ -643,7 +653,7 @@ export default function App() {
       ...selectedAvailability,
       weeklyAvailability: {
         ...selectedAvailability.weeklyAvailability,
-        [weekday]: [next],
+        [weekday]: [next, ...selectedAvailability.weeklyAvailability[weekday].slice(1)],
       },
     });
   };
@@ -656,7 +666,7 @@ export default function App() {
       exceptions: [
         ...selectedAvailability.exceptions,
         {
-          date: todayKey(),
+          date: nextUnusedExceptionDate(selectedAvailability.exceptions),
           intervals: [],
         },
       ],
@@ -719,7 +729,7 @@ export default function App() {
 
     updateAvailabilityException(index, {
       ...exception,
-      intervals: [nextInterval],
+      intervals: [nextInterval, ...exception.intervals.slice(1)],
     });
   };
 
