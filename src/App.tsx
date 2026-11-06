@@ -786,7 +786,7 @@ export default function App() {
 
           <div
             className={`save-status ${persistenceStatus}`}
-            title="Estado da gravação local"
+            title="Estado da gravação da configuração no Supabase"
           >
             <span className="save-status-dot" />
             {persistenceStatus === "loading" && "A carregar"}
