@@ -16,6 +16,7 @@ import {
 import { prepareExplicitEmptyContext } from "../utils/explicitEmptyContext";
 import { INITIAL_WORK_CONSTRAINTS } from "../utils/workConstraints";
 import { MAX_PERIOD_DAYS } from "../utils/periodGenerator";
+import type { SchedulePreview } from "../utils/monthlyScheduleView";
 
 export interface ConstrainedPeriodGeneratorPanelProps {
   people: Person[];
@@ -23,6 +24,9 @@ export interface ConstrainedPeriodGeneratorPanelProps {
   operatingCalendar: OperatingCalendarConfiguration;
   workRules: WorkRulesConfiguration;
   presence: PresenceConfiguration;
+  initialDate?: string;
+  onGenerated?(proposal: SchedulePreview): void;
+  onBackToCalendar?(): void;
 }
 
 interface Snapshot extends ConstrainedPeriodGeneratorPanelProps {
@@ -105,10 +109,13 @@ export default function ConstrainedPeriodGeneratorPanel({
   operatingCalendar,
   workRules,
   presence,
+  initialDate,
+  onGenerated,
+  onBackToCalendar,
 }: ConstrainedPeriodGeneratorPanelProps) {
   const [workspaceView, setWorkspaceView] = useState<"settings" | "schedule">("settings");
-  const [startDate, setStartDate] = useState(() => readGeneratorDate("constrained:start", todayKey));
-  const [endDate, setEndDate] = useState(() => readGeneratorDate("constrained:end", () => addCivilDays(todayKey(), 6)));
+  const [startDate, setStartDate] = useState(() => initialDate ?? readGeneratorDate("constrained:start", todayKey));
+  const [endDate, setEndDate] = useState(() => initialDate ?? readGeneratorDate("constrained:end", () => addCivilDays(todayKey(), 6)));
   const [timeZone, setTimeZone] = useState("Atlantic/Azores");
   const [confirmed, setConfirmed] = useState(false);
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
@@ -185,6 +192,12 @@ export default function ConstrainedPeriodGeneratorPanel({
         maxSearchNodes: PREVIEW_MAX_NODES,
       });
       setWorkspaceView(generated.status === "generated" ? "schedule" : "settings");
+      if (generated.status === "generated") {
+        onGenerated?.({
+          startDate, endDate, timeZone,
+          assignments: structuredClone(generated.assignments),
+        });
+      }
       setSnapshot({
         startDate,
         endDate,
@@ -206,6 +219,9 @@ export default function ConstrainedPeriodGeneratorPanel({
 
   return (
     <div className="generator-workspace">
+      {onBackToCalendar && <div className="p63-action-row">
+        <button type="button" onClick={onBackToCalendar}>← Voltar ao calendário mensal</button>
+      </div>}
       <nav className="generator-workspace-tabs" aria-label="Secções de horários">
         <button type="button" className={workspaceView === "settings" ? "active" : ""} aria-pressed={workspaceView === "settings"} onClick={() => setWorkspaceView("settings")}>Gerar horário</button>
         <button type="button" className={workspaceView === "schedule" ? "active" : ""} aria-pressed={workspaceView === "schedule"} disabled={result?.status !== "generated"} onClick={() => setWorkspaceView("schedule")}>Visualizar horário</button>
