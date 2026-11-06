@@ -14,7 +14,7 @@ import type {
   WorkRulesConfiguration,
 } from "../types";
 import ConstrainedPeriodGeneratorPanel from "./ConstrainedPeriodGeneratorPanel";
-import type { SchedulePreview } from "../utils/monthlyScheduleView";
+import type { GeneratedSchedulePayload, StoredGeneratedSchedule } from "../persistence/generatedScheduleRepository";
 
 interface ScheduleGeneratorPanelProps {
   people: Person[];
@@ -23,7 +23,7 @@ interface ScheduleGeneratorPanelProps {
   workRules: WorkRulesConfiguration;
   presence: PresenceConfiguration;
   initialDate?: string;
-  onGenerated?(preview: SchedulePreview): void;
+  onSaveGenerated?(payload: GeneratedSchedulePayload): Promise<StoredGeneratedSchedule>;
   onBackToCalendar?(): void;
 }
 
