@@ -11,6 +11,7 @@ interface Props {
   startDate: string;
   endDate: string;
   storageState?: "idle" | "saving" | "saved" | "failed";
+  sourceLabel?: string;
 }
 
 function addDays(date: string, amount: number): string {
@@ -35,7 +36,7 @@ function timeMinutes(time: string): number { return Number(time.slice(0, 2)) * 6
 function shiftLabel(shift: Shift): string { return shift.interval.start + "–" + shift.interval.end; }
 function mealLabel(shift: Shift): string { return shift.mealBreak ? shift.mealBreak.start + "–" + shift.mealBreak.end : "Sem pausa"; }
 
-export default function ScheduleViews({ assignments, people, startDate, endDate, storageState = "idle" }: Props) {
+export default function ScheduleViews({ assignments, people, startDate, endDate, storageState = "idle", sourceLabel = "Horário gerado" }: Props) {
   const [view, setView] = useState<View>("week");
   const [cursor, setCursor] = useState(startDate);
   const [monthPerson, setMonthPerson] = useState("all");
@@ -72,8 +73,8 @@ export default function ScheduleViews({ assignments, people, startDate, endDate,
   return <section className="panel schedule-views-panel" aria-label="Visualização do horário gerado">
     <div className="schedule-views-header">
       <div>
-        <p className="section-kicker">Resultado da simulação</p>
-        <h2>Horário gerado</h2>
+        <p className="section-kicker">{storageState === "saved" ? "Arquivo de propostas" : "Resultado da simulação"}</p>
+        <h2>{sourceLabel}</h2>
         <p className="schedule-views-disclaimer">Proposta válida apenas no cenário declarado. {storageState === "saved" ? "Guardada no Supabase, mas não oficialmente aprovada." : storageState === "saving" ? "A gravação está em curso; ainda não há confirmação." : storageState === "failed" ? "A gravação falhou. Esta proposta não está guardada." : "Não está oficialmente aprovada."}</p>
       </div>
       <div className="schedule-view-switch" role="group" aria-label="Vista do horário">
