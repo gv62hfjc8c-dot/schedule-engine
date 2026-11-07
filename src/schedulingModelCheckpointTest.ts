@@ -1,0 +1,136 @@
+import type { DatedWorkShift, Person, WeeklyOperatingHours } from "./types";
+import { WEEKDAYS } from "./utils/operatingCalendar";
+import { createEmptyWeeklyAvailability } from "./utils/availability";
+import { createEmptyWeeklyPresenceRequirements } from "./utils/presence";
+import { INITIAL_WORK_CONSTRAINTS, getEffectiveWorkMinutesInTimeZone } from "./utils/workConstraints";
+import {
+  personWeeklyHardMax, personWeeklyTarget, validatePeopleSchedulingPolicies,
+  validatePersonWeeklyContractCaps, isExplicitRequiredWorkday,
+} from "./utils/personSchedulingPolicies";
+import { accountingCycleForDate, cyclesIntersectingRange } from "./utils/accountingCycle28";
+import { DEFAULT_OPERATION_TIME_ZONE, isIanaOperationTimeZone, resolveOperationTimeZone } from "./utils/operationTimeZone";
+import { APP_STATE_VERSION } from "./persistence/stateRepository";
+import { isPersistedAppState } from "./persistence/localStorageStateRepository";
+import { certifyFinalGeneratedSchedule } from "./utils/finalScheduleCertification";
+import { generateConstrainedPeriodSchedule, type GenerateConstrainedPeriodInput } from "./utils/constrainedPeriodGenerator";
+
+function assert(value:unknown,message:string):asserts value {
+  if(!value)throw Error("PR47-B: "+message);
+}
+const full:Person={id:"a",name:"Pessoa A",active:true};
+const partial:Person={
+  id:"b",name:"Pessoa B",active:true,
+  weeklyContractMinutes:1200,weeklyTargetMinutes:900,
+  requiredWorkDates:["2026-11-02"],
+};
+assert(personWeeklyHardMax(full,2400)===2400 &&
+  personWeeklyTarget(full,2400)===2400,"Legacy 40h default unchanged.");
+assert(personWeeklyHardMax(partial,2400)===1200 &&
+  personWeeklyTarget(partial,2400)===900,
+  "20h weekly contract is hard; 15h target is soft.");
+assert(validatePeopleSchedulingPolicies([full,partial]).length===0,
+  "Valid per-person rules.");
+assert(validatePeopleSchedulingPolicies([{...partial,weeklyTargetMinutes:1500}]).length>0,
+  "Target cannot exceed explicit contract.");
+assert(validatePeopleSchedulingPolicies([{...partial,requiredWorkDates:["2026-11-02","2026-11-02"]}]).length>0,
+  "Duplicated mandatory dates prohibited.");
+assert(isExplicitRequiredWorkday(partial,"2026-11-02") &&
+  !isExplicitRequiredWorkday(full,"2026-11-02"),"Availability does not imply a mandatory date.");
+
+const shift=(date:string,personId:string,start:string,end:string,
+  mealBreak:DatedWorkShift["mealBreak"]=null):DatedWorkShift=>
+  ({date,personId,interval:{start,end},mealBreak});
+const shifts=[
+  shift("2026-11-02","b","09:00","15:00"),
+  shift("2026-11-03","b","09:00","15:00"),
+  shift("2026-11-04","b","09:00","15:00"),
+  shift("2026-11-05","b","09:00","13:00"),
+];
+assert(!validatePersonWeeklyContractCaps([partial],shifts,2400,"Atlantic/Azores",
+  "2026-11-02","2026-11-08").valid,
+  "22h weekly work must violate the individual 20h ceiling, even if below global 40h.");
+assert(validatePersonWeeklyContractCaps([partial],shifts.slice(0,3),2400,"Atlantic/Azores",
+  "2026-11-02","2026-11-08").valid,
+  "18h work may exceed a 15h SOFT target without violating the 20h HARD ceiling.");
+assert(!validatePersonWeeklyContractCaps([partial],shifts,2400,"Atlantic/Azores",
+  "2026-11-03","2026-11-04").valid,"A partial target period still checks the full affected week.");
+
+const spring=shift("2026-03-29","a","00:30","03:30");
+assert(getEffectiveWorkMinutesInTimeZone(spring,"Europe/Lisbon")===120,
+  "DST forward: 3 wall-clock hours are only 2 elapsed work hours.");
+assert(getEffectiveWorkMinutesInTimeZone(shift("2026-10-25","a","01:30","03:30"),
+  "Europe/Lisbon")===null,
+  "DST backward: ambiguous local hour cannot be certified without explicit disambiguation.");
+
+const cycle=accountingCycleForDate("2026-11-29","2026-11-02");
+assert(cycle.startDate==="2026-11-02"&&cycle.endDate==="2026-11-29"&&
+  cycle.week===4&&cycle.weeks.length===4,"Fixed 28-day period, four accounting weeks.");
+const next=accountingCycleForDate("2026-11-30","2026-11-02");
+assert(next.startDate==="2026-11-30"&&next.endDate==="2026-12-27"&&next.week===1,
+  "Next cycle starts on day 29, across civil month boundary.");
+const prior=accountingCycleForDate("2026-11-01","2026-11-02");
+assert(prior.startDate==="2026-10-05"&&prior.endDate==="2026-11-01",
+  "Negative cycle index works before the anchor.");
+assert(cyclesIntersectingRange("2026-11-01","2026-11-30","2026-11-02").length===3,
+  "A five-week calendar month can intersect three independent cycles.");
+assert(accountingCycleForDate("2028-02-29","2028-02-01").endDate==="2028-02-29",
+  "Leap day is not dropped from the 28-day cycle.");
+
+assert(isIanaOperationTimeZone("Europe/Lisbon") &&
+  !isIanaOperationTimeZone("No/Existing_Zone") &&
+  resolveOperationTimeZone(undefined)===DEFAULT_OPERATION_TIME_ZONE,
+  "Legacy fallback and IANA validation.");
+
+const weekly:WeeklyOperatingHours=Object.fromEntries(WEEKDAYS.map(day=>[
+  day,day==="monday" || day==="tuesday" ? [{start:"09:00",end:"13:00"}] : [],
+])) as WeeklyOperatingHours;
+const people:Person[]=[partial];
+const availability={personId:"b",weeklyAvailability:{
+  ...createEmptyWeeklyAvailability(),monday:[{start:"09:00",end:"13:00"}],
+  tuesday:[{start:"09:00",end:"13:00"}],
+},exceptions:[]};
+const presence={
+  weeklyPresenceRequirements:createEmptyWeeklyPresenceRequirements(),
+  presenceExceptions:[],
+};
+const savedV4={
+  version:APP_STATE_VERSION,weeklyOperatingHours:weekly,exceptions:[],
+  people,availabilities:[availability],
+  workRules:{standardShiftDurationMinutes:240},
+  weeklyPresenceRequirements:presence.weeklyPresenceRequirements,
+  presenceExceptions:[],
+};
+assert(isPersistedAppState(savedV4),
+  "Old v4 app state without operation zone/cycle still works.");
+assert(isPersistedAppState({...savedV4,operationTimeZone:"Europe/Lisbon",
+  cycleAnchorDate:"2026-11-02"}),"Optional time zone and cycle persist in v4.");
+assert(!isPersistedAppState({...savedV4,operationTimeZone:"Not/A_Zone"}),
+  "Invalid zone is rejected before persistence.");
+assert(!isPersistedAppState({...savedV4,cycleAnchorDate:"2026-02-31"}),
+  "Impossible cycle anchor is rejected.");
+
+const input:GenerateConstrainedPeriodInput={
+  startDate:"2026-11-02",endDate:"2026-11-03",
+  timeZone:"Atlantic/Azores",
+  people,availabilities:[availability],
+  operatingCalendar:{weeklyOperatingHours:weekly,exceptions:[]},
+  workRules:{standardShiftDurationMinutes:240},
+  presence,workConstraints:structuredClone(INITIAL_WORK_CONSTRAINTS),
+  externalContext:{startDate:"2026-11-01",endDate:"2026-11-09",
+    completeOutsideTarget:true,shifts:[]},
+};
+const two=[shift("2026-11-02","b","09:00","13:00"),
+  shift("2026-11-03","b","09:00","13:00")];
+assert(certifyFinalGeneratedSchedule(input,two).valid,
+  "Explicitly required Monday is satisfied, Tuesday is optional.");
+assert(!certifyFinalGeneratedSchedule(input,two.slice(1)).valid,
+  "Missing explicit required date fails independent certification.");
+const daily=generateConstrainedPeriodSchedule({...input,maxSearchNodes:3000});
+assert(daily.status==="generated"&&daily.assignments.some(s=>s.date==="2026-11-02"),
+  "Period generator respects mandatory dates independent of general availability.");
+const externalHard=validatePersonWeeklyContractCaps(
+  [partial],[...two,...Array.from({length:5},(_,i)=>
+    shift("2026-11-0"+(4+i),"b","09:00","13:00"))],2400,
+  "Atlantic/Azores","2026-11-02","2026-11-03");
+assert(!externalHard.valid,"A full 28h workweek cannot bypass a 20h contract.");
+console.log("PR47-B: contracts, targets, explicit dates, DST, 28-day cycles and legacy v4 passed.");
