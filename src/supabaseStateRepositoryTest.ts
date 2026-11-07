@@ -287,4 +287,43 @@ const ownerConsent = { getItem: (key: string): string | null =>
   ensure(rejected,"A save with a changed authenticated owner must never report success.");
 }
 
+
+// PR47-F: two rapid saves in one tab cannot race on the same revision.
+// The first RPC is held while the second is queued; both must eventually
+// commit in invocation order with distinct expected CAS revision numbers.
+{
+  const cloud=createMockCloud();
+  cloud.setState(fixture());
+  let releaseFirst=()=>{};
+  const gate=new Promise<void>(resolve=>{releaseFirst=()=>resolve();});
+  let postCount=0;
+  const client={
+    user:cloud.client.user,
+    request:async(path:string,init?:RequestInit)=>{
+      if(init?.method==="POST"){
+        postCount++;
+        if(postCount===1)await gate;
+      }
+      return cloud.client.request(path,init);
+    },
+  };
+  const repository=createSupabaseStateRepository(client,legacy(null).repo,emptyStorage);
+  await repository.load();
+  const earlier=repository.save({
+    ...fixture(),workRules:{standardShiftDurationMinutes:420},
+  });
+  const latest=repository.save({
+    ...fixture(),workRules:{standardShiftDurationMinutes:360},
+  });
+  await Promise.resolve();
+  await Promise.resolve();
+  ensure(postCount===1,
+    "Two edits in the same tab must never issue concurrent RPC writes.");
+  releaseFirst();
+  await Promise.all([earlier,latest]);
+  ensure(postCount===2 && cloud.current().revision===3 &&
+    cloud.current().state?.workRules.standardShiftDurationMinutes===360,
+    "Writes must commit serially and preserve the latest user configuration.");
+}
+
 console.log("Supabase repository: todos os testes passaram.");
