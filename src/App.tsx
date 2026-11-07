@@ -13,6 +13,7 @@ import type {
 } from "./types";
 import WorkRulesPanel from "./components/WorkRulesPanel";
 import TimeWheelSelect from "./components/TimeWheelSelect";
+import IntervalListEditor from "./components/IntervalListEditor";
 import CalendarDateInput from "./components/CalendarDateInput";
 import PresencePanel from "./components/PresencePanel";
 import ScheduleGeneratorPanel from "./components/ScheduleGeneratorPanel";
@@ -1014,7 +1015,7 @@ export default function App() {
                     {closed ? "Fechado" : "Aberto"}
                   </button>
 
-                  {!closed && interval ? (
+                  {!closed && interval && intervals.length===1 ? (
                     <>
                       <label className="select-field">
                         <span className="sr-only">
@@ -1064,9 +1065,17 @@ export default function App() {
                     </>
                   ) : (
                     <div className="closed-span">
-                      Sem horário de funcionamento
+                      {closed ? "Sem horário de funcionamento" :
+                        "Vários períodos: utiliza «Gerir períodos» abaixo"}
                     </div>
                   )}
+                  <IntervalListEditor
+                    label={"funcionamento de "+weekdayLabels[weekday]}
+                    intervals={intervals}
+                    onChange={next=>setWeeklyHours(current=>({
+                      ...current,[weekday]:next,
+                    }))}
+                  />
                 </div>
               );
             })}
@@ -1153,7 +1162,7 @@ export default function App() {
                         {closed ? "Fechado" : "Aberto"}
                       </button>
 
-                      {!closed && (
+                      {!closed && exception.intervals.length===1 && (
                         <div className="exception-time-grid">
                           <label className="select-field">
                             <span>Abertura</span>
@@ -1201,6 +1210,11 @@ export default function App() {
                         </div>
                       )}
                     </div>
+                    <IntervalListEditor
+                      label={"funcionamento excecional de "+exception.date}
+                      intervals={exception.intervals}
+                      onChange={next=>updateException(index,{...exception,intervals:next})}
+                    />
                   </article>
                 );
               })}
