@@ -132,6 +132,27 @@ assert(!certifyFinalGeneratedSchedule(input,two.slice(1)).valid,
 const daily=generateConstrainedPeriodSchedule({...input,maxSearchNodes:3000});
 assert(daily.status==="generated"&&daily.assignments.some(s=>s.date==="2026-11-02"),
   "Period generator respects mandatory dates independent of general availability.");
+// PR47-F: explicit mandatory work outside the target must not contradict
+// the attested external context. Otherwise a generated target would appear
+// valid even though the same person's required outside day is missing.
+const outsideMandatory:GenerateConstrainedPeriodInput={
+  ...input,
+  people:[{...partial,requiredWorkDates:["2026-11-04"]}],
+};
+const missingOutside=generateConstrainedPeriodSchedule({...outsideMandatory,maxSearchNodes:3000});
+assert(missingOutside.status==="invalid_input" &&
+  missingOutside.issues.some(issue=>issue.includes("exterior")),
+  "PR47-F: external zero-shift attestation cannot ignore an explicit mandatory outside date.");
+assert(!certifyFinalGeneratedSchedule(outsideMandatory,two).valid,
+  "PR47-F: independent certification must reject the same external contradiction.");
+const withOutsideWork:GenerateConstrainedPeriodInput={
+  ...outsideMandatory,
+  externalContext:{...outsideMandatory.externalContext,
+    shifts:[shift("2026-11-04","b","09:00","13:00")]},
+};
+assert(certifyFinalGeneratedSchedule(withOutsideWork,two).valid,
+  "PR47-F: confirmed external assignment satisfies the explicit outside workday.");
+
 const externalHard=validatePersonWeeklyContractCaps(
   [partial],[...two,...Array.from({length:5},(_,i)=>
     shift("2026-11-0"+(4+i),"b","09:00","13:00"))],2400,
