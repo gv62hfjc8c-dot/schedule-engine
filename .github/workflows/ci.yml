@@ -17,6 +17,14 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci
+      # Checkpoint E temporary: preview an exact lockfile upgrade in the
+      # ephemeral CI checkout. It never pushes or edits the Git branch.
+      - name: PR47 dependency lockfile remediation preview
+        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.number == 47 }}
+        run: |
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund --save-dev vite@6.4.4
+          npm audit fix --package-lock-only --ignore-scripts --no-fund || true
+          node -e 'const fs=require("fs");for(const name of ["package.json","package-lock.json"]){console.log("PR47_LOCK_"+name+"_BEGIN");console.log(fs.readFileSync(name).toString("base64"));console.log("PR47_LOCK_"+name+"_END");}'
       - run: npm run audit:dependencies
       - run: npm test
       - run: npm run typecheck
