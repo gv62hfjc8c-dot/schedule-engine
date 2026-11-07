@@ -24,6 +24,7 @@ import type { GeneratedSchedulePayload, StoredGeneratedSchedule } from "./persis
 import { createEmptyWeeklyPresenceRequirements } from "./utils/presence";
 import { appStateRepository } from "./persistence/appStateRepository";
 import { APP_STATE_VERSION } from "./persistence/stateRepository";
+import { DEFAULT_OPERATION_TIME_ZONE, isIanaOperationTimeZone, resolveOperationTimeZone } from "./utils/operationTimeZone";
 import {
   createPersonAvailability,
   intersectIntervals,
@@ -172,6 +173,9 @@ export default function App() {
     OperatingHoursException[]
   >([]);
   const [people, setPeople] = useState<Person[]>([]);
+  const [operationTimeZone, setOperationTimeZone] = useState(DEFAULT_OPERATION_TIME_ZONE);
+  const [timeZoneDraft, setTimeZoneDraft] = useState(DEFAULT_OPERATION_TIME_ZONE);
+  const [cycleAnchorDate, setCycleAnchorDate] = useState("");
   const [availabilities, setAvailabilities] = useState<
     PersonAvailability[]
   >([]);
@@ -238,6 +242,10 @@ export default function App() {
           setWeeklyHours(persisted.weeklyOperatingHours);
           setExceptions(persisted.exceptions);
           setPeople(persisted.people);
+          const resolvedZone=resolveOperationTimeZone(persisted.operationTimeZone);
+          setOperationTimeZone(resolvedZone);
+          setTimeZoneDraft(resolvedZone);
+          setCycleAnchorDate(persisted.cycleAnchorDate ?? "");
           setAvailabilities(persisted.availabilities);
           setWorkRules(persisted.workRules);
           setWeeklyPresenceRequirements(persisted.weeklyPresenceRequirements);
@@ -285,6 +293,8 @@ export default function App() {
       void appStateRepository
         .save({
           version: APP_STATE_VERSION,
+          operationTimeZone,
+          ...(cycleAnchorDate ? {cycleAnchorDate} : {}),
           weeklyOperatingHours: weeklyHours,
           exceptions,
           people,
@@ -316,6 +326,7 @@ export default function App() {
     };
   }, [
     persistenceReady,
+    operationTimeZone,cycleAnchorDate,
     weeklyHours,
     exceptions,
     people,
@@ -765,6 +776,7 @@ export default function App() {
     if (!wasHydrated.current) return;
     const pending = {
       version: APP_STATE_VERSION,
+      operationTimeZone,...(cycleAnchorDate ? {cycleAnchorDate} : {}),
       weeklyOperatingHours: weeklyHours, exceptions, people,
       availabilities, workRules,
       weeklyPresenceRequirements, presenceExceptions,
@@ -896,6 +908,8 @@ export default function App() {
           people={people}
           availabilities={availabilities}
           operatingCalendar={generatorOperatingCalendar}
+          operationTimeZone={operationTimeZone}
+          cycleAnchorDate={cycleAnchorDate || undefined}
           savedRevision={savedRevision}
           initialMonth={lastSavedStart}
           onCreate={openGenerator}
@@ -920,6 +934,41 @@ export default function App() {
             </div>
           </section>
 
+          <section className="panel" aria-label="Configuração temporal da operação">
+            <div className="panel-header"><div>
+              <p className="section-kicker">Contexto da operação</p>
+              <h2>Fuso horário e ciclo contabilístico</h2>
+            </div></div>
+            <div className="se-controls">
+              <label className="se-control">
+                <span>Fuso horário IANA</span>
+                <input type="text" value={timeZoneDraft} autoComplete="off"
+                  placeholder="Atlantic/Azores"
+                  onChange={event=>setTimeZoneDraft(event.target.value)} />
+              </label>
+              <label className="se-control">
+                <span>Início de um ciclo fixo de 28 dias (opcional)</span>
+                <input type="date" value={cycleAnchorDate}
+                  onChange={event=>setCycleAnchorDate(event.target.value)} />
+              </label>
+            </div>
+            <div className="p63-action-row">
+              <button type="button" className="se-outline"
+                disabled={!isIanaOperationTimeZone(timeZoneDraft) ||
+                  timeZoneDraft === operationTimeZone}
+                onClick={()=>setOperationTimeZone(timeZoneDraft)}>
+                Aplicar fuso horário
+              </button>
+              {!isIanaOperationTimeZone(timeZoneDraft) &&
+                <span role="alert">Indica um fuso horário IANA válido antes de guardar.</span>}
+            </div>
+            <p className="section-description">
+              O fuso aplicado é utilizado no calendário e na geração; os horários já
+              arquivados mantêm o fuso original. O ciclo tem sempre 28 dias e não
+              corresponde necessariamente ao início ou fim de um mês.
+              O limite de geração continua a ser de 14 dias por proposta.
+            </p>
+          </section>
           <div className="dashboard-grid">
         <section className="panel schedule-panel">
           <div className="panel-header">
@@ -1782,6 +1831,8 @@ export default function App() {
           weeklyOperatingHours={weeklyHours}
           workRules={workRules}
           onChange={setWorkRules}
+          people={people}
+          onPeopleChange={setPeople}
         />
       )}
       {activeSection === "presence" && (
@@ -1804,6 +1855,7 @@ export default function App() {
           operatingCalendar={generatorOperatingCalendar}
           workRules={workRules}
           presence={generatorPresence}
+          operationTimeZone={operationTimeZone}
           initialDate={generatorInitialDate}
           onSaveGenerated={saveGenerated}
           onBackToCalendar={() => setActiveSection("schedules")}
