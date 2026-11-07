@@ -163,9 +163,16 @@ function resolveLocalClock(
  * the DST ambiguity policy of validateWorkConstraints; never subtract wall
  * clocks around spring-forward or fall-back transitions.
  */
+const durationCache = new Map<string, number>();
+const MAX_CACHED_DURATION_KEYS = 8192;
+
 export function getEffectiveWorkMinutesInTimeZone(
   shift: DatedWorkShift, timeZone: string
 ): number | null {
+  const key = [timeZone,shift.date,shift.interval.start,shift.interval.end,
+    shift.mealBreak?.start??"-",shift.mealBreak?.end??"-"].join("|");
+  const cached = durationCache.get(key);
+  if (cached !== undefined) return cached;
   const day = civilDateMs(shift.date);
   const start = minute(shift.interval.start);
   const end = minute(shift.interval.end);
@@ -195,7 +202,10 @@ export function getEffectiveWorkMinutesInTimeZone(
         absMealEnd<=absMealStart) return null;
     meal=(absMealEnd-absMealStart)/60_000;
   }
-  return (absoluteEnd-absoluteStart)/60_000-meal;
+  const elapsed = (absoluteEnd-absoluteStart)/60_000-meal;
+  if (durationCache.size >= MAX_CACHED_DURATION_KEYS) durationCache.clear();
+  durationCache.set(key,elapsed);
+  return elapsed;
 }
 
 function positive(value: number): boolean {
