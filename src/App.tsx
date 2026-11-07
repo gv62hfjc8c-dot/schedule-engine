@@ -220,10 +220,10 @@ export default function App() {
     setActiveSection("generator");
   }
 
-  async function saveGenerated(payload: GeneratedSchedulePayload): Promise<StoredGeneratedSchedule> {
+  async function saveGenerated(payload: GeneratedSchedulePayload, proposalId: string): Promise<StoredGeneratedSchedule> {
     if (!supabaseAuthClient) throw new Error("A ligação Supabase não está configurada.");
     const repository = createSupabaseGeneratedScheduleRepository(supabaseAuthClient);
-    const stored = await repository.save(payload);
+    const stored = await repository.save(payload, proposalId);
     setLastSavedStart(stored.startDate);
     setSavedRevision(value => value + 1);
     return stored;
