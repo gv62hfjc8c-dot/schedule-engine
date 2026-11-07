@@ -259,6 +259,7 @@ export default function ConstrainedPeriodGeneratorPanel({
         startDate,
         endDate,
         timeZone,
+        operationTimeZone,
         people,
         availabilities,
         operatingCalendar,
