@@ -8,6 +8,7 @@ import {readFileSync,existsSync} from "node:fs";
 import {resolve,dirname} from "node:path";
 import {fileURLToPath} from "node:url";
 import assert from "node:assert/strict";
+import {createHash} from "node:crypto";
 
 const root=resolve(dirname(fileURLToPath(import.meta.url)),"..");
 const file=(path)=>readFileSync(resolve(root,path),"utf8");
@@ -58,9 +59,25 @@ const deployedPaths=[
   "src/persistence/generatedScheduleRepository.ts",
   "src/application/officialScheduleRequest.ts",
 ];
+const manifest=JSON.parse(file("supabase/rollback/official-schedules-v5/manifest.json"));
+assert.equal(manifest.deployed_version,5,"Wrong backed-up Edge version.");
+assert.equal(manifest.deployed_verify_jwt,true,"Rollback must preserve JWT verification.");
+assert.equal(manifest.deployed_ezbr_sha256,
+  "8cc1967656a0c62d7c6cbbf8ddd309ab52c942e0bb501fc0f1b0c4e3124e2649",
+  "Unexpected server-deployed bundle identity.");
+assert.equal(manifest.source_files.length,deployedPaths.length,
+  "Partial Edge backups cannot be accepted.");
 for(const path of deployedPaths){
-  assert.ok(existsSync(resolve(root,"supabase/rollback/official-schedules-v5",path)),
-    "Missing deployed rollback source: "+path);
+  const item=manifest.source_files.find(entry=>entry.path===path);
+  assert.ok(item && /^[0-9a-f]{40}$/.test(item.git_blob_sha1),
+    "Manifest missing archived blob identity: "+path);
+  const absolute=resolve(root,"supabase/rollback/official-schedules-v5",path);
+  assert.ok(existsSync(absolute),"Missing deployed rollback source: "+path);
+  const contents=readFileSync(absolute);
+  const digest=createHash("sha1").update("blob "+contents.length+"\0")
+    .update(contents).digest("hex");
+  assert.equal(digest,item.git_blob_sha1,"Archived Edge source changed: "+path);
+  assert.equal(contents.length,item.bytes,"Archived module size changed: "+path);
 }
 const dormant=file("supabase/deployment/official-schedules-disabled/index.ts");
 contains(dormant,/status:\s*410/i,"Legacy endpoint must reject commands if explicitly deactivated.");
