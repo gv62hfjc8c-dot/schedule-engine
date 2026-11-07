@@ -21,16 +21,24 @@ const patterns:TimeInterval[][]=[
   [],
 ];
 function scenario(seed:number):GenerateConstrainedPeriodInput {
+  // Four deliberately feasible cases are essential: otherwise an
+  // all-rejected matrix never exercises the independent certification.
+  // The remaining cases vary hard caps, coverage, availability and
+  // mandatory workdays to exercise incomplete/search_limit paths.
+  const feasible=seed<4;
   const people:Person[]=["a","b"].map((id,p)=>({
     id,name:"Pessoa "+id,active:true,
-    weeklyContractMinutes: [480,720,1200][(seed+p)%3],
-    weeklyTargetMinutes:240,
-    requiredWorkDates:seed%3===0&&p===0?["2026-11-03"]:[],
+    weeklyContractMinutes: feasible ? 1200 : [480,720,1200][(seed+p)%3],
+    weeklyTargetMinutes:feasible ? (p===0?720:480) : 240,
+    requiredWorkDates:!feasible&&seed%3===0&&p===0?["2026-11-03"]:[],
   }));
   const availabilities:PersonAvailability[]=people.map((person,p)=>({
     personId:person.id,weeklyAvailability:createEmptyWeeklyAvailability(),
     exceptions:dates.map((date,i)=>({
-      date,intervals:patterns[(seed+p+i*2)%4],
+      date,intervals:feasible
+        ? (p===0 || (i+seed)%3!==0
+          ? [{start:"09:00",end:"13:00"}] : [])
+        : patterns[(seed+p+i*2)%4],
     })),
   }));
   const weeklyOperatingHours=Object.fromEntries(
@@ -39,9 +47,9 @@ function scenario(seed:number):GenerateConstrainedPeriodInput {
     weeklyPresenceRequirements:createEmptyWeeklyPresenceRequirements(),
     presenceExceptions:dates.map((date,i)=>({
       date,requirements:{
-        minimumAtOpening:seed%4===0?0:1,
-        minimumDuringOperation:seed%5===0?0:1,
-        minimumAtClosing:seed%4===0?0:1,
+        minimumAtOpening:feasible ? 1 : seed%4===0?0:1,
+        minimumDuringOperation:feasible ? 1 : seed%5===0?0:1,
+        minimumAtClosing:feasible ? 1 : seed%4===0?0:1,
       },
     })),
   };
@@ -51,12 +59,13 @@ function scenario(seed:number):GenerateConstrainedPeriodInput {
     people,availabilities,
     operatingCalendar:{
       weeklyOperatingHours,
-      exceptions:dates.map(date=>({date,intervals:patterns[0]})),
+      exceptions:dates.map(date=>({date,intervals:feasible
+        ? [{start:"09:00",end:"13:00"}] : patterns[0]})),
     },
     workRules:{
       standardShiftDurationMinutes:240,
-      ...(seed%4===0?{fullShortDayMaximumMinutes:360}:{}),
-      ...(seed%3===0?{requireShiftsOnAvailableDays:true}:{}),
+      ...(!feasible&&seed%4===0?{fullShortDayMaximumMinutes:360}:{}),
+      ...(!feasible&&seed%3===0?{requireShiftsOnAvailableDays:true}:{}),
     },
     presence,
     workConstraints:structuredClone(INITIAL_WORK_CONSTRAINTS),
@@ -110,6 +119,8 @@ for(let seed=0;seed<12;seed++){
     "Generator must remain deterministic on identical inputs (seed "+seed+").");
 }
 assert(generated+rejected===12,"Every seeded scenario must be classified.");
+assert(generated>=4 && rejected>0,
+  "The property matrix must include independent certification of multiple successful schedules AND failures.");
 console.log("PR47-F deterministic matrix:",JSON.stringify({
   scenarios:12,generated,rejected,searchLimited,
 }));
