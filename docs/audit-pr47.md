@@ -11,15 +11,15 @@ Os 23 pontos originais misturavam defeitos concretos, riscos, dívida técnica e
 | 03 | API de aprovações antiga ativa no Supabase | Pendente — infraestrutura | Não eliminar/desativar Edge Function `official-schedules` ou dados sem plano de rollback; não pertence à UI ativa |
 | 04 | Importação de browser para conta nova sem confirmar titularidade | Corrigido no adaptador | Consentimento explícito associado à conta; estado cloud mantém precedência |
 | 05 | Migrações Git ≠ objetos implantados | Pendente — reconciliação | Exportar DDL, documentar migrações reais e definir instalação reproduzível antes de operar em produção |
-| 06 | Calendário agrega dias de propostas diferentes | Mitigado, não resolvido estruturalmente | Aviso explícito quando múltiplos snapshots; proveniência por dia; ainda falta um plano operacional único validado |
+| 06 | Calendário agrega dias de propostas diferentes | Isolamento de propostas implementado (C) | Vista por ID de proposta usa apenas um snapshot; panorama mantém propostas independentes com alertas de sobreposição e mistura, sem validar a combinação como escala oficial |
 | 07 | Limite de 40h usado como alvo pelo otimizador | Implementado no B (opt-in) | Contrato semanal por pessoa é limite hard; objetivo semanal é soft; sem campos prevalece o comportamento PR41 (40h). Horas extraordinárias não são inferidas |
 | 08 | Falta de certificação independente após otimizações | Corrigido | `certifyFinalGeneratedSchedule` examina trabalho, cobertura, elegibilidade, período, dias obrigatórios e jornadas curtas |
 | 09 | Jornada curta conflita com refeição obrigatória | Corrigido | Jornada integral significa presença do início ao fim e admite refeição legal, que continua a ser validada |
 | 10 | Disponibilidade vs obrigação de trabalhar | Separado no B | Introduzidas datas obrigatórias explícitas por colaborador, independentes da disponibilidade; a opção global existente mantém semântica e valor original |
 | 11 | Editor substituía silenciosamente intervalos adicionais | Corrigido | Modificação do primeiro intervalo preserva restantes; editor multi-intervalos completo continua pendente |
 | 12 | Exceções duplicadas por data | Corrigido preventivamente | Novas datas livres, bloqueio ao alterar para data repetida e aviso para duplicados históricos |
-| 13 | Validação superficial de snapshots persistidos | Reforçado | Verifica forma v4, semana completa, intervalos, regras de trabalho e fuso; validação de políticas e versões evolutivas continua necessária |
-| 14 | Fecho do navegador durante gravação | Mitigado | Alerta de saída durante pedido pendente; não há garantia em encerramento forçado do browser |
+| 13 | Validação superficial de snapshots persistidos | Reforçado (C) | Validação de estrutura e metadados; registos incompatíveis isolados da consulta de leitura parcial, com erro visível e estado incerto apenas nas datas afetadas; leitura estrita continua a falhar fechada |
+| 14 | Fecho do navegador durante gravação | Mitigado e retry idempotente (C) | Alerta de saída, ID estável por tentativa, reenvio com o mesmo UUID e confirmação de conteúdo se o servidor devolveu conflito 409; não garante conclusão quando o browser é encerrado à força |
 | 15 | Fuso horário divergente entre partes da aplicação | Implementado no B | Fuso IANA único e persistido opcionalmente no estado v4, default legado Azores; calendário, gerador e cálculo visual de horas efetivas passam a usá-lo; arquivo mantém fuso do snapshot |
 | 16 | Conflito de escrita deixa utilizador bloqueado | Mitigado | Em falha após hidratação, permite exportar configuração local pendente; não realiza merge concorrente automático |
 | 17 | Aprovação oficial ausente da UI | Sem mudança intencional | Decisão explícita do rollback; reintroduzir exigiria uma nova fronteira confiável e contrato de aprovação |
@@ -28,7 +28,7 @@ Os 23 pontos originais misturavam defeitos concretos, riscos, dívida técnica e
 | 20 | Avisos de segurança Supabase | Pendente — configuração de serviço | `SECURITY DEFINER` de estado é intencional e autenticado; avaliar proteção de palavras-passe comprometidas e configuração real |
 | 21 | Experiências antigas no repositório | Pendente — inventário e remoção seletiva | Não eliminar módulos antes de auditar importações, testes e dependências do histórico |
 | 22 | Terminologia antiga na interface | Corrigido | Gravação Supabase e menções ao PR41 atualizadas |
-| 23 | Invariantes sem regressões dedicadas | Reforçado | `consistencyAuditTest.ts` integrado em `npm test`; ensaios manuais completos e carga ficam para fase de validação |
+| 23 | Invariantes sem regressões dedicadas | Reforçado (A+B+C) | Regressões de motor, políticas individuais, DST, ciclos de 28 dias, arquivo com paginação cursor e escrita idempotente; ensaios funcionais reais continuam pendentes |
 
 ## Checkpoint A — integridade do motor (implementado na branch PR #47)
 
@@ -52,6 +52,17 @@ Os 23 pontos originais misturavam defeitos concretos, riscos, dívida técnica e
 - **Testes:** `src/schedulingModelCheckpointTest.ts` verifica limites contratuais, objetivos soft, dias obrigatórios, transições de horário de verão/inverno, datas de ciclo anteriores/posteriores à âncora, ano bissexto e estado v4 legado.
 
 **Fronteiras ainda deliberadamente pendentes:** o gerador continua com limite de 14 dias, sem pesquisa/certificação contínua de 28 dias; não existem remuneração, horas extraordinárias, competências ou vínculo contratual tipificado. Introduzir estas dimensões sem regras concretas seria especulativo.
+
+## Checkpoint C — propostas sobrepostas, arquivo e recuperação (implementado na branch PR #47)
+
+- **Dois modos de consulta claramente separados:** o panorama mensal continua a mostrar a proposta mais recente por dia, mas identifica quando há várias fontes/versões e avisa que essa composição não foi certificada. A partir de um dia é possível **fixar um único snapshot por ID**, impedindo que dias de outras propostas sejam apresentados na mesma vista.
+- **Versões anteriores:** a escolha de uma versão fixa essa proposta no calendário; é possível regressar ao panorama sem apagar ou modificar registos. O conteúdo dos turnos, equipa e configuração continua a ser lido do snapshot original.
+- **Arquivo parcialmente ilegível:** `listBetweenDetailed` devolve propostas verificadas e os metadados dos registos incompatíveis; a interface mostra um aviso e não interpreta datas potencialmente afetadas como «por planear» ou «folga». A consulta estrita `listBetween` continua a rejeitar um arquivo incompleto.
+- **Paginação sem deslocamentos:** ordenação por `created_at DESC, id DESC`, com cursor composto; evita perder propostas antigas ou repetir registos quando novos horários são inseridos durante a leitura. Não existem eliminações nem alterações às políticas RLS.
+- **Gravação e retry seguros:** um UUID é criado por proposta gerada; as tentativas posteriores utilizam o mesmo identificador. Um erro 409 só é interpretado como confirmação da gravação se a consulta autenticada devolver o **mesmo snapshot**; conteúdos divergentes são recusados. Novas gerações geram novos IDs.
+- **Regressões:** `src/archiveConsistencyCheckpointTest.ts` cobre propostas sobrepostas, foco por ID, versões imutáveis, resposta de rede perdida após commit, 211 propostas paginadas, inserção concorrente, registos corrompidos e mudança de sessão. `src/generatedSchedulePersistenceTest.ts` foi adaptado à paginação por cursor.
+
+**Limites:** não foi criada uma escala operacional consolidada a partir de propostas diferentes. O sistema permanece **append-only, com propostas não aprovadas**. A leitura parcial é explicitamente identificada e não certifica a ausência de horários em datas incertas. Encerramento forçado do navegador, interrupção de rede e volume extremo de arquivo necessitam de acompanhamento operacional adicional.
 
 ## Critérios antes de qualquer merge
 
