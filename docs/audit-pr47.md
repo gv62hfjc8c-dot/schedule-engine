@@ -72,7 +72,7 @@ Os 23 pontos originais misturavam defeitos concretos, riscos, dívida técnica e
 - Confirmada divergência de migrações entre Git e Supabase (4 versões no registo remoto vs 3 ficheiros no Git). Linhagem SQL do PR43 arquivada fora da pasta de migrações ativas, para impedir reativação acidental.
 - A Edge Function antiga `official-schedules` v5 foi recuperada do servidor em **13 ficheiros**, guardados em `supabase/rollback/official-schedules-v5/` e identificados por manifesto/hashes. Tem `verify_jwt=true`. A alternativa inerte em `supabase/deployment/official-schedules-disabled/index.ts` está **preparada mas não publicada**.
 - Confirmada incompatibilidade histórica: a Edge Function aceita pedidos de `revise` mas o RPC SQL de commit só permite `approve`, `replace`, `cancel`; não há registos oficiais na instância analisada.
-- Criado o inventário exclusivamente SELECT `supabase/audit/pr47_checkpoint_d_readonly.sql` e a baseline `docs/supabase-deployment-baseline-pr47.md`.
+- Criado o inventário exclusivamente SELECT `supabase/audit/pr47_checkpoint_d_readonly.sql` e a baseline `docs/supabase-deployment-baseline-pr47.md`. O ficheiro `supabase/audit/pr47_checkpoint_d_assertions.sql` devolveu **10 PASS em 10 verificações read-only** sobre o estado publicado. A incompatibilidade do `revise` antigo permanece WARN.
 - Novo teste offline `scripts/supabaseSecurityContractTest.mjs`, executado por `npm test`, que verifica restrições previstas do SQL, ausência de credenciais privilegiadas no frontend, bundle de rollback e proibição de DDL no inventário.
 - `docs/supabase-setup.md` alinhado com o produto atual, incluindo importação legada com consentimento e instruções seguras para instalações novas.
 
