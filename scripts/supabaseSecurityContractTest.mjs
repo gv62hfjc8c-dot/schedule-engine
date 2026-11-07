@@ -93,6 +93,16 @@ contains(audit,/pg_policies/,"Audit must inspect policies.");
 contains(audit,/has_function_privilege/,"Audit must inspect RPC permissions.");
 contains(audit,/supabase_migrations\.schema_migrations/,
   "Audit must compare migration history.");
+const assertions=file("supabase/audit/pr47_checkpoint_d_assertions.sql");
+const executableAssertions=assertions.split("\n")
+  .filter(line=>!line.trimStart().startsWith("--")).join("\n");
+absent(executableAssertions,
+  /^\s*(?:CREATE|ALTER|DROP|TRUNCATE|DELETE|UPDATE|INSERT|GRANT|REVOKE|CALL|DO|EXECUTE|SET|NOTIFY)\b/im,
+  "Live security assertions MUST remain read-only.");
+assert.equal((assertions.match(/select\s+'\d{2}_[a-z_]+/g)??[]).length,10,
+  "Expected ten explicit live security contract checks.");
+contains(assertions,/search_path=""'/,
+  "The state RPC live assertion must require an empty search_path.");
 
 const entrypoints=[
   "src/App.tsx",
