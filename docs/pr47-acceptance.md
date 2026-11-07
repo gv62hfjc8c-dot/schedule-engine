@@ -209,6 +209,70 @@ poderiam contornar as políticas que se pretende testar.
 | F07 | `npm run audit:dependencies`, `npm run typecheck`, `npm run build` | Sem avisos npm moderados ou superiores; sem erros de tipos/build | PENDENTE |
 | F08 | `npm run test:rls-isolation` (staging) | Isolamento real em duas contas com dados próprios | PENDENTE |
 
+## Matriz de rastreabilidade — os 23 pontos originais
+
+Esta tabela liga **cada ponto** de `docs/audit-pr47.md` a evidência
+reproduzível ou a uma pendência explícita. Não confundir `IMPLEMENTADO`
+com `TESTADO`: o estado da implementação não é um resultado de aceitação.
+Os códigos A–F acima continuam **PENDENTES** até serem executados.
+
+| Ponto | Situação da implementação | Verificação concreta / limite |
+|---|---|---|
+| 01 Documentação | Implementado | Comparar README, arquitetura, roadmap, setup e relatório com funcionalidades visíveis; nenhuma funcionalidade experimental declarada operacional |
+| 02 Sem turno ≠ folga | Implementado | A07 e D06; nunca interpretar ausência de turno como folga |
+| 03 Edge Function antiga | **Pendente de decisão/deploy** | Auditoria Supabase D, bundle v5 e manifesto; confirmar logs e consumidores antes de decidir desativação. **Não marcar PASS por apenas existir uma versão 410 não publicada** |
+| 04 Consentimento na importação | Implementado | **G01** abaixo, em conta descartável sem estado remoto; ensaio de precedência do estado cloud |
+| 05 Migrações divergentes | **Pendente de staging** | Baseline D e inventário SQL read-only; validar reconstituição num projeto isolado antes de aprovar qualquer migração. **Não executar db push na instância real** |
+| 06 Propostas misturadas | Implementado | D02–D04 e F04; vista de uma proposta não importa turnos de outras |
+| 07 Alvo 40h vs contrato | Implementado (opcional) | B09, C08, F02 e F03; hard cap individual e alvo soft |
+| 08 Certificação independente | Implementado | C02–C05 e F03; nenhuma solução com hard constraints violadas é publicada |
+| 09 Jornada curta e refeição | Implementado | C02–C04 e testes de jornadas curtas; distinguir presença de horas efetivas |
+| 10 Disponibilidade ≠ obrigação | Implementado | B10, C09, C10 e F02; datas obrigatórias sem disponibilidade são rejeitadas |
+| 11 Períodos adicionais invisíveis | Implementado | B01–B06, B08 e F01; todos os intervalos podem ser editados sem substituição silenciosa |
+| 12 Exceções duplicadas | Implementado | B07; duplicados são rejeitados e dados anteriores preservados |
+| 13 Snapshots inválidos | Reforçado | D06 e F04; registo incompatível não é apresentado como válido. **Não corromper dados reais** |
+| 14 Fecho durante gravação | **Mitigado** | D08 e F04; retries com UUID estável. Fecho forçado do navegador não oferece garantia de entrega |
+| 15 Fusos divergentes | Implementado | B11, F02 e F03; fuso IANA da operação e do snapshot arquivado |
+| 16 Escrita concorrente | **Mitigado** | D07, F05 e **G02**; mesma sessão em série, divergências entre abas sem merge automático |
+| 17 Aprovação oficial ausente | **Fora do fluxo por decisão** | A06 e teste de arquitetura: confirmar ausência de comandos de aprovação na UI. **Não criar uma aprovação fictícia só para conseguir testá-la** |
+| 18 Ciclos de 28 dias | **Parcial** | B12, C06, D05 e F02; ciclos contabilísticos funcionam, **geração conjunta de 28 dias não implementada** |
+| 19 Perfis de colaboradores | **Parcial** | B09–B10 e F02; contratos, alvo e datas obrigatórias presentes; competências/funções/ausências não implementadas |
+| 20 Segurança Supabase | **Pendente de intervenção externa** | 10 verificações SQL read-only D, F06, bloco E e **G03**; os dois avisos externos mantêm-se |
+| 21 Código experimental | Implementado | `npm run test:architecture`; verificar ausência de laboratório na UI e preservação dos testes do domínio |
+| 22 Terminologia desatualizada | Implementado | A03, A06, D01 e revisão textual: «proposta guardada, não aprovada» |
+| 23 Cobertura de regressões | **Reforçado, aceitação pendente** | `npm test` e F01–F08, mais A–D e G01–G03. Não certificar a ausência de defeitos fora dos cenários executados |
+
+### Testes complementares necessários para fechar a rastreabilidade
+
+**G01 — Importação inicial e identidade (conta descartável):**
+num navegador/perfil de ensaio com dados locais históricos controlados,
+entrar numa conta nova sem configuração remota. A aplicação deve pedir
+consentimento explícito antes de importar. Repetir com conta já
+configurada na cloud e confirmar que o estado remoto prevalece.
+Executar a partir do estado de browser apropriado, **sem apagar a
+configuração operacional**. Resultado: **PENDENTE**.
+
+**G02 — Conflito entre duas abas (conta descartável):** abrir duas abas
+da mesma conta, modificar a mesma configuração em ambas com revisões
+concorrentes, observar conflito explícito e possibilidade de recuperar
+o estado mais recente. Não aceitar overwrite silencioso. Resultado:
+**PENDENTE**. A fila local cobre apenas alterações da mesma aba.
+
+**G03 — Avisos externos Supabase (apenas leitura):** voltar a executar
+os Security Advisors e as 10 verificações SQL de `supabase/audit/`.
+Confirmar o estado do RPC privilegiado e da proteção contra
+palavras-passe comprometidas no painel Auth. **Não alterar a
+configuração de produção nesta aceitação.** Enquanto os dois avisos
+continuarem presentes, registar **PENDENTE**, mesmo que os 10
+invariantes SQL sejam PASS. Resultado: **PENDENTE**.
+
+**Critério de honestidade:** todos os 23 pontos estão rastreados, mas os
+itens **03, 05, 17, 18, 19 e 20 não podem ser classificados como
+«totalmente resolvidos» com o produto e as decisões atuais**; os
+itens **14, 16 e 23** têm mitigação/cobertura crescente mas continuam
+a exigir validação ou têm limites explícitos. Não transformar estes
+estados em PASS apenas porque o CI passou.
+
 ### Gate de merge
 
 O PR #47 só sai de draft após: zero P0/P1, casos manuais críticos
