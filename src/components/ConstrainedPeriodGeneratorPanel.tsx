@@ -17,6 +17,7 @@ import {
 import { prepareExplicitEmptyContext } from "../utils/explicitEmptyContext";
 import { INITIAL_WORK_CONSTRAINTS } from "../utils/workConstraints";
 import { MAX_PERIOD_DAYS } from "../utils/periodGenerator";
+import { todayInTimeZone } from "../utils/monthlyScheduleView";
 
 export interface ConstrainedPeriodGeneratorPanelProps {
   people: Person[];
@@ -24,6 +25,7 @@ export interface ConstrainedPeriodGeneratorPanelProps {
   operatingCalendar: OperatingCalendarConfiguration;
   workRules: WorkRulesConfiguration;
   presence: PresenceConfiguration;
+  operationTimeZone: string;
   initialDate?: string;
   onSaveGenerated?(proposal: GeneratedSchedulePayload): Promise<StoredGeneratedSchedule>;
   onBackToCalendar?(): void;
@@ -39,11 +41,6 @@ interface Snapshot extends ConstrainedPeriodGeneratorPanelProps {
 
 const PREVIEW_MAX_NODES = 5_000;
 
-function todayKey(): string {
-  const now = new Date();
-  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60_000);
-  return local.toISOString().slice(0, 10);
-}
 
 function addCivilDays(date: string, amount: number): string {
   const utc = new Date(`${date}T00:00:00Z`);
@@ -109,14 +106,15 @@ export default function ConstrainedPeriodGeneratorPanel({
   operatingCalendar,
   workRules,
   presence,
+  operationTimeZone,
   initialDate,
   onSaveGenerated,
   onBackToCalendar,
 }: ConstrainedPeriodGeneratorPanelProps) {
   const [workspaceView, setWorkspaceView] = useState<"settings" | "schedule">("settings");
-  const [startDate, setStartDate] = useState(() => initialDate ?? readGeneratorDate("constrained:start", todayKey));
-  const [endDate, setEndDate] = useState(() => initialDate ?? readGeneratorDate("constrained:end", () => addCivilDays(todayKey(), 6)));
-  const [timeZone, setTimeZone] = useState("Atlantic/Azores");
+  const [startDate, setStartDate] = useState(() => initialDate ?? readGeneratorDate("constrained:start", () => todayInTimeZone(operationTimeZone)));
+  const [endDate, setEndDate] = useState(() => initialDate ?? readGeneratorDate("constrained:end", () => addCivilDays(todayInTimeZone(operationTimeZone), 6)));
+  const timeZone=operationTimeZone;
   const [confirmed, setConfirmed] = useState(false);
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -134,7 +132,7 @@ export default function ConstrainedPeriodGeneratorPanel({
     setSaveState("idle");
     setSaveProblem(null);
     setRetryPayload(null);
-  }, [people, availabilities, operatingCalendar, workRules, presence]);
+  }, [people, availabilities, operatingCalendar, workRules, presence, operationTimeZone]);
 
   // A generated result is not guaranteed persisted until the server confirms.
   // Protect a browser reload/close during the in-flight write.
@@ -346,12 +344,8 @@ export default function ConstrainedPeriodGeneratorPanel({
               className="date-input"
               type="text"
               value={timeZone}
-              placeholder="Atlantic/Azores"
-              autoComplete="off"
-              onChange={(event) => {
-                setTimeZone(event.target.value);
-                resetScenario();
-              }}
+              readOnly
+              title="Alterar em Operação → Fuso horário e ciclo contabilístico"
             />
           </label>
         </div>
