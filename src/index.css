@@ -2688,3 +2688,22 @@ h2 {
  .se-contract-row > div:first-child small {color: #adbbcd;}
  .se-contract-row .se-control input {background:#283a4e; border-color:#486077; color:#f2f5fa;}
 }
+
+/* PR47-C: the calendar must never imply that missing days are valid shifts. */
+.se-day.unknown {
+  outline: 1px dashed #9d833c;
+  outline-offset: -2px;
+}
+.se-day.unknown small { color: #886825; }
+.se-day.outside-proposal { opacity: .57; }
+.se-day.outside-proposal small { color: #79889a; }
+.se-readonly-note > .se-outline { margin: 10px 0 0 10px; }
+.se-day.unknown:focus-visible,.se-day.outside-proposal:focus-visible {
+  outline: 2px solid #3a78c1;
+  outline-offset: 1px;
+}
+@media (prefers-color-scheme: dark) {
+  .se-day.unknown { outline-color: #d1aa6b; }
+  .se-day.unknown small { color: #e5c997; }
+  .se-day.outside-proposal small { color: #abb7c9; }
+}
