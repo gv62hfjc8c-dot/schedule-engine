@@ -19,7 +19,7 @@ import { checkPresenceForWorkShifts } from "./workCoverage";
 import { certifyFinalGeneratedSchedule } from "./finalScheduleCertification";
 import {
   personWeeklyHardMax, personWeeklyTarget, validatePeopleSchedulingPolicies,
-  validatePersonWeeklyContractCaps, isExplicitRequiredWorkday,
+  validatePersonWeeklyContractCaps, isExplicitRequiredWorkday, missingRequiredOutsideWorkdays,
 } from "./personSchedulingPolicies";
 import { getPresencePhaseWindows, resolvePresenceForDate } from "./presence";
 
@@ -1769,6 +1769,15 @@ export function generateConstrainedPeriodSchedule(
     return resultWith("invalid_input",[
       "O contexto exterior excede limites contratuais ou contém durações inválidas.",
       ...outsideCap.issues,
+    ],[],required);
+  }
+  const missingOutside=missingRequiredOutsideWorkdays(
+    input.people,externalShifts,input.startDate,input.endDate,
+    outside.startDate,outside.endDate);
+  if(missingOutside.length){
+    return resultWith("invalid_input",[
+      "O contexto exterior foi declarado completo, mas contém dias de trabalho obrigatórios sem turno.",
+      ...missingOutside.map(item=>item.personId+" ("+item.date+"): turno exterior obrigatório em falta."),
     ],[],required);
   }
   if (initial.violations.length > 0) {
