@@ -1,10 +1,60 @@
 # Arquitetura
 
-## Estado atual após PR #46
+## Estado consolidado e evolução em revisão
 
-O núcleo permanece independente de React e Supabase. A aplicação suporta geração de horários, validação de trabalho e cobertura, arquivo de propostas imutáveis no Supabase e consulta mensal, semanal e diária. O calendário mensal pode apresentar propostas diferentes em dias adjacentes; essa combinação não é uma escala oficial nem uma validação global conjunta. Aprovação, revisão oficial e ciclos de 28 dias continuam fora do fluxo operacional ativo.
+**Produção de referência:** a `main` mantém a versão aprovada do PR #46.
+Os checkpoints A–E do PR #47 estão **em revisão**, isolados na branch
+`audit/pr47-consistency-hardening`; a aprovação de merge depende da
+auditoria e dos testes funcionais finais.
 
-As secções abaixo registam a evolução histórica das fundações e devem ser lidas juntamente com `docs/audit-pr47.md`.
+### Fluxo ativo
+
+```text
+React: calendário, gestão diária e gerador condicionado
+  ↓
+Application: configuração autenticada e arquivo de propostas
+  ↓
+Scheduling core: geração, hard/soft constraints e certificação final
+  ↓
+Persistence ports: configuração e snapshots imutáveis
+  ↓
+Supabase: Auth, RLS, configuração com histórico e propostas append-only
+```
+
+O **núcleo de scheduling** não conhece React, Supabase, `localStorage`,
+transportes HTTP ou a empresa consumidora. Os adaptadores continuam a ser
+responsabilidade da aplicação.
+
+A interface ativa contém calendário mensal, painel lateral resumido e página
+de gestão diária; a geração condicionada cobre **1–14 dias**. A geração de
+um horário válido e o seu arquivo **não equivalem à aprovação oficial**.
+
+No PR #47, foram acrescentados: certificação independente após otimizações,
+limites individuais semanais (hard), objetivos semanais (soft), datas
+obrigatórias explícitas, fuso IANA operacional e **ciclos contabilísticos de
+28 dias**. O calendário pode fixar o snapshot de uma única proposta, porque
+um panorama que reúna propostas diferentes **não** é um horário mensal
+conjuntamente validado. O motor **não gera ainda 28 dias** num único cálculo
+certificado.
+
+O estado de configuração mantém `version: 4`, com campos opcionais
+retrocompatíveis; o arquivo de propostas usa payload e contrato separados.
+O Supabase já é a fonte principal de configuração e propostas. O
+`localStorage` serve para migração histórica controlada e preferências da
+interface, não para aprovar horários.
+
+O legado de aprovações e os seus testes de domínio permanecem isolados. Os
+laboratórios React que não eram renderizados foram retirados da branch do
+PR #47. Um teste do grafo de dependências impede importações acidentais de
+aprovações no frontend atual.
+
+**Referências:** `docs/audit-pr47.md` (23 observações),
+`docs/supabase-deployment-baseline-pr47.md` (infraestrutura e recuperação),
+`docs/roadmap.md` (histórico de implementação). As secções abaixo documentam
+as fundações originais e não devem ser interpretadas como estado operacional
+atual.
+
+
 
 ## Fundação histórica — etapas 1 a 5
 
@@ -146,7 +196,7 @@ interface StateRepository {
 }
 ```
 
-A implementação inicial usa `localStorage` através de `localStorageStateRepository.ts`. Na branch Supabase em validação, `supabaseStateRepository.ts` torna PostgreSQL a fonte de verdade, sem introduzir dependências de persistência no domínio. Usa a API REST autenticada do Supabase, políticas RLS e uma função SQL de escrita atómica com controlo de revisão. O `localStorage` só é lido na primeira migração e nunca sobrescreve dados que já existam na cloud. Consulta `docs/supabase-setup.md`.
+A implementação inicial usava `localStorage` através de `localStorageStateRepository.ts`. A implementação atual usa `supabaseStateRepository.ts`: PostgreSQL é a fonte de verdade, com API REST autenticada, RLS e RPC de escrita atómica com revisão. O armazenamento local antigo é lido apenas para importação inicial com consentimento de titularidade e nunca sobrepõe um estado cloud existente. Preferências de UI continuam a poder ser locais. Consultar `docs/supabase-setup.md`.
 
 O estado persistido inclui:
 
@@ -173,7 +223,8 @@ Ainda não existem no fluxo ativo:
 
 - aprovação e revisões oficiais de escalas;
 - contratos e objetivos de horas individualizados;
-- ciclos operacionais de 28 dias.
+- geração e validação conjunta de ciclos operacionais completos de 28 dias
+  (a camada contabilística de 28 dias já existe na branch PR #47).
 
 O motor já valida limites de horas diárias e semanais.
 
