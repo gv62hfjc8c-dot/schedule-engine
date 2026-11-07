@@ -247,7 +247,10 @@ function improveWeeklyHours(
         startDate: knownStart, endDate: knownEnd, complete: true,
         shifts: [...external, ...schedule],
       },
-    }).status === "valid";
+    }).status === "valid" &&
+    validatePersonWeeklyContractCaps(input.people,[...external,...schedule],
+      input.workConstraints.maximumWeeklyEffectiveMinutes,input.timeZone,
+      input.startDate,input.endDate).valid;
 
   // Aim for the weekly cap in this experiment. Bound candidate evaluation
   // to prevent unbounded work outside the backtracking budget.
@@ -1321,7 +1324,10 @@ function rebalanceForCompleteShortDays(
       targetPeriod:{startDate:input.startDate,endDate:input.endDate},
       knownSchedule:{startDate:contextStart,endDate:contextEnd,
         complete:true,shifts:[...external,...proposal]},
-    }).status==="valid";
+    }).status==="valid" &&
+      validatePersonWeeklyContractCaps(input.people,[...external,...proposal],
+        input.workConstraints.maximumWeeklyEffectiveMinutes,input.timeZone,
+        input.startDate,input.endDate).valid;
   };
   let checks=0;
   for(let stamp=Date.parse(input.startDate+"T00:00:00Z");
@@ -1498,7 +1504,10 @@ function fillRequiredWorkdays(
       targetPeriod:{startDate:input.startDate,endDate:input.endDate},
       knownSchedule:{startDate:knownStart,endDate:knownEnd,
         complete:true,shifts:[...external,...proposal]},
-    }).status==="valid";
+    }).status==="valid" &&
+      validatePersonWeeklyContractCaps(input.people,[...external,...proposal],
+        input.workConstraints.maximumWeeklyEffectiveMinutes,input.timeZone,
+        input.startDate,input.endDate).valid;
   };
   let checks=0;
   const budget=5000;
