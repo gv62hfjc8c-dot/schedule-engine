@@ -158,6 +158,56 @@ function resolveLocalClock(
   return matches.size === 1 ? [...matches][0] : null;
 }
 
+/**
+ * Effective elapsed minutes in the organisation IANA zone. Reuses exactly
+ * the DST ambiguity policy of validateWorkConstraints; never subtract wall
+ * clocks around spring-forward or fall-back transitions.
+ */
+const durationCache = new Map<string, number>();
+const MAX_CACHED_DURATION_KEYS = 8192;
+
+export function getEffectiveWorkMinutesInTimeZone(
+  shift: DatedWorkShift, timeZone: string
+): number | null {
+  const key = [timeZone,shift.date,shift.interval.start,shift.interval.end,
+    shift.mealBreak?.start??"-",shift.mealBreak?.end??"-"].join("|");
+  const cached = durationCache.get(key);
+  if (cached !== undefined) return cached;
+  const day = civilDateMs(shift.date);
+  const start = minute(shift.interval.start);
+  const end = minute(shift.interval.end);
+  if (day === null || start === null || end === null ||
+      start >= end || start === 1440) return null;
+  if (!getEffectiveWorkIntervals(shift)) return null;
+  let formatter: Intl.DateTimeFormat;
+  try {
+    formatter = new Intl.DateTimeFormat("en-GB-u-ca-gregory-nu-latn", {
+      timeZone, year:"numeric",month:"2-digit",day:"2-digit",
+      hour:"2-digit",minute:"2-digit",hourCycle:"h23",
+    });
+  } catch { return null; }
+  const absoluteStart=resolveLocalClock(day,start,formatter);
+  const absoluteEnd=resolveLocalClock(day,end,formatter);
+  if (absoluteStart===null || absoluteEnd===null || absoluteEnd<=absoluteStart)
+    return null;
+  let meal=0;
+  if (shift.mealBreak) {
+    const mealStart=minute(shift.mealBreak.start);
+    const mealEnd=minute(shift.mealBreak.end);
+    if (mealStart===null || mealEnd===null) return null;
+    const absMealStart=resolveLocalClock(day,mealStart,formatter);
+    const absMealEnd=resolveLocalClock(day,mealEnd,formatter);
+    if (absMealStart===null || absMealEnd===null ||
+        absMealStart<=absoluteStart || absMealEnd>=absoluteEnd ||
+        absMealEnd<=absMealStart) return null;
+    meal=(absMealEnd-absMealStart)/60_000;
+  }
+  const elapsed = (absoluteEnd-absoluteStart)/60_000-meal;
+  if (durationCache.size >= MAX_CACHED_DURATION_KEYS) durationCache.clear();
+  durationCache.set(key,elapsed);
+  return elapsed;
+}
+
 function positive(value: number): boolean {
   return Number.isSafeInteger(value) && value > 0;
 }

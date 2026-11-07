@@ -33,6 +33,12 @@ export interface Person {
   id: string;
   name: string;
   active: boolean;
+  /** Optional individual HARD weekly ceiling (effective minutes), e.g. 1200 for 20h. */
+  weeklyContractMinutes?: number;
+  /** Optional SOFT weekly target. Defaults to contract ceiling or company limit. */
+  weeklyTargetMinutes?: number;
+  /** Explicit hard workdays; independent of general availability. */
+  requiredWorkDates?: string[];
 }
 
 export type WeeklyAvailability = Record<

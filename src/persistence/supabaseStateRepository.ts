@@ -12,6 +12,24 @@ interface BrowserStateSource {
   getItem(key: string): string | null;
 }
 
+/**
+ * Legacy browser data is not owner-scoped. A new cloud identity must explicitly
+ * claim it before any first import. Existing cloud state is never affected.
+ */
+export const LEGACY_IMPORT_CONSENT_PREFIX = "schedule-engine:legacy-import:owner:";
+export class LegacyImportConsentRequiredError extends Error {
+  constructor() {
+    super("Existem dados antigos neste navegador sem associação confirmada à conta atual. A importação requer consentimento explícito.");
+    this.name = "LegacyImportConsentRequiredError";
+  }
+}
+export function authorizeLegacyImportForOwner(
+  storage: Pick<Storage, "setItem">, ownerId: string,
+): void {
+  if (!ownerId.trim()) throw new Error("Conta não autenticada.");
+  storage.setItem(LEGACY_IMPORT_CONSENT_PREFIX + ownerId, "confirmed");
+}
+
 export class SupabaseStateError extends Error {
   constructor(message: string, readonly status: number, readonly code?: string) {
     super(message);
@@ -196,6 +214,10 @@ export function createSupabaseStateRepository(
       // First import only. Never replace an existing cloud state with local data.
       const old = await oldRepository.load();
       if (!old) return null;
+      const ownerId = client.user?.id;
+      if (!ownerId ||
+          browser.getItem(LEGACY_IMPORT_CONSENT_PREFIX + ownerId) !== "confirmed")
+        throw new LegacyImportConsentRequiredError();
       const migrated = preserveLegacyPeople(old, browser);
 
       try {

@@ -2,6 +2,9 @@ import {
   createSupabaseStateRepository,
   preserveLegacyPeople,
   SupabaseStateError,
+  LEGACY_IMPORT_CONSENT_PREFIX,
+  LegacyImportConsentRequiredError,
+  authorizeLegacyImportForOwner,
 } from "./persistence/supabaseStateRepository";
 import type { StateRepository, PersistedAppState } from "./persistence/stateRepository";
 import type { AuthIdentity } from "./persistence/supabaseAuth";
@@ -102,12 +105,32 @@ function legacy(value: PersistedAppState | null) {
 }
 
 const emptyStorage = { getItem: (_key: string): string | null => null };
+const ownerConsent = { getItem: (key: string): string | null =>
+  key === LEGACY_IMPORT_CONSENT_PREFIX + "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+    ? "confirmed" : null };
+
+{
+  const cloud = createMockCloud();
+  const repo = createSupabaseStateRepository(cloud.client, legacy(fixture()).repo, emptyStorage);
+  let blocked = false;
+  try { await repo.load(); }
+  catch (error) { blocked = error instanceof LegacyImportConsentRequiredError; }
+  ensure(blocked, "Never import browser data to an unconfirmed owner.");
+  ensure(cloud.current().writes === 0, "A rejected legacy import must never write.");
+  let storedKey = "", storedValue = "";
+  authorizeLegacyImportForOwner({setItem: (key,value) => {
+    storedKey = key; storedValue = value;
+  }},cloud.client.user.id);
+  ensure(storedKey === LEGACY_IMPORT_CONSENT_PREFIX + cloud.client.user.id &&
+    storedValue === "confirmed", "Consent is explicitly owner-scoped.");
+}
+
 
 {
   const cloud = createMockCloud();
   const prior = legacy(fixture());
   const repo = createSupabaseStateRepository(
-    cloud.client, prior.repo, emptyStorage
+    cloud.client, prior.repo, ownerConsent
   );
 
   const imported = await repo.load();
@@ -176,7 +199,9 @@ const emptyStorage = { getItem: (_key: string): string | null => null };
   });
   const browser = {
     getItem(key: string) {
-      return key === "schedule-engine:app-state:v1" ? history : null;
+      return key === "schedule-engine:app-state:v1" ? history :
+        key === LEGACY_IMPORT_CONSENT_PREFIX + "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+          ? "confirmed" : null;
     },
   };
   const restored = preserveLegacyPeople({ ...fixture(), people: [] }, browser);

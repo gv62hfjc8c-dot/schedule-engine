@@ -1,72 +1,101 @@
 # Schedule Engine
 
-Motor de scheduling reutilizável e independente de qualquer empresa específica.
+Motor de geração e validação de horários, concebido como núcleo de scheduling
+**independente de qualquer empresa, interface ou base de dados**.
 
-## Estado atual
+## Estado da aplicação
 
-A fundação está a ser construída de forma incremental.
+A `main` contém a versão aprovada do PR #46. As melhorias de consistência
+dos checkpoints A–E encontram-se **em revisão no PR #47**, ainda sem merge.
 
-Estão implementados:
+O fluxo operacional ativo inclui:
 
-1. **calendário operacional** — quando a operação funciona;
-2. **pessoas** — quem pode participar em horários;
-3. **disponibilidade** — quando cada pessoa pode trabalhar;
-4. **regras de trabalho** — duração padrão e turnos diários contínuos;
-5. **requisitos mínimos de presença** — abertura, operação e fecho.
+- **Calendário mensal** com resumo por dia, indicadores e acesso à gestão
+  diária (equipa, pesquisa, filtros, seleção persistente entre páginas).
+- **Gerador condicionado** de propostas para períodos inclusivos de **até
+  14 dias**, com validação independente de hard constraints.
+- **Disponibilidade e operação** por padrão semanal, exceções e mínimos de
+  cobertura de abertura, período central e fecho.
+- **Regras de trabalho**: limites diários/semanais, descanso e refeições,
+  incluindo contabilização de horas efetivas.
+- **Arquivo de propostas** persistidas no Supabase, consultáveis após
+  encerrar e reabrir a aplicação, sem regeneração.
 
-Ainda não existe geração automática de horários.
+No PR #47, foram acrescentados contratos semanais individuais (limites
+**hard**), objetivos semanais (**soft**), datas de trabalho obrigatórias,
+fuso horário IANA por operação e uma **referência contabilística de ciclos
+de 28 dias**. O modelo de ciclos não é um gerador de 28 dias; o limite
+de geração continua em 14 dias até existir validação integral.
 
-## Princípios atuais
+### Não confundir proposta com aprovação
 
-O motor não está preso a uma janela global de planeamento.
+Uma proposta válida e guardada **não constitui um horário oficialmente
+aprovado**. O calendário pode apresentar propostas distintas em dias
+consecutivos; o panorama indica essa proveniência e permite selecionar
+uma única proposta para consulta, sem a tratar como escala combinada
+certificada.
 
-Calendário e disponibilidade usam padrões semanais contínuos com exceções por data.
+Os componentes históricos de aprovação subsistem como **código de domínio
+e testes**, sem ligação ao fluxo operacional ativo. O serviço antigo
+`official-schedules` no Supabase foi inventariado no Checkpoint D, mas
+**não foi desativado nem alterado**.
 
-Uma pessoa só pode trabalhar na interseção entre calendário operacional e disponibilidade.
+## Instalação e execução
 
-Um turno diário é um único intervalo contínuo. Turnos repartidos não fazem parte do modelo atual.
+Requer **Node.js 22** (também utilizado pelo GitHub Actions) e um projeto
+Supabase dedicado, com autenticação.
 
-A duração padrão do turno é configuração explícita; o motor não assume uma duração quando ela ainda não foi definida.
+1. Consultar [configuração e migrações do Supabase](docs/supabase-setup.md).
+2. Copiar `.env.example` para `.env.local` e preencher apenas URL e
+   **publishable key**. Não colocar credenciais privilegiadas no frontend.
+3. Instalar o lockfile e iniciar o servidor de desenvolvimento:
 
-Os mínimos de presença são hard constraints configuráveis por dia e exceção: **abertura = primeiros 30 minutos**, **período central = funcionamento restante**, **fecho = últimos 30 minutos**. Os três mínimos são independentes (por exemplo, 1 / 2 / 1) e não limitam a quantidade máxima de pessoas.
+   ```bash
+   npm ci
+   npm run dev
+   ```
 
-O núcleo dispõe de um validador da presença em atribuições contínuas propostas e de uma pré-verificação de disponibilidade. Nenhum destes dois mecanismos gera horários ou garante viabilidade integral.
+A configuração é guardada com controlo de revisão no Supabase; propostas
+válidas são arquivadas como snapshots imutáveis. A primeira importação
+de dados antigos do navegador requer confirmação explícita de titularidade.
 
-## Persistência
-
-A aplicação guarda automaticamente:
-
-- calendário operacional;
-- exceções de calendário;
-- pessoas;
-- disponibilidades;
-- regras de trabalho;
-- requisitos mínimos de presença e exceções.
-
-**Em validação:** substituição do armazenamento principal por Supabase/PostgreSQL com autenticação, RLS, histórico e controlo de revisão. O `localStorage` fica como origem de migração inicial e cópia histórica; deixa de ser utilizado para gravações novas. Consulta [configuração do Supabase](docs/supabase-setup.md).
-
-O formato é versionado e suporta migração automática entre as versões introduzidas.
-
-## Executar
-
-Antes de abrir esta branch, configura o projeto Supabase seguindo [o guia](docs/supabase-setup.md) e preenche `.env.local` a partir de `.env.example`. O servidor Vite existente é suficiente; não é necessário um backend adicional.
-
-## Verificar
+## Verificações
 
 ```bash
-npm run typecheck
 npm test
+npm run typecheck
 npm run build
+npm run audit:dependencies
 ```
 
-O mesmo conjunto de verificações é executado automaticamente em pull requests.
+O `npm test` inclui testes do algoritmo, certificação final, regras,
+contratos, calendário, arquivo, concorrência, persistência e segurança.
+O teste de arquitetura impede a reintrodução acidental de laboratórios de
+aprovação na interface. A auditoria npm verifica dependências de produção
+e apresenta os avisos do ambiente de desenvolvimento separadamente.
 
-## Desenvolvimento
+A revisão manual de cenários reais e os testes funcionais no Safari
+continuam indispensáveis antes de qualquer merge importante.
 
-A regra de evolução é:
+## Arquitetura e controlo de alterações
 
-```text
-decisão → implementação → teste → validação → próxima decisão
-```
+- `src/utils/`: domínio, geração, validação, regras e cálculos.
+- `src/components/`: interface React de consulta e geração.
+- `src/persistence/`: adaptadores de estado e arquivo (Supabase).
+- `src/application/`: experiências históricas de fronteira de
+  confiança, **não ligadas à interface atual**.
+- `supabase/migrations/`: SQL histórico; **não executar `db push` na
+  instância existente sem reconciliação**, devido à divergência confirmada.
+- `supabase/audit/` e `supabase/rollback/`: inventário read-only e
+  fontes preservadas para recuperar a função antiga.
 
-O núcleo do scheduling deve permanecer independente da UI, persistência e aplicação consumidora.
+A versão estável do PR #46 está marcada na branch Git
+`safety/pr46-baseline`. O PR #47 é desenvolvido numa única branch,
+com checkpoints separados, e só será integrado depois da auditoria final.
+
+Documentação de referência: [arquitetura](docs/architecture.md),
+[matriz das 23 observações](docs/audit-pr47.md) e
+[baseline técnica Supabase](docs/supabase-deployment-baseline-pr47.md).
+
+**Princípio de desenvolvimento:** decisão → implementação → teste →
+validação → próxima decisão.

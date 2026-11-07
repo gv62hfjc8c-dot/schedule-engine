@@ -17,6 +17,7 @@ import {
 import { prepareExplicitEmptyContext } from "../utils/explicitEmptyContext";
 import { INITIAL_WORK_CONSTRAINTS } from "../utils/workConstraints";
 import { MAX_PERIOD_DAYS } from "../utils/periodGenerator";
+import { todayInTimeZone } from "../utils/monthlyScheduleView";
 
 export interface ConstrainedPeriodGeneratorPanelProps {
   people: Person[];
@@ -24,8 +25,9 @@ export interface ConstrainedPeriodGeneratorPanelProps {
   operatingCalendar: OperatingCalendarConfiguration;
   workRules: WorkRulesConfiguration;
   presence: PresenceConfiguration;
+  operationTimeZone: string;
   initialDate?: string;
-  onSaveGenerated?(proposal: GeneratedSchedulePayload): Promise<StoredGeneratedSchedule>;
+  onSaveGenerated?(proposal: GeneratedSchedulePayload, proposalId: string): Promise<StoredGeneratedSchedule>;
   onBackToCalendar?(): void;
 }
 
@@ -39,11 +41,6 @@ interface Snapshot extends ConstrainedPeriodGeneratorPanelProps {
 
 const PREVIEW_MAX_NODES = 5_000;
 
-function todayKey(): string {
-  const now = new Date();
-  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60_000);
-  return local.toISOString().slice(0, 10);
-}
 
 function addCivilDays(date: string, amount: number): string {
   const utc = new Date(`${date}T00:00:00Z`);
@@ -109,20 +106,21 @@ export default function ConstrainedPeriodGeneratorPanel({
   operatingCalendar,
   workRules,
   presence,
+  operationTimeZone,
   initialDate,
   onSaveGenerated,
   onBackToCalendar,
 }: ConstrainedPeriodGeneratorPanelProps) {
   const [workspaceView, setWorkspaceView] = useState<"settings" | "schedule">("settings");
-  const [startDate, setStartDate] = useState(() => initialDate ?? readGeneratorDate("constrained:start", todayKey));
-  const [endDate, setEndDate] = useState(() => initialDate ?? readGeneratorDate("constrained:end", () => addCivilDays(todayKey(), 6)));
-  const [timeZone, setTimeZone] = useState("Atlantic/Azores");
+  const [startDate, setStartDate] = useState(() => initialDate ?? readGeneratorDate("constrained:start", () => todayInTimeZone(operationTimeZone)));
+  const [endDate, setEndDate] = useState(() => initialDate ?? readGeneratorDate("constrained:end", () => addCivilDays(todayInTimeZone(operationTimeZone), 6)));
+  const timeZone=operationTimeZone;
   const [confirmed, setConfirmed] = useState(false);
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saveState, setSaveState] = useState<"idle"|"saving"|"saved"|"failed">("idle");
   const [saveProblem, setSaveProblem] = useState<string | null>(null);
-  const [retryPayload, setRetryPayload] = useState<GeneratedSchedulePayload | null>(null);
+  const [retryPayload, setRetryPayload] = useState<{payload: GeneratedSchedulePayload; id: string} | null>(null);
   const saveAttempt = useRef(0);
 
   useEffect(() => {
@@ -134,7 +132,19 @@ export default function ConstrainedPeriodGeneratorPanel({
     setSaveState("idle");
     setSaveProblem(null);
     setRetryPayload(null);
-  }, [people, availabilities, operatingCalendar, workRules, presence]);
+  }, [people, availabilities, operatingCalendar, workRules, presence, operationTimeZone]);
+
+  // A generated result is not guaranteed persisted until the server confirms.
+  // Protect a browser reload/close during the in-flight write.
+  useEffect(() => {
+    if (saveState !== "saving") return;
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [saveState]);
 
   const effectiveConstraints = { ...INITIAL_WORK_CONSTRAINTS,
     maximumDailyEffectiveMinutes: workRules.maximumDailyEffectiveMinutes ?? 480,
@@ -172,17 +182,17 @@ export default function ConstrainedPeriodGeneratorPanel({
     setRetryPayload(null);
   }
 
-  function persistProposal(payload: GeneratedSchedulePayload) {
+  function persistProposal(payload: GeneratedSchedulePayload, id: string) {
     const token = ++saveAttempt.current;
     setSaveState("saving");
     setSaveProblem(null);
-    setRetryPayload(payload);
+    setRetryPayload({payload,id});
     if (!onSaveGenerated) {
       setSaveState("failed");
       setSaveProblem("O serviço de arquivo não está disponível.");
       return;
     }
-    void onSaveGenerated(payload).then(() => {
+    void onSaveGenerated(payload,id).then(() => {
       if (saveAttempt.current === token) {
         setSaveState("saved");
         setRetryPayload(null);
@@ -243,12 +253,13 @@ export default function ConstrainedPeriodGeneratorPanel({
             availabilities, operatingCalendar, workRules, presence,
             workConstraints: effectiveConstraints,
           }),
-        });
+        }, crypto.randomUUID());
       }
       setSnapshot({
         startDate,
         endDate,
         timeZone,
+        operationTimeZone,
         people,
         availabilities,
         operatingCalendar,
@@ -276,7 +287,7 @@ export default function ConstrainedPeriodGeneratorPanel({
           <strong>O horário foi gerado, mas não ficou guardado.</strong>
           <p>{saveProblem ?? "Erro de armazenamento."}</p>
           <button type="button" disabled={!retryPayload} onClick={() => {
-            if (retryPayload) persistProposal(retryPayload);
+            if (retryPayload) persistProposal(retryPayload.payload,retryPayload.id);
           }}>Tentar guardar novamente sem regenerar</button>
         </>}
       </div>}
@@ -334,12 +345,8 @@ export default function ConstrainedPeriodGeneratorPanel({
               className="date-input"
               type="text"
               value={timeZone}
-              placeholder="Atlantic/Azores"
-              autoComplete="off"
-              onChange={(event) => {
-                setTimeZone(event.target.value);
-                resetScenario();
-              }}
+              readOnly
+              title="Alterar em Operação → Fuso horário e ciclo contabilístico"
             />
           </label>
         </div>

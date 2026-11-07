@@ -2,6 +2,8 @@ import type {
   DatedWorkShift, OperatingCalendarConfiguration, Person, PersonAvailability,
 } from "../types";
 import { getOperatingIntervalsForDate } from "./operatingCalendar";
+import { getEffectiveWorkMinutesInTimeZone } from "./workConstraints";
+import { DEFAULT_OPERATION_TIME_ZONE } from "./operationTimeZone";
 import { getSchedulableIntervalsForDate } from "./availability";
 
 /**
@@ -144,8 +146,9 @@ export function toggleFilteredSelection(
   else matchingIds.forEach(id => next.add(id));
   return next;
 }
-export function effectiveShiftMinutes(shift: DatedWorkShift): number {
-  const minutes = (value: string) => Number(value.slice(0, 2)) * 60 + Number(value.slice(3));
-  return minutes(shift.interval.end) - minutes(shift.interval.start) -
-    (shift.mealBreak ? minutes(shift.mealBreak.end) - minutes(shift.mealBreak.start) : 0);
+export function effectiveShiftMinutes(
+  shift: DatedWorkShift, timeZone = DEFAULT_OPERATION_TIME_ZONE
+): number {
+  // NaN is intentional fail-closed, rather than silently miscounting DST.
+  return getEffectiveWorkMinutesInTimeZone(shift,timeZone) ?? Number.NaN;
 }

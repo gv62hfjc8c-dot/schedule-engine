@@ -19,10 +19,12 @@ import ScheduleGeneratorPanel from "./components/ScheduleGeneratorPanel";
 import ScheduleHome from "./components/ScheduleHome";
 import { supabaseAuthClient } from "./persistence/supabaseInstance";
 import { createSupabaseGeneratedScheduleRepository } from "./persistence/supabaseGeneratedScheduleRepository";
+import { authorizeLegacyImportForOwner, LegacyImportConsentRequiredError } from "./persistence/supabaseStateRepository";
 import type { GeneratedSchedulePayload, StoredGeneratedSchedule } from "./persistence/generatedScheduleRepository";
 import { createEmptyWeeklyPresenceRequirements } from "./utils/presence";
 import { appStateRepository } from "./persistence/appStateRepository";
 import { APP_STATE_VERSION } from "./persistence/stateRepository";
+import { DEFAULT_OPERATION_TIME_ZONE, isIanaOperationTimeZone, resolveOperationTimeZone } from "./utils/operationTimeZone";
 import {
   createPersonAvailability,
   intersectIntervals,
@@ -171,6 +173,9 @@ export default function App() {
     OperatingHoursException[]
   >([]);
   const [people, setPeople] = useState<Person[]>([]);
+  const [operationTimeZone, setOperationTimeZone] = useState(DEFAULT_OPERATION_TIME_ZONE);
+  const [timeZoneDraft, setTimeZoneDraft] = useState(DEFAULT_OPERATION_TIME_ZONE);
+  const [cycleAnchorDate, setCycleAnchorDate] = useState("");
   const [availabilities, setAvailabilities] = useState<
     PersonAvailability[]
   >([]);
@@ -188,6 +193,8 @@ export default function App() {
   );
   const [editingPersonName, setEditingPersonName] = useState("");
   const [personError, setPersonError] = useState("");
+  const [exceptionIssue, setExceptionIssue] = useState("");
+  const [availabilityExceptionIssue, setAvailabilityExceptionIssue] = useState("");
   const [activeSection, setActiveSection] = useState<
     "schedules" | "calendar" | "people" | "availability" | "workRules" | "presence" | "generator"
   >("schedules");
@@ -197,7 +204,9 @@ export default function App() {
   ] = useState<string | null>(null);
   const [persistenceReady, setPersistenceReady] = useState(false);
   const [persistenceProblem, setPersistenceProblem] = useState<string | null>(null);
+  const [needsLegacyConsent, setNeedsLegacyConsent] = useState(false);
   const skipInitialSave = useRef(true);
+  const wasHydrated = useRef(false);
   const [persistenceStatus, setPersistenceStatus] = useState<
     "loading" | "saving" | "saved" | "error"
   >("loading");
@@ -211,10 +220,10 @@ export default function App() {
     setActiveSection("generator");
   }
 
-  async function saveGenerated(payload: GeneratedSchedulePayload): Promise<StoredGeneratedSchedule> {
+  async function saveGenerated(payload: GeneratedSchedulePayload, proposalId: string): Promise<StoredGeneratedSchedule> {
     if (!supabaseAuthClient) throw new Error("A ligação Supabase não está configurada.");
     const repository = createSupabaseGeneratedScheduleRepository(supabaseAuthClient);
-    const stored = await repository.save(payload);
+    const stored = await repository.save(payload, proposalId);
     setLastSavedStart(stored.startDate);
     setSavedRevision(value => value + 1);
     return stored;
@@ -233,12 +242,17 @@ export default function App() {
           setWeeklyHours(persisted.weeklyOperatingHours);
           setExceptions(persisted.exceptions);
           setPeople(persisted.people);
+          const resolvedZone=resolveOperationTimeZone(persisted.operationTimeZone);
+          setOperationTimeZone(resolvedZone);
+          setTimeZoneDraft(resolvedZone);
+          setCycleAnchorDate(persisted.cycleAnchorDate ?? "");
           setAvailabilities(persisted.availabilities);
           setWorkRules(persisted.workRules);
           setWeeklyPresenceRequirements(persisted.weeklyPresenceRequirements);
           setPresenceExceptions(persisted.presenceExceptions);
         }
 
+        wasHydrated.current = true;
         setPersistenceReady(true);
         setPersistenceStatus("saved");
       } catch (error) {
@@ -246,6 +260,7 @@ export default function App() {
 
         // Never enable autosave when hydration fails.
         setPersistenceReady(false);
+        setNeedsLegacyConsent(error instanceof LegacyImportConsentRequiredError);
         setPersistenceProblem(
           error instanceof Error
             ? error.message
@@ -278,6 +293,8 @@ export default function App() {
       void appStateRepository
         .save({
           version: APP_STATE_VERSION,
+          operationTimeZone,
+          ...(cycleAnchorDate ? {cycleAnchorDate} : {}),
           weeklyOperatingHours: weeklyHours,
           exceptions,
           people,
@@ -309,6 +326,7 @@ export default function App() {
     };
   }, [
     persistenceReady,
+    operationTimeZone,cycleAnchorDate,
     weeklyHours,
     exceptions,
     people,
@@ -393,6 +411,19 @@ export default function App() {
     };
   }, [selectedAvailability, weeklyHours]);
 
+  // The compact editor only changes the first interval; imported extra
+  // intervals must remain intact until the full editor is available.
+  const nextUnusedExceptionDate = (items: {date: string}[]): string => {
+    const used = new Set(items.map(item => item.date));
+    const date = new Date(todayKey() + "T00:00:00Z");
+    for (let i = 0; i < 36525; i++) {
+      const candidate = date.toISOString().slice(0, 10);
+      if (!used.has(candidate)) return candidate;
+      date.setUTCDate(date.getUTCDate() + 1);
+    }
+    throw new Error("Não existe data livre para uma nova exceção.");
+  };
+
   const updateDayInterval = (
     weekday: Weekday,
     field: "start" | "end",
@@ -417,7 +448,7 @@ export default function App() {
 
       return {
         ...current,
-        [weekday]: [next],
+        [weekday]: [next, ...current[weekday].slice(1)],
       };
     });
   };
@@ -433,12 +464,9 @@ export default function App() {
   };
 
   const addException = () => {
-    setExceptions((current) => [
+    setExceptions(current => [
       ...current,
-      {
-        date: todayKey(),
-        intervals: [],
-      },
+      { date: nextUnusedExceptionDate(current), intervals: [] },
     ]);
   };
 
@@ -446,6 +474,11 @@ export default function App() {
     index: number,
     next: OperatingHoursException
   ) => {
+    if (exceptions.some((item, i) => i !== index && item.date === next.date)) {
+      setExceptionIssue("Já existe uma exceção operacional para essa data.");
+      return;
+    }
+    setExceptionIssue("");
     setExceptions((current) =>
       current.map((exception, currentIndex) =>
         currentIndex === index ? next : exception
@@ -477,7 +510,7 @@ export default function App() {
 
     updateException(index, {
       ...exception,
-      intervals: [nextInterval],
+      intervals: [nextInterval, ...exception.intervals.slice(1)],
     });
   };
 
@@ -643,7 +676,7 @@ export default function App() {
       ...selectedAvailability,
       weeklyAvailability: {
         ...selectedAvailability.weeklyAvailability,
-        [weekday]: [next],
+        [weekday]: [next, ...selectedAvailability.weeklyAvailability[weekday].slice(1)],
       },
     });
   };
@@ -656,7 +689,7 @@ export default function App() {
       exceptions: [
         ...selectedAvailability.exceptions,
         {
-          date: todayKey(),
+          date: nextUnusedExceptionDate(selectedAvailability.exceptions),
           intervals: [],
         },
       ],
@@ -668,6 +701,11 @@ export default function App() {
     next: AvailabilityException
   ) => {
     if (!selectedAvailability) return;
+    if (selectedAvailability.exceptions.some((item, i) => i !== index && item.date === next.date)) {
+      setAvailabilityExceptionIssue("Já existe uma exceção de disponibilidade para essa data.");
+      return;
+    }
+    setAvailabilityExceptionIssue("");
 
     upsertAvailability({
       ...selectedAvailability,
@@ -719,7 +757,7 @@ export default function App() {
 
     updateAvailabilityException(index, {
       ...exception,
-      intervals: [nextInterval],
+      intervals: [nextInterval, ...exception.intervals.slice(1)],
     });
   };
 
@@ -733,6 +771,24 @@ export default function App() {
       ),
     });
   };
+
+  function exportPendingConfiguration(): void {
+    if (!wasHydrated.current) return;
+    const pending = {
+      version: APP_STATE_VERSION,
+      operationTimeZone,...(cycleAnchorDate ? {cycleAnchorDate} : {}),
+      weeklyOperatingHours: weeklyHours, exceptions, people,
+      availabilities, workRules,
+      weeklyPresenceRequirements, presenceExceptions,
+    };
+    const url = URL.createObjectURL(new Blob([JSON.stringify(pending, null, 2)],
+      {type: "application/json"}));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "schedule-engine-configuracao-pendente.json";
+    link.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
 
   if (persistenceProblem) {
     return (
@@ -748,6 +804,27 @@ export default function App() {
           <p style={{ marginTop: "12px" }}>
             {persistenceProblem}
           </p>
+          {wasHydrated.current && <>
+            <p>As alterações locais ainda não confirmadas podem ser exportadas antes de voltares a carregar a aplicação. Esta cópia não é um horário aprovado.</p>
+            <button type="button" className="se-outline" onClick={exportPendingConfiguration}>
+              Descarregar cópia das alterações pendentes (JSON)
+            </button>
+          </>}
+          {needsLegacyConsent && <>
+            <p>
+              A configuração antiga guardada neste navegador não identifica o seu proprietário.
+              Para impedir que os dados de outra pessoa sejam importados para a tua conta,
+              confirma expressamente que esses dados te pertencem.
+            </p>
+            <button type="button" className="primary-button" onClick={() => {
+              const ownerId = supabaseAuthClient?.user?.id;
+              if (!ownerId) return;
+              authorizeLegacyImportForOwner(window.localStorage, ownerId);
+              window.location.reload();
+            }}>
+              Confirmo que estes dados são meus — importar para a conta
+            </button>
+          </>}
           <p>
             Para evitar substituir dados existentes por um estado vazio,
             a aplicação bloqueou a edição e a gravação automática.
@@ -776,7 +853,7 @@ export default function App() {
 
           <div
             className={`save-status ${persistenceStatus}`}
-            title="Estado da gravação local"
+            title="Estado da gravação da configuração no Supabase"
           >
             <span className="save-status-dot" />
             {persistenceStatus === "loading" && "A carregar"}
@@ -831,6 +908,8 @@ export default function App() {
           people={people}
           availabilities={availabilities}
           operatingCalendar={generatorOperatingCalendar}
+          operationTimeZone={operationTimeZone}
+          cycleAnchorDate={cycleAnchorDate || undefined}
           savedRevision={savedRevision}
           initialMonth={lastSavedStart}
           onCreate={openGenerator}
@@ -855,6 +934,41 @@ export default function App() {
             </div>
           </section>
 
+          <section className="panel" aria-label="Configuração temporal da operação">
+            <div className="panel-header"><div>
+              <p className="section-kicker">Contexto da operação</p>
+              <h2>Fuso horário e ciclo contabilístico</h2>
+            </div></div>
+            <div className="se-controls">
+              <label className="se-control">
+                <span>Fuso horário IANA</span>
+                <input type="text" value={timeZoneDraft} autoComplete="off"
+                  placeholder="Atlantic/Azores"
+                  onChange={event=>setTimeZoneDraft(event.target.value)} />
+              </label>
+              <label className="se-control">
+                <span>Início de um ciclo fixo de 28 dias (opcional)</span>
+                <input type="date" value={cycleAnchorDate}
+                  onChange={event=>setCycleAnchorDate(event.target.value)} />
+              </label>
+            </div>
+            <div className="p63-action-row">
+              <button type="button" className="se-outline"
+                disabled={!isIanaOperationTimeZone(timeZoneDraft) ||
+                  timeZoneDraft === operationTimeZone}
+                onClick={()=>setOperationTimeZone(timeZoneDraft)}>
+                Aplicar fuso horário
+              </button>
+              {!isIanaOperationTimeZone(timeZoneDraft) &&
+                <span role="alert">Indica um fuso horário IANA válido antes de guardar.</span>}
+            </div>
+            <p className="section-description">
+              O fuso aplicado é utilizado no calendário e na geração; os horários já
+              arquivados mantêm o fuso original. O ciclo tem sempre 28 dias e não
+              corresponde necessariamente ao início ou fim de um mês.
+              O limite de geração continua a ser de 14 dias por proposta.
+            </p>
+          </section>
           <div className="dashboard-grid">
         <section className="panel schedule-panel">
           <div className="panel-header">
@@ -978,6 +1092,9 @@ export default function App() {
           <p className="section-description">
             Feriados, encerramentos ou horários diferentes do padrão.
           </p>
+          {exceptionIssue && <p className="presence-validation" role="alert">{exceptionIssue}</p>}
+          {exceptions.length !== new Set(exceptions.map(item => item.date)).size &&
+            <p className="presence-validation" role="alert">Existem exceções operacionais repetidas na configuração. Corrige as datas duplicadas.</p>}
 
           {exceptions.length === 0 ? (
             <div className="empty-state">
@@ -1511,6 +1628,9 @@ export default function App() {
                     <p className="section-description">
                       Altera a disponibilidade apenas numa data.
                     </p>
+                    {availabilityExceptionIssue && <p className="presence-validation" role="alert">{availabilityExceptionIssue}</p>}
+                    {selectedAvailability && selectedAvailability.exceptions.length !== new Set(selectedAvailability.exceptions.map(item => item.date)).size &&
+                      <p className="presence-validation" role="alert">Existem exceções de disponibilidade repetidas. Corrige as datas duplicadas.</p>}
 
                     {selectedAvailability.exceptions
                       .length === 0 ? (
@@ -1711,6 +1831,8 @@ export default function App() {
           weeklyOperatingHours={weeklyHours}
           workRules={workRules}
           onChange={setWorkRules}
+          people={people}
+          onPeopleChange={setPeople}
         />
       )}
       {activeSection === "presence" && (
@@ -1733,6 +1855,7 @@ export default function App() {
           operatingCalendar={generatorOperatingCalendar}
           workRules={workRules}
           presence={generatorPresence}
+          operationTimeZone={operationTimeZone}
           initialDate={generatorInitialDate}
           onSaveGenerated={saveGenerated}
           onBackToCalendar={() => setActiveSection("schedules")}
