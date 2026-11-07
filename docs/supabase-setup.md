@@ -99,8 +99,9 @@ esses registos como horários válidos.
 ## Auditoria, backup e recuperação
 
 - Reexecutar a auditoria **read-only**
-  `supabase/audit/pr47_checkpoint_d_readonly.sql` após alterações
-  de DDL, RLS ou funções.
+  `supabase/audit/pr47_checkpoint_d_readonly.sql` e as verificações
+  `supabase/audit/pr47_checkpoint_d_assertions.sql` após alterações
+  de DDL, RLS ou funções. Estas são consultas, não migrações.
 - O código exato da Edge Function legada publicada foi arquivado em
   `supabase/rollback/official-schedules-v5/`. Isso **não** é um backup
   dos dados nem das definições de autenticação.
