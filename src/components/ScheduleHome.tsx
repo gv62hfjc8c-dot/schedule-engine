@@ -4,7 +4,7 @@ import { accountingCycleForDate } from "../utils/accountingCycle28";
 import ScheduleViews from "./ScheduleViews";
 import { createSupabaseGeneratedScheduleRepository } from "../persistence/supabaseGeneratedScheduleRepository";
 import type { StoredGeneratedSchedule, UnreadableGeneratedSchedule } from "../persistence/generatedScheduleRepository";
-import { proposalsForDay, selectedProposalForDay, calendarProposalForDay, calendarArchiveOverview, previewFromStored, savedProposalLabel } from "../utils/savedScheduleView";
+import { proposalsForDay, selectedProposalForDay, calendarProposalForDay, calendarArchiveOverview, unreadableArchiveAffectsDate, previewFromStored, savedProposalLabel } from "../utils/savedScheduleView";
 import type {
   OperatingCalendarConfiguration, Person, PersonAvailability,
 } from "../types";
@@ -165,7 +165,8 @@ export default function ScheduleHome({
   const visible = matching.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
   const kind = selectedDate ? dayKind(selectedDate, snapshotOperation, preview) : null;
   const activeCycle = selectedDate && cycleAnchorDate ? accountingCycleForDate(selectedDate,cycleAnchorDate) : null;
-  const unknownArchive = unreadable.length>0;
+  const unknownArchive = selectedDate ?
+    unreadableArchiveAffectsDate(unreadable,selectedDate) : unreadable.length>0;
   const statusLabel = loadState !== "ready" ? "Estado por confirmar" :
     kind === "closed" ? "Operação encerrada" :
     kind === "proposal" ? "Proposta guardada · não aprovada" :
@@ -419,7 +420,7 @@ export default function ScheduleHome({
             const latest = calendarProposalForDay(savedRows,date,focusedProposalId);
             const state = loadState !== "ready" ? "loading" :
               !latest && focusedProposalId ? "outside-proposal" :
-              !latest && unknownArchive ? "unknown" :
+              !latest && unreadableArchiveAffectsDate(unreadable,date) ? "unknown" :
               dayKind(date,latest?.payload.configuration.operatingCalendar ?? operatingCalendar,
                 latest ? previewFromStored(latest) : null);
             const inMonth = date.slice(0,7) === currentMonth;
