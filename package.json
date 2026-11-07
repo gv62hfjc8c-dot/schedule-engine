@@ -32,7 +32,8 @@
     "test:explicit-empty-context": "tsx src/explicitEmptyContextTest.ts",
     "test:period-generator": "tsx src/periodGeneratorTest.ts",
     "test:supabase-auth": "tsx src/supabaseAuthTest.ts",
-    "test:supabase-persistence": "tsx src/supabaseStateRepositoryTest.ts"
+    "test:supabase-persistence": "tsx src/supabaseStateRepositoryTest.ts",
+    "audit:dependencies": "node scripts/npmDependencyAudit.mjs"
   },
   "dependencies": {
     "react": "^18.3.1",
