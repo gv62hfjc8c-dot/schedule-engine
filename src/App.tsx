@@ -1557,7 +1557,8 @@ export default function App() {
                             {!operationClosed &&
                             !unavailable &&
                             interval &&
-                            operatingInterval ? (
+                            operatingInterval &&
+                            configuredIntervals.length===1 ? (
                               <>
                                 <label className="select-field">
                                   <span className="sr-only">
@@ -1615,6 +1616,18 @@ export default function App() {
                                   : "Não pode ser escalada"}
                               </div>
                             )}
+                            <IntervalListEditor
+                              label={"disponibilidade de "+weekdayLabels[weekday]}
+                              intervals={configuredIntervals}
+                              allowed={operatingIntervals}
+                              onChange={next=>upsertAvailability({
+                                ...selectedAvailability,
+                                weeklyAvailability:{
+                                  ...selectedAvailability.weeklyAvailability,
+                                  [weekday]:next,
+                                },
+                              })}
+                            />
                           </div>
                         );
                       })}
@@ -1763,7 +1776,8 @@ export default function App() {
                                   {!operationClosed &&
                                     !unavailable &&
                                     interval &&
-                                    operatingInterval && (
+                                    operatingInterval &&
+                                    exception.intervals.length===1 && (
                                     <div className="exception-time-grid">
                                       <label className="select-field">
                                         <span>Início</span>
@@ -1826,6 +1840,13 @@ export default function App() {
                                     </div>
                                   )}
                                 </div>
+                                <IntervalListEditor
+                                  label={"disponibilidade excecional de "+exception.date}
+                                  intervals={exception.intervals}
+                                  allowed={operatingIntervals}
+                                  onChange={next=>updateAvailabilityException(
+                                    index,{...exception,intervals:next})}
+                                />
                               </article>
                             );
                           }
