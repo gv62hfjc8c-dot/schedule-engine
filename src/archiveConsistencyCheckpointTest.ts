@@ -3,7 +3,7 @@ import { createSupabaseGeneratedScheduleRepository } from "./persistence/supabas
 import { INITIAL_WORK_CONSTRAINTS } from "./utils/workConstraints";
 import {
   proposalsForDay, selectedProposalForDay, calendarProposalForDay,
-  calendarArchiveOverview,
+  calendarArchiveOverview, unreadableArchiveAffectsDate,
 } from "./utils/savedScheduleView";
 import { monthCalendarDates } from "./utils/monthlyScheduleView";
 
@@ -160,6 +160,13 @@ const focused=calendarArchiveOverview(known,dates,confirmed.id);
 ensure(!focused.mixedSources && focused.sourceIds.length===1,
   "Focused month must represent a single independent proposal.");
 
+ensure(unreadableArchiveAffectsDate([{id:"bad",startDate:"2026-11-02",
+  endDate:"2026-11-08"}],"2026-11-02") &&
+  !unreadableArchiveAffectsDate([{id:"bad",startDate:"2026-11-02",
+    endDate:"2026-11-08"}],"2026-11-25"),
+  "Only affected dates are marked indeterminate with trusted metadata.");
+ensure(unreadableArchiveAffectsDate([{id:null,startDate:null,endDate:null}],
+  "2026-11-25"),"Unknown corruption bounds must fail closed for all dates.");
 const baseCount=rows.length;
 // Generate 211 more records with stable UUIDs and strictly increasing timestamps
 // before the first archive read, covering multiple API pages.
