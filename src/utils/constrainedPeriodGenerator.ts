@@ -1352,7 +1352,7 @@ function rebalanceForCompleteShortDays(
       const candidateEffective=duration-(candidate.mealBreak
         ? minutes(candidate.mealBreak.end)-minutes(candidate.mealBreak.start):0);
       const reduction=Math.max(0,weeklyMinutes+candidateEffective-
-        input.workConstraints.maximumWeeklyEffectiveMinutes);
+        personWeeklyHardMax(person,input.workConstraints.maximumWeeklyEffectiveMinutes));
       if(reduction%15!==0 || personShifts.length===0 && reduction>0)continue;
       const donors=personShifts.filter(s=>s.date!==date &&
         getOperatingIntervalsForDate(s.date,
@@ -1420,7 +1420,8 @@ function missingRequiredWorkdays(
   assignments: DatedWorkShift[],
   dates: string[]
 ): Array<{date: string; personId: string}> {
-  if (!input.workRules.requireShiftsOnAvailableDays) return [];
+  if (!input.workRules.requireShiftsOnAvailableDays &&
+      !input.people.some(p=>p.requiredWorkDates?.length)) return [];
   const assigned = new Set(assignments.map(s => s.date+"|"+s.personId));
   const missing: Array<{date: string; personId: string}> = [];
   for (const date of dates) {
@@ -1430,7 +1431,9 @@ function missingRequiredWorkdays(
       const permitted = getSchedulableIntervalsForDate(date,availability,
         input.operatingCalendar.weeklyOperatingHours,
         input.operatingCalendar.exceptions);
-      if (permitted.length > 0 && !assigned.has(date+"|"+person.id))
+      if ((isExplicitRequiredWorkday(person,date) ||
+          (input.workRules.requireShiftsOnAvailableDays && permitted.length>0)) &&
+          !assigned.has(date+"|"+person.id))
         missing.push({date,personId:person.id});
     }
   }
@@ -1451,7 +1454,8 @@ function fillRequiredWorkdays(
   knownEnd: string,
   dates: string[]
 ): DatedWorkShift[] {
-  if (!input.workRules.requireShiftsOnAvailableDays) return original;
+  if (!input.workRules.requireShiftsOnAvailableDays &&
+      !input.people.some(p=>p.requiredWorkDates?.length)) return original;
   let schedule = original.map(s=>({...s,interval:{...s.interval},
     mealBreak:s.mealBreak?{...s.mealBreak}:null}));
   const minute=(v:string)=>Number(v.slice(0,2))*60+Number(v.slice(3,5));
@@ -1508,13 +1512,15 @@ function fillRequiredWorkdays(
       input.operatingCalendar.exceptions);
     const current=[...schedule,...external].filter(s=>s.personId===personId &&
       week(s.date)===week(date)).reduce((n,s)=>n+effective(s),0);
+    const person = input.people.find(p=>p.id===personId)!;
+    const personLimit = personWeeklyHardMax(person,maxWeekly);
     const donors=schedule.filter(s=>s.personId===personId &&
       week(s.date)===week(date)&&s.date!==date && !short(s.date));
     const shortTotal=schedule.filter(s=>s.personId===personId &&
       week(s.date)===week(date)&&short(s.date)).reduce((n,s)=>n+effective(s),0);
     const fullCount=donors.length+(short(date)?0:1);
     const mean=fullCount>0?
-      Math.round((Math.min(current,maxWeekly)-shortTotal)/fullCount/15)*15:0;
+      Math.round((Math.min(current,personLimit)-shortTotal)/fullCount/15)*15:0;
     const proposedWork: number[]=[];
     if(short(date) && operating(date).length===1){
       const attendanceMinutes=minute(operating(date)[0].end)-
@@ -1543,7 +1549,7 @@ function fillRequiredWorkdays(
           work+meal.durationMinutes;
       const needsMeal=work>meal.requiredAboveEffectiveMinutes || shortMeal;
       const span=work+(needsMeal?meal.durationMinutes:0);
-      const reduction=Math.max(0,current+work-maxWeekly);
+      const reduction=Math.max(0,current+work-personLimit);
       if(reduction%15!==0||(!donors.length&&reduction>0))continue;
       // Water-fill cuts from the longest comparable days, to preserve balance.
       const cuts=new Map<string,number>();
@@ -1657,6 +1663,8 @@ export function generateConstrainedPeriodSchedule(
     ]);
   }
 
+  const policyIssues=validatePeopleSchedulingPolicies(input.people ?? []);
+  if (policyIssues.length) return resultWith("invalid_input",policyIssues);
   const maxNodes = input.maxSearchNodes ?? DEFAULT_GLOBAL_MAX_NODES;
   if (!Number.isSafeInteger(maxNodes) || maxNodes < 1) {
     return resultWith("invalid_input", [
@@ -1729,6 +1737,15 @@ export function generateConstrainedPeriodSchedule(
       `É necessário confirmar todos os turnos e ausências exteriores ao período entre ${required.startDate} e ${required.endDate}.`,
     ], [], required);
   }
+  const outsideCap = validatePersonWeeklyContractCaps(
+    input.people,externalShifts,input.workConstraints.maximumWeeklyEffectiveMinutes,
+    input.timeZone,input.startDate,input.endDate);
+  if (!outsideCap.valid) {
+    return resultWith("invalid_input",[
+      "O contexto exterior excede limites contratuais ou contém durações inválidas.",
+      ...outsideCap.issues,
+    ],[],required);
+  }
   if (initial.violations.length > 0) {
     return resultWith(
       "invalid_input",
@@ -1780,7 +1797,11 @@ export function generateConstrainedPeriodSchedule(
         `Erro ao validar candidatos: ${result.issues.join(" ")}`;
       return false;
     }
-    if (result.violations.length > 0) {
+    const caps=validatePersonWeeklyContractCaps(
+      input.people,[...externalShifts,...selected,...added],
+      input.workConstraints.maximumWeeklyEffectiveMinutes,
+      input.timeZone,input.startDate,input.endDate);
+    if (result.violations.length > 0 || !caps.valid) {
       rejectedByWorkRules++;
       lastWorkViolations = result.violations;
       return false;
@@ -1797,7 +1818,11 @@ export function generateConstrainedPeriodSchedule(
         targetPeriod: target,
         knownSchedule: knownSchedule(selected, true),
       });
-      if (checked.status !== "valid") {
+      const caps=validatePersonWeeklyContractCaps(
+        input.people,[...externalShifts,...selected],
+        input.workConstraints.maximumWeeklyEffectiveMinutes,
+        input.timeZone,input.startDate,input.endDate);
+      if (checked.status !== "valid" || !caps.valid) {
         if (checked.status === "invalid_input" ||
             checked.status === "incomplete_context") {
           invalidInternalResult = checked.issues.join(" ") ||
