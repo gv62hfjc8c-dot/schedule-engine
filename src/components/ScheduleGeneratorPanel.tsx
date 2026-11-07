@@ -24,7 +24,7 @@ interface ScheduleGeneratorPanelProps {
   presence: PresenceConfiguration;
   operationTimeZone: string;
   initialDate?: string;
-  onSaveGenerated?(payload: GeneratedSchedulePayload): Promise<StoredGeneratedSchedule>;
+  onSaveGenerated?(payload: GeneratedSchedulePayload, proposalId: string): Promise<StoredGeneratedSchedule>;
   onBackToCalendar?(): void;
 }
 
