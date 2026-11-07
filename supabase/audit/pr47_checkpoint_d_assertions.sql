@@ -81,8 +81,10 @@ with checks as (
     'Active state RPC is authenticated; do not revoke without replacement'
   union all
   select '09_state_rpc_fixed_search_path',
-    (select p.prosecdef and coalesce(array_to_string(p.proconfig,','),'')
-      like '%search_path=%' from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+    (select p.prosecdef and exists(
+       select 1 from unnest(p.proconfig) as cfg(setting)
+       where cfg.setting = 'search_path=""'
+     ) from pg_proc p join pg_namespace n on n.oid=p.pronamespace
      where n.nspname='public' and p.proname='save_schedule_engine_state'
      and pg_get_function_identity_arguments(p.oid)='p_expected_revision bigint, p_payload jsonb'),
     'SECURITY DEFINER state RPC retains explicit fixed search_path'
