@@ -8,9 +8,9 @@ Os 23 pontos originais misturavam defeitos concretos, riscos, dívida técnica e
 |---|---|---|---|
 | 01 | Documentação desatualizada | Atualizado parcialmente | README, arquitetura, roadmap, guia Supabase; histórico mantém-se histórico |
 | 02 | Ausência de turno apresentada como folga | Corrigido | Vista mensal passa a dizer "Sem turno"; resumo diário mostra "Por planear" |
-| 03 | API de aprovações antiga ativa no Supabase | Pendente — infraestrutura | Não eliminar/desativar Edge Function `official-schedules` ou dados sem plano de rollback; não pertence à UI ativa |
+| 03 | API de aprovações antiga ativa no Supabase | Preparação segura D; serviço ainda ativo | Preservado o bundle publicado v5 com 13 ficheiros e hash de release; preparado endpoint inerte 410, **não publicado**. Desativação só após análise de clientes e validação de recuperação |
 | 04 | Importação de browser para conta nova sem confirmar titularidade | Corrigido no adaptador | Consentimento explícito associado à conta; estado cloud mantém precedência |
-| 05 | Migrações Git ≠ objetos implantados | Pendente — reconciliação | Exportar DDL, documentar migrações reais e definir instalação reproduzível antes de operar em produção |
+| 05 | Migrações Git ≠ objetos implantados | Inventário e linhagem guardados (D); reconciliação ainda pendente | Guardada baseline real (tabelas, policies, grants, functions, constraints, índices, IDs de migração). As 3 migrações antigas PR43 estão em rollback, fora da pasta executável. Falta validar reconstituição em staging |
 | 06 | Calendário agrega dias de propostas diferentes | Isolamento de propostas implementado (C) | Vista por ID de proposta usa apenas um snapshot; panorama mantém propostas independentes com alertas de sobreposição e mistura, sem validar a combinação como escala oficial |
 | 07 | Limite de 40h usado como alvo pelo otimizador | Implementado no B (opt-in) | Contrato semanal por pessoa é limite hard; objetivo semanal é soft; sem campos prevalece o comportamento PR41 (40h). Horas extraordinárias não são inferidas |
 | 08 | Falta de certificação independente após otimizações | Corrigido | `certifyFinalGeneratedSchedule` examina trabalho, cobertura, elegibilidade, período, dias obrigatórios e jornadas curtas |
@@ -25,10 +25,10 @@ Os 23 pontos originais misturavam defeitos concretos, riscos, dívida técnica e
 | 17 | Aprovação oficial ausente da UI | Sem mudança intencional | Decisão explícita do rollback; reintroduzir exigiria uma nova fronteira confiável e contrato de aprovação |
 | 18 | Ciclos de 28 dias vs limite do gerador de 14 | Modelo implementado, geração de 28 dias pendente | Ciclo fixo com âncora operacional, quatro subperíodos de sete dias, compatível com meses de 5 semanas e anos bissextos; gerador continua limitado a 14 dias até prova de capacidade |
 | 19 | `Person` sem contratos e perfis avançados | Parcial (B) | Adicionados limite contratual semanal, objetivo semanal e datas obrigatórias; qualificações/funções e ausências continuam fora do modelo até requisitos concretos |
-| 20 | Avisos de segurança Supabase | Pendente — configuração de serviço | `SECURITY DEFINER` de estado é intencional e autenticado; avaliar proteção de palavras-passe comprometidas e configuração real |
+| 20 | Avisos de segurança Supabase | Auditados; 2 ajustes externos pendentes (D) | Função de estado mantém EXECUTE autenticado, pois é usada pela UI, mas é proprietária/revisada; avisos: SECURITY DEFINER exposto e proteção de palavras-passe comprometidas desativada. Refatoração e definição Auth exigem staging/operador |
 | 21 | Experiências antigas no repositório | Pendente — inventário e remoção seletiva | Não eliminar módulos antes de auditar importações, testes e dependências do histórico |
 | 22 | Terminologia antiga na interface | Corrigido | Gravação Supabase e menções ao PR41 atualizadas |
-| 23 | Invariantes sem regressões dedicadas | Reforçado (A+B+C) | Regressões de motor, políticas individuais, DST, ciclos de 28 dias, arquivo com paginação cursor e escrita idempotente; ensaios funcionais reais continuam pendentes |
+| 23 | Invariantes sem regressões dedicadas | Reforçado (A+B+C+D) | Regressões de motor, políticas, arquivo, e agora teste offline de credenciais, grants previstos, bundle Edge v5 e script SQL read-only; testes reais de Auth/RLS continuam pendentes |
 
 ## Checkpoint A — integridade do motor (implementado na branch PR #47)
 
@@ -63,6 +63,27 @@ Os 23 pontos originais misturavam defeitos concretos, riscos, dívida técnica e
 - **Regressões:** `src/archiveConsistencyCheckpointTest.ts` cobre propostas sobrepostas, foco por ID, versões imutáveis, resposta de rede perdida após commit, 211 propostas paginadas, inserção concorrente, registos corrompidos e mudança de sessão. `src/generatedSchedulePersistenceTest.ts` foi adaptado à paginação por cursor.
 
 **Limites:** não foi criada uma escala operacional consolidada a partir de propostas diferentes. O sistema permanece **append-only, com propostas não aprovadas**. A leitura parcial é explicitamente identificada e não certifica a ausência de horários em datas incertas. Encerramento forçado do navegador, interrupção de rede e volume extremo de arquivo necessitam de acompanhamento operacional adicional.
+
+## Checkpoint D — Supabase, segurança e plano de recuperação (implementado no Git PR #47)
+
+**Âmbito efetivamente concluído:**
+- Leitura do esquema real da instância: 5 tabelas RLS; 1 estado de configuração, 216 revisões de estado, 4 propostas, 0 ledgers aprovados e 0 eventos oficiais, **no momento da vistoria**.
+- Grants de escrita diretos inexistentes para o browser sobre estados e ledgers; INSERT da tabela de propostas só em colunas autorizadas. Funções privilegiadas de aprovação sem EXECUTE `anon` ou `authenticated`.
+- Confirmada divergência de migrações entre Git e Supabase (4 versões no registo remoto vs 3 ficheiros no Git). Linhagem SQL do PR43 arquivada fora da pasta de migrações ativas, para impedir reativação acidental.
+- A Edge Function antiga `official-schedules` v5 foi recuperada do servidor em **13 ficheiros**, guardados em `supabase/rollback/official-schedules-v5/` e identificados por manifesto/hashes. Tem `verify_jwt=true`. A alternativa inerte em `supabase/deployment/official-schedules-disabled/index.ts` está **preparada mas não publicada**.
+- Confirmada incompatibilidade histórica: a Edge Function aceita pedidos de `revise` mas o RPC SQL de commit só permite `approve`, `replace`, `cancel`; não há registos oficiais na instância analisada.
+- Criado o inventário exclusivamente SELECT `supabase/audit/pr47_checkpoint_d_readonly.sql` e a baseline `docs/supabase-deployment-baseline-pr47.md`.
+- Novo teste offline `scripts/supabaseSecurityContractTest.mjs`, executado por `npm test`, que verifica restrições previstas do SQL, ausência de credenciais privilegiadas no frontend, bundle de rollback e proibição de DDL no inventário.
+- `docs/supabase-setup.md` alinhado com o produto atual, incluindo importação legada com consentimento e instruções seguras para instalações novas.
+
+**Pendências explícitas, que não podem ser declaradas concluídas por alterações só no Git:**
+1. Desativação do serviço de aprovações antigo — requer avaliação de dependências externas e publicação controlada.
+2. Reconciliação dos IDs/SQL das migrações — requer validação num ambiente isolado e backup de dados restaurável.
+3. Aviso do `SECURITY DEFINER` acessível ao papel `authenticated` — função ativa e necessária; refatorar sem quebrar o RPC atómico requer testes de staging.
+4. Proteção de palavras-passe comprometidas — definição da plataforma que precisa de acesso ao Auth Dashboard/planos compatíveis.
+5. Verificar recuperação de schema/dados e Edge Function antes de alterar a instância real.
+
+**Sem produção alterada:** nenhuma migration, DDL, DML, Auth setting ou Edge Function foi aplicada/publicada no Checkpoint D. A `main` e `safety/pr46-baseline` continuam como fallback. Os guardrails offline não garantem por si só o estado real do Supabase.
 
 ## Critérios antes de qualquer merge
 
