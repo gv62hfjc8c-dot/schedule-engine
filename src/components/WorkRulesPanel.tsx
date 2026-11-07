@@ -1,7 +1,9 @@
 import type {
   WeeklyOperatingHours,
+  Person,
   WorkRulesConfiguration,
 } from "../types";
+import PersonSchedulingPoliciesPanel from "./PersonSchedulingPoliciesPanel";
 import {
   createClosingShift,
   createOpeningShift,
@@ -15,6 +17,8 @@ interface WorkRulesPanelProps {
   weeklyOperatingHours: WeeklyOperatingHours;
   workRules: WorkRulesConfiguration;
   onChange: (rules: WorkRulesConfiguration) => void;
+  people: Person[];
+  onPeopleChange(people: Person[]): void;
 }
 
 const weekdayLabels = {
@@ -44,6 +48,8 @@ export default function WorkRulesPanel({
   weeklyOperatingHours,
   workRules,
   onChange,
+  people,
+  onPeopleChange,
 }: WorkRulesPanelProps) {
   const duration =
     workRules.standardShiftDurationMinutes;
@@ -412,6 +418,7 @@ export default function WorkRulesPanel({
           </p>
         </aside>
       </div>
+      <PersonSchedulingPoliciesPanel people={people} onChange={onPeopleChange}/>
     </>
   );
 }
