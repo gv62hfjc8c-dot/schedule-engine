@@ -46,6 +46,12 @@ function dateLabel(date: string, options: Intl.DateTimeFormatOptions): string {
 function clockLabel(shift: NonNullable<DayTeamRow["shift"]>): string {
   return shift.interval.start + "–" + shift.interval.end;
 }
+function effectiveHoursLabel(shift: NonNullable<DayTeamRow["shift"]>, timeZone: string): string {
+  const minutes = effectiveShiftMinutes(shift,timeZone);
+  return Number.isFinite(minutes)
+    ? (minutes/60).toLocaleString("pt-PT") + "h efetivas"
+    : "Duração não verificável no fuso";
+}
 const PAGE_SIZE = 12;
 const archive = supabaseAuthClient
   ? createSupabaseGeneratedScheduleRepository(supabaseAuthClient)
@@ -286,7 +292,7 @@ export default function ScheduleHome({
             <small>{row.shift ? clockLabel(row.shift) +
               (row.shift.mealBreak ? " · Refeição " +
                 row.shift.mealBreak.start + "–" + row.shift.mealBreak.end : " · Sem refeição") +
-              " · " + (effectiveShiftMinutes(row.shift, stored?.timeZone ?? operationTimeZone) / 60).toLocaleString("pt-PT") + "h efetivas" :
+              " · " + effectiveHoursLabel(row.shift,stored?.timeZone ?? operationTimeZone) :
               ROW_LABELS[row.kind]}</small>
           </span>
           <span className={"se-person-status " + row.kind}>{ROW_LABELS[row.kind]}</span>
