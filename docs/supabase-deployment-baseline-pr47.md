@@ -162,6 +162,11 @@ Documentação:
 - `supabase/audit/pr47_checkpoint_d_readonly.sql` contém inventário
   **apenas SELECT**: tabelas, RLS, policies, grants efetivos, funções,
   constraints, índices, versões de migração, totais e classes de snapshots.
+- `supabase/audit/pr47_checkpoint_d_assertions.sql` contém dez
+  verificações de segurança repetíveis. **As dez devolveram PASS** na
+  instância observada em 2026-11-07. A divergência histórica do comando
+  `revise` devolveu WARN. Não é uma prova de que toda a arquitetura
+  seja segura ou de que o serviço antigo esteja desligado.
 - `scripts/supabaseSecurityContractTest.mjs` corre offline em `npm test`:
   verifica contracts explícitos das migrações, ausência de credenciais
   privilegiadas na UI, conjunto completo dos 13 ficheiros de recuperação,
