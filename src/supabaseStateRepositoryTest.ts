@@ -219,4 +219,72 @@ const ownerConsent = { getItem: (key: string): string | null =>
   ensure(cloud.current().state?.people.length === 3, "Importação recupera pessoas v1.");
 }
 
+
+// PR47-F: a revision loaded for one authenticated owner must never be
+// reusable for another account, even if both accounts have revision 1.
+{
+  const cloud=createMockCloud();
+  cloud.setState(fixture());
+  let currentUser:AuthIdentity | null={...cloud.client.user};
+  let writes=0;
+  const client={
+    get user(){return currentUser;},
+    request:async(path:string,init?:RequestInit)=>{
+      if(init?.method==="POST") writes++;
+      return cloud.client.request(path,init);
+    },
+  };
+  const repository=createSupabaseStateRepository(client,legacy(null).repo,emptyStorage);
+  await repository.load();
+  currentUser={id:"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",email:"other@example.test"};
+  let switched=false;
+  try {await repository.save(fixture());}
+  catch(error){switched=error instanceof Error && error.message.includes("desta conta");}
+  ensure(switched && writes===0,
+    "An old account revision must not authorize a write in a new account.");
+}
+// Changing owner while waiting for a remote read must not hydrate data
+// belonging to the prior identity.
+{
+  const cloud=createMockCloud();
+  cloud.setState(fixture());
+  let currentUser:AuthIdentity | null={...cloud.client.user};
+  const client={
+    get user(){return currentUser;},
+    request:async(path:string,init?:RequestInit)=>{
+      const response=await cloud.client.request(path,init);
+      currentUser={id:"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",email:"new@example.test"};
+      return response;
+    },
+  };
+  const repository=createSupabaseStateRepository(client,legacy(null).repo,emptyStorage);
+  let rejected=false;
+  try {await repository.load();} catch(error) {
+    rejected=error instanceof Error && error.message.includes("sessão mudou");
+  }
+  ensure(rejected,"A stale cloud read after session change must be rejected.");
+}
+// The server may already have committed when the session changes; never
+// acknowledge an in-flight save as a successful write for another account.
+{
+  const cloud=createMockCloud();
+  cloud.setState(fixture());
+  let currentUser:AuthIdentity | null={...cloud.client.user};
+  const client={
+    get user(){return currentUser;},
+    request:async(path:string,init?:RequestInit)=>{
+      const response=await cloud.client.request(path,init);
+      if(init?.method==="POST")
+        currentUser={id:"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",email:"new@example.test"};
+      return response;
+    },
+  };
+  const repository=createSupabaseStateRepository(client,legacy(null).repo,emptyStorage);
+  await repository.load();
+  let rejected=false;
+  try {await repository.save({...fixture(),workRules:{standardShiftDurationMinutes:420}});}
+  catch(error){rejected=error instanceof Error && error.message.includes("sessão mudou");}
+  ensure(rejected,"A save with a changed authenticated owner must never report success.");
+}
+
 console.log("Supabase repository: todos os testes passaram.");
