@@ -27,7 +27,7 @@ if(data.error || (report.status!==0 && report.status!==1)){
 }
 const problems=Object.entries(data.vulnerabilities??{})
   .map(([name,issue])=>({
-    name,severity:issue.severity,devOnly:Boolean(issue.isDirect?issue.isDev:issue.isDev),
+    name,severity:issue.severity,
     direct:Boolean(issue.isDirect),range:issue.range,
     fix:issue.fixAvailable,
     advisories:(issue.via??[]).filter(v=>typeof v==="object").map(v=>({
@@ -62,4 +62,10 @@ if(severe.length){
   console.error("Dependências de produção com vulnerabilidades graves:",severe.join(", "));
   process.exit(1);
 }
-console.log("Auditoria concluída; vulnerabilidades do ambiente de desenvolvimento continuam identificadas acima.");
+const unresolved=problems.filter(v=>
+  v.severity==="moderate"||v.severity==="high"||v.severity==="critical");
+if(unresolved.length){
+  console.error("O lockfile contém vulnerabilidades moderadas ou graves:",unresolved.map(v=>v.name).join(", "));
+  process.exit(1);
+}
+console.log("Auditoria npm aprovada: sem vulnerabilidades moderadas, altas ou críticas no lockfile.");
