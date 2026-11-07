@@ -117,7 +117,7 @@ export default function ScheduleHome({
 
   useEffect(() => {
     if (initialMonth || loadState !== "ready" || savedRows.length > 0 ||
-        initialLookupDone.current || !archive) return;
+        unreadable.length > 0 || initialLookupDone.current || !archive) return;
     initialLookupDone.current = true;
     let active = true;
     void archive.latest().then(last => {
@@ -130,7 +130,7 @@ export default function ScheduleHome({
       setLoadState("failed");
     });
     return () => {active = false;};
-  }, [initialMonth, loadState, savedRows]);
+  }, [initialMonth, loadState, savedRows, unreadable]);
 
   useEffect(() => {
     setSelectedIds(new Set());
