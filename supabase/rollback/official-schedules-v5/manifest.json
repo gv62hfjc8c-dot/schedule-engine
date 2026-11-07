@@ -1,0 +1,32 @@
+{
+  "backup_type": "deployed_supabase_edge_function_source_only",
+  "source": "Supabase get_edge_function / deployed version 5",
+  "observed_date": "2026-11-07",
+  "function_name": "official-schedules",
+  "deployed_version": 5,
+  "deployed_verify_jwt": true,
+  "deployed_ezbr_sha256": "8cc1967656a0c62d7c6cbbf8ddd309ab52c942e0bb501fc0f1b0c4e3124e2649",
+  "preserved_source_root": "supabase/rollback/official-schedules-v5/",
+  "entrypoint_path": "supabase/functions/official-schedules/index.ts",
+  "source_files": [
+    "supabase/functions/official-schedules/index.ts",
+    "src/application/executeApprovedScheduleCommand.ts",
+    "src/utils/approvedSchedules.ts",
+    "src/utils/workConstraints.ts",
+    "src/utils/availability.ts",
+    "src/utils/operatingCalendar.ts",
+    "src/utils/presence.ts",
+    "src/utils/workCoverage.ts",
+    "src/utils/workRules.ts",
+    "src/utils/scheduleLimits.ts",
+    "src/utils/partialScheduleRevision.ts",
+    "src/persistence/generatedScheduleRepository.ts",
+    "src/application/officialScheduleRequest.ts"
+  ],
+  "deployed_change_performed": false,
+  "warnings": [
+    "Not a backup of database tables, rows, authentication settings, runtime secrets or environment variables.",
+    "Redeploy all source_files preserving their path relationships and verify_jwt=true; do not deploy only the entrypoint.",
+    "Do not use this rollback bundle as part of the active scheduling engine code."
+  ]
+}
