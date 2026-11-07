@@ -37,9 +37,10 @@ function readRow(value: unknown): StoredGeneratedSchedule {
   if (!value || typeof value !== "object")
     throw new GeneratedScheduleStoreError("Registo de horário incompatível.");
   const row = value as Record<string, unknown>;
-  if (typeof row.id !== "string" ||
+  if (typeof row.id !== "string" || !uuidPattern.test(row.id) ||
     typeof row.created_at !== "string" ||
-    !Number.isFinite(Date.parse(row.created_at)) ||
+    (!timestampPattern.test(row.created_at) ||
+      !Number.isFinite(Date.parse(row.created_at))) ||
     typeof row.start_date !== "string" ||
     typeof row.end_date !== "string" ||
     typeof row.time_zone !== "string" ||
@@ -61,6 +62,7 @@ function readRow(value: unknown): StoredGeneratedSchedule {
 
 const uuidPattern=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const civilPattern=/^\d{4}-\d{2}-\d{2}$/;
+const timestampPattern=/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$/;
 const SELECT_COLUMNS="id,created_at,start_date,end_date,time_zone,payload";
 const TABLE="/rest/v1/schedule_engine_generated_schedules";
 const MAX_PAGES=200;
@@ -100,7 +102,8 @@ function rowMetadata(value:unknown):UnreadableGeneratedSchedule {
 function cursorFrom(value:unknown):{timestamp:string;id:string}|null {
   if (!value || typeof value!=="object") return null;
   const row=value as Record<string,unknown>;
-  return typeof row.created_at==="string" && Number.isFinite(Date.parse(row.created_at)) &&
+  return typeof row.created_at==="string" && timestampPattern.test(row.created_at) &&
+    Number.isFinite(Date.parse(row.created_at)) &&
     typeof row.id==="string" && uuidPattern.test(row.id)
     ? {timestamp:row.created_at,id:row.id} : null;
 }
