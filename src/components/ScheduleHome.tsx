@@ -4,12 +4,12 @@ import { accountingCycleForDate } from "../utils/accountingCycle28";
 import ScheduleViews from "./ScheduleViews";
 import { createSupabaseGeneratedScheduleRepository } from "../persistence/supabaseGeneratedScheduleRepository";
 import type { StoredGeneratedSchedule, UnreadableGeneratedSchedule } from "../persistence/generatedScheduleRepository";
-import { proposalsForDay, selectedProposalForDay, calendarProposalForDay, calendarArchiveOverview, unreadableArchiveAffectsDate, previewFromStored, savedProposalLabel } from "../utils/savedScheduleView";
+import { proposalsForDay, selectedProposalForDay, calendarProposalForDay, calendarArchiveOverview, unreadableArchiveAffectsDate, archiveDayState, previewFromStored, savedProposalLabel } from "../utils/savedScheduleView";
 import type {
   OperatingCalendarConfiguration, Person, PersonAvailability,
 } from "../types";
 import {
-  dayKind, dailyTeamRows, daySummary, effectiveShiftMinutes, filterDailyTeam,
+  dailyTeamRows, daySummary, effectiveShiftMinutes, filterDailyTeam,
   monthCalendarDates, monthStart, moveCalendarMonth, todayInTimeZone,
   toggleFilteredSelection, type DayTeamRow, type TeamFilter,
 } from "../utils/monthlyScheduleView";
@@ -163,15 +163,24 @@ export default function ScheduleHome({
   const totalPages = Math.max(1, Math.ceil(matching.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
   const visible = matching.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
-  const kind = selectedDate ? dayKind(selectedDate, snapshotOperation, preview) : null;
+  const selectedDayState = selectedDate ? archiveDayState({
+    date:selectedDate,records:savedRows,unreadable,operation:operatingCalendar,
+    focusedProposalId,loadState,selectedProposalId,
+  }) : null;
+  const kind = selectedDayState === "closed" || selectedDayState === "proposal"
+    ? selectedDayState : "unplanned";
   const activeCycle = selectedDate && cycleAnchorDate ? accountingCycleForDate(selectedDate,cycleAnchorDate) : null;
   const unknownArchive = selectedDate ?
     unreadableArchiveAffectsDate(unreadable,selectedDate) : unreadable.length>0;
-  const statusLabel = loadState !== "ready" ? "Estado por confirmar" :
-    kind === "closed" ? "Operação encerrada" :
-    kind === "proposal" ? "Proposta guardada · não aprovada" :
-    focusedProposalId ? "Fora do período da proposta selecionada" :
-    unknownArchive ? "Arquivo incompleto · por confirmar" : "Ainda por planear";
+  const canInspectDay = selectedDayState === "proposal" ||
+    selectedDayState === "unplanned" || selectedDayState === "closed";
+  const statusLabel = selectedDayState === "loading" ? "A recuperar arquivo" :
+    selectedDayState === "failed" ? "Falha na consulta do arquivo" :
+    selectedDayState === "unknown" ? "Arquivo incompleto · por confirmar" :
+    selectedDayState === "outside-proposal" ? "Fora da proposta selecionada" :
+    selectedDayState === "closed" ? "Operação encerrada" :
+    selectedDayState === "proposal" ? "Proposta guardada · não aprovada" :
+    "Ainda por planear";
 
   function browseMonth(offset: number) {
     manuallyNavigated.current = true;
@@ -240,7 +249,7 @@ export default function ScheduleHome({
     </section>;
   }
 
-  if (screen === "manage" && selectedDate) {
+  if (screen === "manage" && selectedDate && canInspectDay) {
     const selectedPeople = rows.filter(row => selectedIds.has(row.id));
     return <section className="se-home se-management" aria-label="Gestão diária">
       <div className="se-management-top">
@@ -383,7 +392,7 @@ export default function ScheduleHome({
         Voltar ao panorama de propostas
       </button>
     </div>}
-    {loadState === "ready" && unknownArchive && <div className="se-readonly-note" role="alert">
+    {loadState === "ready" && unreadable.length>0 && <div className="se-readonly-note" role="alert">
       <strong>Arquivo parcialmente ilegível: {unreadable.length} registo(s).</strong>{" "}
       As propostas válidas continuam disponíveis, mas não é possível confirmar
       que os restantes dias não têm horários guardados. Os registos incompatíveis
@@ -418,11 +427,10 @@ export default function ScheduleHome({
           {dates.map(date => {
             const active = selectedDate === date;
             const latest = calendarProposalForDay(savedRows,date,focusedProposalId);
-            const state = loadState !== "ready" ? "loading" :
-              !latest && focusedProposalId ? "outside-proposal" :
-              !latest && unreadableArchiveAffectsDate(unreadable,date) ? "unknown" :
-              dayKind(date,latest?.payload.configuration.operatingCalendar ?? operatingCalendar,
-                latest ? previewFromStored(latest) : null);
+            const state = archiveDayState({
+              date,records:savedRows,unreadable,operation:operatingCalendar,
+              focusedProposalId,loadState,
+            });
             const inMonth = date.slice(0,7) === currentMonth;
             const proposalCount = latest && state === "proposal"
               ? latest.payload.shifts.filter(shift => shift.date === date).length : 0;
@@ -434,6 +442,7 @@ export default function ScheduleHome({
                 (state === "proposal" ? "proposta guardada com " + proposalCount + " turnos" :
                  state === "closed" ? "operação encerrada" :
                  state === "loading" ? "a carregar" :
+                  state === "failed" ? "arquivo indisponível" :
                  state === "unknown" ? "arquivo por confirmar" :
                  state === "outside-proposal" ? "fora da proposta selecionada" : "por planear")}
               aria-pressed={active}
@@ -442,6 +451,7 @@ export default function ScheduleHome({
               <small>{state === "proposal" ? proposalCount + " turno(s)" :
                 state === "closed" ? "Fechado" :
                 state === "loading" ? "A carregar" :
+                state === "failed" ? "Erro de leitura" :
                 state === "unknown" ? "Por confirmar" :
                 state === "outside-proposal" ? "Fora da proposta" : "Por planear"}</small>
             </button>;
@@ -462,7 +472,7 @@ export default function ScheduleHome({
           <button type="button" className="se-outline se-close" aria-label="Fechar painel"
             onClick={() => setSelectedDate(null)}>×</button>
         </div>
-        <div className={"se-panel-status " + (kind ?? "unplanned")}>{statusLabel}</div>
+        <div className={"se-panel-status " + (selectedDayState ?? "unplanned")}>{statusLabel}</div>
         {activeCycle && <div className="se-readonly-note">
           <strong>Ciclo de 28 dias</strong>
           <p>{activeCycle.startDate} a {activeCycle.endDate} · semana {activeCycle.week}/4</p>
@@ -490,7 +500,7 @@ export default function ScheduleHome({
         {stored && <button type="button" className="se-outline" onClick={() => setScreen("saved")}>
           Consultar horário completo →
         </button>}
-        <div className="se-panel-team">
+        {canInspectDay ? <div className="se-panel-team">
           <h4>Resumo da equipa</h4>
           <div className="se-team-total">Equipa ativa: <strong>{summary.total}</strong></div>
           <div className="se-count-grid">
@@ -519,11 +529,19 @@ export default function ScheduleHome({
               {filters.map(value => <option key={value} value={value}>{FILTER_LABELS[value]}</option>)}
             </select>
           </label>
-        </div>
-        <button type="button" className="primary-button se-manage-action" onClick={() => {
-          setScreen("manage");setSearch("");setPage(1);
-          setSelectedIds(new Set());setShowSelectedSummary(false);
-        }}>Gerir horário deste dia →</button>
+        </div> : <div className="se-readonly-note" role="status">
+          O estado deste dia não está confirmado. Não serão apresentados
+          indicadores de equipa ou ausência de turnos como se fossem definitivos.
+          {selectedDayState === "outside-proposal"
+            ? " Volta ao panorama para procurar outros horários guardados."
+            : " Consulta o aviso do arquivo antes de gerir este dia."}
+        </div>}
+        <button type="button" className="primary-button se-manage-action"
+          disabled={!canInspectDay}
+          onClick={() => {
+            setScreen("manage");setSearch("");setPage(1);
+            setSelectedIds(new Set());setShowSelectedSummary(false);
+          }}>Gerir horário deste dia →</button>
       </aside>}
     </div>
   </section>;
