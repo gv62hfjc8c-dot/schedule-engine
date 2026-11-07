@@ -1,6 +1,15 @@
 # Roadmap
 
-> Estado consolidado após PR #46: interface mensal e gestão diária, gerador com validação de trabalho e cobertura e arquivo de propostas no Supabase estão integrados. Propostas não equivalem a escalas oficialmente aprovadas. A análise de consistência do PR #47 está em `docs/audit-pr47.md`; não confundir alterações propostas com funcionalidades integradas.
+> **Este documento conserva o percurso histórico de implementação.**
+> A `main` contém a versão aprovada do PR #46: calendário mensal,
+> gestão diária, gerador de 14 dias com validação de trabalho/cobertura e
+> arquivo de propostas no Supabase. O PR #47 está em revisão e acrescenta
+> certificação final, contratos semanais individuais, contexto temporal,
+> arquivo mais robusto e proteção de dependências, sem reintroduzir
+> aprovações oficiais. Estado atualizado por ponto:
+> [auditoria PR47](audit-pr47.md) e [arquitetura](architecture.md).
+> As caixas `[x]` históricas abaixo não comprovam que um recurso
+> experimental esteja atualmente visível na interface.
 
 
 ## Ponto 1 — Calendário operacional
@@ -258,6 +267,20 @@ Cancelar uma escala remove o compromisso mas **não certifica cobertura**.
 - O gerador **legado** ainda não aplica as regras P6.3; o novo núcleo experimental valida horas semanais e descanso entre dias apenas quando recebe contexto exterior completo.
 - A interface de geração é apenas uma simulação, sem gravação dos turnos.
 
-## Próximo passo
+## Próximo passo operacional
 
-Implementar a fronteira de aprovação confiável e testar a negação de escrita direta de clientes. Não aplicar a migração SQL até verificar o ambiente Supabase e as condições de integridade/autoridade necessárias. A UI continua sem aprovar horários até existir fonte confiável de contexto e validação de domínio na fronteira de escrita.
+Concluir os checkpoints do PR #47 e executar a auditoria final de regressão
+antes do merge. O Checkpoint E abrange a eliminação seletiva de interfaces
+experimentais desligadas, a revisão de documentação e a atualização de
+dependências com auditoria de segurança em CI.
+
+**Mantém-se fora do fluxo ativo:** aprovação oficial, turnos aprovados como
+contexto externo autoritativo, gestão de ausências oficiais e geração
+conjunta de ciclos completos de 28 dias. A eventual reintrodução da
+aprovação exige uma fronteira confiável em execução no servidor e
+compatibilidade com o esquema Supabase real — nunca apenas uma alteração
+de interface ou uma concessão de permissões ao browser.
+
+Não aplicar migrações legadas ao Supabase existente nem publicar uma nova
+Edge Function sem reconciliação, backup/restauro verificado e uma decisão
+explícita. Ver [baseline do Checkpoint D](supabase-deployment-baseline-pr47.md).
