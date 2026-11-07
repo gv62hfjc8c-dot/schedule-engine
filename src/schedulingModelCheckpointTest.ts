@@ -137,4 +137,57 @@ const externalHard=validatePersonWeeklyContractCaps(
     shift("2026-11-0"+(4+i),"b","09:00","13:00"))],2400,
   "Atlantic/Azores","2026-11-02","2026-11-03");
 assert(!externalHard.valid,"A full 28h workweek cannot bypass a 20h contract.");
+
+// PR47-F: the fast weekly capacity proof must use individual HARD limits.
+const cappedDemand=structuredClone(input);
+cappedDemand.people=[{
+  ...partial,weeklyContractMinutes:240,weeklyTargetMinutes:240,
+  requiredWorkDates:[],
+}];
+cappedDemand.presence.presenceExceptions=[
+  {date:"2026-11-02",requirements:{minimumAtOpening:1,
+    minimumDuringOperation:1,minimumAtClosing:1}},
+  {date:"2026-11-03",requirements:{minimumAtOpening:1,
+    minimumDuringOperation:1,minimumAtClosing:1}},
+];
+const capacityResult=generateConstrainedPeriodSchedule({
+  ...cappedDemand,maxSearchNodes:2000,
+});
+assert(capacityResult.status==="incomplete" &&
+  capacityResult.exploredNodes===0 &&
+  capacityResult.issues.some(issue=>issue.includes("Inviabilidade comprovada")),
+  "PR47-F: 8h minimum coverage cannot be supplied by a single 4h contractual cap.");
+
+// On spring-forward Sunday 3h of wall-clock operation is only 2h elapsed.
+// It must never be declared proven impossible based on wall time alone.
+const dstDate="2026-03-29";
+const dstRules=structuredClone(INITIAL_WORK_CONSTRAINTS);
+const dstProof:GenerateConstrainedPeriodInput={
+  ...input,
+  startDate:dstDate,endDate:dstDate,timeZone:"Europe/Lisbon",
+  workRules:{standardShiftDurationMinutes:120},
+  workConstraints:dstRules,
+  people:[{id:"b",name:"Pessoa B",active:true,
+    weeklyContractMinutes:120,weeklyTargetMinutes:120}],
+  operatingCalendar:{
+    weeklyOperatingHours:Object.fromEntries(WEEKDAYS.map(day=>[day,[]])) as WeeklyOperatingHours,
+    exceptions:[{date:dstDate,intervals:[{start:"00:30",end:"03:30"}]}],
+  },
+  availabilities:[{
+    personId:"b",weeklyAvailability:createEmptyWeeklyAvailability(),
+    exceptions:[{date:dstDate,intervals:[{start:"00:30",end:"03:30"}]}],
+  }],
+  presence:{
+    weeklyPresenceRequirements:createEmptyWeeklyPresenceRequirements(),
+    presenceExceptions:[{date:dstDate,requirements:{
+      minimumAtOpening:1,minimumDuringOperation:1,minimumAtClosing:1,
+    }}],
+  },
+  externalContext:{startDate:"2026-03-23",endDate:"2026-03-30",
+    completeOutsideTarget:true,shifts:[]},
+};
+const dstOutcome=generateConstrainedPeriodSchedule({...dstProof,maxSearchNodes:3000});
+assert(!dstOutcome.issues.some(issue=>issue.includes("Inviabilidade comprovada")),
+  "PR47-F: DST gap cannot yield a false proof of infeasibility from wall-clock minutes.");
+
 console.log("PR47-B: contracts, targets, explicit dates, DST, 28-day cycles and legacy v4 passed.");
