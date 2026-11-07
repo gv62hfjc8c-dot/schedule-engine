@@ -21,14 +21,14 @@ Os 23 pontos originais misturavam defeitos concretos, riscos, dívida técnica e
 | 13 | Validação superficial de snapshots persistidos | Reforçado (C) | Validação de estrutura e metadados; registos incompatíveis isolados da consulta de leitura parcial, com erro visível e estado incerto apenas nas datas afetadas; leitura estrita continua a falhar fechada |
 | 14 | Fecho do navegador durante gravação | Mitigado e retry idempotente (C) | Alerta de saída, ID estável por tentativa, reenvio com o mesmo UUID e confirmação de conteúdo se o servidor devolveu conflito 409; não garante conclusão quando o browser é encerrado à força |
 | 15 | Fuso horário divergente entre partes da aplicação | Implementado no B | Fuso IANA único e persistido opcionalmente no estado v4, default legado Azores; calendário, gerador e cálculo visual de horas efetivas passam a usá-lo; arquivo mantém fuso do snapshot |
-| 16 | Conflito de escrita deixa utilizador bloqueado | Mitigado | Em falha após hidratação, permite exportar configuração local pendente; não realiza merge concorrente automático |
+| 16 | Conflito de escrita deixa utilizador bloqueado | Reforçado no F | Gravações rápidas da mesma sessão passam a fila sequencial e conservam a revisão CAS; troca de identidade invalida revisão antiga; conflitos entre abas independentes continuam a exigir recuperação explícita, sem merge automático |
 | 17 | Aprovação oficial ausente da UI | Sem mudança intencional | Decisão explícita do rollback; reintroduzir exigiria uma nova fronteira confiável e contrato de aprovação |
 | 18 | Ciclos de 28 dias vs limite do gerador de 14 | Modelo implementado, geração de 28 dias pendente | Ciclo fixo com âncora operacional, quatro subperíodos de sete dias, compatível com meses de 5 semanas e anos bissextos; gerador continua limitado a 14 dias até prova de capacidade |
 | 19 | `Person` sem contratos e perfis avançados | Parcial (B) | Adicionados limite contratual semanal, objetivo semanal e datas obrigatórias; qualificações/funções e ausências continuam fora do modelo até requisitos concretos |
 | 20 | Avisos de segurança Supabase | Auditados; 2 ajustes externos pendentes (D) | Função de estado mantém EXECUTE autenticado, pois é usada pela UI, mas é proprietária/revisada; avisos: SECURITY DEFINER exposto e proteção de palavras-passe comprometidas desativada. Refatoração e definição Auth exigem staging/operador |
 | 21 | Experiências antigas no repositório | Limpeza seletiva implementada no E | Removidas 3 interfaces experimentais desligadas, eliminados laboratórios inacessíveis do wrapper do gerador; código de domínio e testes de aprovação mantidos; novo teste de arquitetura impede regressões |
 | 22 | Terminologia antiga na interface | Corrigido | Gravação Supabase e menções ao PR41 atualizadas |
-| 23 | Invariantes sem regressões dedicadas | Reforçado (A+B+C+D+E) | Além dos testes anteriores, CI valida grafo de dependências de UI e núcleo, executa npm audit e impede vulnerabilidades moderadas/graves no lockfile; a revisão funcional real continua pendente |
+| 23 | Invariantes sem regressões dedicadas | Reforçado (A+B+C+D+E+F) | Inclui cenários determinísticos gerados e rejeitados com certificação independente, limites contratuais, DST, sessão/logout e serialização de gravações; ainda faltam aceitação Safari, RLS com duas contas reais e carga maior |
 
 ## Checkpoint A — integridade do motor (implementado na branch PR #47)
 
@@ -111,6 +111,35 @@ Os 23 pontos originais misturavam defeitos concretos, riscos, dívida técnica e
 - `docs/supabase-setup.md` e baseline de segurança já tinham sido alinhados no Checkpoint D.
 
 **Limites:** a limpeza não converte o domínio de aprovação antiga em funcionalidade ativa. A atualização Vite foi validada em Linux/CI; a aceitação Safari e a auditoria de ponta a ponta ainda são tarefas do Checkpoint F. As pendências externas do Supabase mantêm-se separadas e não devem ser assinaladas como resolvidas neste checkpoint.
+
+## Checkpoint F — auditoria de regressão automatizada (implementado na branch PR #47)
+
+**Verificações e correções efetivamente concluídas:**
+
+1. **Indicadores semanais coerentes:** `src/utils/weeklyWorkSummary.ts` aplica o limite individual hard, o objetivo semanal soft e minutos efetivos reais no fuso da proposta. A vista do gerador já não apresenta 40h como objetivo universal e distingue défice e excesso face ao alvo. Transições DST que não permitam medir horas de forma inequívoca não são apresentadas como números certificados.
+2. **Panorama e painel com a mesma classificação:** `archiveDayState` unifica os estados `loading`, `failed`, `unknown`, `outside-proposal`, `closed`, `proposal` e `unplanned`. Na ausência de confirmação do arquivo, o calendário/painel não anunciam folgas nem ausências definitivas; a gestão diária fica bloqueada quando o estado não pode ser confirmado.
+3. **Prova rápida de falta de capacidade:** o limite superior de capacidade semanal soma **hard caps por pessoa**; a cobertura requerida é medida em tempo efetivamente decorrido no fuso IANA, não em horas de relógio de uma transição DST. Caso a hora seja ambígua/inexistente, não é produzida uma prova falsa de inviabilidade.
+4. **Obrigações no contexto exterior:** datas obrigatórias explicitamente configuradas dentro do intervalo exterior declarado completo são confrontadas com os turnos conhecidos. A confirmação de «sem turnos exteriores» contraditória com um dia obrigatório é rejeitada. A certificação independente aplica a mesma regra.
+5. **Gravação de configurações:** revisões Supabase associadas ao proprietário autenticado; leituras e gravações verificam novamente a identidade após respostas assíncronas. Gravações rápidas da mesma sessão são serializadas, sem retirar o controlo de conflitos CAS entre abas.
+6. **Sessões Supabase:** logout local imediato, impedindo uma resposta atrasada de renovação de reabrir a sessão terminada ou um logout antigo de apagar uma sessão nova. Regressões adicionadas para ambos os casos.
+7. **Testes:** `src/finalRegressionCheckpointTest.ts` certifica indicadores, DST e estados de arquivo. `src/finalSchedulingMatrixTest.ts` verifica **12 cenários determinísticos**, repetibilidade e ausência de publicação de turnos parciais: **4 gerados e certificados independentemente, 8 rejeitados sem atribuições**, incluindo 3 limites de pesquisa. A matriz exige explicitamente resultados gerados e rejeitados, impedindo aprovação vazia. A suite de persistência e a de modelos ganharam cenários de concorrência, troca de conta, capacidade pessoal, DST e obrigações exteriores.
+8. **Validação técnica:** `npm ci`, `npm run audit:dependencies`, `npm test`, `npm run typecheck` e `npm run build` aprovados no GitHub Actions **42381720471**, commit `3e45bb8985c9a70ab0c0013af1a469642e69c02d`. O npm audit reportou zero avisos nessa execução.
+
+### Portas de aceitação antes do merge (ainda pendentes de execução humana)
+
+| Área | Verificação manual no Safari | Critério de aceitação |
+|---|---|---|
+| Estado inicial e login | Sair e entrar novamente na mesma conta | Configuração e último horário arquivado recuperados sem gerar outra vez |
+| Operação e contratos | Alterar fuso, âncora de ciclo, limite e objetivo individuais | Valores mantidos após atualizar página; meta semanal coerente com cada contrato |
+| Gerador | Repetir cenários reais: jornadas 5h/7h/9h, cobertura, refeição e descanso | Horário válido só quando todas as hard constraints passam |
+| Contexto exterior | Declarar dia obrigatório fora do período e ausência de turnos | Rejeição explícita, sem arquivar proposta enganadora |
+| Calendário mensal | Consultar propostas sobrepostas e fixar uma versão anterior | Dias fora da proposta não são preenchidos por snapshots diferentes |
+| Gestão diária | Pesquisar, filtrar, selecionar pessoas em várias páginas e regressar | Seleção e resumo mantêm o comportamento aprovado em PR45 |
+| Resiliência | Simular indisponibilidade de arquivo/recarregar | Nenhum «por planear», «folga» ou zero de colaboradores é dado como confirmado |
+| Persistência | Alterar duas vezes a configuração rapidamente e recarregar | Última edição preservada; erros apresentados sem overwrite silencioso |
+| Segurança/contas | Confirmar RLS com duas contas distintas num ambiente de teste | Sem leitura/gravação cruzada de pessoas, configurações ou propostas |
+
+**Limites explícitos:** a suite não demonstra ótima distribuição global, não verifica uma geração contínua de 28 dias (limite atual 14), não transforma propostas em escalas aprovadas e não garante que a geração encontre toda e qualquer solução viável. Transições DST extremas e desempenho com equipas muito grandes exigem ensaios adicionais. A validação Safari e a validação de RLS entre contas reais **não foram executadas neste checkpoint**. Os avisos externos identificados no Checkpoint D continuam pendentes; nenhuma tabela, Edge Function ou configuração Auth foi alterada.
 
 ## Critérios antes de qualquer merge
 
