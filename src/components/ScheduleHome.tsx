@@ -3,8 +3,8 @@ import { supabaseAuthClient } from "../persistence/supabaseInstance";
 import { accountingCycleForDate } from "../utils/accountingCycle28";
 import ScheduleViews from "./ScheduleViews";
 import { createSupabaseGeneratedScheduleRepository } from "../persistence/supabaseGeneratedScheduleRepository";
-import type { StoredGeneratedSchedule } from "../persistence/generatedScheduleRepository";
-import { proposalsForDay, selectedProposalForDay, previewFromStored, savedProposalLabel } from "../utils/savedScheduleView";
+import type { StoredGeneratedSchedule, UnreadableGeneratedSchedule } from "../persistence/generatedScheduleRepository";
+import { proposalsForDay, selectedProposalForDay, calendarProposalForDay, calendarArchiveOverview, previewFromStored, savedProposalLabel } from "../utils/savedScheduleView";
 import type {
   OperatingCalendarConfiguration, Person, PersonAvailability,
 } from "../types";
@@ -76,6 +76,10 @@ export default function ScheduleHome({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [showSelectedSummary, setShowSelectedSummary] = useState(false);
   const [savedRows, setSavedRows] = useState<StoredGeneratedSchedule[]>([]);
+  const [unreadable, setUnreadable] = useState<UnreadableGeneratedSchedule[]>([]);
+  // Null: inspect independent latest proposals per day. ID: one immutable
+  // snapshot for the entire visible calendar; never stitch from other records.
+  const [focusedProposalId, setFocusedProposalId] = useState<string | null>(null);
   const [loadState, setLoadState] = useState<"loading"|"ready"|"failed">("loading");
   const [loadProblem, setLoadProblem] = useState<string | null>(null);
   const [retryLoad, setRetryLoad] = useState(0);
@@ -87,6 +91,7 @@ export default function ScheduleHome({
   useEffect(() => {
     let current = true;
     setSavedRows([]);
+    setUnreadable([]);
     setLoadProblem(null);
     setLoadState("loading");
     if (!archive) {
@@ -95,10 +100,11 @@ export default function ScheduleHome({
       return;
     }
     const windowDates = monthCalendarDates(month);
-    void archive.listBetween(windowDates[0], windowDates[windowDates.length - 1])
-      .then(records => {
+    void archive.listBetweenDetailed(windowDates[0], windowDates[windowDates.length - 1])
+      .then(result => {
         if (!current) return;
-        setSavedRows(records);
+        setSavedRows(result.records);
+        setUnreadable(result.unreadable);
         setLoadState("ready");
       }).catch(problem => {
         if (!current) return;
@@ -131,10 +137,16 @@ export default function ScheduleHome({
     setShowSelectedSummary(false);
   }, [savedRevision]);
 
-  const proposalSourcesInMonth = new Set(dates.map(date =>
-    selectedProposalForDay(savedRows, date, null)?.id).filter(Boolean));
+  const coreMonthDates = dates.filter(date=>date.slice(0,7)===month.slice(0,7));
+  const archiveOverview = calendarArchiveOverview(savedRows,coreMonthDates,focusedProposalId);
+  const focusedRecord = focusedProposalId ?
+    savedRows.find(record=>record.id===focusedProposalId) ?? null : null;
   const proposals = selectedDate ? proposalsForDay(savedRows, selectedDate) : [];
-  const stored = selectedDate ? selectedProposalForDay(savedRows, selectedDate, selectedProposalId) : null;
+  const stored = selectedDate ? (
+    focusedProposalId
+      ? calendarProposalForDay(savedRows,selectedDate,focusedProposalId)
+      : selectedProposalForDay(savedRows,selectedDate,selectedProposalId)
+  ) : null;
   const snapshotPeople = stored?.payload.people ?? people;
   const snapshotAvailability = stored?.payload.configuration.availabilities ?? availabilities;
   const snapshotOperation = stored?.payload.configuration.operatingCalendar ?? operatingCalendar;
@@ -153,9 +165,12 @@ export default function ScheduleHome({
   const visible = matching.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
   const kind = selectedDate ? dayKind(selectedDate, snapshotOperation, preview) : null;
   const activeCycle = selectedDate && cycleAnchorDate ? accountingCycleForDate(selectedDate,cycleAnchorDate) : null;
+  const unknownArchive = unreadable.length>0;
   const statusLabel = loadState !== "ready" ? "Estado por confirmar" :
     kind === "closed" ? "Operação encerrada" :
-    kind === "proposal" ? "Proposta guardada · não aprovada" : "Ainda por planear";
+    kind === "proposal" ? "Proposta guardada · não aprovada" :
+    focusedProposalId ? "Fora do período da proposta selecionada" :
+    unknownArchive ? "Arquivo incompleto · por confirmar" : "Ainda por planear";
 
   function browseMonth(offset: number) {
     manuallyNavigated.current = true;
@@ -345,10 +360,35 @@ export default function ScheduleHome({
       Os horários gerados e guardados são recuperados automaticamente do Supabase.
       São propostas, não escalas oficialmente aprovadas.
     </div>
-    {loadState === "ready" && proposalSourcesInMonth.size > 1 && <div className="se-readonly-note" role="note">
-      Este calendário contém dias de propostas diferentes. Cada proposta foi gerada separadamente;
-      a combinação mensal não foi validada como um único horário de trabalho.
-      Seleciona um dia para identificar a proposta guardada que está a ser apresentada.
+    {loadState === "ready" && !focusedProposalId && archiveOverview.mixedSources &&
+      <div className="se-readonly-note" role="note">
+        Este panorama reúne dias de {archiveOverview.sourceIds.length} propostas independentes.
+        Não constitui um horário mensal validado em conjunto. Seleciona um dia e
+        fixa uma proposta para consultar apenas o respetivo período.
+      </div>}
+    {loadState === "ready" && !focusedProposalId && archiveOverview.overlappingDays>0 &&
+      <div className="se-readonly-note" role="note">
+        Existem {archiveOverview.overlappingDays} dia(s) com propostas sobrepostas no mês.
+        O panorama mostra a mais recente de cada dia, sem aprovar ou combinar os seus turnos.
+      </div>}
+    {loadState === "ready" && focusedProposalId && <div className="se-readonly-note" role="note">
+      <strong>Vista de uma única proposta.</strong>{" "}
+      {focusedRecord
+        ? "Apenas os dias do horário de " + focusedRecord.startDate + " a " + focusedRecord.endDate + " estão apresentados."
+        : "A proposta selecionada não abrange o mês consultado."}
+      {" "}Datas não abrangidas não significam folgas ou ausência de planeamento.
+      <button type="button" className="se-outline"
+        onClick={()=>{setFocusedProposalId(null);setSelectedProposalId(null);}}>
+        Voltar ao panorama de propostas
+      </button>
+    </div>}
+    {loadState === "ready" && unknownArchive && <div className="se-readonly-note" role="alert">
+      <strong>Arquivo parcialmente ilegível: {unreadable.length} registo(s).</strong>{" "}
+      As propostas válidas continuam disponíveis, mas não é possível confirmar
+      que os restantes dias não têm horários guardados. Os registos incompatíveis
+      não são apresentados como válidos.
+      <button type="button" className="se-outline"
+        onClick={()=>setRetryLoad(value=>value+1)}>Recarregar arquivo</button>
     </div>}
     {loadState === "loading" && <div className="se-readonly-note" role="status">A recuperar horários guardados…</div>}
     {loadState === "failed" && <div className="se-readonly-note" role="alert">
@@ -376,11 +416,12 @@ export default function ScheduleHome({
             <span className="se-weekday" key={index}>{label}</span>)}
           {dates.map(date => {
             const active = selectedDate === date;
-            const latest = selectedProposalForDay(savedRows, date, null);
-            const state = loadState === "ready"
-              ? dayKind(date, latest?.payload.configuration.operatingCalendar ?? operatingCalendar,
-                  latest ? previewFromStored(latest) : null)
-              : "loading";
+            const latest = calendarProposalForDay(savedRows,date,focusedProposalId);
+            const state = loadState !== "ready" ? "loading" :
+              !latest && focusedProposalId ? "outside-proposal" :
+              !latest && unknownArchive ? "unknown" :
+              dayKind(date,latest?.payload.configuration.operatingCalendar ?? operatingCalendar,
+                latest ? previewFromStored(latest) : null);
             const inMonth = date.slice(0,7) === currentMonth;
             const proposalCount = latest && state === "proposal"
               ? latest.payload.shifts.filter(shift => shift.date === date).length : 0;
@@ -390,12 +431,18 @@ export default function ScheduleHome({
               title={latest ? "Proposta " + latest.id + " · guardada em " + savedProposalLabel(latest) : undefined}
               aria-label={dateLabel(date,{day:"numeric",month:"long"}) + " · " +
                 (state === "proposal" ? "proposta guardada com " + proposalCount + " turnos" :
-                 state === "closed" ? "operação encerrada" : state === "loading" ? "a carregar" : "por planear")}
+                 state === "closed" ? "operação encerrada" :
+                 state === "loading" ? "a carregar" :
+                 state === "unknown" ? "arquivo por confirmar" :
+                 state === "outside-proposal" ? "fora da proposta selecionada" : "por planear")}
               aria-pressed={active}
               onClick={() => selectDate(date)}>
               <strong>{Number(date.slice(8,10))}</strong>
               <small>{state === "proposal" ? proposalCount + " turno(s)" :
-                state === "closed" ? "Fechado" : state === "loading" ? "A carregar" : "Por planear"}</small>
+                state === "closed" ? "Fechado" :
+                state === "loading" ? "A carregar" :
+                state === "unknown" ? "Por confirmar" :
+                state === "outside-proposal" ? "Fora da proposta" : "Por planear"}</small>
             </button>;
           })}
         </div>
@@ -424,13 +471,21 @@ export default function ScheduleHome({
           <span>Guardada em {savedProposalLabel(stored)} · {stored.startDate} a {stored.endDate}</span>
           {proposals.length > 1 && <label className="se-control">
             <span>Versão guardada ({proposals.length})</span>
-            <select value={stored.id} onChange={event => {setSelectedProposalId(event.target.value);setSelectedIds(new Set());}}>
+            <select value={stored.id} onChange={event => {
+              setSelectedProposalId(event.target.value);
+              setFocusedProposalId(event.target.value);
+              setSelectedIds(new Set());
+            }}>
               {proposals.map((item, index) => <option key={item.id} value={item.id}>
                 {index===0?"Mais recente":"Anterior"} · {savedProposalLabel(item)}
               </option>)}
             </select>
           </label>}
         </div>}
+        {stored && !focusedProposalId && <button type="button" className="se-outline"
+          onClick={()=>{setFocusedProposalId(stored.id);setSelectedProposalId(stored.id);}}>
+          Ver apenas esta proposta no calendário
+        </button>}
         {stored && <button type="button" className="se-outline" onClick={() => setScreen("saved")}>
           Consultar horário completo →
         </button>}
@@ -453,6 +508,8 @@ export default function ScheduleHome({
           </div>
           {kind !== "proposal" && <p className="se-panel-hint">
             {kind === "closed" ? "Sem operação neste dia." :
+            unknownArchive ? "O arquivo contém registos ilegíveis. Não é possível confirmar o estado deste dia." :
+            focusedProposalId ? "Este dia está fora da proposta selecionada; consulta o panorama para procurar outras propostas." :
             "Ainda não há proposta para este dia; não é possível classificar folgas ou ausências."}
           </p>}
           <label className="se-control">
