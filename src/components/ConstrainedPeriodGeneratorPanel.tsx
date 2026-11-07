@@ -27,7 +27,7 @@ export interface ConstrainedPeriodGeneratorPanelProps {
   presence: PresenceConfiguration;
   operationTimeZone: string;
   initialDate?: string;
-  onSaveGenerated?(proposal: GeneratedSchedulePayload): Promise<StoredGeneratedSchedule>;
+  onSaveGenerated?(proposal: GeneratedSchedulePayload, proposalId: string): Promise<StoredGeneratedSchedule>;
   onBackToCalendar?(): void;
 }
 
@@ -120,7 +120,7 @@ export default function ConstrainedPeriodGeneratorPanel({
   const [error, setError] = useState<string | null>(null);
   const [saveState, setSaveState] = useState<"idle"|"saving"|"saved"|"failed">("idle");
   const [saveProblem, setSaveProblem] = useState<string | null>(null);
-  const [retryPayload, setRetryPayload] = useState<GeneratedSchedulePayload | null>(null);
+  const [retryPayload, setRetryPayload] = useState<{payload: GeneratedSchedulePayload; id: string} | null>(null);
   const saveAttempt = useRef(0);
 
   useEffect(() => {
@@ -182,17 +182,17 @@ export default function ConstrainedPeriodGeneratorPanel({
     setRetryPayload(null);
   }
 
-  function persistProposal(payload: GeneratedSchedulePayload) {
+  function persistProposal(payload: GeneratedSchedulePayload, id: string) {
     const token = ++saveAttempt.current;
     setSaveState("saving");
     setSaveProblem(null);
-    setRetryPayload(payload);
+    setRetryPayload({payload,id});
     if (!onSaveGenerated) {
       setSaveState("failed");
       setSaveProblem("O serviço de arquivo não está disponível.");
       return;
     }
-    void onSaveGenerated(payload).then(() => {
+    void onSaveGenerated(payload,id).then(() => {
       if (saveAttempt.current === token) {
         setSaveState("saved");
         setRetryPayload(null);
@@ -253,7 +253,7 @@ export default function ConstrainedPeriodGeneratorPanel({
             availabilities, operatingCalendar, workRules, presence,
             workConstraints: effectiveConstraints,
           }),
-        });
+        }, crypto.randomUUID());
       }
       setSnapshot({
         startDate,
@@ -287,7 +287,7 @@ export default function ConstrainedPeriodGeneratorPanel({
           <strong>O horário foi gerado, mas não ficou guardado.</strong>
           <p>{saveProblem ?? "Erro de armazenamento."}</p>
           <button type="button" disabled={!retryPayload} onClick={() => {
-            if (retryPayload) persistProposal(retryPayload);
+            if (retryPayload) persistProposal(retryPayload.payload,retryPayload.id);
           }}>Tentar guardar novamente sem regenerar</button>
         </>}
       </div>}
