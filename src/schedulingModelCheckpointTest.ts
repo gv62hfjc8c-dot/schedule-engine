@@ -170,7 +170,7 @@ const dstProof:GenerateConstrainedPeriodInput={
   people:[{id:"b",name:"Pessoa B",active:true,
     weeklyContractMinutes:120,weeklyTargetMinutes:120}],
   operatingCalendar:{
-    weeklyOperatingHours:Object.fromEntries(WEEKDAYS.map(day=>[day,[]])) as WeeklyOperatingHours,
+    weeklyOperatingHours:Object.fromEntries(WEEKDAYS.map(day=>[day,[]])) as unknown as WeeklyOperatingHours,
     exceptions:[{date:dstDate,intervals:[{start:"00:30",end:"03:30"}]}],
   },
   availabilities:[{
