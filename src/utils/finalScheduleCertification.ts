@@ -5,6 +5,7 @@ import { isSchedulableForInterval, getSchedulableIntervalsForDate } from "./avai
 import { resolvePresenceForDate } from "./presence";
 import { checkPresenceForWorkShifts } from "./workCoverage";
 import { validateWorkConstraints, type WorkConstraintViolation } from "./workConstraints";
+import { isExplicitRequiredWorkday, validatePersonWeeklyContractCaps } from "./personSchedulingPolicies";
 
 export interface FinalScheduleCertification {
   valid: boolean;
@@ -55,6 +56,8 @@ export function certifyFinalGeneratedSchedule(
     const shifts = byDay.get(date) ?? [];
     if (!operating.length) {
       if (shifts.length) issues.push(date + ": turno num dia encerrado.");
+      if (input.people.some(p=>p.active && isExplicitRequiredWorkday(p,date)))
+        issues.push(date + ": dia obrigatório configurado para operação encerrada.");
       continue;
     }
     const presence = resolvePresenceForDate(
@@ -69,17 +72,16 @@ export function certifyFinalGeneratedSchedule(
     }
     const coverage = checkPresenceForWorkShifts(date, operating, presence.requirements, shifts);
     if (!coverage.valid) issues.push(date + ": " + coverage.issues.join(" "));
-    if (input.workRules.requireShiftsOnAvailableDays) {
-      for (const person of input.people.filter(p => p.active)) {
-        const availability = input.availabilities.find(a => a.personId === person.id);
-        if (!availability) continue;
-        const allowed = getSchedulableIntervalsForDate(
-          date, availability, input.operatingCalendar.weeklyOperatingHours,
-          input.operatingCalendar.exceptions,
-        );
-        if (allowed.length && !shifts.some(s => s.personId === person.id))
-          issues.push(date + ": falta o turno obrigatório de " + person.id + ".");
-      }
+    for (const person of input.people.filter(p => p.active)) {
+      const availability = input.availabilities.find(a => a.personId === person.id);
+      const allowed = availability ? getSchedulableIntervalsForDate(
+        date, availability, input.operatingCalendar.weeklyOperatingHours,
+        input.operatingCalendar.exceptions,
+      ) : [];
+      const required = isExplicitRequiredWorkday(person,date) ||
+        (input.workRules.requireShiftsOnAvailableDays && allowed.length>0);
+      if (required && !shifts.some(s => s.personId === person.id))
+        issues.push(date + ": falta o turno obrigatório de " + person.id + ".");
     }
     const shortLimit = input.workRules.fullShortDayMaximumMinutes ?? 0;
     if (shortLimit > 0 && operating.length === 1) {
@@ -108,6 +110,11 @@ export function certifyFinalGeneratedSchedule(
   if (work.status !== "valid")
     issues.push(...work.issues, ...work.violations.map(v => v.message),
       "A validação final das regras de trabalho não foi concluída com sucesso.");
+  const contractual=validatePersonWeeklyContractCaps(
+    input.people,[...input.externalContext.shifts,...assignments],
+    input.workConstraints.maximumWeeklyEffectiveMinutes,
+    input.timeZone,input.startDate,input.endDate);
+  if (!contractual.valid) issues.push(...contractual.issues);
 
   return { valid: issues.length === 0, issues, workViolations: work.violations };
 }
