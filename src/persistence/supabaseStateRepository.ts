@@ -145,6 +145,10 @@ export function createSupabaseStateRepository(
 ): StateRepository {
   let revision: number | null = null;
   let revisionOwnerId: string | null = null;
+  // Changes from a single browser session are serialized so each RPC sees
+  // the revision returned by the previous write. Multi-tab conflicts still
+  // fail closed under the PostgreSQL compare-and-swap contract.
+  let saveQueue: Promise<void> = Promise.resolve();
   const requireOwner = ():string => {
     const id=client.user?.id;
     if (!id) throw new Error("É necessário iniciar sessão.");
@@ -257,18 +261,22 @@ export function createSupabaseStateRepository(
     },
 
     async save(state) {
-      if (revisionOwnerId!==client.user?.id) {
+      const ownerId=requireOwner();
+      if (revisionOwnerId !== ownerId || revision === null) {
         throw new Error("É necessário carregar os dados desta conta antes de guardar.");
       }
-      if (revision === null) {
-        throw new Error(
-          "É necessário carregar os dados Supabase antes de guardar."
-        );
-      }
-      const ownerId=requireOwner();
-      const nextRevision=await saveRemote(state, revision);
-      verifyOwner(ownerId);
-      revision=nextRevision;
+      const operation=saveQueue.then(async()=>{
+        verifyOwner(ownerId);
+        if(revisionOwnerId !== ownerId || revision === null)
+          throw new Error("A revisão da configuração já não pertence à conta atual.");
+        const nextRevision=await saveRemote(state,revision);
+        verifyOwner(ownerId);
+        revision=nextRevision;
+      });
+      // A rejected write must remain visible to its own caller, but it
+      // must not permanently poison the queue for subsequent retries.
+      saveQueue=operation.catch(()=>undefined);
+      return operation;
     },
   };
 }
