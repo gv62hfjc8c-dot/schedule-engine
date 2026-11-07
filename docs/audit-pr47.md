@@ -16,7 +16,7 @@ Os 23 pontos originais misturavam defeitos concretos, riscos, dívida técnica e
 | 08 | Falta de certificação independente após otimizações | Corrigido | `certifyFinalGeneratedSchedule` examina trabalho, cobertura, elegibilidade, período, dias obrigatórios e jornadas curtas |
 | 09 | Jornada curta conflita com refeição obrigatória | Corrigido | Jornada integral significa presença do início ao fim e admite refeição legal, que continua a ser validada |
 | 10 | Disponibilidade vs obrigação de trabalhar | Separado no B | Introduzidas datas obrigatórias explícitas por colaborador, independentes da disponibilidade; a opção global existente mantém semântica e valor original |
-| 11 | Editor substituía silenciosamente intervalos adicionais | Corrigido | Modificação do primeiro intervalo preserva restantes; editor multi-intervalos completo continua pendente |
+| 11 | Editor substituía silenciosamente intervalos adicionais | Editor completo acrescentado na preparação de testes | Agora é possível criar, alterar e remover todos os períodos nos padrões/ exceções de operação e disponibilidade; valida sobreposições e limites de funcionamento, com regressões automáticas |
 | 12 | Exceções duplicadas por data | Corrigido preventivamente | Novas datas livres, bloqueio ao alterar para data repetida e aviso para duplicados históricos |
 | 13 | Validação superficial de snapshots persistidos | Reforçado (C) | Validação de estrutura e metadados; registos incompatíveis isolados da consulta de leitura parcial, com erro visível e estado incerto apenas nas datas afetadas; leitura estrita continua a falhar fechada |
 | 14 | Fecho do navegador durante gravação | Mitigado e retry idempotente (C) | Alerta de saída, ID estável por tentativa, reenvio com o mesmo UUID e confirmação de conteúdo se o servidor devolveu conflito 409; não garante conclusão quando o browser é encerrado à força |
@@ -140,6 +140,41 @@ Os 23 pontos originais misturavam defeitos concretos, riscos, dívida técnica e
 | Segurança/contas | Confirmar RLS com duas contas distintas num ambiente de teste | Sem leitura/gravação cruzada de pessoas, configurações ou propostas |
 
 **Limites explícitos:** a suite não demonstra ótima distribuição global, não verifica uma geração contínua de 28 dias (limite atual 14), não transforma propostas em escalas aprovadas e não garante que a geração encontre toda e qualquer solução viável. Transições DST extremas e desempenho com equipas muito grandes exigem ensaios adicionais. A validação Safari e a validação de RLS entre contas reais **não foram executadas neste checkpoint**. Os avisos externos identificados no Checkpoint D continuam pendentes; nenhuma tabela, Edge Function ou configuração Auth foi alterada.
+
+## Preparação de aceitação — capacidade real de testar (PR #47)
+
+Depois do Checkpoint F foi realizada uma verificação de **testabilidade**,
+não uma nova aprovação funcional.
+
+- Verificou-se que o editor de carga contratual, objetivo soft e dias
+  obrigatórios **já existia** na interface em
+  **Regras → Carga contratual e objetivos**. Qualquer indicação anterior
+  de que seria impossível testar esses campos no Safari estava incorreta.
+- Foi criado `src/components/IntervalListEditor.tsx`, com operações
+  validadas em `src/utils/intervalEditing.ts`, que permite criar,
+  alterar e remover múltiplos intervalos em **operação semanal**,
+  **exceções operacionais**, **disponibilidade semanal** e
+  **exceções de disponibilidade**. A validação impede sobreposições
+  e, para disponibilidade, intervalos fora do funcionamento. Remover
+  um intervalo inválido herdado continua permitido para recuperação.
+- A suite `src/intervalEditorAcceptanceTest.ts` verifica divisão de
+  jornadas, preservação dos restantes intervalos, rejeição de
+  sobreposição, limites, fecho e integração com funções reais do domínio.
+- Foi adicionado `scripts/checkRlsTwoAccounts.mjs`, um verificador
+  **apenas de leitura** para **duas contas de staging**, sem permissões
+  privilegiadas. Não é executado automaticamente em CI porque exige
+  contas reais; `npm run test:rls-script-syntax` verifica sintaxe
+  sem credenciais ou ligação remota.
+- O protocolo explícito está em
+  **[docs/pr47-acceptance.md](pr47-acceptance.md)**: passos Safari,
+  resultados esperados, evidência e critérios de bloqueio de merge.
+  Os ensaios de corrupção e respostas perdidas são feitos em mocks
+  automatizados em vez de alterar snapshots reais.
+- **Nenhum caso manual Safari nem isolamento entre duas contas reais
+  é considerado PASS nesta preparação.** Continuam a aguardar execução.
+
+Sem alterações destrutivas no Supabase; `main` e
+`safety/pr46-baseline` mantêm-se estáveis.
 
 ## Critérios antes de qualquer merge
 
