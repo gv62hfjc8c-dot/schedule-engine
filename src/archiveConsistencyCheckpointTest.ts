@@ -61,8 +61,14 @@ function makeRow(payload:GeneratedSchedulePayload,id:string,createdAt?:string):R
     time_zone:payload.timeZone,payload:structuredClone(payload),
   };
 }
+const fractionalMicros=(stamp:string)=>{
+  const digits=(stamp.match(/\.(\d{1,6})(?:Z|[+-]\d{2}:\d{2})$/)?.[1]??"").padEnd(6,"0");
+  return Number(digits.slice(3,6));
+};
 const byLatest=(a:RawRow,b:RawRow)=>
-  Date.parse(b.created_at)-Date.parse(a.created_at)||b.id.localeCompare(a.id);
+  Date.parse(b.created_at)-Date.parse(a.created_at) ||
+  fractionalMicros(b.created_at)-fractionalMicros(a.created_at) ||
+  b.id.localeCompare(a.id);
 function requestMatches(row:RawRow,from:string,to:string):boolean{
   return row.start_date<=to && row.end_date>=from;
 }
@@ -108,7 +114,10 @@ const client={
         "Cursor must keep one timestamp in both branches.");
       matching=matching.filter(row=>
         Date.parse(row.created_at)<timestamp ||
-        Date.parse(row.created_at)===timestamp && row.id<tieId);
+        Date.parse(row.created_at)===timestamp &&
+          (fractionalMicros(row.created_at)<fractionalMicros(parsed[1]) ||
+          fractionalMicros(row.created_at)===fractionalMicros(parsed[1]) &&
+            row.id<tieId));
       if(injectConcurrentInsert && !insertedOnNextPage){
         insertedOnNextPage=true;
         const newId="eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
@@ -200,6 +209,18 @@ try {await repository.listBetween("2026-11-01","2026-11-30");}
 catch{strictRejected=true;}
 ensure(strictRejected,"Strict archive queries must fail closed rather than silently skip corruption.");
 
+// PostgreSQL stores microseconds. Date.parse rounds these to milliseconds;
+// the cursor must still preserve their true order, not compare UUIDs first.
+const higherMicroId="00000000-0000-4000-8000-000000000000";
+const lowerMicroId="ffffffff-ffff-4fff-8fff-ffffffffffff";
+rows.push(makeRow(original,higherMicroId,"2026-11-05T09:00:00.123500Z"));
+rows.push(makeRow(original,lowerMicroId,"2026-11-05T09:00:00.123400Z"));
+const microsecondArchive=await repository.listBetweenDetailed("2026-11-01","2026-11-30");
+const actualOrder=microsecondArchive.records.map(row=>row.id);
+ensure(actualOrder.indexOf(higherMicroId)>=0 &&
+  actualOrder.indexOf(higherMicroId)<actualOrder.indexOf(lowerMicroId),
+  "Cursor ordering must use PostgreSQL microseconds before UUID tie-breaking.");
+
 const malformedStart=await repository.listBetweenDetailed("2026-02-31","2026-03-01")
   .then(()=>false,()=>true);
 ensure(malformedStart,"Impossible civil date must never be silently accepted.");
@@ -226,6 +247,6 @@ try {await createSupabaseGeneratedScheduleRepository(changeSessionClient)
 catch{switched=true;}
 ensure(switched,"Changing session during archive fetch must fail closed.");
 
-ensure(rows.length===baseCount+211+2,
+ensure(rows.length===baseCount+211+4,
   "The tests only simulate one concurrent insert and one corrupt record.");
 console.log("PR47-C: immutable versions, idempotent save, coherent proposal focus, cursor pagination and partial archive diagnostics passed.");
