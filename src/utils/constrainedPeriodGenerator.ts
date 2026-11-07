@@ -6,6 +6,7 @@ import {
 } from "./mealAwareDayGenerator";
 import {
   validateWorkConstraints,
+  getEffectiveWorkMinutesInTimeZone,
   type WorkConstraintViolation,
   type WorkValidationDateRange,
 } from "./workConstraints";
@@ -137,7 +138,11 @@ function provenWeeklyCapacityShortage(
     const activeIds = new Set(input.people.filter(p => p?.active).map(p => p.id));
     // Preserve existing daily shortage diagnostics when nobody is active.
     if (activeIds.size === 0) return null;
-    const supply = activeIds.size * maxWeekly;
+    // Person-specific contracts are HARD ceilings, even when the company
+    // maximum is higher. Ignoring existing external hours makes this supply
+    // estimate optimistic, so it remains a mathematically safe upper bound.
+    const supply = input.people.filter(p=>p.active)
+      .reduce((n,p)=>n+personWeeklyHardMax(p,maxWeekly),0);
     const byWeek = new Map<string, number>();
     const mins = (value: string) => {
       const [h, m] = value.split(":").map(Number);
@@ -166,10 +171,21 @@ function provenWeeklyCapacityShortage(
           !Number.isFinite(w[1]) || w[1] <= w[0] ||
           (i > 0 && w[0] < ordered[i-1][1]))) return null;
       const r = resolved.requirements;
-      const demand =
-        windows.opening.reduce((n,w) => n + (mins(w.end)-mins(w.start))*r.minimumAtOpening,0) +
-        windows.central.reduce((n,w) => n + (mins(w.end)-mins(w.start))*r.minimumDuringOperation,0) +
-        windows.closing.reduce((n,w) => n + (mins(w.end)-mins(w.start))*r.minimumAtClosing,0);
+      // Wall-clock hours are not effective elapsed minutes across DST.
+      // Unresolvable clock boundaries disable this shortcut rather than
+      // allowing a false "proven infeasible" classification.
+      const workMinutes=(w:TimeInterval)=>
+        getEffectiveWorkMinutesInTimeZone({
+          date,personId:"__coverage_lower_bound__",interval:w,mealBreak:null,
+        },input.timeZone);
+      const allMinutes=all.map(workMinutes);
+      if(allMinutes.some(n=>n===null)) return null;
+      const nOpen=windows.opening.length,nCentral=windows.central.length;
+      const sums=(from:number,to:number)=>
+        (allMinutes.slice(from,to) as number[]).reduce((a,b)=>a+b,0);
+      const demand=sums(0,nOpen)*r.minimumAtOpening +
+        sums(nOpen,nOpen+nCentral)*r.minimumDuringOperation +
+        sums(nOpen+nCentral,all.length)*r.minimumAtClosing;
       const ms = Date.parse(date+"T00:00:00Z");
       const weekday = new Date(ms).getUTCDay();
       const monday = dayString(ms - ((weekday+6)%7)*DAY);
@@ -177,7 +193,7 @@ function provenWeeklyCapacityShortage(
     }
     for (const [monday, needed] of byWeek) {
       if (needed > supply) {
-        return `Semana de ${monday}: a cobertura exige pelo menos ${needed} minutos efetivos, mas ${activeIds.size} pessoas ativas só podem fornecer até ${supply} minutos semanais. Inviabilidade comprovada por capacidade.`;
+        return `Semana de ${monday}: a cobertura exige pelo menos ${needed} minutos efetivos, mas ${activeIds.size} pessoas ativas só podem fornecer até ${supply} minutos semanais. Inviabilidade comprovada pelo limite superior de capacidade.`;
       }
     }
   } catch {
