@@ -6,7 +6,7 @@ Motor de geração e validação de horários, concebido como núcleo de schedul
 ## Estado da aplicação
 
 A `main` contém a versão aprovada do PR #46. As melhorias de consistência
-dos checkpoints A–E encontram-se **em revisão no PR #47**, ainda sem merge.
+dos checkpoints A–F, incluindo a preparação de aceitação, encontram-se **em revisão no PR #47**, ainda sem merge.
 
 O fluxo operacional ativo inclui:
 
@@ -76,6 +76,11 @@ e apresenta os avisos do ambiente de desenvolvimento separadamente.
 
 A revisão manual de cenários reais e os testes funcionais no Safari
 continuam indispensáveis antes de qualquer merge importante.
+O [protocolo de aceitação PR #47](docs/pr47-acceptance.md) descreve
+os testes reproduzíveis, incluindo a edição completa de períodos de
+operação/disponibilidade, o arquivo e o ensaio read-only de isolamento RLS
+com duas contas num projeto de staging. O ensaio RLS tem de ser executado
+manualmente; não faz parte de `npm test`.
 
 ## Arquitetura e controlo de alterações
 
