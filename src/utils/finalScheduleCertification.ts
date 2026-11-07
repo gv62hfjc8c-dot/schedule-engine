@@ -5,7 +5,7 @@ import { isSchedulableForInterval, getSchedulableIntervalsForDate } from "./avai
 import { resolvePresenceForDate } from "./presence";
 import { checkPresenceForWorkShifts } from "./workCoverage";
 import { validateWorkConstraints, type WorkConstraintViolation } from "./workConstraints";
-import { isExplicitRequiredWorkday, validatePersonWeeklyContractCaps } from "./personSchedulingPolicies";
+import { isExplicitRequiredWorkday, validatePersonWeeklyContractCaps, missingRequiredOutsideWorkdays } from "./personSchedulingPolicies";
 
 export interface FinalScheduleCertification {
   valid: boolean;
@@ -115,6 +115,12 @@ export function certifyFinalGeneratedSchedule(
     input.workConstraints.maximumWeeklyEffectiveMinutes,
     input.timeZone,input.startDate,input.endDate);
   if (!contractual.valid) issues.push(...contractual.issues);
+  const missingOutside=missingRequiredOutsideWorkdays(
+    input.people,input.externalContext.shifts,input.startDate,input.endDate,
+    input.externalContext.startDate,input.externalContext.endDate);
+  if(missingOutside.length)
+    issues.push(...missingOutside.map(item=>item.personId+" ("+item.date+
+      "): dia obrigatório exterior sem turno no contexto confirmado."));
 
   return { valid: issues.length === 0, issues, workViolations: work.violations };
 }
