@@ -103,6 +103,32 @@ export function validatePersonWeeklyContractCaps(
   return {valid:issues.length===0,issues};
 }
 
+/**
+ * Explicit workdays inside the attested external context must already be
+ * represented by known shifts. Confirming that the outside context is empty
+ * while declaring a mandatory outside workday is contradictory.
+ *
+ * Only inspect dates within the known external interval. Dates beyond this
+ * interval are outside the certification scope and remain untouched.
+ */
+export function missingRequiredOutsideWorkdays(
+  people: Person[],
+  externalShifts: DatedWorkShift[],
+  targetStart: string,
+  targetEnd: string,
+  knownStart: string,
+  knownEnd: string,
+): Array<{personId:string;date:string}> {
+  const assigned=new Set(externalShifts.map(s=>s.personId+"|"+s.date));
+  return people.filter(p=>p.active).flatMap(person=>
+    (person.requiredWorkDates??[])
+      .filter(date=>date>=knownStart && date<=knownEnd &&
+        (date<targetStart || date>targetEnd) &&
+        !assigned.has(person.id+"|"+date))
+      .map(date=>({personId:person.id,date}))
+  );
+}
+
 /** Unlike availability, an explicitly required date is a hard assignment obligation. */
 export function isExplicitRequiredWorkday(person: Person, date: string): boolean {
   return person.requiredWorkDates?.includes(date) ?? false;
