@@ -1,0 +1,109 @@
+import type { DatedWorkShift, Person } from "../types";
+import { getEffectiveWorkMinutesInTimeZone } from "./workConstraints";
+
+const DAY = 86_400_000;
+const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Strict civil calendar date; do not let JS silently normalise 31 February. */
+export function validSchedulingDate(value: string): boolean {
+  if (!datePattern.test(value)) return false;
+  const instant = Date.parse(value + "T00:00:00Z");
+  return Number.isFinite(instant) && new Date(instant).toISOString().slice(0, 10) === value;
+}
+function monday(date: string): string {
+  const stamp = Date.parse(date + "T00:00:00Z");
+  const day = (new Date(stamp).getUTCDay() + 6) % 7;
+  return new Date(stamp - day * DAY).toISOString().slice(0, 10);
+}
+function validMinutes(value: number): boolean {
+  return Number.isSafeInteger(value) && value >= 0 && value <= 7 * 24 * 60 &&
+    value % 15 === 0;
+}
+
+/**
+ * Missing optional policy fields are interpreted exactly as in PR41:
+ * every person uses the company limit as a hard maximum and a soft target.
+ */
+export function personWeeklyHardMax(person: Person, companyMaximum: number): number {
+  return Math.min(person.weeklyContractMinutes ?? companyMaximum, companyMaximum);
+}
+export function personWeeklyTarget(person: Person, companyMaximum: number): number {
+  return Math.min(person.weeklyTargetMinutes ??
+    person.weeklyContractMinutes ?? companyMaximum,
+    personWeeklyHardMax(person, companyMaximum));
+}
+
+export function validatePeopleSchedulingPolicies(people: Person[]): string[] {
+  const issues: string[] = [];
+  for (const person of people) {
+    if (person.weeklyContractMinutes !== undefined &&
+      !validMinutes(person.weeklyContractMinutes))
+      issues.push("Limite semanal contratual inválido para " + person.id + ".");
+    if (person.weeklyTargetMinutes !== undefined &&
+      !validMinutes(person.weeklyTargetMinutes))
+      issues.push("Objetivo semanal inválido para " + person.id + ".");
+    if (person.weeklyContractMinutes !== undefined &&
+      person.weeklyTargetMinutes !== undefined &&
+      person.weeklyTargetMinutes > person.weeklyContractMinutes)
+      issues.push("Objetivo semanal excede o contrato de " + person.id + ".");
+    if (person.requiredWorkDates !== undefined) {
+      if (!Array.isArray(person.requiredWorkDates) ||
+          person.requiredWorkDates.some(date=>typeof date!=="string" || !validSchedulingDate(date)) ||
+          new Set(person.requiredWorkDates).size !== person.requiredWorkDates.length)
+        issues.push("Datas obrigatórias inválidas ou repetidas para " + person.id + ".");
+    }
+  }
+  return issues;
+}
+
+export interface ContractCapResult {
+  valid: boolean;
+  issues: string[];
+}
+/**
+ * Independent hard constraint. The workload is counted by Monday–Sunday civil
+ * weeks, including the known outside shifts; the target is never a hard cap.
+ * Absolute elapsed minutes follow the same IANA/DST conversion as the work
+ * validator. Invalid local clock times cannot be declared compliant.
+ */
+export function validatePersonWeeklyContractCaps(
+  people: Person[], shifts: DatedWorkShift[], companyMaximum: number,
+  timeZone: string, targetStart: string, targetEnd: string
+): ContractCapResult {
+  const issues = validatePeopleSchedulingPolicies(people);
+  const relevant = new Map(people.map(p=>[p.id,p]));
+  const byPersonWeek = new Map<string,{person:Person; week:string; minutes:number}>();
+  for (const shift of shifts) {
+    const person = relevant.get(shift.personId);
+    if (!person) continue; // inactive people with old outside shifts may remain in history
+    if (!validSchedulingDate(shift.date)) {
+      issues.push("Data de turno inválida ao validar o contrato: " + shift.personId + ".");
+      continue;
+    }
+    const duration = getEffectiveWorkMinutesInTimeZone(shift,timeZone);
+    if (duration === null) {
+      issues.push("Turno com horário local inválido ao validar contrato: " + shift.personId + ".");
+      continue;
+    }
+    const week = monday(shift.date);
+    const key = shift.personId+"|"+week;
+    const item=byPersonWeek.get(key) ?? {person,week,minutes:0};
+    item.minutes += duration;
+    byPersonWeek.set(key,item);
+  }
+  for(const item of byPersonWeek.values()) {
+    if (item.week > targetEnd ||
+      new Date(Date.parse(item.week+"T00:00:00Z")+6*DAY).toISOString().slice(0,10) < targetStart)
+      continue;
+    const maximum = personWeeklyHardMax(item.person,companyMaximum);
+    if (item.minutes > maximum)
+      issues.push("Limite semanal contratual de "+item.person.id+" excedido na semana "+item.week+
+        ": "+item.minutes+" min para máximo de "+maximum+" min.");
+  }
+  return {valid:issues.length===0,issues};
+}
+
+/** Unlike availability, an explicitly required date is a hard assignment obligation. */
+export function isExplicitRequiredWorkday(person: Person, date: string): boolean {
+  return person.requiredWorkDates?.includes(date) ?? false;
+}
