@@ -144,21 +144,34 @@ export function createSupabaseStateRepository(
   browser: BrowserStateSource
 ): StateRepository {
   let revision: number | null = null;
+  let revisionOwnerId: string | null = null;
+  const requireOwner = ():string => {
+    const id=client.user?.id;
+    if (!id) throw new Error("É necessário iniciar sessão.");
+    return id;
+  };
+  const verifyOwner=(expected:string):void => {
+    if (client.user?.id !== expected) {
+      revision = null;
+      revisionOwnerId = null;
+      throw new Error("A sessão mudou durante a operação. Recarrega os dados da conta.");
+    }
+  };
 
   async function readRemote(): Promise<{
     revision: number;
     state: PersistedAppState | null;
   }> {
-    const user = client.user;
-    if (!user) throw new Error("É necessário iniciar sessão.");
-
-    const query = `?select=revision,payload&owner_id=eq.${encodeURIComponent(user.id)}&limit=1`;
+    const ownerId=requireOwner();
+    const query = `?select=revision,payload&owner_id=eq.${encodeURIComponent(ownerId)}&limit=1`;
     const response = await client.request(
       "/rest/v1/schedule_engine_states" + query
     );
+    verifyOwner(ownerId);
     if (!response.ok) throw await readError(response);
 
     const rows = await readJson(response);
+    verifyOwner(ownerId);
     if (!Array.isArray(rows)) throw new Error("Resposta Supabase inválida.");
     if (rows.length === 0) return { revision: 0, state: null };
     if (rows.length !== 1) throw new Error("Estado Supabase ambíguo.");
@@ -182,6 +195,7 @@ export function createSupabaseStateRepository(
       throw new Error("O estado local é incompatível. Gravação bloqueada.");
     }
 
+    const ownerId=requireOwner();
     const response = await client.request(
       "/rest/v1/rpc/save_schedule_engine_state",
       {
@@ -193,9 +207,11 @@ export function createSupabaseStateRepository(
         }),
       }
     );
+    verifyOwner(ownerId);
     if (!response.ok) throw await readError(response);
 
     const result = await readJson(response);
+    verifyOwner(ownerId);
     if (typeof result !== "number" ||
         !Number.isSafeInteger(result) || result <= 0) {
       throw new Error("Confirmação de gravação inválida no Supabase.");
@@ -205,29 +221,34 @@ export function createSupabaseStateRepository(
 
   return {
     async load() {
+      const ownerId=requireOwner();
       const remote = await readRemote();
+      verifyOwner(ownerId);
       revision = remote.revision;
+      revisionOwnerId = ownerId;
       if (remote.state !== null) {
         return remote.state;
       }
 
       // First import only. Never replace an existing cloud state with local data.
       const old = await oldRepository.load();
+      verifyOwner(ownerId);
       if (!old) return null;
-      const ownerId = client.user?.id;
-      if (!ownerId ||
-          browser.getItem(LEGACY_IMPORT_CONSENT_PREFIX + ownerId) !== "confirmed")
+      if (browser.getItem(LEGACY_IMPORT_CONSENT_PREFIX + ownerId) !== "confirmed")
         throw new LegacyImportConsentRequiredError();
       const migrated = preserveLegacyPeople(old, browser);
 
       try {
-        revision = await saveRemote(migrated, 0);
+        const nextRevision=await saveRemote(migrated, 0);
+        verifyOwner(ownerId);
+        revision=nextRevision;
         return migrated;
       } catch (error) {
         // Concurrency: another tab may have imported first. Re-read only
         // after a known revision conflict, never on arbitrary network errors.
         if (error instanceof SupabaseStateError && error.code === "40001") {
           const current = await readRemote();
+          verifyOwner(ownerId);
           revision = current.revision;
           if (current.state !== null) return current.state;
         }
@@ -236,12 +257,18 @@ export function createSupabaseStateRepository(
     },
 
     async save(state) {
+      if (revisionOwnerId!==client.user?.id) {
+        throw new Error("É necessário carregar os dados desta conta antes de guardar.");
+      }
       if (revision === null) {
         throw new Error(
           "É necessário carregar os dados Supabase antes de guardar."
         );
       }
-      revision = await saveRemote(state, revision);
+      const ownerId=requireOwner();
+      const nextRevision=await saveRemote(state, revision);
+      verifyOwner(ownerId);
+      revision=nextRevision;
     },
   };
 }
