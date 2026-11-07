@@ -18,6 +18,7 @@ import { prepareExplicitEmptyContext } from "../utils/explicitEmptyContext";
 import { INITIAL_WORK_CONSTRAINTS } from "../utils/workConstraints";
 import { MAX_PERIOD_DAYS } from "../utils/periodGenerator";
 import { todayInTimeZone } from "../utils/monthlyScheduleView";
+import { weeklyPersonWorkSummary, formatWorkMinutes } from "../utils/weeklyWorkSummary";
 
 export interface ConstrainedPeriodGeneratorPanelProps {
   people: Person[];
@@ -307,7 +308,7 @@ export default function ConstrainedPeriodGeneratorPanel({
 
         <p className="section-description">
           Pesquisa turnos, refeições e alternativas entre dias, respeitando
-          cobertura, 11 horas de descanso e o limite de 40 horas semanais.
+          cobertura, descanso e limites semanais globais e individuais.
           Cada proposta válida é guardada no Supabase para consulta futura, sem aprovação automática.
         </p>
 
@@ -456,27 +457,18 @@ export default function ConstrainedPeriodGeneratorPanel({
             {result.status === "generated" &&
               weekMonday(startDate) === weekMonday(endDate) && (
               <div className="p63-violations">
-                <h4>Horas semanais atribuídas · objetivo 40h por pessoa</h4>
-                {people.filter(p => p.active).map(person => {
-                  const total = result.assignments
-                    .filter(shift => shift.personId === person.id)
-                    .reduce((sum, shift) => {
-                      const minutes = (clock: string) =>
-                        Number(clock.slice(0, 2)) * 60 + Number(clock.slice(3, 5));
-                      return sum + minutes(shift.interval.end) -
-                        minutes(shift.interval.start) -
-                        (shift.mealBreak
-                          ? minutes(shift.mealBreak.end) - minutes(shift.mealBreak.start)
-                          : 0);
-                    }, 0);
-                  const format = (value: number) =>
-                    `${Math.floor(value / 60)}h${String(value % 60).padStart(2, "0")}`;
-                  return (
-                    <p key={person.id}>
-                      <strong>{person.name}</strong>: {format(total)} / 40h00
-                      {" · "}défice {format(Math.max(0, 2400 - total))}
-                    </p>
-                  );
+                <h4>Horas semanais efetivas · objetivos individuais</h4>
+                {people.filter(p=>p.active).map(person=>{
+                  const workload=weeklyPersonWorkSummary(person,result.assignments,
+                    timeZone,effectiveConstraints.maximumWeeklyEffectiveMinutes);
+                  return <p key={person.id}>
+                    <strong>{person.name}</strong>: {formatWorkMinutes(workload.effectiveMinutes)}
+                    {" / objetivo "}{formatWorkMinutes(workload.targetMinutes)}
+                    {" · máximo "}{formatWorkMinutes(workload.hardMaximumMinutes)}
+                    {" · défice "}{formatWorkMinutes(workload.deficitMinutes)}
+                    {workload.aboveTargetMinutes!==null && workload.aboveTargetMinutes>0 &&
+                      <>{" · acima do objetivo "}{formatWorkMinutes(workload.aboveTargetMinutes)}</>}
+                  </p>;
                 })}
                 <p className="generator-hint">
                   Objetivo preferencial; melhoria local limitada, sem garantia
