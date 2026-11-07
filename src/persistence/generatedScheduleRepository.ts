@@ -37,10 +37,27 @@ export interface StoredGeneratedSchedule {
   payload: GeneratedSchedulePayload;
 }
 
+/** A corrupt record is never used as a schedule, and its presence stays visible. */
+export interface UnreadableGeneratedSchedule {
+  id: string | null;
+  startDate: string | null;
+  endDate: string | null;
+}
+export interface GeneratedScheduleArchiveResult {
+  records: StoredGeneratedSchedule[];
+  unreadable: UnreadableGeneratedSchedule[];
+}
+
 export interface GeneratedScheduleRepository {
-  save(payload: GeneratedSchedulePayload): Promise<StoredGeneratedSchedule>;
-  /** All proposals overlapping a civil date interval. No arbitrary recent-only cap. */
+  /**
+   * Idempotent when the same UUID and identical snapshot are retried.
+   * Never overwrite a previously archived proposal.
+   */
+  save(payload: GeneratedSchedulePayload, proposalId?: string): Promise<StoredGeneratedSchedule>;
+  /** Strict query: fails closed when any archived row cannot be validated. */
   listBetween(startDate: string, endDate: string): Promise<StoredGeneratedSchedule[]>;
+  /** Read verified proposals while explicitly reporting any unreadable rows. */
+  listBetweenDetailed(startDate: string, endDate: string): Promise<GeneratedScheduleArchiveResult>;
   /** Most recently persisted proposal across all periods. */
   latest(): Promise<StoredGeneratedSchedule | null>;
 }
