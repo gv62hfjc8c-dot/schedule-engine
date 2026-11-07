@@ -107,12 +107,21 @@ function cursorFrom(value:unknown):{timestamp:string;id:string}|null {
     typeof row.id==="string" && uuidPattern.test(row.id)
     ? {timestamp:row.created_at,id:row.id} : null;
 }
+function fractionalMicroseconds(timestamp:string):number {
+  const matched=timestamp.match(/\.(\d{1,6})(?:Z|[+-]\d{2}:\d{2})$/);
+  const digits=(matched?.[1]??"").padEnd(6,"0");
+  // Date.parse already accounts for the first three digits (milliseconds).
+  return Number(digits.slice(3,6));
+}
 function earlierThan(
   left:{timestamp:string;id:string},
   right:{timestamp:string;id:string}
 ):boolean {
   const a=Date.parse(left.timestamp),b=Date.parse(right.timestamp);
-  return a < b || a===b && left.id < right.id;
+  if(a!==b) return a<b;
+  const aMicro=fractionalMicroseconds(left.timestamp);
+  const bMicro=fractionalMicroseconds(right.timestamp);
+  return aMicro!==bMicro ? aMicro<bMicro : left.id < right.id;
 }
 
 /**
