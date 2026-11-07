@@ -6,7 +6,7 @@ Os 23 pontos originais misturavam defeitos concretos, riscos, dívida técnica e
 
 | Nº | Observação | Estado PR #47 | Justificação / seguimento |
 |---|---|---|---|
-| 01 | Documentação desatualizada | Atualizado parcialmente | README, arquitetura, roadmap, guia Supabase; histórico mantém-se histórico |
+| 01 | Documentação desatualizada | Consolidado no E | README, arquitetura e roadmap distinguem versão estável PR46, alterações propostas PR47, experiência histórica e limites atuais; decisões/changelog históricos são preservados sem reescrever factos passados |
 | 02 | Ausência de turno apresentada como folga | Corrigido | Vista mensal passa a dizer "Sem turno"; resumo diário mostra "Por planear" |
 | 03 | API de aprovações antiga ativa no Supabase | Preparação segura D; serviço ainda ativo | Preservado o bundle publicado v5 com 13 ficheiros e hash de release; preparado endpoint inerte 410, **não publicado**. Desativação só após análise de clientes e validação de recuperação |
 | 04 | Importação de browser para conta nova sem confirmar titularidade | Corrigido no adaptador | Consentimento explícito associado à conta; estado cloud mantém precedência |
@@ -26,9 +26,9 @@ Os 23 pontos originais misturavam defeitos concretos, riscos, dívida técnica e
 | 18 | Ciclos de 28 dias vs limite do gerador de 14 | Modelo implementado, geração de 28 dias pendente | Ciclo fixo com âncora operacional, quatro subperíodos de sete dias, compatível com meses de 5 semanas e anos bissextos; gerador continua limitado a 14 dias até prova de capacidade |
 | 19 | `Person` sem contratos e perfis avançados | Parcial (B) | Adicionados limite contratual semanal, objetivo semanal e datas obrigatórias; qualificações/funções e ausências continuam fora do modelo até requisitos concretos |
 | 20 | Avisos de segurança Supabase | Auditados; 2 ajustes externos pendentes (D) | Função de estado mantém EXECUTE autenticado, pois é usada pela UI, mas é proprietária/revisada; avisos: SECURITY DEFINER exposto e proteção de palavras-passe comprometidas desativada. Refatoração e definição Auth exigem staging/operador |
-| 21 | Experiências antigas no repositório | Pendente — inventário e remoção seletiva | Não eliminar módulos antes de auditar importações, testes e dependências do histórico |
+| 21 | Experiências antigas no repositório | Limpeza seletiva implementada no E | Removidas 3 interfaces experimentais desligadas, eliminados laboratórios inacessíveis do wrapper do gerador; código de domínio e testes de aprovação mantidos; novo teste de arquitetura impede regressões |
 | 22 | Terminologia antiga na interface | Corrigido | Gravação Supabase e menções ao PR41 atualizadas |
-| 23 | Invariantes sem regressões dedicadas | Reforçado (A+B+C+D) | Regressões de motor, políticas, arquivo, e agora teste offline de credenciais, grants previstos, bundle Edge v5 e script SQL read-only; testes reais de Auth/RLS continuam pendentes |
+| 23 | Invariantes sem regressões dedicadas | Reforçado (A+B+C+D+E) | Além dos testes anteriores, CI valida grafo de dependências de UI e núcleo, executa npm audit e impede vulnerabilidades moderadas/graves no lockfile; a revisão funcional real continua pendente |
 
 ## Checkpoint A — integridade do motor (implementado na branch PR #47)
 
@@ -84,6 +84,33 @@ Os 23 pontos originais misturavam defeitos concretos, riscos, dívida técnica e
 5. Verificar recuperação de schema/dados e Edge Function antes de alterar a instância real.
 
 **Sem produção alterada:** nenhuma migration, DDL, DML, Auth setting ou Edge Function foi aplicada/publicada no Checkpoint D. A `main` e `safety/pr46-baseline` continuam como fallback. Os guardrails offline não garantem por si só o estado real do Supabase.
+
+## Checkpoint E — manutenção, dependências e documentação (implementado na branch PR #47)
+
+### Limpeza seletiva com recuperação pelo Git
+
+- `src/components/ScheduleGeneratorPanel.tsx` foi reduzido a um wrapper do **único gerador condicionado ativo**. Os laboratórios PR17/18/19 que ocupavam centenas de linhas e não eram renderizados pela aplicação foram retirados.
+- Removidos da branch os componentes de demonstração desligados `src/components/ApprovedContextIntegrationLab.tsx`, `src/components/DailyGeneratorPanel.tsx` e `src/components/PeriodGeneratorPanel.tsx`.
+- Os módulos de domínio `src/utils/approvedSchedules.ts`, `src/application/executeApprovedScheduleCommand.ts`, `src/persistence/supabaseApprovedLedgerRepository.ts` e respetivos testes continuam disponíveis. Não foram reativados nem eliminados.
+- `scripts/architectureBoundaryTest.mjs` percorre os imports reais a partir de `src/main.tsx`, verifica que a interface não importa os módulos de aprovação experimentais e que o núcleo do scheduling não depende de React/browser/persistência.
+- Todo o conteúdo eliminado mantém-se no histórico do PR Git; o rollback da branch está protegido por `safety/pr46-baseline`.
+
+### Correções de segurança do ambiente npm
+
+- A auditoria do **lockfile anterior** identificou 7 dependências vulneráveis: 4 avisos altos e 3 moderados, em ferramentas de desenvolvimento/transitivos. A auditoria apenas das dependências de produção tinha resultado 0.
+- O Vite foi atualizado da série 5.4 para a série 6.4 corrigida, com `vite@6.4.5` **fixado no package-lock**. O lockfile foi regenerado em CI por `npm install --package-lock-only` e `npm audit fix --package-lock-only` e integrado na branch, sem conceder ao CI permissões de escrita no GitHub.
+- Na verificação CI após a atualização, `npm ci`, `npm run audit:dependencies`, `npm test`, `npm run typecheck` e `npm run build` passaram. A auditoria completa **e a de produção** devolveram **0 avisos** no momento dessa execução (run `42376580211`).
+- O novo `scripts/npmDependencyAudit.mjs` utiliza `npm audit --json` e bloqueia CI se houver vulnerabilidades **moderadas, altas ou críticas** em qualquer dependência; falha também se o relatório não puder ser obtido. Não mascara falhas de rede como ausência de problemas.
+- Não foi feita uma migração de React nem uma atualização ampla de dependências de runtime, porque o objetivo é reduzir riscos sem alterar desnecessariamente a interface aprovada.
+
+### Documentação operacional
+
+- README reescrito para o produto atual (interface mensal/diária, 14 dias de geração, snapshots não aprovados, regras individuais e ciclos apenas contabilísticos).
+- `docs/architecture.md` atualizado com o grafo de camadas e separação entre estado atual e etapas históricas.
+- `docs/roadmap.md` identificado como percurso histórico; próximo passo passa a ser a auditoria final de regressão do PR #47, não a ativação automática de aprovação.
+- `docs/supabase-setup.md` e baseline de segurança já tinham sido alinhados no Checkpoint D.
+
+**Limites:** a limpeza não converte o domínio de aprovação antiga em funcionalidade ativa. A atualização Vite foi validada em Linux/CI; a aceitação Safari e a auditoria de ponta a ponta ainda são tarefas do Checkpoint F. As pendências externas do Supabase mantêm-se separadas e não devem ser assinaladas como resolvidas neste checkpoint.
 
 ## Critérios antes de qualquer merge
 
