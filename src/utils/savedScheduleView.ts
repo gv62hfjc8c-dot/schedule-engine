@@ -1,4 +1,4 @@
-import type { StoredGeneratedSchedule } from "../persistence/generatedScheduleRepository";
+import type { StoredGeneratedSchedule, UnreadableGeneratedSchedule } from "../persistence/generatedScheduleRepository";
 import type { SchedulePreview } from "./monthlyScheduleView";
 
 /**
@@ -52,6 +52,19 @@ export function calendarArchiveOverview(
     overlappingDays,
     mixedSources:sources.size>1,
   };
+}
+
+/**
+ * A malformed archive entry may still have trustworthy date metadata. Only
+ * mark affected dates indeterminate; if its date bounds are missing, fail
+ * conservatively across the whole requested calendar window.
+ */
+export function unreadableArchiveAffectsDate(
+  unreadable: UnreadableGeneratedSchedule[], date: string
+): boolean {
+  return unreadable.some(item =>
+    !item.startDate || !item.endDate ||
+    item.startDate <= date && date <= item.endDate);
 }
 
 export function previewFromStored(record: StoredGeneratedSchedule): SchedulePreview {
