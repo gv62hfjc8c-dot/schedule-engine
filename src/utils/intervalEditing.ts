@@ -62,11 +62,13 @@ export function editInterval(
 export function removeInterval(
   existing:TimeInterval[],
   index:number,
-  allowed?:TimeInterval[],
+  _allowed?:TimeInterval[],
 ):IntervalEditResult {
   if(!Number.isInteger(index)||index<0||index>=existing.length)
     return {valid:false,issue:"Período não encontrado."};
-  return validateEditedIntervals(existing.filter((_,i)=>i!==index),allowed);
+  // Removing an interval cannot create a new conflict. Always permit cleanup
+  // of legacy invalid records, even if other invalid intervals remain.
+  return {valid:true,intervals:existing.filter((_,i)=>i!==index)};
 }
 
 export function addInterval(
