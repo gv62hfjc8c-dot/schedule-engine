@@ -16,6 +16,10 @@ import { getOperatingIntervalsForDate } from "./operatingCalendar";
 import { getSchedulableIntervalsForDate, isSchedulableForInterval } from "./availability";
 import { checkPresenceForWorkShifts } from "./workCoverage";
 import { certifyFinalGeneratedSchedule } from "./finalScheduleCertification";
+import {
+  personWeeklyHardMax, personWeeklyTarget, validatePeopleSchedulingPolicies,
+  validatePersonWeeklyContractCaps, isExplicitRequiredWorkday,
+} from "./personSchedulingPolicies";
 import { getPresencePhaseWindows, resolvePresenceForDate } from "./presence";
 
 /**
@@ -212,6 +216,9 @@ function improveWeeklyHours(
       (s.mealBreak ? mins(s.mealBreak.end) - mins(s.mealBreak.start) : 0);
   const weeklyLimit = input.workConstraints.maximumWeeklyEffectiveMinutes;
   const meal = input.workConstraints.mealBreak;
+  const profile = (id:string) => input.people.find(p=>p.id===id)!;
+  const hardMax = (id:string) => personWeeklyHardMax(profile(id),weeklyLimit);
+  const targetMax = (id:string) => personWeeklyTarget(profile(id),weeklyLimit);
   const weeks = (date: string) => {
     const d = new Date(date + "T00:00:00Z");
     d.setUTCDate(d.getUTCDate() - (d.getUTCDay()+6)%7);
@@ -254,7 +261,9 @@ function improveWeeklyHours(
       ).reduce((n,s) => n + effective(s),0) +
         external.filter(s => s.personId === original.personId &&
           weeks(s.date) === weeks(original.date)).reduce((n,s)=>n+effective(s),0);
-      const availableHours = Math.min(weeklyLimit - personHours,
+      const availableHours = Math.min(
+        targetMax(original.personId) - personHours,
+        hardMax(original.personId) - personHours,
         input.workConstraints.maximumDailyEffectiveMinutes - effective(original));
       if (availableHours < 15) continue;
       const availability = input.availabilities.find(a =>
@@ -269,7 +278,9 @@ function improveWeeklyHours(
           end <= latest; end += 15) {
           const duration = end - start;
           if (duration <= mins(original.interval.end)-mins(original.interval.start)) continue;
-          const limit = Math.min(weeklyLimit - personHours + effective(original),
+          const limit = Math.min(
+            targetMax(original.personId) - personHours + effective(original),
+            hardMax(original.personId) - personHours + effective(original),
             input.workConstraints.maximumDailyEffectiveMinutes);
           if (duration <= meal.requiredAboveEffectiveMinutes && duration <= limit) {
             proposals.push({...original, interval:{start:time(start),end:time(end)},mealBreak:null});
@@ -327,7 +338,8 @@ function improveWeeklyHours(
       const total = (id: string) => [...schedule, ...external]
         .filter(shift => shift.personId === id && weeks(shift.date) === weeks(date))
         .reduce((n, shift) => n + effective(shift), 0);
-      return total(a.id) - total(b.id) || a.id.localeCompare(b.id);
+      const deficit=(p: typeof a) => Math.max(0,targetMax(p.id)-total(p.id));
+      return deficit(b)-deficit(a) || total(a.id)-total(b.id) || a.id.localeCompare(b.id);
     });
     for (const person of candidates) {
       if (extraEvaluations >= maxExtraEvaluations) break;
@@ -337,7 +349,9 @@ function improveWeeklyHours(
       const personHours = [...schedule, ...external].filter(s =>
         s.personId === person.id && weeks(s.date) === weeks(date)
       ).reduce((total, shift) => total + effective(shift), 0);
-      const remaining = Math.min(weeklyLimit - personHours,
+      const remaining = Math.min(
+        targetMax(person.id) - personHours,
+        hardMax(person.id) - personHours,
         input.workConstraints.maximumDailyEffectiveMinutes);
       if (remaining < 15) continue;
       let added = false;
