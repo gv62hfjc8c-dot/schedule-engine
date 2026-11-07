@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabaseAuthClient } from "../persistence/supabaseInstance";
+import { accountingCycleForDate } from "../utils/accountingCycle28";
 import ScheduleViews from "./ScheduleViews";
 import { createSupabaseGeneratedScheduleRepository } from "../persistence/supabaseGeneratedScheduleRepository";
 import type { StoredGeneratedSchedule } from "../persistence/generatedScheduleRepository";
@@ -17,12 +18,13 @@ interface Props {
   people: Person[];
   availabilities: PersonAvailability[];
   operatingCalendar: OperatingCalendarConfiguration;
+  operationTimeZone: string;
+  cycleAnchorDate?: string;
   savedRevision: number;
   initialMonth?: string;
   onCreate(date?: string): void;
   onConfigureTeam(): void;
 }
-const ZONE = "Atlantic/Azores";
 const FILTER_LABELS: Record<TeamFilter, string> = {
   all: "Toda a equipa",
   assigned: "Escalados na proposta",
@@ -55,10 +57,10 @@ const archive = supabaseAuthClient
  * and revisions are out of scope; never present simulated shifts as official.
  */
 export default function ScheduleHome({
-  people, availabilities, operatingCalendar, savedRevision, initialMonth,
+  people, availabilities, operatingCalendar, operationTimeZone, cycleAnchorDate, savedRevision, initialMonth,
   onCreate, onConfigureTeam,
 }: Props) {
-  const today = todayInTimeZone(ZONE);
+  const today = todayInTimeZone(operationTimeZone);
   const [month, setMonth] = useState(() => monthStart(initialMonth ?? today));
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [screen, setScreen] = useState<"month" | "manage" | "saved">("month");
@@ -144,6 +146,7 @@ export default function ScheduleHome({
   const currentPage = Math.min(page, totalPages);
   const visible = matching.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
   const kind = selectedDate ? dayKind(selectedDate, snapshotOperation, preview) : null;
+  const activeCycle = selectedDate && cycleAnchorDate ? accountingCycleForDate(selectedDate,cycleAnchorDate) : null;
   const statusLabel = loadState !== "ready" ? "Estado por confirmar" :
     kind === "closed" ? "Operação encerrada" :
     kind === "proposal" ? "Proposta guardada · não aprovada" : "Ainda por planear";
@@ -283,7 +286,7 @@ export default function ScheduleHome({
             <small>{row.shift ? clockLabel(row.shift) +
               (row.shift.mealBreak ? " · Refeição " +
                 row.shift.mealBreak.start + "–" + row.shift.mealBreak.end : " · Sem refeição") +
-              " · " + (effectiveShiftMinutes(row.shift) / 60).toLocaleString("pt-PT") + "h efetivas" :
+              " · " + (effectiveShiftMinutes(row.shift, stored?.timeZone ?? operationTimeZone) / 60).toLocaleString("pt-PT") + "h efetivas" :
               ROW_LABELS[row.kind]}</small>
           </span>
           <span className={"se-person-status " + row.kind}>{ROW_LABELS[row.kind]}</span>
@@ -406,6 +409,11 @@ export default function ScheduleHome({
             onClick={() => setSelectedDate(null)}>×</button>
         </div>
         <div className={"se-panel-status " + (kind ?? "unplanned")}>{statusLabel}</div>
+        {activeCycle && <div className="se-readonly-note">
+          <strong>Ciclo de 28 dias</strong>
+          <p>{activeCycle.startDate} a {activeCycle.endDate} · semana {activeCycle.week}/4</p>
+          <small>Referência contabilística; não representa aprovação nem geração automática de 28 dias.</small>
+        </div>}
         {stored && <div className="se-archive-meta">
           <span>Guardada em {savedProposalLabel(stored)} · {stored.startDate} a {stored.endDate}</span>
           {proposals.length > 1 && <label className="se-control">
