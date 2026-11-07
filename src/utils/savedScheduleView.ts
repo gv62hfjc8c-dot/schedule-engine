@@ -1,5 +1,6 @@
 import type { StoredGeneratedSchedule, UnreadableGeneratedSchedule } from "../persistence/generatedScheduleRepository";
-import type { SchedulePreview } from "./monthlyScheduleView";
+import type { OperatingCalendarConfiguration } from "../types";
+import { dayKind, type DayKind, type SchedulePreview } from "./monthlyScheduleView";
 
 /**
  * Proposals are immutable snapshots, not approved shifts. A calendar date
@@ -65,6 +66,35 @@ export function unreadableArchiveAffectsDate(
   return unreadable.some(item =>
     !item.startDate || !item.endDate ||
     item.startDate <= date && date <= item.endDate);
+}
+
+export type ArchiveDayState =
+  | DayKind | "loading" | "failed" | "outside-proposal" | "unknown";
+
+/**
+ * One source of truth for calendar and side-panel status. Loading failures,
+ * unknown archived records, and days outside a focused proposal cannot be
+ * presented as confirmed "unplanned" or "closed".
+ */
+export function archiveDayState(input: {
+  date: string;
+  records: StoredGeneratedSchedule[];
+  unreadable: UnreadableGeneratedSchedule[];
+  operation: OperatingCalendarConfiguration;
+  focusedProposalId: string | null;
+  loadState: "loading"|"ready"|"failed";
+  selectedProposalId?: string | null;
+}): ArchiveDayState {
+  if(input.loadState!=="ready") return input.loadState;
+  const record=input.focusedProposalId
+    ? calendarProposalForDay(input.records,input.date,input.focusedProposalId)
+    : selectedProposalForDay(input.records,input.date,input.selectedProposalId??null);
+  if(!record && input.focusedProposalId) return "outside-proposal";
+  if(!record && unreadableArchiveAffectsDate(input.unreadable,input.date))
+    return "unknown";
+  return dayKind(input.date,
+    record?.payload.configuration.operatingCalendar??input.operation,
+    record?previewFromStored(record):null);
 }
 
 export function previewFromStored(record: StoredGeneratedSchedule): SchedulePreview {
