@@ -73,8 +73,9 @@ assert(prior.startDate==="2026-10-05"&&prior.endDate==="2026-11-01",
   "Negative cycle index works before the anchor.");
 assert(cyclesIntersectingRange("2026-11-01","2026-11-30","2026-11-02").length===3,
   "A five-week calendar month can intersect three independent cycles.");
-assert(accountingCycleForDate("2028-02-29","2028-02-01").endDate==="2028-02-29",
-  "Leap day is not dropped from the 28-day cycle.");
+assert(accountingCycleForDate("2028-02-29","2028-02-01").startDate==="2028-02-29" &&
+  accountingCycleForDate("2028-02-29","2028-02-01").endDate==="2028-03-27",
+  "Leap day begins the next cycle without being dropped.");
 
 assert(isIanaOperationTimeZone("Europe/Lisbon") &&
   !isIanaOperationTimeZone("No/Existing_Zone") &&
@@ -91,7 +92,10 @@ const availability={personId:"b",weeklyAvailability:{
 },exceptions:[]};
 const presence={
   weeklyPresenceRequirements:createEmptyWeeklyPresenceRequirements(),
-  presenceExceptions:[],
+  presenceExceptions:["2026-11-02","2026-11-03"].map(date=>({
+    date,requirements:{minimumAtOpening:0,minimumDuringOperation:0,
+      minimumAtClosing:0},
+  })),
 };
 const savedV4={
   version:APP_STATE_VERSION,weeklyOperatingHours:weekly,exceptions:[],
