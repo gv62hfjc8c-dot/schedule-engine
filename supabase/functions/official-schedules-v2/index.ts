@@ -26,6 +26,7 @@ import type {
 } from "../../../src/utils/historicalWorkContext.ts";
 import type { WorkValidationDateRange } from "../../../src/utils/workConstraints.ts";
 import type { DatedWorkShift } from "../../../src/types.ts";
+import { prepareHistoricalWorkContext } from "../../../src/utils/historicalWorkContext.ts";
 
 type RecordJson=Record<string,unknown>;
 const isObject=(x:unknown):x is RecordJson=>
@@ -245,12 +246,30 @@ Deno.serve(async(request:Request)=>{
   if(!ownerId)return json({ok:false,code:"unauthorized"},401);
   if(request.method==="GET"){
     try{
+      const candidateId=new URL(request.url).searchParams.get("candidate_id")??"";
+      if(!/^[a-f0-9-]{36}$/i.test(candidateId))
+        return json({ok:false,code:"invalid_input",
+          issues:["Identificador de proposta inválido."]},400);
+      const candidate=await loadCandidate(ownerId,candidateId);
+      if(!candidate)return json({ok:false,code:"missing_candidate"},404);
       const ledger=await loadLedger(ownerId);
-      return json({ok:true,ready:false,ledgerPresent:Boolean(ledger),
-        version:ledger?.version??null,
-        historyStatus:"target_context_not_verified",
-        message:ledger?"O contexto histórico será validado para cada período.":
-          "O histórico oficial ainda não está atestado; aprovação bloqueada."});
+      if(!ledger)return json({ok:true,ready:false,alreadyApproved:false,
+        version:null,historyStatus:"not_initialized",
+        message:"O histórico oficial ainda não foi verificado e inicializado."});
+      const official=ledger.records.find(r=>r.id===candidateId);
+      if(official)return json({ok:true,ready:false,
+        alreadyApproved:official.status==="approved",
+        officialStatus:official.status,version:ledger.version,
+        historyStatus:"existing_record",
+        message:"Esta proposta já possui um registo no histórico oficial."});
+      const env=await loadEnvironment(ownerId);
+      const evidence=await loadHistoricalEvidence(ownerId,candidate,env,ledger.timeZone);
+      const checked=prepareHistoricalWorkContext(evidence);
+      const ready=ledger.complete&&checked.status==="ready";
+      return json({ok:true,ready,alreadyApproved:false,
+        version:ledger.version,historyStatus:checked.status,
+        message:ready?"Histórico externo verificado para o período.":
+          (checked.issues[0]??"É necessário completar o histórico anterior.")});
     }catch{return json({ok:false,code:"storage_error"},503);}
   }
   let input:unknown;
