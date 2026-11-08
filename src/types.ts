@@ -83,6 +83,12 @@ export interface PresenceRequirement {
   minimumDuringOperation: number;
   minimumAtOpening: number;
   minimumAtClosing: number;
+  /**
+   * Optional hard requirement: at every open instant, at least N workers
+   * holding each named qualification must be on duty (not at meals).
+   * Zero or missing means no demand for that competence.
+   */
+  qualifiedCoverage?: Record<string,number>;
 }
 
 /** null means explicitly unconfigured, unlike an all-zero requirement. */
