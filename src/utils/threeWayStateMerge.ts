@@ -22,14 +22,14 @@ const eq=(a:Item,b:Item):boolean=>{
   if(typeof a==="object"&&typeof b==="object"){
     const ak=Object.keys(a),bk=Object.keys(b);
     return ak.length===bk.length &&
-      ak.every(k=>Object.hasOwn(b,k)&&eq(a[k],b[k]));
+      ak.every(k=>Object.prototype.hasOwnProperty.call(b,k)&&eq(a[k],b[k]));
   }
   return false;
 };
 const object=(v:Item):v is {[key:string]:Json}=>
   v!==MISSING && typeof v==="object" && v!==null && !Array.isArray(v);
 const at=(o:{[key:string]:Json},k:string):Item=>
-  Object.hasOwn(o,k)?o[k]:MISSING;
+  Object.prototype.hasOwnProperty.call(o,k)?o[k]:MISSING;
 
 const arraysWithKey=(arr:Item,key:string):arr is {[k:string]:Json}[]=>{
   if(!Array.isArray(arr))return false;
