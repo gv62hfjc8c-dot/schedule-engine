@@ -16,7 +16,7 @@ import {
 } from "../utils/constrainedPeriodGenerator";
 import { prepareExplicitEmptyContext } from "../utils/explicitEmptyContext";
 import { INITIAL_WORK_CONSTRAINTS } from "../utils/workConstraints";
-import { MAX_PERIOD_DAYS } from "../utils/periodGenerator";
+import { MAX_CONSTRAINED_PERIOD_DAYS } from "../utils/constrainedPeriodGenerator";
 import { todayInTimeZone } from "../utils/monthlyScheduleView";
 import { weeklyPersonWorkSummary, formatWorkMinutes } from "../utils/weeklyWorkSummary";
 
@@ -303,7 +303,7 @@ export default function ConstrainedPeriodGeneratorPanel({
             <p className="section-kicker">Planeamento de horários</p>
             <h2>Gerar horário</h2>
           </div>
-          <span className="work-rule-badge">Até {MAX_PERIOD_DAYS} dias</span>
+          <span className="work-rule-badge">Até {MAX_CONSTRAINED_PERIOD_DAYS} dias</span>
         </div>
 
         <p className="section-description">
