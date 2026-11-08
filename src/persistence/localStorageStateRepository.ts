@@ -149,7 +149,26 @@ function isPerson(value: unknown): value is Person {
           return Number.isFinite(stamp) &&
             new Date(stamp).toISOString().slice(0,10) === date;
         }) &&
-        new Set(person.requiredWorkDates).size === person.requiredWorkDates.length))
+        new Set(person.requiredWorkDates).size === person.requiredWorkDates.length)) &&
+    (person.unavailableWorkDates === undefined ||
+      (Array.isArray(person.unavailableWorkDates) &&
+        person.unavailableWorkDates.every((date: unknown) => {
+          if (typeof date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
+          const stamp=Date.parse(date+"T00:00:00Z");
+          return Number.isFinite(stamp) &&
+            new Date(stamp).toISOString().slice(0,10)===date;
+        }) &&
+        new Set(person.unavailableWorkDates).size===person.unavailableWorkDates.length &&
+        (person.requiredWorkDates===undefined ||
+         (Array.isArray(person.requiredWorkDates) &&
+          !person.unavailableWorkDates.some((date: string)=>
+            person.requiredWorkDates.includes(date)))))) &&
+    (person.qualificationTags===undefined ||
+      (Array.isArray(person.qualificationTags) &&
+        person.qualificationTags.every((tag:unknown)=>
+          typeof tag==="string" && tag.trim().length>0 &&
+          tag.length<=64 && /^[\p{L}\p{N} -]+$/u.test(tag)) &&
+        new Set(person.qualificationTags).size===person.qualificationTags.length))
   );
 }
 
