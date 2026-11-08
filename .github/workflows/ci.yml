@@ -21,6 +21,11 @@ jobs:
       - run: npm test
       - run: npm run typecheck
       - run: npm run build
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Deno typecheck of real deployed Edge API and all imported modules
+        run: deno check supabase/functions/official-schedules-v2/index.ts
 
   migration-contract:
     runs-on: ubuntu-latest
