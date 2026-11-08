@@ -211,4 +211,44 @@ const dstOutcome=generateConstrainedPeriodSchedule({...dstProof,maxSearchNodes:3
 assert(!dstOutcome.issues.some(issue=>issue.includes("Inviabilidade comprovada")),
   "PR47-F: DST gap cannot yield a false proof of infeasibility from wall-clock minutes.");
 
+
+// PR47-19: a full-day absence is HARD, separate from normal weekly
+// availability, and conflicts with an explicit mandatory workday.
+const absent:Person={...full,
+  unavailableWorkDates:["2026-11-02"],
+  qualificationTags:["Caixa","Armazém"]};
+assert(validatePeopleSchedulingPolicies([absent]).length===0,
+  "Whole-day unavailability and descriptive skills are valid optional profile fields.");
+assert(validatePeopleSchedulingPolicies([{
+  ...absent,requiredWorkDates:["2026-11-02"],
+}]).length>0,
+  "The same day cannot simultaneously be mandatory and unavailable.");
+assert(validatePeopleSchedulingPolicies([{
+  ...absent,unavailableWorkDates:["2026-11-02","2026-11-02"],
+}]).length>0,"Duplicated unavailable dates are invalid.");
+assert(isPersistedAppState({...savedV4,people:[absent]}),
+  "Existing v4 state can persist optional non-work dates and qualification tags.");
+assert(!isPersistedAppState({...savedV4,people:[{
+  ...absent,requiredWorkDates:["2026-11-02"],
+}]}),"Conflicting required and unavailable dates cannot be saved.");
+const absInput:GenerateConstrainedPeriodInput={
+  ...input,
+  people:[{...partial,requiredWorkDates:[],
+    unavailableWorkDates:["2026-11-02"]}],
+  presence:{...input.presence,presenceExceptions:[
+    {date:"2026-11-02",requirements:{
+      minimumAtOpening:1,minimumDuringOperation:1,minimumAtClosing:1,
+    }},
+  ]},
+};
+const attempted=generateConstrainedPeriodSchedule({...absInput,maxSearchNodes:3000});
+assert(attempted.status!=="generated" && attempted.assignments.length===0,
+  "An unavailable person cannot be assigned to cover mandatory opening.");
+const forbidden=certifyFinalGeneratedSchedule(absInput,[
+  shift("2026-11-02","b","09:00","13:00"),
+]);
+assert(!forbidden.valid &&
+  forbidden.issues.some(issue=>issue.includes("indisponibilidade")),
+  "Independent certification rejects work during an explicitly absent day.");
+
 console.log("PR47-B: contracts, targets, explicit dates, DST, 28-day cycles and legacy v4 passed.");
