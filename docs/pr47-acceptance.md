@@ -314,3 +314,21 @@ uma alteração parcial sem repetir os testes afetados.
 - A funcionalidade **Leaked Password Protection** depende de Supabase Pro ou superior; não foi simulada por validação JavaScript do frontend, porque isso não protegeria o endpoint Auth.
 - A migração e o SQL do Git foram alinhados às versões instaladas. Antes de ensaios reais com dados no browser: atualizar a branch PR47, executar CI e consultar a configuração recuperada sem editar.
 - A nova interface PR47 aceita 28 dias; outros deployments devem aplicar migrações antes de publicar a UI.
+
+
+## Bloco H — aprovação oficial e história anual (PR47-17)
+
+**Sem dados históricos importados, o resultado esperado de uma tentativa de aprovação é BLOQUEADO, nunca APROVADO.** O novo serviço está preparado mas permanece sem deploy; os testes HTTP reais não podem ser assinalados PASS enquanto essa publicação não estiver concluída.
+
+| ID | Procedimento | Critério | Estado |
+|---|---|---|---|
+| H01 | Pedido sem JWT e JWT de conta anónima ao serviço oficial v2 | 401, zero escritas | PENDENTE — deploy |
+| H02 | Conta A tenta aprovar proposta de B | 404/422, sem acesso nem escrita cruzada | PENDENTE — duas contas reais |
+| H03 | Conta sem histórico de 2026 tenta aprovar | 409 por histórico incompleto, ledger continua vazio | PENDENTE — Auth real |
+| H04 | Ficheiro histórico incompleto, um colaborador sem dias confirmados | Recusa; jamais presumir folga | PASS no CI de domínio; ensaio importador PENDENTE |
+| H05 | Proposta guardada, flag da UI desligada | Não aparece operação ativa nem é possível aprovar | PENDENTE — Safari |
+| H06 | Histórico simulado completo e proposta com restrições válidas | Teste de aplicação guarda apenas com CAS, falhas não publicam sucesso | PASS em testes simulados; HTTP/ledger real PENDENTE |
+| H07 | Revisão parcial: baixa, férias ou saída depois de aprovar | Versão antiga preservada; novo turno certificado; tentativa retroativa recusada | PASS no domínio/CI; UI/HTTP PENDENTE |
+| H08 | Importar horários antigos e rever totais de 28 dias e histórico anual | Identidade estável, sem dupla contagem, revisão de conflitos, proveniência | PENDENTE — importação adiada pelo utilizador |
+
+Provas técnicas atuais: `test:official-revisions`, `test:verified-official-service`, `test:official-edge-bundle`, `test:history-context`, mais `scripts/ci/postgres_history_assertions.sql` e `scripts/ci/postgres_approval_revision_assertions.sql`. Estes testes não autorizam ativar a flag de aprovação nem efetuar merge sem evidência dos ensaios H01–H08 pertinentes.
