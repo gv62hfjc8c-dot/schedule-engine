@@ -52,6 +52,20 @@ export function validatePeopleSchedulingPolicies(people: Person[]): string[] {
           new Set(person.requiredWorkDates).size !== person.requiredWorkDates.length)
         issues.push("Datas obrigatórias inválidas ou repetidas para " + person.id + ".");
     }
+    if (person.unavailableWorkDates !== undefined) {
+      if (!Array.isArray(person.unavailableWorkDates) ||
+          person.unavailableWorkDates.some(date=>typeof date!=="string" || !validSchedulingDate(date)) ||
+          new Set(person.unavailableWorkDates).size !== person.unavailableWorkDates.length)
+        issues.push("Datas de indisponibilidade inválidas ou repetidas para " + person.id + ".");
+      if ((person.unavailableWorkDates??[]).some(date=>person.requiredWorkDates?.includes(date)))
+        issues.push("Uma data não pode ser simultaneamente obrigatória e indisponível para " + person.id + ".");
+    }
+    if(person.qualificationTags!==undefined &&
+      (!Array.isArray(person.qualificationTags) ||
+       person.qualificationTags.some(tag=>typeof tag!=="string"||tag.trim().length===0||
+         tag.length>64||!/^[\p{L}\p{N} -]+$/u.test(tag)) ||
+       new Set(person.qualificationTags).size!==person.qualificationTags.length))
+      issues.push("Etiquetas de qualificação inválidas ou repetidas para "+person.id+".");
   }
   return issues;
 }
@@ -78,6 +92,10 @@ export function validatePersonWeeklyContractCaps(
     if (!person) continue; // inactive people with old outside shifts may remain in history
     if (!validSchedulingDate(shift.date)) {
       issues.push("Data de turno inválida ao validar o contrato: " + shift.personId + ".");
+      continue;
+    }
+    if(isPersonUnavailableOnDate(person,shift.date)){
+      issues.push("Turno de "+person.id+" atribuído durante indisponibilidade em "+shift.date+".");
       continue;
     }
     const duration = getEffectiveWorkMinutesInTimeZone(shift,timeZone);
@@ -127,6 +145,11 @@ export function missingRequiredOutsideWorkdays(
         !assigned.has(person.id+"|"+date))
       .map(date=>({personId:person.id,date}))
   );
+}
+
+/** Hard exclusion even if a weekly availability normally permits the shift. */
+export function isPersonUnavailableOnDate(person:Person,date:string):boolean{
+  return person.unavailableWorkDates?.includes(date)??false;
 }
 
 /** Unlike availability, an explicitly required date is a hard assignment obligation. */
