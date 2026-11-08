@@ -2,6 +2,7 @@ import {
   createSupabaseStateRepository,
   preserveLegacyPeople,
   SupabaseStateError,
+  SupabaseStateConflictError,
   LEGACY_IMPORT_CONSENT_PREFIX,
   LegacyImportConsentRequiredError,
   authorizeLegacyImportForOwner,
@@ -324,6 +325,66 @@ const ownerConsent = { getItem: (key: string): string | null =>
   ensure(postCount===2 && cloud.current().revision===3 &&
     cloud.current().state?.workRules.standardShiftDurationMinutes===360,
     "Writes must commit serially and preserve the latest user configuration.");
+}
+
+
+// PR47: two authenticated tabs editing disjoint fields are reconciled with
+// a three-way CAS retry. The second tab must receive merged data for hydration.
+{
+  const cloud=createMockCloud();
+  cloud.setState(fixture());
+  const first=createSupabaseStateRepository(cloud.client,legacy(null).repo,emptyStorage);
+  const second=createSupabaseStateRepository(cloud.client,legacy(null).repo,emptyStorage);
+  const left=await first.load();
+  const right=await second.load();
+  ensure(Boolean(left&&right),"Both tabs must load the same baseline.");
+  await first.save({...left!,people:left!.people.map((p,i)=>
+    i===0?{...p,name:"Nome após edição na aba A"}:p)});
+  const reconciled=await second.save({...right!,
+    workRules:{standardShiftDurationMinutes:360}});
+  ensure(Boolean(reconciled)&&
+    reconciled!.people[0].name==="Nome após edição na aba A" &&
+    reconciled!.workRules.standardShiftDurationMinutes===360 &&
+    cloud.current().revision===3,
+    "Two disjoint edits from distinct tabs must survive one automatic safe merge.");
+  await second.save({...reconciled!,operationTimeZone:"Europe/Lisbon"});
+  ensure(cloud.current().state?.people[0].name==="Nome após edição na aba A" &&
+    cloud.current().state?.workRules.standardShiftDurationMinutes===360,
+    "A subsequent edit from merged tab must not revert other-tab fields.");
+}
+// Even on the same object, distinct person fields can be merged safely.
+{
+  const cloud=createMockCloud();
+  cloud.setState(fixture());
+  const a=createSupabaseStateRepository(cloud.client,legacy(null).repo,emptyStorage);
+  const b=createSupabaseStateRepository(cloud.client,legacy(null).repo,emptyStorage);
+  const sa=(await a.load())!;
+  const sb=(await b.load())!;
+  await a.save({...sa,people:sa.people.map((p,i)=>
+    i===0?{...p,name:"Nova identificação"}:p)});
+  const merged=await b.save({...sb,people:sb.people.map((p,i)=>
+    i===0?{...p,weeklyContractMinutes:1200}:p)});
+  ensure(Boolean(merged) && merged!.people[0].name==="Nova identificação" &&
+    merged!.people[0].weeklyContractMinutes===1200,
+    "Disjoint fields of the same person must survive.");
+}
+// Concurrent edits of the SAME field fail closed; no last-write-wins.
+{
+  const cloud=createMockCloud();
+  cloud.setState(fixture());
+  const a=createSupabaseStateRepository(cloud.client,legacy(null).repo,emptyStorage);
+  const b=createSupabaseStateRepository(cloud.client,legacy(null).repo,emptyStorage);
+  const sa=(await a.load())!;
+  const sb=(await b.load())!;
+  await a.save({...sa,workRules:{standardShiftDurationMinutes:420}});
+  let conflict:unknown=null;
+  try {await b.save({...sb,workRules:{standardShiftDurationMinutes:300}});}
+  catch(error){conflict=error;}
+  ensure(conflict instanceof SupabaseStateConflictError &&
+    conflict.fields.includes("workRules.standardShiftDurationMinutes"),
+    "Conflicting same-field edits must display a recoverable field-level conflict.");
+  ensure(cloud.current().state?.workRules.standardShiftDurationMinutes===420,
+    "A conflicting edit must never overwrite the previous tab.");
 }
 
 console.log("Supabase repository: todos os testes passaram.");
