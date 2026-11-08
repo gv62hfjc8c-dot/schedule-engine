@@ -57,7 +57,9 @@ export function validatePeopleSchedulingPolicies(people: Person[]): string[] {
           person.unavailableWorkDates.some(date=>typeof date!=="string" || !validSchedulingDate(date)) ||
           new Set(person.unavailableWorkDates).size !== person.unavailableWorkDates.length)
         issues.push("Datas de indisponibilidade inválidas ou repetidas para " + person.id + ".");
-      if ((person.unavailableWorkDates??[]).some(date=>person.requiredWorkDates?.includes(date)))
+      if (Array.isArray(person.unavailableWorkDates) &&
+          Array.isArray(person.requiredWorkDates) &&
+          person.unavailableWorkDates.some(date=>person.requiredWorkDates!.includes(date)))
         issues.push("Uma data não pode ser simultaneamente obrigatória e indisponível para " + person.id + ".");
     }
     if(person.qualificationTags!==undefined &&
