@@ -4,7 +4,7 @@
  * the live check lives in supabase/audit/pr47_checkpoint_d_readonly.sql.
  * No network, credentials or database operations.
  */
-import {readFileSync,existsSync} from "node:fs";
+import {readFileSync,existsSync,readdirSync} from "node:fs";
 import {resolve,dirname} from "node:path";
 import {fileURLToPath} from "node:url";
 import assert from "node:assert/strict";
@@ -17,7 +17,15 @@ const contains=(source,expression,message)=>
 const absent=(source,expression,message)=>
   assert.doesNotMatch(source,expression,message);
 
-const state=file("supabase/migrations/20261025_schedule_engine_state_v0.sql");
+const migrations=readdirSync(resolve(root,"supabase/migrations")).filter(n=>n.endsWith(".sql")).sort();
+assert.deepEqual(migrations,[
+  "20261102125810_generated_schedule_proposals.sql",
+  "20261103100427_trusted_approved_schedule_ledger.sql",
+  "20261103101604_approved_context_proposals.sql",
+  "20261103104023_partial_schedule_revisions.sql",
+  "20261108100000_pr47_four_week_proposals.sql",
+],"Active migration versions must exactly match the four installed histories plus one pending PR47 upgrade.");
+const state=file("supabase/migrations/20261102125810_generated_schedule_proposals.sql");
 contains(state,/security\s+definer/i,"State RPC must document its security context.");
 contains(state,/set\s+search_path\s*=\s*''/i,"Privileged RPC must use fixed empty search_path.");
 contains(state,/auth\.uid\(\)/i,"State writes must be scoped to authenticated identity.");
@@ -29,7 +37,7 @@ contains(state,/revoke\s+all\s+on\s+function\s+public\.save_schedule_engine_stat
 contains(state,/grant\s+execute\s+on\s+function\s+public\.save_schedule_engine_state[\s\S]*?to\s+authenticated/i,
   "The current state UI depends on this authenticated RPC.");
 
-const generated=file("supabase/migrations/20261102120000_generated_schedule_proposals.sql");
+const generated=state;
 contains(generated,/enable\s+row\s+level\s+security/i,
   "Generated proposals must have RLS.");
 contains(generated,/grant\s+insert\s*\(\s*id,\s*owner_id,\s*start_date,\s*end_date,\s*time_zone,\s*payload\s*\)/i,
@@ -38,12 +46,25 @@ contains(generated,/with\s+check\s*\(\s*\(select\s+auth\.uid\(\)\)\s*=\s*owner_i
   "Proposal INSERT policy must check authenticated ownership.");
 absent(generated,/grant\s+(?:update|delete|all)\s+on\s+(?:table\s+)?public\.schedule_engine_generated_schedules\s+to\s+authenticated/i,
   "Never grant the browser UPDATE or DELETE over immutable proposals.");
-const legacy=file("supabase/migrations/20261026_schedule_engine_approved_ledgers_v0.sql");
+const legacy=file("supabase/rollback/pr47-legacy-active/20261026_schedule_engine_approved_ledgers_v0.sql");
 contains(legacy,/NO client role receives EXECUTE/i,
   "Legacy ledger explicitly gates off untrusted writes.");
 absent(legacy,/grant\s+execute\s+on\s+function\s+public\.save_schedule_engine_approved_ledger[\s\S]*?to\s+authenticated/i,
   "Legacy ledger must not grant browser approval mutations.");
 
+const fourWeeks=file("supabase/migrations/20261108100000_pr47_four_week_proposals.sql");
+contains(fourWeeks,/end_date\s*<\s*start_date\s*\+\s*28/i,
+  "Four-week proposals require the database CHECK to accept 28 days.");
+const rpcHardening=file("supabase/deployment/pr47_state_rpc_private_schema.sql");
+contains(rpcHardening,/CREATE\s+SCHEMA\s+IF\s+NOT\s+EXISTS\s+schedule_engine_private/i,
+  "Privileged code must be moved outside the Data API schema.");
+contains(rpcHardening,/SECURITY\s+INVOKER/i,
+  "The exposed RPC wrapper must not be privileged.");
+contains(rpcHardening,/auth\.uid\(\)/,
+  "The privileged internal implementation must retain owner scope.");
+const rollbackRpc=file("supabase/rollback/pr47_state_rpc_public_restore.sql");
+contains(rollbackRpc,/SECURITY\s+DEFINER/i,
+  "Exact original security context must be recoverable.");
 const deployedPaths=[
   "supabase/functions/official-schedules/index.ts",
   "src/application/executeApprovedScheduleCommand.ts",
