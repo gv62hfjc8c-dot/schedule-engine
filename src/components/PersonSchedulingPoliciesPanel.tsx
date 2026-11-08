@@ -100,9 +100,9 @@ export default function PersonSchedulingPoliciesPanel({people,onChange}:Props) {
         <summary>Indisponibilidades e qualificações</summary>
         <p className="section-description">
           Dias de ausência ou férias impedem qualquer turno nesse dia.
-          Os motivos pessoais não são armazenados. As qualificações são
-          apenas etiquetas informativas enquanto não existirem requisitos
-          de cobertura por competência.
+          Os motivos pessoais não são armazenados. As qualificações
+          podem ser exigidas em Operação → Requisitos de presença, onde o
+          motor as valida durante o trabalho efetivo e as refeições.
         </p>
         <div className="se-contract-dates">
           <label className="se-control"><span>Dia indisponível</span>
