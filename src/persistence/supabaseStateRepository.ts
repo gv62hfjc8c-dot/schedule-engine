@@ -18,6 +18,19 @@ interface BrowserStateSource {
  * claim it before any first import. Existing cloud state is never affected.
  */
 export const LEGACY_IMPORT_CONSENT_PREFIX = "schedule-engine:legacy-import:owner:";
+export const LEGACY_IMPORT_SKIP_PREFIX = "schedule-engine:legacy-import:skip-owner:";
+
+/**
+ * An explicit owner-specific decision to start a NEW cloud account.
+ * The legacy browser data remains untouched and can still be imported
+ * later by its rightful owner. Never apply this choice to another user.
+ */
+export function startFreshCloudAccountForOwner(
+  storage: Pick<Storage, "setItem">, ownerId: string,
+): void {
+  if (!ownerId.trim()) throw new Error("Conta não autenticada.");
+  storage.setItem(LEGACY_IMPORT_SKIP_PREFIX + ownerId, "skip");
+}
 export class LegacyImportConsentRequiredError extends Error {
   constructor() {
     super("Existem dados antigos neste navegador sem associação confirmada à conta atual. A importação requer consentimento explícito.");
@@ -255,6 +268,11 @@ export function createSupabaseStateRepository(
       if (remote.state !== null) {
         return remote.state;
       }
+
+      // An explicitly new account must not read or claim unscoped browser
+      // state. This decision is per owner and never changes legacy data.
+      if (browser.getItem(LEGACY_IMPORT_SKIP_PREFIX + ownerId) === "skip")
+        return null;
 
       // First import only. Never replace an existing cloud state with local data.
       const old = await oldRepository.load();
