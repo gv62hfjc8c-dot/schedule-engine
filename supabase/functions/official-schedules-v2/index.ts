@@ -1,5 +1,5 @@
 /**
- * PR47-17 / trusted scheduling command API — staged, not deployed.
+ * PR47-17 / trusted scheduling command API — deployed as v1, JWT required.
  * No browser-supplied owner, ledger, environment, history or event clock.
  * Do NOT deploy with verify_jwt=false; service_role stays server-side.
  *
@@ -11,7 +11,7 @@ import {
   type VerifiedOfficialSchedulePorts,
 } from "../../../src/application/verifiedOfficialScheduleService.ts";
 import {
-  validateApprovedScheduleLedger,
+  validateApprovedScheduleLedger,approveSchedule,
   type ApprovedScheduleLedger,
   type ApprovalEnvironment,
   type ScheduleDraft,
@@ -33,7 +33,8 @@ const isObject=(x:unknown):x is RecordJson=>
   x!==null&&typeof x==="object"&&!Array.isArray(x);
 const endpoint=Deno.env.get("SUPABASE_URL")??"";
 const serviceRole=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")??"";
-const historyAnchor=Deno.env.get("SCHEDULE_ENGINE_HISTORY_ANCHOR_DATE")??"";
+// Historical scope comes from the server-verified immutable ledger, never from
+// client JSON or a missing optional environment variable.
 // Authorization is supplied exclusively via Bearer headers, never cookies.
 // A wildcard origin permits Vite localhost without exposing user credentials.
 const corsHeaders={
@@ -179,14 +180,17 @@ async function loadLedger(ownerId:string):Promise<ApprovedScheduleLedger|null>{
  */
 async function loadHistoricalEvidence(
   ownerId:string,target:WorkValidationDateRange,
-  env:ApprovalEnvironment,timeZone:string,
+  env:ApprovalEnvironment,ledger:ApprovedScheduleLedger,
 ):Promise<HistoricalContextRequest>{
   const people=env.people.map(p=>p.id);
+  const timeZone=ledger.timeZone;
+  const historyAnchor=ledger.coverage.startDate;
   const base={
     targetPeriod:target,timeZone,workConstraints:env.workConstraints,
     historyStartDate:historyAnchor,personIds:people,
   };
-  if(!validDate(historyAnchor))return {...base,archive:null};
+  if(!validDate(historyAnchor)||!ledger.complete||people.length===0)
+    return {...base,archive:null};
   const [sources,verifications,facts]=await Promise.all([
     readAll(selectedOwnerPath("schedule_engine_history_sources",ownerId,
       "source_id,time_zone,first_date,last_date")),
@@ -274,13 +278,25 @@ Deno.serve(async(request:Request)=>{
         historyStatus:"existing_record",
         message:"Esta proposta já possui um registo no histórico oficial."});
       const env=await loadEnvironment(ownerId);
-      const evidence=await loadHistoricalEvidence(ownerId,candidate,env,ledger.timeZone);
+      const evidence=await loadHistoricalEvidence(ownerId,candidate,env,ledger);
       const checked=prepareHistoricalWorkContext(evidence);
-      const ready=ledger.complete&&checked.status==="ready";
-      return json({ok:true,ready,alreadyApproved:false,
-        version:ledger.version,historyStatus:checked.status,
-        message:ready?"Histórico externo verificado para o período.":
-          (checked.issues[0]??"É necessário completar o histórico anterior.")});
+      if(!ledger.complete||checked.status!=="ready"||!checked.externalContext)
+        return json({ok:true,ready:false,alreadyApproved:false,
+          version:ledger.version,historyStatus:checked.status,
+          message:checked.issues[0]??"É necessário completar o histórico anterior."});
+      // Readiness must prove *the actual candidate*, not merely that its
+      // historical window exists. The POST performs the same check again.
+      const certified=approveSchedule({
+        ledger,expectedVersion:ledger.version,at:new Date().toISOString(),
+        draft:candidate,environment:{
+          ...env,historicalShifts:checked.externalContext.shifts,
+        },
+      });
+      return json({ok:true,ready:certified.ok,alreadyApproved:false,
+        version:ledger.version,
+        historyStatus:certified.ok?"certified":"not_certified",
+        message:certified.ok?"Proposta validada e pronta para aprovação oficial.":
+          certified.issues[0]??"A proposta não cumpre as restrições atuais."});
     }catch{return json({ok:false,code:"storage_error"},503);}
   }
   let input:unknown;
@@ -292,14 +308,16 @@ Deno.serve(async(request:Request)=>{
   catch{return json({ok:false,code:"storage_error"},503);}
   if(!trustedZone)return json({ok:false,code:"history_incomplete",
     issues:["O arquivo oficial ainda não foi iniciado com cobertura histórica verificada."]},409);
-  const zone=trustedZone;
   const ports:VerifiedOfficialSchedulePorts={
     authenticateOwner:async()=>ownerId,
     loadLedger,
     loadEnvironment,
     loadSavedCandidate:loadCandidate,
-    loadHistoricalEvidence:(owner,target,env)=>
-      loadHistoricalEvidence(owner,target,env,zone),
+    loadHistoricalEvidence:async(owner,target,env)=>{
+      const ledger=await loadLedger(owner);
+      if(!ledger)throw Error("Verified ledger missing");
+      return loadHistoricalEvidence(owner,target,env,ledger);
+    },
     now:()=>new Date().toISOString(),
     newRecordId:()=>crypto.randomUUID(),
     commit:async(id,next,expected)=>{
