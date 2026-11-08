@@ -348,3 +348,10 @@ Provas técnicas atuais: `test:official-revisions`, `test:verified-official-serv
 - A simulação devolveu `not_found` sem solução e sem publicar horário. A ausência de sobreposição durante a refeição torna impossível cobrir 8 horas de operação com apenas uma pessoa; **é um cenário realmente incompatível com as hard constraints**, não prova de erro do algoritmo.
 - A consulta SQL read-only confirmou **0 propostas guardadas na conta A**, incluindo para 02/11/2026.
 - Próximo teste: reduzir apenas o horário operacional de segunda da **conta A de teste** para **09:00–13:00**, manter A1 disponível, gerar 02/11/2026 e verificar arquivo e recuperação. Não alterar configurações da conta principal.
+
+### Ensaio Safari — 08/11/2026, conta fictícia A, persistência da proposta
+
+- Após reduzir o funcionamento de segunda-feira para um período compatível com um único colaborador, o motor gerou e guardou uma proposta para **02/11/2026**. O utilizador confirmou que a proposta continuou visível após atualizar o Safari.
+- Verificação SQL read-only: **conta A: 1 proposta** (1 na data 02/11/2026), **conta B: 0**, **conta principal: 4**. Nenhuma das contas tinha ledger de horários oficialmente aprovados. A nova proposta permaneceu associada apenas ao proprietário A.
+- A primeira tentativa 09:00–17:00 com A1 sozinho não encontrou solução devido à cobertura contínua e pausa obrigatória; o cenário mais curto foi gerado e recuperado. Isto confirma comportamento coerente com as hard constraints, não a exaustividade do algoritmo.
+- **Ainda pendente:** guardar uma proposta na conta B, confirmar que não aparece em A e executar teste de acesso cruzado com JWTs reais.
