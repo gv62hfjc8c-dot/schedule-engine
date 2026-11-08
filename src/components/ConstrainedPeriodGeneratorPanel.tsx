@@ -23,6 +23,8 @@ import {
   stagePendingGeneratedProposal,
   loadPendingGeneratedProposal,
   acknowledgePendingGeneratedProposal,
+  rawPendingGeneratedProposal,
+  discardPendingGeneratedProposal,
 } from "../utils/pendingGeneratedProposal";
 import { todayInTimeZone } from "../utils/monthlyScheduleView";
 import { weeklyPersonWorkSummary, formatWorkMinutes } from "../utils/weeklyWorkSummary";
@@ -244,7 +246,9 @@ export default function ConstrainedPeriodGeneratorPanel({
     void onSaveGenerated(payload,id).then(() => {
       // Even if another view was opened during the in-flight write, the
       // identical server-confirmed UUID must be removed from the outbox.
-      acknowledgePendingGeneratedProposal(window.localStorage,ownerId,id);
+      // The server confirmation remains valid even if local cleanup fails.
+      try{ acknowledgePendingGeneratedProposal(window.localStorage,ownerId,id); }
+      catch{ /* Safe idempotent replay remains available on next load. */ }
       if (saveAttempt.current === token) {
         setSaveState("saved");
         setRetryPayload(null);
@@ -256,6 +260,39 @@ export default function ConstrainedPeriodGeneratorPanel({
           "A base de dados não confirmou a gravação.");
       }
     });
+  }
+
+  function exportLocalRecovery():void {
+    if(!ownerId)return;
+    try{
+      const raw=rawPendingGeneratedProposal(window.localStorage,ownerId);
+      if(!raw)return;
+      const url=URL.createObjectURL(new Blob([raw],{type:"application/json"}));
+      const anchor=document.createElement("a");
+      anchor.href=url;
+      anchor.download="schedule-engine-proposta-pendente.json";
+      anchor.click();
+      window.setTimeout(()=>URL.revokeObjectURL(url),1000);
+    }catch(problem){
+      setSaveProblem(problem instanceof Error?problem.message:
+        "Não foi possível exportar a proposta pendente.");
+    }
+  }
+  function discardLocalRecovery():void {
+    if(!ownerId ||
+      !window.confirm("Descartar a única cópia local desta tentativa? "+
+        "A gravação remota pode ainda existir e não será eliminada. "+
+        "Exporta uma cópia JSON primeiro se pretenderes guardar a proposta."))
+      return;
+    try{
+      discardPendingGeneratedProposal(window.localStorage,ownerId);
+      setRetryPayload(null);
+      setSaveState("idle");
+      setSaveProblem(null);
+    }catch(problem){
+      setSaveProblem(problem instanceof Error?problem.message:
+        "Não foi possível libertar o arquivo local.");
+    }
   }
 
   function handleGenerate() {
@@ -362,11 +399,17 @@ export default function ConstrainedPeriodGeneratorPanel({
         {saveState === "saving" && <strong>A guardar proposta no Supabase…</strong>}
         {saveState === "saved" && <strong>Horário guardado com sucesso. Podes sair e voltar a consultá-lo no calendário. Não está oficialmente aprovado.</strong>}
         {saveState === "failed" && <>
-          <strong>O horário foi gerado, mas não ficou guardado.</strong>
+          <strong>A gravação desta proposta ainda não foi confirmada.</strong>
           <p>{saveProblem ?? "Erro de armazenamento."}</p>
           <button type="button" disabled={!retryPayload} onClick={() => {
             if (retryPayload) persistProposal(retryPayload.payload,retryPayload.id);
           }}>Tentar guardar novamente sem regenerar</button>
+          {ownerId && <div className="p63-action-row">
+            <button type="button" className="se-outline"
+              onClick={exportLocalRecovery}>Descarregar cópia local (JSON)</button>
+            <button type="button" className="se-outline"
+              onClick={discardLocalRecovery}>Descartar tentativa local</button>
+          </div>}
         </>}
       </div>}
       <nav className="generator-workspace-tabs" aria-label="Secções de horários">
