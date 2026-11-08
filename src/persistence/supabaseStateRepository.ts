@@ -156,6 +156,11 @@ export function createSupabaseStateRepository(
   let revision: number | null = null;
   let revisionOwnerId: string | null = null;
   let baseline: PersistedAppState | null = null;
+  // The latest UI request can be older than a merged server revision when
+  // multiple autosaves are queued. Track UI deltas independently from the
+  // server snapshot so a later request cannot silently revert remote edits.
+  let lastUiState: PersistedAppState | null = null;
+  let conflictLocked=false;
   // Changes from a single browser session are serialized so each RPC sees
   // the revision returned by the previous write. Multi-tab conflicts still
   // fail closed under the PostgreSQL compare-and-swap contract.
@@ -170,6 +175,8 @@ export function createSupabaseStateRepository(
       revision = null;
       revisionOwnerId = null;
       baseline = null;
+      lastUiState=null;
+      conflictLocked=true;
       throw new Error("A sessão mudou durante a operação. Recarrega os dados da conta.");
     }
   };
@@ -243,6 +250,8 @@ export function createSupabaseStateRepository(
       revision = remote.revision;
       revisionOwnerId = ownerId;
       baseline = remote.state===null?null:structuredClone(remote.state);
+      lastUiState=remote.state===null?null:structuredClone(remote.state);
+      conflictLocked=false;
       if (remote.state !== null) {
         return remote.state;
       }
@@ -260,6 +269,7 @@ export function createSupabaseStateRepository(
         verifyOwner(ownerId);
         revision=nextRevision;
         baseline=structuredClone(migrated);
+        lastUiState=structuredClone(migrated);
         return migrated;
       } catch (error) {
         // Concurrency: another tab may have imported first. Re-read only
@@ -269,6 +279,7 @@ export function createSupabaseStateRepository(
           verifyOwner(ownerId);
           revision = current.revision;
           baseline=current.state===null?null:structuredClone(current.state);
+          lastUiState=current.state===null?null:structuredClone(current.state);
           if (current.state !== null) return current.state;
         }
         throw error;
@@ -277,18 +288,30 @@ export function createSupabaseStateRepository(
 
     async save(state) {
       const ownerId=requireOwner();
-      if (revisionOwnerId !== ownerId || revision === null) {
-        throw new Error("É necessário carregar os dados desta conta antes de guardar.");
+      if (revisionOwnerId !== ownerId || revision === null || conflictLocked) {
+        throw new Error("É necessário recarregar os dados desta conta antes de guardar.");
       }
+      // Snapshot caller state at invocation time, NOT after waiting for the
+      // queue. A newer UI event may already have edited the same objects.
+      const original=structuredClone(state);
+      const uiBaseline=lastUiState===null?null:structuredClone(lastUiState);
+      lastUiState=structuredClone(original);
       const operation=saveQueue.then(async():Promise<PersistedAppState|void>=>{
         verifyOwner(ownerId);
-        if(revisionOwnerId !== ownerId || revision === null)
-          throw new Error("A revisão da configuração já não pertence à conta atual.");
-        const original=structuredClone(state);
+        if(conflictLocked || revisionOwnerId!==ownerId || revision===null)
+          throw new Error("Gravação bloqueada após conflito. Exporta os dados e recarrega a conta.");
         const startBaseline=baseline===null?null:structuredClone(baseline);
         let candidate=original;
-        let expected=revision;
         let reconciled=false;
+        if(uiBaseline && startBaseline) {
+          const queued=mergePersistedStates(uiBaseline,original,startBaseline);
+          if(!queued.ok)throw new SupabaseStateConflictError(queued.conflicts);
+          candidate=queued.state;
+          if(!isPersistedAppState(candidate))
+            throw new Error("A conciliação dos pedidos em fila produziu dados inválidos.");
+          reconciled=JSON.stringify(candidate)!==JSON.stringify(original);
+        }
+        let expected=revision;
         for(let attempt=0;attempt<3;attempt++){
           verifyOwner(ownerId);
           try {
@@ -296,8 +319,7 @@ export function createSupabaseStateRepository(
             verifyOwner(ownerId);
             revision=nextRevision;
             baseline=structuredClone(candidate);
-            // Caller must synchronize the in-memory UI on a successful merge
-            // so a later autosave cannot revert another tab's changes.
+            // If server changes were merged, the caller must hydrate them.
             return reconciled?candidate:undefined;
           }catch(error){
             if(!(error instanceof SupabaseStateError)||
@@ -305,7 +327,7 @@ export function createSupabaseStateRepository(
             const current=await readRemote();
             verifyOwner(ownerId);
             if(!current.state||!startBaseline) throw error;
-            const result=mergePersistedStates(startBaseline,original,current.state);
+            const result=mergePersistedStates(startBaseline,candidate,current.state);
             if(!result.ok)throw new SupabaseStateConflictError(result.conflicts);
             if(!isPersistedAppState(result.state))
               throw new Error("A conciliação gerou dados inválidos; gravação cancelada.");
@@ -314,9 +336,12 @@ export function createSupabaseStateRepository(
             reconciled=true;
           }
         }
+      }).catch(error=>{
+        // Any uncertain/failed write locks all queued writes. Otherwise a
+        // later queued snapshot could overwrite a conflicting server edit.
+        conflictLocked=true;
+        throw error;
       });
-      // A rejected write remains visible to its caller; it must not
-      // permanently poison the queue for subsequent safe retries.
       saveQueue=operation.then(()=>undefined,()=>undefined);
       return operation;
     },
