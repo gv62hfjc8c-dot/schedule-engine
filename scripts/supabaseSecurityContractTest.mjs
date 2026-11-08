@@ -25,7 +25,8 @@ assert.deepEqual(migrations,[
   "20261103104023_partial_schedule_revisions.sql",
   "20261108124759_pr47_four_week_proposals.sql",
   "20261108124844_pr47_state_rpc_private_schema.sql",
-],"Active migration versions must exactly match the four installed histories plus two deployed PR47 upgrades.");
+  "20261108160000_pr47_historical_archive_foundation.sql",
+],"Active migration versions must exactly match the four installed histories, two deployed PR47 upgrades and one staged historical foundation.");
 const state=file("supabase/migrations/20261102125810_generated_schedule_proposals.sql");
 contains(state,/security\s+definer/i,"State RPC must document its security context.");
 contains(state,/set\s+search_path\s*=\s*''/i,"Privileged RPC must use fixed empty search_path.");
@@ -61,6 +62,15 @@ contains(deployedRpcMigration,/CREATE\s+SCHEMA\s+IF\s+NOT\s+EXISTS\s+schedule_en
   "Deployed migration must install the private schema.");
 contains(deployedRpcMigration,/SECURITY\s+INVOKER/i,
   "Deployed public RPC must never stay SECURITY DEFINER.");
+const historical=file("supabase/migrations/20261108160000_pr47_historical_archive_foundation.sql");
+contains(historical,/CREATE\\s+TABLE\\s+IF\\s+NOT\\s+EXISTS\\s+public\\.schedule_engine_history_day_facts/i,
+  "The history migration must capture explicit person/day facts.");
+contains(historical,/CREATE\\s+TABLE\\s+IF\\s+NOT\\s+EXISTS\\s+public\\.schedule_engine_history_verifications/i,
+  "Historical source uploads must be separately verified.");
+contains(historical,/REVOKE\\s+EXECUTE\\s+ON\\s+FUNCTION[\\s\\S]*?initialize_schedule_engine_approved_ledger/i,
+  "Unsafe official-ledger initialization must be disabled.");
+absent(historical,/GRANT\\s+(?:INSERT|UPDATE|DELETE|ALL)[\\s\\S]*?ON\\s+public\\.schedule_engine_history_(?:sources|day_facts|verifications)\\s+TO\\s+authenticated/i,
+  "Do not grant the browser historical data writes.");
 const rpcHardening=file("supabase/deployment/pr47_state_rpc_private_schema.sql");
 contains(rpcHardening,/CREATE\s+SCHEMA\s+IF\s+NOT\s+EXISTS\s+schedule_engine_private/i,
   "Privileged code must be moved outside the Data API schema.");
