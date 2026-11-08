@@ -231,9 +231,10 @@ async function loadHistoricalEvidence(
     const key=fact.person_id+"|"+fact.work_date;
     if(keys.has(key))throw Error("Overlapping historical sources require reconciliation");
     keys.add(key);
+    const factDate=fact.work_date as string;
     const verified=ranges.some(v=>v.person_id===fact.person_id&&
       v.source_id===fact.source_id &&
-      v.first_date<=fact.work_date && v.last_date>=fact.work_date);
+      v.first_date<=factDate && v.last_date>=factDate);
     if(!verified)continue;
     coverage.push({personId:fact.person_id,
       startDate:fact.work_date,endDate:fact.work_date,
