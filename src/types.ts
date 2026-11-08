@@ -39,6 +39,13 @@ export interface Person {
   weeklyTargetMinutes?: number;
   /** Explicit hard workdays; independent of general availability. */
   requiredWorkDates?: string[];
+  /**
+   * Whole civil days excluded from scheduling (holidays, leave or
+   * unforeseen absences). No medical or other sensitive reason is stored.
+   */
+  unavailableWorkDates?: string[];
+  /** Optional competence labels, descriptive until role-based coverage is defined. */
+  qualificationTags?: string[];
 }
 
 export type WeeklyAvailability = Record<
