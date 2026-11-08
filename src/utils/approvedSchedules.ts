@@ -32,6 +32,21 @@ import {
  * Persistence will need an atomic compare-and-swap by ledger version.
  */
 export type ApprovedScheduleStatus = "approved" | "cancelled" | "superseded";
+/** Administrative reason code only; do not store medical details. */
+export type AbsenceReason =
+  "sick_leave" | "vacation" | "leave" | "accident" | "departure" | "other";
+export interface ScheduleAbsence extends WorkValidationDateRange {
+  personId: string;
+  reason: AbsenceReason;
+}
+export interface ApprovedScheduleRevision extends WorkValidationDateRange {
+  sourceId: string;
+  personId: string;
+  reason: AbsenceReason;
+  changedDates: string[];
+  note?: string;
+}
+
 
 export interface ApprovedScheduleRecord extends WorkValidationDateRange {
   id: string;
@@ -43,6 +58,10 @@ export interface ApprovedScheduleRecord extends WorkValidationDateRange {
   changedAt: string | null;
   replacementId: string | null;
   replacesId: string | null;
+  /** Immutable personnel labels at approval time, not current UI names. */
+  people?: Array<{id:string;name:string}>;
+  absences?: ScheduleAbsence[];
+  revision?: ApprovedScheduleRevision;
 }
 
 export interface ApprovedScheduleLedger {
@@ -188,6 +207,10 @@ function cloneRecord(record: ApprovedScheduleRecord): ApprovedScheduleRecord {
   return {
     ...record,
     shifts: record.shifts.map(cloneShift),
+    ...(record.people?{people:record.people.map(p=>({...p}))}:{}),
+    ...(record.absences?{absences:record.absences.map(a=>({...a}))}:{}),
+    ...(record.revision?{revision:{...record.revision,
+      changedDates:[...record.revision.changedDates]}}:{}),
   };
 }
 
@@ -683,6 +706,7 @@ function commitDraft(
     changedAt: null,
     replacementId: null,
     replacesId: replaced?.id ?? null,
+    people:input.environment.people.map(p=>({id:p.id,name:p.name})),
   };
   const newRecords = input.ledger.records.map(old => (
     replaced && old.id === replaced.id
