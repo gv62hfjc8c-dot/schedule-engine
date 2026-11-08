@@ -824,6 +824,13 @@ export default function App() {
             <button type="button" className="se-outline" onClick={exportPendingConfiguration}>
               Descarregar cópia das alterações pendentes (JSON)
             </button>
+            <button type="button" className="se-outline" onClick={() => {
+              if (window.confirm("Descartar as alterações locais por guardar e recarregar a última configuração do servidor? Exporta primeiro uma cópia JSON se precisares das alterações.")) {
+                window.location.reload();
+              }
+            }}>
+              Recarregar configuração remota (descartar edição local)
+            </button>
           </>}
           {needsLegacyConsent && <>
             <p>
