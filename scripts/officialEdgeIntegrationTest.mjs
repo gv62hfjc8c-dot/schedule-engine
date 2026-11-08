@@ -53,7 +53,18 @@ try {
   const call=(path,init={})=>handler(new Request(
     "https://project-test.supabase.co/functions/v1/official-schedules-v2"+path,init,
   ));
-  let r=await call("",{method:"POST",headers:{"Content-Type":"application/json"},
+  let r=await call("",{method:"OPTIONS",headers:{
+    Origin:"http://localhost:5173",
+    "Access-Control-Request-Method":"POST",
+    "Access-Control-Request-Headers":"authorization,apikey,content-type",
+  }});
+  assert.equal(r.status,204,"Preflight must succeed before browser authentication.");
+  assert.equal(r.headers.get("Access-Control-Allow-Origin"),"*",
+    "Browser must receive CORS response without cookies.");
+  assert.match(r.headers.get("Access-Control-Allow-Headers")??"",
+    /authorization/i,"Authenticated browser must be allowed to send Bearer headers.");
+  assert.equal(calls.length,0,"Preflight must not contact trusted backend.");
+  r=await call("",{method:"POST",headers:{"Content-Type":"application/json"},
     body:JSON.stringify({kind:"approve",candidateId:"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",expectedVersion:0})});
   assert.equal(r.status,401,"POST without JWT must reject.");
   r=await call("",{method:"POST",headers:{Authorization:"Bearer anonymous",
