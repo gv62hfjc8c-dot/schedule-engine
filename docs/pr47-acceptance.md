@@ -168,18 +168,20 @@ num ambiente de ensaio e verifica isolamento bidirecional sobre as três
 tabelas do fluxo ativo. O ensaio real permanece pendente; não o confundir
 com as simulações gratuitas de CI.
 
-1. Quando existir um ambiente Supabase **isolado e sem custo adicional**
-   (por exemplo uma instância local com Supabase CLI/Docker), aplicar-lhe o
-   esquema do fluxo atual. Se não existir, manter o teste real como BLOCKED;
-   não criar contas/linhas fictícias na base operacional só para fazer PASS.
+1. Preferir um ambiente Supabase isolado. **Alternativa sem custos
+   adicionais neste projeto:** como os dados atuais foram declarados
+   exclusivamente de teste pelo proprietário, podem utilizar-se duas contas
+   descartáveis **distintas da conta habitual** no projeto atual. A suite
+   de RLS só faz consultas, nunca altera dados. Não utilizar esta alternativa
+   se já existirem dados reais ou compromissos operacionais.
 2. Criar duas contas de teste e, através da própria UI, guardar uma
    configuração e **pelo menos uma proposta** em cada conta.
 3. Criar um ficheiro **local ignorado pelo Git**
    `.env.rls-test.local` (nunca enviar as credenciais para o chat):
 
    ```env
-   RLS_TEST_CONFIRM=STAGING_ONLY
-   RLS_TEST_SUPABASE_URL=https://SEU_STAGING.supabase.co
+   RLS_TEST_CONFIRM=EXISTING_TEST_PROJECT
+   RLS_TEST_SUPABASE_URL=https://SEU_PROJETO_DE_TESTE.supabase.co
    RLS_TEST_PUBLISHABLE_KEY=sb_publishable_SUA_CHAVE_PUBLICA
    RLS_TEST_EMAIL_A=conta-a@example.test
    RLS_TEST_PASSWORD_A=PASSWORD_DA_CONTA_A
@@ -194,7 +196,8 @@ com as simulações gratuitas de CI.
    ```
 
    O script utiliza `node --env-file=.env.rls-test.local`, **nunca
-   altera dados**, e não imprime senhas nem tokens.
+   altera dados**, e não imprime senhas nem tokens. Numa instância de
+   staging separada utilizar `RLS_TEST_CONFIRM=STAGING_ONLY`.
 
 5. Critério: `PASS` nas tabelas `schedule_engine_states`,
    `schedule_engine_state_history` e
