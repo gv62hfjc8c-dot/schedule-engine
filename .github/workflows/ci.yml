@@ -26,6 +26,10 @@ jobs:
           deno-version: v2.x
       - name: Deno typecheck of real deployed Edge API and all imported modules
         run: deno check supabase/functions/official-schedules-v2/index.ts
+      - name: Verify deployed Edge JWT gate and CORS with live HTTPS
+        env:
+          PR47_EDGE_TEST_URL: https://zuczsheoixuwienbkprz.supabase.co/functions/v1
+        run: node scripts/ci/liveEdgeSmokeTest.mjs
 
   migration-contract:
     runs-on: ubuntu-latest
