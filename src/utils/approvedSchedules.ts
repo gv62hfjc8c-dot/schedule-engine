@@ -304,6 +304,37 @@ function ledgerIssues(ledger: ApprovedScheduleLedger): string[] {
     )) {
       issues.push("Um turno não pertence ao período do horário " + record.id + ".");
     }
+    if(record.people!==undefined &&
+       (!Array.isArray(record.people) ||
+        record.people.some(p=>!p||typeof p.id!=="string"||!p.id.trim()||
+          typeof p.name!=="string") ||
+        new Set(record.people.map(p=>p.id)).size!==record.people.length))
+      issues.push("Identificação histórica das pessoas inválida em "+record.id+".");
+    const acceptedReasons:AbsenceReason[]=[
+      "sick_leave","vacation","leave","accident","departure","other",
+    ];
+    if(record.absences!==undefined &&
+       (!Array.isArray(record.absences) ||
+        record.absences.some(a=>!a||!a.personId?.trim()||
+          !dateRangeOK(a)||a.startDate<record.startDate||
+          a.endDate>record.endDate||!acceptedReasons.includes(a.reason))))
+      issues.push("Ocorrência administrativa inválida em "+record.id+".");
+    if(record.revision!==undefined) {
+      const revision=record.revision;
+      if(!revision||!revision.sourceId?.trim()||
+         !revision.personId?.trim()||
+         !dateRangeOK(revision)||revision.startDate<record.startDate||
+         revision.endDate>record.endDate||
+         revision.sourceId!==record.replacesId||
+         !acceptedReasons.includes(revision.reason)||
+         (revision.note!==undefined &&
+          (typeof revision.note!=="string"||revision.note.length>240))||
+         !Array.isArray(revision.changedDates)||
+         revision.changedDates.some(date=>civil(date)===null||
+            date<revision.startDate||date>revision.endDate)||
+         new Set(revision.changedDates).size!==revision.changedDates.length)
+        issues.push("Revisão histórica incompatível em "+record.id+".");
+    }
     if (record.status === "approved") active.push(record);
   }
   for (let i = 0; i < active.length; i++) {
