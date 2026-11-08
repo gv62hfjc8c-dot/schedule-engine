@@ -12,8 +12,9 @@ O fluxo operacional ativo inclui:
 
 - **Calendário mensal** com resumo por dia, indicadores e acesso à gestão
   diária (equipa, pesquisa, filtros, seleção persistente entre páginas).
-- **Gerador condicionado** de propostas para períodos inclusivos de **até
-  14 dias**, com validação independente de hard constraints.
+- **Gerador condicionado** com validação independente de hard constraints.
+  O núcleo suporta até **28 dias** no PR #47; a interface continua limitada
+  a **14 dias** enquanto a base de dados publicada mantiver esse limite.
 - **Disponibilidade e operação** por padrão semanal, exceções e mínimos de
   cobertura de abertura, período central e fecho.
 - **Regras de trabalho**: limites diários/semanais, descanso e refeições,
@@ -23,9 +24,12 @@ O fluxo operacional ativo inclui:
 
 No PR #47, foram acrescentados contratos semanais individuais (limites
 **hard**), objetivos semanais (**soft**), datas de trabalho obrigatórias,
-fuso horário IANA por operação e uma **referência contabilística de ciclos
-de 28 dias**. O modelo de ciclos não é um gerador de 28 dias; o limite
-de geração continua em 14 dias até existir validação integral.
+fuso horário IANA por operação, ciclos contabilísticos fixos de 28 dias,
+**geração de 28 dias testada no núcleo** e indisponibilidades obrigatórias
+por pessoa. As qualificações são etiquetas descritivas, não requisitos
+de cobertura por competência. A geração de 28 dias na interface será
+ativada apenas depois da alteração do CHECK no Supabase real e verificação
+de gravação/reabertura com `VITE_GENERATOR_28_DAY_READY=true`.
 
 ### Não confundir proposta com aprovação
 
@@ -55,7 +59,10 @@ Supabase dedicado, com autenticação.
    npm run dev
    ```
 
-A configuração é guardada com controlo de revisão no Supabase; propostas
+A configuração é guardada com controlo de revisão no Supabase.
+Duas abas conseguem conciliar alterações independentes por comparação
+de três versões; edições concorrentes incompatíveis são bloqueadas,
+permitindo exportar uma cópia e recuperar o estado remoto. Propostas
 válidas são arquivadas como snapshots imutáveis. A primeira importação
 de dados antigos do navegador requer confirmação explícita de titularidade.
 
@@ -89,8 +96,11 @@ manualmente; não faz parte de `npm test`.
 - `src/persistence/`: adaptadores de estado e arquivo (Supabase).
 - `src/application/`: experiências históricas de fronteira de
   confiança, **não ligadas à interface atual**.
-- `supabase/migrations/`: SQL histórico; **não executar `db push` na
-  instância existente sem reconciliação**, devido à divergência confirmada.
+- `supabase/migrations/`: quatro identificadores históricos reconstruídos
+  para ensaio de instalação limpa e uma migração **PR47 ainda não aplicada**
+  que suporta arquivo de 28 dias. O CI ensaia as cinco migrações num
+  PostgreSQL descartável. **Não executar `db push` na produção** sem
+  verificar histórico, backup/restauro e operações de rollout.
 - `supabase/audit/` e `supabase/rollback/`: inventário read-only e
   fontes preservadas para recuperar a função antiga.
 
