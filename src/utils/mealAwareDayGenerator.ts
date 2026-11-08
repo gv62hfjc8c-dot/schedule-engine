@@ -1,3 +1,4 @@
+import { isPersonUnavailableOnDate } from "./personSchedulingPolicies";
 import type {
   DatedWorkShift,
   Person,
@@ -422,7 +423,8 @@ export function searchMealAwareDaySchedule(
     );
   }
 
-  const active = people.filter(person => person.active)
+  const active = people.filter(person =>
+    person.active && !isPersonUnavailableOnDate(person,input.date))
     .sort((a, b) => a.id.localeCompare(b.id, "en"));
   const effectiveAvailability = new Map<string, NumericInterval[]>();
   for (const person of active) {
