@@ -235,7 +235,7 @@ Os códigos A–F acima continuam **PENDENTES** até serem executados.
 | 02 Sem turno ≠ folga | Implementado | A07 e D06; nunca interpretar ausência de turno como folga |
 | 03 Edge Function antiga | **Versão 410 publicada; ensaio HTTP pendente** | Foi publicada a v6 com `verify_jwt=true`; confirmar resposta autenticada e eventuais consumidores. Bundle v5 arquivado para rollback |
 | 04 Consentimento na importação | Implementado e reforçado para múltiplas contas | **G01**: conta nova escolhe começar vazia, sem importar dados legados do browser; a decisão é por proprietário, não apaga dados antigos, não afeta outra conta, e requer teste Safari |
-| 05 Migrações divergentes | **Versões PR47 alinhadas com a instância real** | Histórico remoto e dois SQLs de migração PR47 têm IDs idênticos `20261108124759` e `20261108124844`; ensaio sintético aprovado. Falta verificar end-to-end em Auth/UI |
+| 05 Migrações divergentes | **9/9 versões no repositório e no Supabase** | Quatro reconstruídas e cinco PR47 publicadas; CI de instalação limpa passou. Gravação CAS e isolamento SQL real confirmados; testes HTTP distintos |
 | 06 Propostas misturadas | Implementado | D02–D04 e F04; vista de uma proposta não importa turnos de outras |
 | 07 Alvo 40h vs contrato | Implementado (opcional) | B09, C08, F02 e F03; hard cap individual e alvo soft |
 | 08 Certificação independente | Implementado | C02–C05 e F03; nenhuma solução com hard constraints violadas é publicada |
@@ -246,14 +246,14 @@ Os códigos A–F acima continuam **PENDENTES** até serem executados.
 | 13 Snapshots inválidos | Reforçado | D06 e F04; registo incompatível não é apresentado como válido. **Não corromper dados reais** |
 | 14 Fecho durante gravação | **Mitigado** | D08 e F04; retries com UUID estável. Fecho forçado do navegador não oferece garantia de entrega |
 | 15 Fusos divergentes | Implementado | B11, F02 e F03; fuso IANA da operação e do snapshot arquivado |
-| 16 Escrita concorrente | **Mitigado** | D07, F05 e **G02**; mesma sessão em série, divergências entre abas sem merge automático |
-| 17 Aprovação oficial ausente | **Fluxo protegido implementado na branch; não operacional** | Tabelas RLS, RPC de revisão e inicialização verificada em SQL publicadas; a inicialização falha com pessoa/dia desconhecido e não cria falsas folgas. Domínio valida contratos/ausências e 28 dias; Edge v2 e painel protegidos por flag desligada. Importação 2026 adiada, deploy/autenticação do endpoint e Safari pendentes |
+| 16 Escrita concorrente | **CAS ensaiado com conta real, UI pendente** | Ensaio transacional em Supabase confirmou primeira atualização e rejeitou `40001` para versão obsoleta, seguido de ROLLBACK; teste Safari com dois separadores ainda pendente |
+| 17 Aprovação oficial ausente | **API v2 publicada, aprovações ainda bloqueadas** | `official-schedules-v2` v1 ACTIVE com `verify_jwt=true` e CORS, migrações/ledger/revisões disponíveis; `VITE_OFFICIAL_APPROVAL_READY` desligada. Histórico 2026 ainda por importar, não é correto aceitar aprovações. Testes reais de JWT/HTTP pendentes |
 | 18 Ciclos de 28 dias | **28 dias disponíveis na branch PR47** | `test:four-week` valida geração única com certificação; migração `20261108124759` publicada e UI limitada a 28 dias. Falta geração real e recuperação Safari |
 | 19 Perfis de colaboradores | **V0 implementado; ocorrências oficiais dependem de #17** | `test:scheduling-model` valida `unavailableWorkDates` sem turno, incluindo rejeição da certificação. `test:qualification-coverage` valida competências durante turnos e refeições; UI edita datas indisponíveis e etiquetas. Motivos administrativos e tipos de vínculo não especificados |
 | 20 Segurança Supabase | **RPC reforçado; 1 aviso Auth pendente** | Migração `20261108124844` aplicada e funções/permissões verificadas; verificar operações reais de gravação no Safari. Proteção de passwords comprometidas continua desligada, disponível em Supabase Pro+ |
 | 21 Código experimental | Implementado | `npm run test:architecture`; verificar ausência de laboratório na UI e preservação dos testes do domínio |
 | 22 Terminologia desatualizada | Implementado | A03, A06, D01 e revisão textual: «proposta guardada, não aprovada» |
-| 23 Cobertura de regressões | **Reforçado, aceitação pendente** | `npm test` e F01–F08, mais A–D e G01–G03. Não certificar a ausência de defeitos fora dos cenários executados |
+| 23 Cobertura de regressões | **CI + isolamento A/B real confirmados; E2E ainda incompleto** | Aplicação Safari guardou e recuperou propostas de A/B, SQL RLS com `authenticated` só leu as próprias propostas; falta HTTP real com JWTs, conflitos entre separadores, carga e cenário 28 dias |
 
 ### Testes complementares necessários para fechar a rastreabilidade
 
@@ -322,7 +322,7 @@ uma alteração parcial sem repetir os testes afetados.
 
 | ID | Procedimento | Critério | Estado |
 |---|---|---|---|
-| H01 | Pedido sem JWT e JWT de conta anónima ao serviço oficial v2 | 401, zero escritas | PENDENTE — deploy |
+| H01 | HTTP sem JWT e sessão anónima para v2 | Resposta 401, zero operações | CI/HTTP simulado PASS; Edge v2 publicada com JWT obrigatório; ensaio remoto ainda PENDENTE |
 | H02 | Conta A tenta aprovar proposta de B | 404/422, sem acesso nem escrita cruzada | PENDENTE — duas contas reais |
 | H03 | Conta sem histórico de 2026 tenta aprovar | 409 por histórico incompleto, ledger continua vazio | PENDENTE — Auth real |
 | H04 | Ficheiro histórico incompleto, um colaborador sem dias confirmados | Recusa; jamais presumir folga | PASS no CI de domínio; ensaio importador PENDENTE |
@@ -362,3 +362,10 @@ Provas técnicas atuais: `test:official-revisions`, `test:verified-official-serv
 - O utilizador confirmou no Safari que, após atualizar a página na conta B, a proposta de **02–03/11/2026** permanecia consultável, com os turnos de B1 nos dois dias. Isto valida a recuperação de uma proposta de vários dias nessa conta.
 - Consulta anterior da base de dados confirmou que as propostas estão separadas por `owner_id`: A tem uma proposta de 02/11; B possui a proposta de 02–03/11 e duas propostas adicionais de 02/11; a conta habitual conserva quatro propostas.
 - **Ainda pendente:** regressar à conta A, atualizar e garantir que não aparece o turno de B1 em 03/11 nem qualquer proposta de B. O teste de acesso cruzado com JWTs reais permanece independente desta verificação de interface.
+
+
+## Ronda consolidada de validação técnica — 08/11/2026
+
+**Sem novas ações manuais exigidas:** foi concluído um ensaio de leitura real por cada titular usando o papel `authenticated` e transações revertidas. A conta A vê 1 estado e 1 proposta; B vê 1 estado e 3 propostas; ambas veem 0 ledgers e 0 fontes históricas. O SQL real rejeitou também um pedido de gravação com revisão obsoleta (`40001`) após uma primeira alteração no mesmo bloco transacional; tudo terminou com `ROLLBACK`.
+
+A Edge `official-schedules-v2` foi publicada na versão 1 com JWT obrigatório e suporte CORS. A flag de aprovação mantém-se inativa e não há dados históricos verificados; esta é uma proteção legítima, não um erro de execução. A chamada HTTP remota autenticada, a prova de concorrência em dois separadores e a geração manual de 28 dias não foram executadas e não podem ser registadas como PASS.

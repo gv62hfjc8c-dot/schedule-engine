@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-11-08 — PR47: publicação segura da API v2 e provas SQL reais
+
+- Publicada Edge Function `official-schedules-v2` v1 (JWT obrigatório, CORS), sem reativar a API antiga v6 e sem criar qualquer horário oficial.
+- RLS real ensaiado como `authenticated` para as contas de teste A e B: 1 estado por conta, 1 proposta A e 3 B; sem visibilidade cruzada.
+- Ensaio real de CAS com atualização transitória, rejeição de escrita obsoleta (`40001`) e `ROLLBACK` integral.
+- Histórico 2026 continua por importar; autorização de aprovação oficialmente bloqueada até à certificação do contexto. Único aviso Supabase remanescente: proteção de passwords comprometidas dependente do plano.
+
+
 ## 2026-11-08 — PR47: histórico verificado e fronteira de aprovação preparada
 
 - Aplicadas as migrações Supabase `20261108141507` (fontes, dias históricos, verificação RLS), `20261108142521` (CAS de revisões oficiais) e `20261108144725` (inicialização de ledger exclusivamente após prova de cada pessoa/dia).

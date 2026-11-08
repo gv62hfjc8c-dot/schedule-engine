@@ -56,7 +56,8 @@ vazio ou de documentos ainda não importados.
   puro não autentica a origem; cabe ao futuro adaptador de importação.
 - **Não criar** um ledger com `complete=true` para 2026 só porque o
   banco de dados ainda não contém horários. A Edge Function antiga está
-  inerte. O novo serviço de aprovação não deve arrancar com um
+  inerte; o novo serviço Edge v2 está publicado mas não pode aprovar
+  sem histórico verificado. O novo serviço de aprovação não deve arrancar com um
   `bootstrap` de 2020–2100 vazio.
 
 ## Regra operacional enquanto o histórico não foi importado
