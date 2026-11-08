@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-11-08 — PR47: histórico verificado e fronteira de aprovação preparada
+
+- Aplicadas as migrações Supabase `20261108141507` (fontes, dias históricos, verificação RLS), `20261108142521` (CAS de revisões oficiais) e `20261108144725` (inicialização de ledger exclusivamente após prova de cada pessoa/dia).
+- Bloqueada a inicialização antiga do ledger que declarava indevidamente completo o intervalo 2020–2100. Nenhum registo histórico ou oficial foi fabricado; persistem 4 propostas guardadas.
+- Revalidação de aprovação reforçada para 28 dias, ausências, dias obrigatórios, limites contratuais, descanso e turnos históricos sem dupla contagem.
+- Reintroduzido o domínio de revisões parciais com versão anterior imutável, motivo administrativo e substituição certificada.
+- Serviço de aplicação confiável e endpoint Edge v2 preparados, com pedidos de intenção mínima; UI de aprovação adicionada atrás de feature flag desligada. **Ainda não existe deploy de Edge v2 nem aprovações oficiais operacionais**, porque os horários reais desde janeiro de 2026 foram expressamente adiados para importação posterior.
+- CI executa motor, integridade de arquivo, regras, verificação de RLS/SQL, aprovação, revisão, bundle e HTTP simulado; estes ensaios **não substituem** Auth real, Safari e validação de dependências externas.
+- PR47 continua em draft, sem merge. Um aviso externo de leaked-password protection continua ativo no plano Supabase gratuito.
+
+
 ## 2026-10-26 — P6.4: restringir escrita de horários aprovados
 
 - D040: apenas o proprietário autenticado solicita aprovação, cancelamento ou substituição;
