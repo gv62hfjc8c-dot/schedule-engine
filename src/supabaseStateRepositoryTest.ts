@@ -160,7 +160,8 @@ const ownerConsent = { getItem: (key: string): string | null =>
   try {
     await staleTab.save({ ...fixture(), workRules: { standardShiftDurationMinutes: 240 } });
   } catch (error) {
-    conflict = error instanceof SupabaseStateError && error.code === "40001";
+    conflict = error instanceof SupabaseStateConflictError &&
+      error.fields.includes("workRules.standardShiftDurationMinutes");
   }
   ensure(conflict, "Conflitos de duas abas devem ser rejeitados.");
   ensure(
