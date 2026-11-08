@@ -92,7 +92,7 @@ begin
 
   return v_next_revision;
 end;
-$function$
+$function$;
 
 REVOKE ALL ON FUNCTION public.save_schedule_engine_state(bigint,jsonb) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.save_schedule_engine_state(bigint,jsonb) FROM anon;
