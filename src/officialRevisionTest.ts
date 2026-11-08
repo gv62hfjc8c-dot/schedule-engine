@@ -58,6 +58,16 @@ check(result.ledger.version===2 && result.ledger.records.length===2 &&
   validateApprovedScheduleLedger(result.ledger).length===0,
   "Revision preserves old version, attaches reason and revalidates substitution.");
 check(JSON.stringify(first.ledger)===source,"Revision must not mutate original ledger.");
+const corruptRevision=structuredClone(result.ledger);
+if(corruptRevision.records[1].revision)
+  corruptRevision.records[1].revision.changedDates.push("2026-11-06");
+check(validateApprovedScheduleLedger(corruptRevision).length>0,
+  "A persisted revision must not silently accept altered dates.");
+const corruptPersonnel=structuredClone(result.ledger);
+corruptPersonnel.records[1].people?.push({id:"a",name:"Impersonated"});
+check(validateApprovedScheduleLedger(corruptPersonnel).length>0,
+  "Duplicated historical personnel identities must be rejected.");
+
 const noCoverage=reviseApprovedScheduleForAbsence({
   ledger:first.ledger,environment:env,request:{
     sourceId:"original",revisionId:"revision-fail",expectedVersion:1,
