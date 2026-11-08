@@ -87,6 +87,11 @@ export interface ApprovalEnvironment {
   operatingCalendar: OperatingCalendarConfiguration;
   presence: PresenceConfiguration;
   workConstraints: WorkConstraintConfiguration;
+  /**
+   * Server-verified historical shifts outside the proposed period.
+   * Never source these from a browser request or infer them from missing rows.
+   */
+  historicalShifts?: DatedWorkShift[];
 }
 
 /** Core mutations never throw for expected domain conflicts. */
@@ -647,6 +652,16 @@ function validateDraft(
     code: "operational_constraint", issues: problems, workViolations: [],
   };
 
+  const externalHistory=environment.historicalShifts??[];
+  if(!Array.isArray(externalHistory) ||
+     externalHistory.some(shift=>!shift||!shift.personId?.trim()||
+       !civil(shift.date)||!shift.interval||!("mealBreak" in shift)))
+    return {code:"invalid_input",issues:["Contexto histórico externo inválido."],
+      workViolations:[]};
+  if(externalHistory.some(shift=>inside(shift.date,draft)))
+    return {code:"period_occupied",
+      issues:["Existem turnos históricos no período a aprovar; exige revisão do histórico."],
+      workViolations:[]};
   const activeShifts = listApprovedShifts(ledger).filter(shift => {
     if (!excludedApprovedId) return true;
     const source = ledger.records.find(record =>
@@ -662,7 +677,7 @@ function validateDraft(
     knownSchedule: {
       ...ledger.coverage,
       complete: true,
-      shifts: [...activeShifts, ...draft.shifts],
+      shifts: [...activeShifts,...externalHistory, ...draft.shifts],
     },
   });
   if (work.status !== "valid") return {
@@ -673,7 +688,7 @@ function validateDraft(
     workViolations: work.violations,
   };
   const contracts=validatePersonWeeklyContractCaps(
-    environment.people,[...activeShifts,...draft.shifts],
+    environment.people,[...activeShifts,...externalHistory,...draft.shifts],
     environment.workConstraints.maximumWeeklyEffectiveMinutes,
     ledger.timeZone,draft.startDate,draft.endDate,
   );
