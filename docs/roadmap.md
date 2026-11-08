@@ -9,11 +9,11 @@
 > aprovações oficiais. Estado atualizado por ponto:
 > [auditoria PR47](audit-pr47.md) e [arquitetura](architecture.md).
 > O PR #47 já acrescentou geração condicionada e certificada de 28 dias
-> no núcleo (interface ainda limitada a 14 dias até migração), hard
+> no núcleo e interface do PR47 (migração SQL de 28 dias aplicada), hard
 > constraints para dias indisponíveis, conciliação de edições independentes
 > e reprodução do esquema Supabase em PostgreSQL descartável no CI.
-> A aprovação oficial e a desativação do serviço antigo ainda não estão
-> operacionais na interface. As caixas `[x]` históricas abaixo não
+> A aprovação oficial ainda não está operacional na interface; o serviço
+> antigo foi desativado na instância através de Edge Function inerte v6. As caixas `[x]` históricas abaixo não
 > comprovam que um recurso experimental esteja atualmente visível.
 
 
