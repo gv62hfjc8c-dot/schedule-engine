@@ -733,4 +733,34 @@ assertFailure(approveSchedule({
   environment:{...nextMorningEnvironment,historicalShifts:[shift(mon,"a")]},
 }),"invalid_input",
 "An official shift imported a second time must not be double counted.");
+// PR47-17: the trusted approval MUST repeat hard work-rule policies
+// currently configured in the database; a generated snapshot alone is not proof.
+const hardShortEnv=workDayEnvironment([mon],interval("09:00","13:00"),zero);
+hardShortEnv.workRules={
+  standardShiftDurationMinutes:240,fullShortDayMaximumMinutes:240,
+};
+assertFailure(approveSchedule({
+  ledger:ledger(),expectedVersion:0,at:now2,
+  draft:draft("incomplete-short-day",mon,[shift(mon,"a","09:30","12:30")]),
+  environment:hardShortEnv,
+}),"operational_constraint",
+"Official certification must enforce entire short-day attendance, even with no coverage need.");
+const mandatoryAvailabilityEnv=workDayEnvironment([mon]);
+mandatoryAvailabilityEnv.workRules={
+  standardShiftDurationMinutes:240,requireShiftsOnAvailableDays:true,
+};
+assertFailure(approveSchedule({
+  ledger:ledger(),expectedVersion:0,at:now2,
+  draft:draft("missing-available-person",mon,[shift(mon,"a")]),
+  environment:mandatoryAvailabilityEnv,
+}),"operational_constraint",
+"Official certification must honor mandatory shifts on available days for every person.");
+const bothMandatory=approveSchedule({
+  ledger:ledger(),expectedVersion:0,at:now2,
+  draft:draft("both-available",mon,[shift(mon,"a"),shift(mon,"b")]),
+  environment:mandatoryAvailabilityEnv,
+});
+assert(bothMandatory.ok,
+  "Mandatory availability is satisfiable when both scheduled people work.");
+
 console.log("Approved Schedules Core V0: todos os testes passaram.");
