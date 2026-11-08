@@ -71,7 +71,7 @@ export default function OfficialApprovalPanel({proposal}:Props){
     const owner=client?.user?.id;
     const version=readiness?.version;
     if(!enabled||!client||!owner||state!=="ready"||
-       !Number.isSafeInteger(version)||version===null)return;
+       typeof version!=="number"||!Number.isSafeInteger(version))return;
     if(!window.confirm("Aprovar oficialmente esta proposta? "+
       "A operação fica registada no histórico de versões."))return;
     setState("saving");
