@@ -610,4 +610,54 @@ assert(queryCorrupted.status === "invalid_input" &&
   queryCorrupted.externalContext === null,
   "Consulta com registos incoerentes nunca declara contexto completo.");
 
+
+// PR47-17 — Horários exteriores desde janeiro de 2026 existem, mas ainda
+// não foram importados. O motor NUNCA pode interpretar essa ausência de
+// registos como prova de que todos os colaboradores estavam de folga.
+const pending2026History = createApprovedScheduleLedger(
+  {startDate:"2026-01-01",endDate:"2026-12-31"},
+  "Atlantic/Azores",false,
+);
+const novemberMondays = ["2026-11-02","2026-11-09","2026-11-16","2026-11-23"];
+const november28 = draft(
+  "november-28-pending",
+  "2026-11-02",
+  novemberMondays.map(date=>shift(date)),
+  "2026-11-29",
+);
+const fourWeekEnvironment = workDayEnvironment(novemberMondays);
+assertFailure(approveSchedule({
+  ledger:pending2026History,expectedVersion:0,at:now1,
+  draft:november28,environment:fourWeekEnvironment,
+}),"incomplete_context",
+"Histórico real não importado desde janeiro bloqueia aprovação oficial, sem inventar folgas.");
+const unknownHistoryContext = queryApprovedExternalContext({
+  ledger:pending2026History,
+  targetPeriod:{startDate:"2026-11-02",endDate:"2026-11-29"},
+  workConstraints:INITIAL_WORK_CONSTRAINTS,timeZone:"Atlantic/Azores",
+});
+assert(unknownHistoryContext.status==="incomplete_context" &&
+  unknownHistoryContext.externalContext===null,
+  "Histórico desconhecido não pode alimentar o gerador como contexto completo.");
+
+// Only an explicitly trusted, fully reconciled context would allow approval.
+// This is a domain test fixture, NEVER an attestation of the user's real data.
+const fullyReconciledFixture = createApprovedScheduleLedger(
+  {startDate:"2026-10-26",endDate:"2026-12-06"},
+  "Atlantic/Azores",true,
+);
+const approved28 = approveSchedule({
+  ledger:fullyReconciledFixture,expectedVersion:0,at:now1,
+  draft:{...november28,id:"november-28-certified-fixture"},
+  environment:fourWeekEnvironment,
+});
+assert(approved28.ok && approved28.record.endDate==="2026-11-29",
+  "O núcleo aprova 28 dias apenas quando o contexto completo é realmente atestado.");
+const rejected29 = approveSchedule({
+  ledger:fullyReconciledFixture,expectedVersion:0,at:now1,
+  draft:draft("november-29-rejected","2026-11-02",novemberMondays.map(date=>shift(date)),"2026-11-30"),
+  environment:fourWeekEnvironment,
+});
+assertFailure(rejected29,"invalid_input","A aprovação continua a rejeitar períodos de 29 dias.");
+
 console.log("Approved Schedules Core V0: todos os testes passaram.");
