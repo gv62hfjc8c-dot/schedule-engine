@@ -16,38 +16,61 @@ funciona independentemente do armazenamento e das rotas HTTP.
 O servidor Vite é apenas o ambiente de desenvolvimento da interface.
 Uma proposta gerada e guardada **não está oficialmente aprovada**.
 
-## Instalação nova — apenas o fluxo atual
+## Instalação limpa — reprodução do contrato de base de dados
 
-1. Criar um projeto Supabase **dedicado** ao Schedule Engine.
-2. Rever e aplicar, pela ordem, os SQL necessários ao fluxo ativo,
-   num projeto novo e vazio:
-   - `supabase/migrations/20261025_schedule_engine_state_v0.sql`
-     (configuração e histórico);
-   - `supabase/migrations/20261102120000_generated_schedule_proposals.sql`
-     (arquivo imutável de propostas).
-3. **Não aplicar automaticamente** a migração antiga
-   `20261026_schedule_engine_approved_ledgers_v0.sql` apenas para
-   configurar a aplicação atual: é código legado, separado do arquivo de
-   propostas. A pasta de migrações ainda contém material histórico.
+O PR #47 mantém **quatro migrações com os mesmos identificadores que
+constam no Supabase publicado**, mais uma migração aditiva ainda não
+aplicada no servidor. Estes scripts foram reconstruídos a partir das
+linhagens históricas e **ensaiados numa instância PostgreSQL 17
+descartável no CI**, com stubs de autenticação: não são um dump
+byte a byte da instância de produção.
+
+1. Criar um projeto Supabase de teste independente.
+2. Aplicar/reconciliar por ordem os scripts disponíveis em
+   `supabase/migrations/`:
+   - `20261102125810_generated_schedule_proposals.sql`
+     (inclui as tabelas/configuração anteriores ao histórico remoto
+     e o arquivo originalmente limitado a 14 dias);
+   - `20261103100427_trusted_approved_schedule_ledger.sql`;
+   - `20261103101604_approved_context_proposals.sql`;
+   - `20261103104023_partial_schedule_revisions.sql`;
+   - `20261108100000_pr47_four_week_proposals.sql`
+     (aumenta o limite do CHECK do arquivo para 28 dias).
+3. A presença de estruturas legadas do ledger **não ativa** aprovação
+   oficial na UI. As funções privilegiadas legadas não recebem EXECUTE
+   do papel `authenticated`.
 4. Em **Authentication → Users**, criar a conta permanente e confirmar
    o email, quando necessário.
-5. Obter o URL e a **publishable key** do projeto em Settings. Não
-   utilizar secret keys nem `service_role` no navegador.
-6. Configurar a raiz do projeto local, num ficheiro ignorado pelo Git:
+5. Usar o URL e a **publishable key** do projeto; nunca inserir
+   `service_role` ou secret keys no frontend.
+6. Configurar `.env.local`:
 
    ```env
    VITE_SUPABASE_URL=https://SEU_PROJECT_REF.supabase.co
    VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_SUA_CHAVE_PUBLICA
+   # Apenas depois de validar o CHECK de 28 dias e a persistência:
+   # VITE_GENERATOR_28_DAY_READY=true
    ```
 
-7. Reiniciar o processo Vite existente apenas quando necessário para
-   carregar as variáveis e iniciar sessão.
+7. Reiniciar Vite para ler as variáveis e executar os testes de geração,
+   arquivo, recuperação e duas contas.
 
-**Importante:** a instalação histórica atualmente usada no desenvolvimento
-tem um registo de migrações diferente dos nomes existentes no Git e possui
-objetos antigos de aprovação. Não executar `supabase db push` contra esse
-projeto até concluir uma reconciliação testada em ambiente isolado. O
-Checkpoint D não altera essa base de dados.
+**A instância atual de produção ainda não tem a migração de 28 dias.**
+O seu histórico continua a conter apenas as quatro primeiras versões,
+e o CHECK real é `end_date < start_date + 14`. Não executar
+`supabase db push`, `migration repair` ou copiar manualmente o SQL
+do histórico na produção sem comparação de esquema real, **backup/restauro
+confirmado** e ensaio idempotente. A ativação da flag não cria nem
+verifica a migração — apenas desbloqueia a UI, por isso não a ativar
+na conta operacional por antecipação.
+
+A refatoração segura do RPC de configuração está **separada** das
+migrações históricas, em
+`supabase/deployment/pr47_state_rpc_private_schema.sql`; a definição
+pública original foi guardada em
+`supabase/rollback/pr47_state_rpc_public_restore.sql`.
+Os dois scripts e o restauro foram ensaiados num PostgreSQL descartável,
+**não publicados**.
 
 ## Primeira migração dos dados do browser
 
@@ -60,8 +83,11 @@ Checkpoint D não altera essa base de dados.
 - Os dados locais e respetivas cópias não são apagados pelo importador.
 - O estado e o histórico são escritos atomicamente com controlo de revisão
   no RPC `save_schedule_engine_state`.
-- Erros de revisão ou de sessão impedem gravações silenciosas e devem ser
-  resolvidos antes de retomar a edição.
+- Em caso de concorrência, o adaptador tenta uma **conciliação conservadora
+  em três versões**, fundindo apenas alterações independentes. Edições
+  simultâneas incompatíveis ao mesmo campo continuam a bloquear a gravação;
+  é possível exportar o estado pendente e, com confirmação, recarregar
+  o estado remoto sem sobrescrever outras alterações.
 
 A quantidade de colaboradores migrados depende dos dados reais dessa
 conta. Não existe uma exigência fixa de três colaboradores.
@@ -76,10 +102,12 @@ conta. Não existe uma exigência fixa de três colaboradores.
   apenas aos seus registos.
 - O browser não tem UPDATE ou DELETE sobre propostas, nem permissões
   diretas de escrita nas tabelas de configuração.
-- `save_schedule_engine_state` tem `SECURITY DEFINER` e
-  `EXECUTE` autenticado **por desenho**, mantendo verificação explícita
-  de identidade e revisão; revogar este privilégio sem um substituto
-  funcional deixaria a gravação indisponível.
+- Atualmente `save_schedule_engine_state` é `SECURITY DEFINER`
+  no esquema público, com `EXECUTE` apenas para `authenticated`, identidade
+  verificada e CAS. O PR #47 prepara um invólucro `SECURITY INVOKER`
+  público e uma implementação privilegiada em esquema privado, com
+  testes de migração e recuperação. **Esta alteração ainda não está
+  implantada.**
 - A autorização entre membros da mesma organização ainda não existe.
   Dados continuam segregados por proprietário individual.
 - Não incluir service keys, secrets, passwords, backups privados ou
