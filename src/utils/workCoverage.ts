@@ -99,7 +99,6 @@ export function checkPresenceForWorkShifts(
   const format=(value:number):string=>
     String(Math.floor(value/60)).padStart(2,"0")+":"+
     String(value%60).padStart(2,"0");
-  const issues:string[]=[];
   for(const open of operatingIntervals){
     const first=clock(open.start),last=clock(open.end);
     const edges=new Set<number>([first,last]);
