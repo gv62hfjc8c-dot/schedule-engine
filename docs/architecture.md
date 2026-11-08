@@ -27,8 +27,8 @@ responsabilidade da aplicação.
 
 A interface ativa contém calendário mensal, painel lateral resumido e página
 de gestão diária; o núcleo de geração condicionada cobre **1–28 dias**
-na branch PR47, enquanto a interface continua **1–14 dias** até o CHECK
-da base de dados ser atualizado em segurança. A geração de um horário
+na branch PR47, com a interface desbloqueada após aplicação e confirmação
+do CHECK de 28 dias na base de dados. A geração de um horário
 válido e o seu arquivo **não equivalem à aprovação oficial**.
 
 No PR #47, foram acrescentados: certificação independente após otimizações,
@@ -37,9 +37,8 @@ obrigatórias explícitas, fuso IANA operacional e **ciclos contabilísticos de
 28 dias**. O calendário pode fixar o snapshot de uma única proposta, porque
 um panorama que reúna propostas diferentes **não** é um horário mensal
 conjuntamente validado. O motor **já gera e certifica** um período
-de 28 dias no mesmo cálculo, mas a base de dados atual não aceita ainda
-arquivar períodos acima de 14 dias. A interface está protegida por
-um rollout explícito.
+de 28 dias no mesmo cálculo; o CHECK de 28 dias foi aplicado na instância
+em 08/11/2026. A validação no Safari permanece pendente.
 
 O estado de configuração mantém `version: 4`, com campos opcionais
 retrocompatíveis; o arquivo de propostas usa payload e contrato separados.
