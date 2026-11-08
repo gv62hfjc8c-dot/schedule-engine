@@ -1,8 +1,9 @@
 /**
  * Read-only, two-account live RLS acceptance check.
  *
- * Requires two explicit disposable accounts on the SAME staging project,
+ * Requires two explicit disposable accounts on the SAME test project,
  * each with at least one configuration row and generated proposal.
+ * An existing project may be used only when its records are disposable test data.
  * This script does NOT register users, insert rows or change policies.
  * Never use a service role/secret key. Never print passwords or JWTs.
  *
@@ -19,8 +20,9 @@ if(missing.length){
   console.error("Faltam variáveis de ambiente: "+missing.join(", "));
   process.exit(2);
 }
-if(process.env.RLS_TEST_CONFIRM!=="STAGING_ONLY"){
-  console.error("Confirma o ambiente isolado com RLS_TEST_CONFIRM=STAGING_ONLY.");
+if(!["STAGING_ONLY","EXISTING_TEST_PROJECT"].includes(process.env.RLS_TEST_CONFIRM)){
+  console.error("Confirma um ambiente isolado ou projeto com dados descartáveis usando "+
+    "RLS_TEST_CONFIRM=STAGING_ONLY ou EXISTING_TEST_PROJECT.");
   process.exit(2);
 }
 const url=new URL(process.env.RLS_TEST_SUPABASE_URL);
@@ -100,7 +102,7 @@ try {
     console.error("Não considerar RLS aprovado até ambas as contas terem registos em todas as tabelas.");
     process.exitCode=2;
   }else{
-    console.log("PASS: 3 tabelas do fluxo ativo isoladas entre duas contas reais de staging.");
+    console.log("PASS: 3 tabelas do fluxo ativo isoladas entre duas contas reais de ensaio.");
   }
 }catch(error){
   console.error(error instanceof Error?error.message:"Falha no ensaio de isolamento.");
