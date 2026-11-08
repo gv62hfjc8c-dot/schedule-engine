@@ -13,8 +13,10 @@ Registo de anomalias: [matriz da auditoria](audit-pr47.md)
 - **Edição de pessoas, regras, datas, disponibilidade e geração:** realizar
   numa conta de ensaio com equipa fictícia. Cada horário criado é uma proposta
   imutável guardada no Supabase; Git não reverte esses dados.
-- **RLS entre duas contas:** realizar num projeto Supabase **de staging** com
-  duas contas descartáveis. Não usar dados ou passwords de produção.
+- **RLS entre duas contas:** executar primeiro os testes gratuitos de PostgreSQL
+  do GitHub Actions com duas identidades sintéticas. Esta prova de políticas
+  não substitui o ensaio com dois utilizadores reais via Supabase Auth.
+  Não usar dados ou passwords de produção para os ensaios de autenticação.
 - **Erros de arquivo, sessão expirada e respostas perdidas:** verificar
   com as suites automatizadas e, quando aplicável, falha de rede no Safari.
   Não criar intencionalmente registos corrompidos na base operacional.
@@ -123,7 +125,7 @@ e regras consistentes.
 | C03 | Dia 09:00–16:00 (7h), jornada curta até 7h, cobertura 1/0/1 | Se gerado, 7h presença, 1h refeição, 6h efetivas | PENDENTE |
 | C04 | Dia 09:00–18:00 (9h), jornada curta até 9h, cobertura 1/0/1 | Se gerado, 9h presença, 1h refeição, 8h efetivas | PENDENTE |
 | C05 | Cobertura superior à equipa disponível | Nunca guardar uma proposta inválida; diagnóstico explícito | PENDENTE |
-| C06 | Tentar gerar 15 dias consecutivos | Limite de 14 dias é respeitado | PENDENTE |
+| C06 | Tentar gerar 15 dias e 29 dias consecutivos | O núcleo permite até 28 dias; a interface só pode desbloquear mais de 14 quando a migração de arquivo estiver publicada e verificada. 29 dias são rejeitados | PENDENTE |
 | C07 | Depois de gerar, mudar datas/regras e tentar usar pré-visualização anterior | Resultado antigo invalida-se, confirmação renovada | PENDENTE |
 | C08 | Contrato de 20h com objetivo de 15h, num período de uma semana | Indicadores de trabalho efetivo e objetivos coerentes; hard cap nunca excedido | PENDENTE |
 | C09 | Marcar dia obrigatório dentro do período, com disponibilidade e operação | Geração satisfaz obrigação ou informa impossibilidade, sem falso sucesso | PENDENTE |
@@ -154,14 +156,22 @@ são cobertas por `npm run test:archive-consistency` e
 assertivas automáticas. Isso testa o comportamento de erro sem
 alterar registos reais.
 
-## Bloco E — RLS real, duas contas (projeto staging obrigatório)
+## Bloco E — RLS gratuito em CI e ensaio Auth real ainda pendente
 
-Além dos testes offline de segurança, agora existe um verificador
-**read-only** que autentica duas contas num projeto de ensaio e verifica
-isolamento bidirecional sobre as três tabelas do fluxo ativo.
+A CI já executa, sem criar projeto Supabase pago, um PostgreSQL 17 descartável:
+reconstitui as migrações, configura duas identidades fictícias e verifica
+leitura/escrita isolada de estados, históricos, propostas e ledgers oficiais.
+Esse ensaio não envolve GoTrue, JWT assinado ou o Data API verdadeiro.
 
-1. Preparar projeto Supabase de **staging**, separado da instância
-   operacional, com o esquema necessário ao fluxo atual.
+Existe ainda um verificador **read-only** que autentica duas contas reais
+num ambiente de ensaio e verifica isolamento bidirecional sobre as três
+tabelas do fluxo ativo. O ensaio real permanece pendente; não o confundir
+com as simulações gratuitas de CI.
+
+1. Quando existir um ambiente Supabase **isolado e sem custo adicional**
+   (por exemplo uma instância local com Supabase CLI/Docker), aplicar-lhe o
+   esquema do fluxo atual. Se não existir, manter o teste real como BLOCKED;
+   não criar contas/linhas fictícias na base operacional só para fazer PASS.
 2. Criar duas contas de teste e, através da própria UI, guardar uma
    configuração e **pelo menos uma proposta** em cada conta.
 3. Criar um ficheiro **local ignorado pelo Git**
@@ -220,9 +230,9 @@ Os códigos A–F acima continuam **PENDENTES** até serem executados.
 |---|---|---|
 | 01 Documentação | Implementado | Comparar README, arquitetura, roadmap, setup e relatório com funcionalidades visíveis; nenhuma funcionalidade experimental declarada operacional |
 | 02 Sem turno ≠ folga | Implementado | A07 e D06; nunca interpretar ausência de turno como folga |
-| 03 Edge Function antiga | **Pendente de decisão/deploy** | Auditoria Supabase D, bundle v5 e manifesto; confirmar logs e consumidores antes de decidir desativação. **Não marcar PASS por apenas existir uma versão 410 não publicada** |
+| 03 Edge Function antiga | **Versão 410 publicada; ensaio HTTP pendente** | Foi publicada a v6 com `verify_jwt=true`; confirmar resposta autenticada e eventuais consumidores. Bundle v5 arquivado para rollback |
 | 04 Consentimento na importação | Implementado | **G01** abaixo, em conta descartável sem estado remoto; ensaio de precedência do estado cloud |
-| 05 Migrações divergentes | **Pendente de staging** | Baseline D e inventário SQL read-only; validar reconstituição num projeto isolado antes de aprovar qualquer migração. **Não executar db push na instância real** |
+| 05 Migrações divergentes | **Reconstrução sintética em CI aprovada; instância real por reconciliar** | Job `migration-contract` reconstitui os ficheiros SQL num PostgreSQL 17 descartável. Validar diferenças da plataforma Supabase e histórico remoto antes de qualquer `db push` |
 | 06 Propostas misturadas | Implementado | D02–D04 e F04; vista de uma proposta não importa turnos de outras |
 | 07 Alvo 40h vs contrato | Implementado (opcional) | B09, C08, F02 e F03; hard cap individual e alvo soft |
 | 08 Certificação independente | Implementado | C02–C05 e F03; nenhuma solução com hard constraints violadas é publicada |
@@ -235,8 +245,8 @@ Os códigos A–F acima continuam **PENDENTES** até serem executados.
 | 15 Fusos divergentes | Implementado | B11, F02 e F03; fuso IANA da operação e do snapshot arquivado |
 | 16 Escrita concorrente | **Mitigado** | D07, F05 e **G02**; mesma sessão em série, divergências entre abas sem merge automático |
 | 17 Aprovação oficial ausente | **Fora do fluxo por decisão** | A06 e teste de arquitetura: confirmar ausência de comandos de aprovação na UI. **Não criar uma aprovação fictícia só para conseguir testá-la** |
-| 18 Ciclos de 28 dias | **Parcial** | B12, C06, D05 e F02; ciclos contabilísticos funcionam, **geração conjunta de 28 dias não implementada** |
-| 19 Perfis de colaboradores | **Parcial** | B09–B10 e F02; contratos, alvo e datas obrigatórias presentes; competências/funções/ausências não implementadas |
+| 18 Ciclos de 28 dias | **Núcleo de 28 dias implementado; UI/SQL condicionados** | `test:four-week` valida geração única de 28 dias com certificação; a interface mantém limite legado até publicação e validação da migração `pr47_four_week_proposals` |
+| 19 Perfis de colaboradores | **Parcial, com qualificação implementada** | `test:qualification-coverage` cobre exigência de qualificação durante turnos e refeições; contratos e dias obrigatórios presentes. Ausências e tipologias contratuais continuam fora da cobertura |
 | 20 Segurança Supabase | **Pendente de intervenção externa** | 10 verificações SQL read-only D, F06, bloco E e **G03**; os dois avisos externos mantêm-se |
 | 21 Código experimental | Implementado | `npm run test:architecture`; verificar ausência de laboratório na UI e preservação dos testes do domínio |
 | 22 Terminologia desatualizada | Implementado | A03, A06, D01 e revisão textual: «proposta guardada, não aprovada» |
@@ -283,3 +293,12 @@ continuará descrita como pendência, não como «resolvida».
 
 O procedimento protege a `main` e o rollback PR #46. Não integrar
 uma alteração parcial sem repetir os testes afetados.
+
+
+## Alternativa sem custos adicionais — PR47
+
+- O ambiente efémero de PostgreSQL 17 no GitHub Actions `migration-contract` substitui a branch paga para ensaios de esquema, constraints, políticas RLS com identidades sintéticas e RPC atómica com rollback.
+- A execução da CI no commit `8aa66b9` foi aprovada (workflow `42479688865`), incluindo os jobs `validate` e `migration-contract`.
+- O teste de isolamento entre duas contas sintéticas foi expandido depois dessa execução, em `scripts/ci/postgres_migration_assertions.sql`; confirmar a respetiva CI antes de marcar PASS.
+- A simulação não demonstra isolamento de duas contas reais do Supabase Auth. Essa verificação e os ajustes de Auth Dashboard continuam pendentes e não autorizam utilizar a base operacional como staging.
+- Não é necessário comprar uma branch Supabase. A aplicação só deve ativar geração de 28 dias após compatibilidade SQL confirmada na instância alvo e validação funcional.
