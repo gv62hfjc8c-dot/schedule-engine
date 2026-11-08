@@ -222,3 +222,10 @@ A conversa MASTER continua a ser apenas um logbook de alterações validadas. Es
 - A verificação dos avisos de segurança Supabase passou de **2 para 1**; permanece exclusivamente o aviso de proteção de palavras-passe comprometidas. A documentação Supabase indica que esta opção está disponível **no plano Pro e superior**.
 - A UI da branch PR47 foi ajustada para aceitar 28 dias, sem depender de feature flag; a instalação noutras instâncias exige aplicar primeiro as migrações correspondentes. CI e Safari da nova UI ainda devem ser confirmados.
 - Não foram eliminados registos nem feita aprovação oficial. Os testes de autenticação e persistência pelo browser continuam pendentes.
+
+
+## Verificação transacional não destrutiva da RPC em Supabase
+
+- Após a migração do RPC privado, foi executado um ensaio com `SET LOCAL ROLE authenticated` e identidade de titular obtida da própria tabela, usando a configuração existente e a revisão corrente como payload idêntico.
+- `public.save_schedule_engine_state` devolveu a revisão existente; o ensaio foi envolvido em `BEGIN`/`ROLLBACK`, sem confirmar transação e sem modificar o estado.
+- Esta prova verifica percurso de permissões e idempotência da RPC no PostgreSQL real, **não** substitui um token Supabase Auth real nem valida duas sessões concorrentes via HTTP.
