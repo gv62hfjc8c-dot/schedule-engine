@@ -704,4 +704,33 @@ assertFailure(approveSchedule({
 }),"work_constraint",
 "Approval must reject 24h of effective work under a 20h individual weekly contract.");
 
+
+const importedLateShift=shift(mon,"a","16:00","22:00");
+const nextMorningEnvironment=workDayEnvironment([tue],interval("08:00","12:00"));
+assertFailure(approveSchedule({
+  ledger:ledger(),expectedVersion:0,at:now2,
+  draft:draft("bad-rest-from-import",tue,[shift(tue,"a","08:00","12:00")]),
+  environment:{...nextMorningEnvironment,historicalShifts:[importedLateShift]},
+}),"work_constraint",
+"Historic imported work must count toward the hard 11h rest before approval.");
+assertFailure(approveSchedule({
+  ledger:ledger(),expectedVersion:0,at:now2,
+  draft:draft("overlap-with-import",tue,[shift(tue,"b","08:00","12:00")]),
+  environment:{...nextMorningEnvironment,historicalShifts:[
+    shift(tue,"a","08:00","12:00")]},
+}),"period_occupied",
+"An imported historical shift within target dates must block fresh official approval.");
+const withOldApproved=approveSchedule({
+  ledger:ledger(),expectedVersion:0,at:now1,
+  draft:draft("history-original",mon,[shift(mon,"a")]),
+  environment:workDayEnvironment([mon]),
+});
+assert(withOldApproved.ok,"A source official shift must be valid.");
+if(!withOldApproved.ok)throw new Error("source");
+assertFailure(approveSchedule({
+  ledger:withOldApproved.ledger,expectedVersion:1,at:now2,
+  draft:draft("double-count",tue,[shift(tue,"b","08:00","12:00")]),
+  environment:{...nextMorningEnvironment,historicalShifts:[shift(mon,"a")]},
+}),"invalid_input",
+"An official shift imported a second time must not be double counted.");
 console.log("Approved Schedules Core V0: todos os testes passaram.");
