@@ -12,7 +12,7 @@ import type {
   WeeklyOperatingHours,
   WorkRulesConfiguration,
 } from "../types";
-import { createEmptyWeeklyPresenceRequirements } from "../utils/presence";
+import { createEmptyWeeklyPresenceRequirements, isPresenceRequirementValid } from "../utils/presence";
 import {
   APP_STATE_VERSION,
   type PersistedAppState,
@@ -222,9 +222,7 @@ function isPresenceRequirement(
     typeof requirement.minimumDuringOperation === "number" &&
     typeof requirement.minimumAtOpening === "number" &&
     typeof requirement.minimumAtClosing === "number" &&
-    Number.isFinite(requirement.minimumDuringOperation) &&
-    Number.isFinite(requirement.minimumAtOpening) &&
-    Number.isFinite(requirement.minimumAtClosing)
+    isPresenceRequirementValid(requirement as unknown as PresenceRequirement)
   );
 }
 
