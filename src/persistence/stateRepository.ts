@@ -27,5 +27,5 @@ export interface PersistedAppState {
 
 export interface StateRepository {
   load(): Promise<PersistedAppState | null>;
-  save(state: PersistedAppState): Promise<void>;
+  save(state: PersistedAppState): Promise<void | PersistedAppState>;
 }
