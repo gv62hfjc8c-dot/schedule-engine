@@ -9,6 +9,41 @@ PostgreSQL 17.11. O núcleo de scheduling continua independente do Supabase.
 A `main` do repositório mantém a baseline do PR #46 (`1467136`); todas
 as alterações deste documento estão na branch do PR #47.
 
+## Evolução posterior do PR #47 (2026-11-08; **não publicada**)
+
+Desde a observação inicial, a branch recebeu:
+
+- **Reprodução da linhagem:** quatro scripts com os mesmos identificadores
+  históricos reportados pela base de dados, com a configuração inicial
+  incluída como pré-requisito de instalação limpa. Os três ficheiros
+  incompatíveis anteriores ficaram preservados verbatim em
+  `supabase/rollback/pr47-legacy-active/`.
+- **Quinta migração aditiva**
+  `20261108100000_pr47_four_week_proposals.sql`: alarga o CHECK de
+  `schedule_engine_generated_schedules` de **14 para 28 dias**,
+  sem alterar linhas existentes. **Não aplicada ao Supabase operacional.**
+- **CI de PostgreSQL 17 descartável:** recria o esquema, executa as
+  cinco migrações, valida isolamento RLS, direitos de escrita,
+  concorrência CAS, propostas de 28 dias, rejeição de 29 dias,
+  refatoração privilegiada e restauro do RPC anterior.
+- **Refatoração RPC ensaiada:** função interna `SECURITY DEFINER`
+  com verificação do proprietário e histórico transacional em
+  `schedule_engine_private`; endpoint `public.save_schedule_engine_state`
+  `SECURITY INVOKER`, preservando o contrato do cliente. A implementação
+  anterior é restaurável com o script de rollback capturado diretamente
+  de `pg_get_functiondef`.
+- **Proteção da UI:** o motor de geração já certifica até 28 dias;
+  a interface **mantém 14 dias** até confirmação explícita da migração
+  e a ativação da flag `VITE_GENERATOR_28_DAY_READY`. Nem a compilação
+  nem a flag aplicam migrações automaticamente.
+
+**Alcance da validação:** o ensaio local de PostgreSQL verifica os
+contratos SQL e a sequência, não prova que o histórico reconstruído seja
+byte a byte idêntico à migração originalmente aplicada, que o Supabase
+Auth real esteja configurado, ou que existam backups de produção
+restauráveis. A aprovação do deployment requer essas provas em ambiente
+isolado. O resultado mantém **prod e dados intocados**.
+
 ## 1. Relações e dados
 
 | Relação public | RLS | Registos observados | Fluxo atual |
@@ -56,7 +91,7 @@ isolado e preservar atomicidade, proprietário e histórico antes da publicaçã
 
 ## 3. Divergência de migrações
 
-O Git corrente mantém três ficheiros ativos de migração:
+**No levantamento original de 2026-11-07**, o Git mantinha três ficheiros ativos de migração:
 - `20261025_schedule_engine_state_v0.sql` — baseline inicial, aplicada
   historicamente fora do registo de migrações atual;
 - `20261026_schedule_engine_approved_ledgers_v0.sql` — protótipo de
@@ -75,8 +110,9 @@ O historial **realmente registado** na instância é:
 Os horários e IDs dos ficheiros originais diferem dos IDs registados no
 servidor. As três migrações do antigo PR #43 foram preservadas, **apenas
 como arquivo histórico**, em `supabase/rollback/pr43-migration-lineage/`;
-não foram reinseridas na pasta ativa `supabase/migrations/`, para não
-reativar automaticamente um fluxo de aprovação retirado do produto.
+não estavam então na pasta ativa `supabase/migrations/`. Na evolução
+posterior do PR #47, os scripts foram reconstruídos com os IDs registados
+na instância e ensaiados num PostgreSQL descartável, sem os publicar.
 
 Consequência: **não executar `supabase db push` contra a instância real**
 com esta árvore sem uma reconciliação verificada de IDs, SQL e dependências.
@@ -143,12 +179,15 @@ exige o pacote completo.
 O Security Advisor devolveu:
 
 1. `authenticated_security_definer_function_executable` no RPC de
-   configuração. **Pendente de refatoração segura**; não corrigir
-   revogando o EXECUTE necessário à aplicação.
+   configuração. A refatoração segura já foi **preparada e ensaiada**
+   em PostgreSQL descartável, mas não aplicada à instância operacional.
+   Não revogar EXECUTE necessário à UI sem alternativa validada.
 2. `auth_leaked_password_protection`: proteção de palavras-passe
-   comprometidas desativada. Configuração manual de Supabase Auth,
-   disponível conforme o plano e as opções do projeto. Não existe ação
-   apropriada nesta integração para a ativar sem intervenção no painel.
+   comprometidas desativada. A documentação Supabase informa que esta
+   funcionalidade é disponibilizada em planos **Pro ou superiores**;
+   o projeto observado apresentava plano **Free**. Não pode ser
+   corrigida através de um commit Git ou apenas de validação no CI:
+   exige decisão explícita sobre o plano e a configuração de Auth.
 
 O Performance Advisor não devolveu avisos nesta observação. O resultado
 é pontual e deverá ser repetido depois de quaisquer alterações.
@@ -198,12 +237,13 @@ executada após qualquer DDL/deploy.
 - Validar de forma prática backup/restauro de esquema e dados antes de
   qualquer DDL na instância real.
 - Decidir se a Edge Function de aprovações deve ser desativada.
-- Avaliar migração segura do RPC de configuração para um schema interno
-  com superfície pública `SECURITY INVOKER`, preservando o contrato.
+- Realizar staging e backups/restauro da migração já preparada para
+  esquema privado, acompanhada de um RPC público `SECURITY INVOKER`.
 - Ativar proteção de palavras-passe comprometidas quando o plano e as
   permissões o permitirem.
-- Rever dependências do projeto e respetivos avisos `npm audit` no
-  Checkpoint E.
+- Repetir verificação de segurança real após implantar as alterações
+  externas que forem aprovadas; o `npm audit` do Checkpoint E
+  já foi concluído com zero vulnerabilidades reportadas.
 
 O MASTER deverá incluir apenas ações que tenham sido concluídas e
 verificadas, e não as pendências desta auditoria.
