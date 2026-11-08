@@ -279,9 +279,9 @@ export default function ScheduleHome({
       </div>
       <div className="se-manage-stats">
         <div><strong>{summary.total}</strong><span>Equipa ativa</span></div>
-        <div><strong>{summary.assigned}</strong><span>Escalados (proposta)</span></div>
-        <div><strong>{summary.available}</strong><span>Disponíveis sem turno</span></div>
-        <div><strong>{summary.unavailable}</strong><span>Sem disponibilidade</span></div>
+        <div><strong>{kind==="proposal"?summary.assigned:"—"}</strong><span>Escalados (proposta)</span></div>
+        <div><strong>{kind==="proposal"?summary.available:"—"}</strong><span>Disponíveis sem turno</span></div>
+        <div><strong>{kind==="proposal"?summary.unavailable:"—"}</strong><span>Sem disponibilidade</span></div>
         <div><strong>{summary.unplanned}</strong><span>Por planear</span></div>
       </div>
       <div className="se-controls">
@@ -506,15 +506,15 @@ export default function ScheduleHome({
           <div className="se-count-grid">
             <button type="button" className={filter==="assigned"?"active":""}
               onClick={()=>setTeamFilter(filter==="assigned"?"all":"assigned")}>
-              <strong>{summary.assigned}</strong><span>Escalados</span>
+              <strong>{kind==="proposal"?summary.assigned:"—"}</strong><span>Escalados</span>
             </button>
             <button type="button" className={filter==="available"?"active":""}
               onClick={()=>setTeamFilter(filter==="available"?"all":"available")}>
-              <strong>{summary.available}</strong><span>Sem turno</span>
+              <strong>{kind==="proposal"?summary.available:"—"}</strong><span>Sem turno</span>
             </button>
             <button type="button" className={filter==="unavailable"?"active":""}
               onClick={()=>setTeamFilter(filter==="unavailable"?"all":"unavailable")}>
-              <strong>{summary.unavailable}</strong><span>Sem disp.</span>
+              <strong>{kind==="proposal"?summary.unavailable:"—"}</strong><span>Sem disp.</span>
             </button>
           </div>
           {kind !== "proposal" && <p className="se-panel-hint">
