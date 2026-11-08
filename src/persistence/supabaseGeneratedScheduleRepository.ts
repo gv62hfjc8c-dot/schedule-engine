@@ -1,6 +1,7 @@
 import type { SupabaseAuthClient } from "./supabaseAuth";
 import {
   isGeneratedSchedulePayload,
+  certifyGeneratedSchedulePayload,
   type GeneratedSchedulePayload,
   type GeneratedScheduleRepository,
   type StoredGeneratedSchedule,
@@ -50,6 +51,11 @@ function readRow(value: unknown): StoredGeneratedSchedule {
     row.time_zone !== row.payload.timeZone)
     throw new GeneratedScheduleStoreError(
       "Existe uma proposta guardada com estrutura incompatível.");
+  const certified=certifyGeneratedSchedulePayload(row.payload);
+  if(!certified.valid)
+    throw new GeneratedScheduleStoreError(
+      "Uma proposta arquivada não cumpre todas as regras do seu próprio snapshot: "+
+      certified.issues.slice(0,3).join(" "));
   return {
     id: row.id,
     createdAt: row.created_at,
@@ -208,6 +214,11 @@ export function createSupabaseGeneratedScheduleRepository(
       if(!isGeneratedSchedulePayload(payload))
         throw new GeneratedScheduleStoreError(
           "A proposta não está completa. Não foi guardada.");
+      const certified=certifyGeneratedSchedulePayload(payload);
+      if(!certified.valid)
+        throw new GeneratedScheduleStoreError(
+          "A certificação independente recusou a proposta: "+
+          certified.issues.slice(0,3).join(" "));
       const id=proposalId??crypto.randomUUID();
       if(!uuidPattern.test(id))
         throw new GeneratedScheduleStoreError("Identificador de proposta inválido.");
