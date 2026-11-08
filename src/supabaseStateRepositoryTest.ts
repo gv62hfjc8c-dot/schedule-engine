@@ -388,4 +388,68 @@ const ownerConsent = { getItem: (key: string): string | null =>
     "A conflicting edit must never overwrite the previous tab.");
 }
 
+
+// PR47-16: A local UI event can arrive while a previous CAS request is
+// waiting for a remote conflict/merge. The queued next event is based on the
+// stale UI, not the merged remote payload, and must not REVERT other-tab edits.
+{
+  const cloud=createMockCloud();
+  cloud.setState(fixture());
+  const tabA=createSupabaseStateRepository(cloud.client,legacy(null).repo,emptyStorage);
+  const aBaseline=(await tabA.load())!;
+  let releaseFirst=()=>{};
+  const gate=new Promise<void>(resolve=>{releaseFirst=()=>resolve();});
+  let postCount=0;
+  const delayedClient={
+    user:cloud.client.user,
+    request:async(path:string,init?:RequestInit)=>{
+      if(init?.method==="POST" && ++postCount===1)await gate;
+      return cloud.client.request(path,init);
+    },
+  };
+  const tabB=createSupabaseStateRepository(delayedClient,legacy(null).repo,emptyStorage);
+  const bBaseline=(await tabB.load())!;
+  const bFirst=tabB.save({...bBaseline,workRules:{standardShiftDurationMinutes:360}});
+  await Promise.resolve();
+  await Promise.resolve();
+  const aState={...aBaseline,people:aBaseline.people.map((p,i)=>
+    i===0?{...p,name:"Pessoa editada na aba A"}:p)};
+  await tabA.save(aState);
+  const bSecond=tabB.save({...bBaseline,
+    workRules:{standardShiftDurationMinutes:360},
+    cycleAnchorDate:"2026-11-02"});
+  releaseFirst();
+  await bFirst;
+  const merged=await bSecond;
+  ensure(cloud.current().revision===4 &&
+    cloud.current().state?.people[0].name==="Pessoa editada na aba A" &&
+    cloud.current().state?.workRules.standardShiftDurationMinutes===360 &&
+    cloud.current().state?.cycleAnchorDate==="2026-11-02" &&
+    merged?.people[0].name==="Pessoa editada na aba A",
+    "A queued UI state must preserve a remote person change after an earlier CAS merge.");
+}
+// After an incompatible concurrent edit, later queued requests cannot
+// silently overwrite the server. Only an explicit reload re-arms writes.
+{
+  const cloud=createMockCloud();
+  cloud.setState(fixture());
+  const tabA=createSupabaseStateRepository(cloud.client,legacy(null).repo,emptyStorage);
+  const tabB=createSupabaseStateRepository(cloud.client,legacy(null).repo,emptyStorage);
+  const a=(await tabA.load())!,b=(await tabB.load())!;
+  await tabA.save({...a,workRules:{standardShiftDurationMinutes:420}});
+  let blocked=false;
+  try{await tabB.save({...b,workRules:{standardShiftDurationMinutes:300}});}
+  catch(error){blocked=error instanceof SupabaseStateConflictError;}
+  ensure(blocked,"Conflicting edits must fail without last-write-wins.");
+  let locked=false;
+  try{await tabB.save({...b,people:[{...b.people[0],name:"Perigoso"}]});}
+  catch(error){locked=error instanceof Error && error.message.includes("recarregar");}
+  ensure(locked && cloud.current().state?.people[0].name===b.people[0].name,
+    "After a conflict, no queued or later autosave can overwrite server data.");
+  const latest=(await tabB.load())!;
+  await tabB.save({...latest,cycleAnchorDate:"2026-11-02"});
+  ensure(cloud.current().state?.workRules.standardShiftDurationMinutes===420,
+    "Explicit reload must re-arm safely from latest server state.");
+}
+
 console.log("Supabase repository: todos os testes passaram.");
