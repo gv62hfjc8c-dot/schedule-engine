@@ -5,6 +5,8 @@ import type {
 } from "../types";
 import { APP_STATE_VERSION } from "./stateRepository";
 import { isPersistedAppState } from "./localStorageStateRepository";
+import { prepareExplicitEmptyContext } from "../utils/explicitEmptyContext";
+import { certifyFinalGeneratedSchedule } from "../utils/finalScheduleCertification";
 
 /**
  * A stored generated proposal is never an approved or authoritative schedule.
@@ -182,4 +184,38 @@ export function isGeneratedSchedulePayload(value: unknown): value is GeneratedSc
     }
   }
   return validStoredConfiguration(value as unknown as GeneratedSchedulePayload);
+}
+
+/**
+ * Independently re-evaluate the archived shifts against THEIR ORIGINAL
+ * personnel, availability, operation, mandatory coverage and work rules.
+ * The stored user attestation is only a declared external context; this
+ * verifies internal consistency, never authoritative approval.
+ *
+ * Strict readers quarantine failing rows; they NEVER delete or modify them.
+ */
+export function certifyGeneratedSchedulePayload(
+  value:unknown,
+):{valid:boolean;issues:string[]}{
+  if(!isGeneratedSchedulePayload(value))return {
+    valid:false,issues:["Estrutura do snapshot incompatível."],
+  };
+  const c=value.configuration;
+  const declared=prepareExplicitEmptyContext({
+    startDate:value.startDate,endDate:value.endDate,
+    timeZone:value.timeZone,rules:c.workConstraints,
+    confirmedNoExternalShifts:true,
+  });
+  if(declared.status!=="ready"||!declared.externalContext)
+    return {valid:false,issues:declared.issues.length?declared.issues:
+      ["Não foi possível reconstituir o contexto do snapshot."]};
+  const result=certifyFinalGeneratedSchedule({
+    startDate:value.startDate,endDate:value.endDate,
+    timeZone:value.timeZone,
+    people:value.people,availabilities:c.availabilities,
+    operatingCalendar:c.operatingCalendar,workRules:c.workRules,
+    presence:c.presence,workConstraints:c.workConstraints,
+    externalContext:declared.externalContext,
+  },value.shifts);
+  return {valid:result.valid,issues:result.issues};
 }
