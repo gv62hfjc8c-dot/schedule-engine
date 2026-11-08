@@ -10,7 +10,7 @@ import { createEmptyWeeklyAvailability } from "./utils/availability";
 import { createEmptyWeeklyPresenceRequirements } from "./utils/presence";
 import { WEEKDAYS } from "./utils/operatingCalendar";
 
-const check=(yes:unknown,message:string):asserts yes=>{if(!yes)throw Error(message);};
+function check(yes:unknown,message:string):asserts yes{if(!yes)throw Error(message);}
 const owner="11111111-1111-4111-8111-111111111111";
 const other="22222222-2222-4222-8222-222222222222";
 const id="aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
