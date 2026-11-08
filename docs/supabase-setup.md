@@ -18,7 +18,7 @@ Uma proposta gerada e guardada **não está oficialmente aprovada**.
 
 ## Instalação limpa — reprodução do contrato de base de dados
 
-O PR #47 mantém **quatro migrações históricas** e quatro migrações de
+O PR #47 mantém **quatro migrações históricas** e cinco migrações de
 2026-11-08 com identificadores correspondentes ao Supabase publicado.
 O arquivo histórico está preparado, mas **a importação real foi adiada**. Estes scripts foram reconstruídos a partir das
 linhagens históricas e **ensaiados numa instância PostgreSQL 17
@@ -42,7 +42,9 @@ byte a byte da instância de produção.
      (guarda fontes, factos por pessoa/dia e prova de cobertura verificada;
      desativa inicialização falsa de 2020–2100);
    - `20261108142521_pr47_trusted_approval_revisions.sql`
-     (revisões parciais em RPC CAS privilegiado, sem escrita direta no browser).
+     (revisões parciais em RPC CAS privilegiado, sem escrita direta no browser);
+   - `20261108144725_pr47_verified_ledger_initialization.sql`
+     (só inicializa um ledger oficial após verificar todos os pares colaborador/dia no intervalo declarado).
 3. A presença de estruturas legadas do ledger **não ativa** aprovação
    oficial na UI. As funções privilegiadas legadas não recebem EXECUTE
    do papel `authenticated`.
@@ -64,7 +66,7 @@ byte a byte da instância de produção.
 **Na instância Schedule Engine, as migrações de 28 dias e RPC privado
 já foram aplicadas e verificadas em 08/11/2026.** O CHECK atual é
 `end_date < start_date + 28`. Não executar `supabase db push` nem
-`migration repair` sem comparar o histórico: os seis IDs presentes no
+`migration repair` sem comparar o histórico: os nove IDs presentes no
 repositório já constam do registo Supabase. Outras instalações exigem
 aplicar as migrações antes de disponibilizar a nova interface.
 
@@ -158,7 +160,7 @@ ponto de regresso até à aprovação final do PR #47.
 
 ## Aprovação oficial PR47 — rollout controlado
 
-- As migrações históricas e RPC de revisões foram aplicadas ao Supabase em 08/11/2026. As três tabelas históricas começaram **sem linhas**; as quatro propostas antigas continuam presentes.
+- As migrações históricas, RPC de revisões e inicialização controlada do ledger foram aplicadas ao Supabase em 08/11/2026. As três tabelas históricas começaram **sem linhas**; as quatro propostas antigas continuam presentes.
 - A inicialização antiga do ledger que declarava completa a história 2020–2100 foi desativada. **Não a restaurar só para desbloquear a aprovação.** A Edge Function antiga v6 (HTTP 410) permanece inerte.
 - O novo endpoint em `supabase/functions/official-schedules-v2/index.ts` está **preparado, não publicado**. Exige autenticação, dados server-side e provas por pessoa/data. A UI só ativa comandos com `VITE_OFFICIAL_APPROVAL_READY=true`; **não ativar antes do deployment e dos testes reais**.
 - `SCHEDULE_ENGINE_HISTORY_ANCHOR_DATE` será configurada no serviço conforme a fonte histórica efetiva da organização; o browser nunca escolhe titular, ledger, âncora ou prova de completude.
