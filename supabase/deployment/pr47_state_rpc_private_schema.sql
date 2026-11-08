@@ -96,7 +96,7 @@ begin
 
   return v_next_revision;
 end;
-$function$
+$function$;
 
 
 REVOKE ALL ON FUNCTION schedule_engine_private.save_state_impl(bigint,jsonb) FROM PUBLIC;
