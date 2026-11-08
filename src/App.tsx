@@ -20,7 +20,7 @@ import ScheduleGeneratorPanel from "./components/ScheduleGeneratorPanel";
 import ScheduleHome from "./components/ScheduleHome";
 import { supabaseAuthClient } from "./persistence/supabaseInstance";
 import { createSupabaseGeneratedScheduleRepository } from "./persistence/supabaseGeneratedScheduleRepository";
-import { authorizeLegacyImportForOwner, LegacyImportConsentRequiredError } from "./persistence/supabaseStateRepository";
+import { authorizeLegacyImportForOwner, startFreshCloudAccountForOwner, LegacyImportConsentRequiredError } from "./persistence/supabaseStateRepository";
 import type { GeneratedSchedulePayload, StoredGeneratedSchedule } from "./persistence/generatedScheduleRepository";
 import { createEmptyWeeklyPresenceRequirements } from "./utils/presence";
 import { appStateRepository } from "./persistence/appStateRepository";
@@ -845,6 +845,25 @@ export default function App() {
               window.location.reload();
             }}>
               Confirmo que estes dados são meus — importar para a conta
+            </button>
+            <p style={{ marginTop: "16px" }}>
+              Se esta é uma conta nova ou de teste, podes começar sem
+              importar os dados antigos deste navegador. A configuração
+              antiga será mantida, sem ser associada a esta conta.
+            </p>
+            <button type="button" className="se-outline" onClick={() => {
+              const ownerId = supabaseAuthClient?.user?.id;
+              if (!ownerId) return;
+              if (!window.confirm(
+                "Começar uma conta nova sem importar os dados antigos? " +
+                "A configuração deste navegador será preservada e não " +
+                "será associada a esta conta. Confirma apenas se esta " +
+                "conta não deve herdar esses dados."
+              )) return;
+              startFreshCloudAccountForOwner(window.localStorage, ownerId);
+              window.location.reload();
+            }}>
+              Começar esta conta vazia — não importar dados antigos
             </button>
           </>}
           <p>
