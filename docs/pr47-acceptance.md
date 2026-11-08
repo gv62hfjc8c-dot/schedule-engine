@@ -233,7 +233,7 @@ Os códigos A–F acima continuam **PENDENTES** até serem executados.
 |---|---|---|
 | 01 Documentação | Implementado | Comparar README, arquitetura, roadmap, setup e relatório com funcionalidades visíveis; nenhuma funcionalidade experimental declarada operacional |
 | 02 Sem turno ≠ folga | Implementado | A07 e D06; nunca interpretar ausência de turno como folga |
-| 03 Edge Function antiga | **Versão 410 publicada; ensaio HTTP pendente** | Foi publicada a v6 com `verify_jwt=true`; confirmar resposta autenticada e eventuais consumidores. Bundle v5 arquivado para rollback |
+| 03 Edge Function antiga | **410 publicado e testado em CI; gateway autenticado pendente** | V6 com JWT obrigatório em Supabase; `test:retired-edge` comprova GET/POST 410, sem acessos externos. Falta verificar a resposta através do gateway com JWT e dependências externas |
 | 04 Consentimento na importação | Implementado e reforçado para múltiplas contas | **G01**: conta nova escolhe começar vazia, sem importar dados legados do browser; a decisão é por proprietário, não apaga dados antigos, não afeta outra conta, e requer teste Safari |
 | 05 Migrações divergentes | **9/9 versões no repositório e no Supabase** | Quatro reconstruídas e cinco PR47 publicadas; CI de instalação limpa passou. Gravação CAS e isolamento SQL real confirmados; testes HTTP distintos |
 | 06 Propostas misturadas | Implementado | D02–D04 e F04; vista de uma proposta não importa turnos de outras |
@@ -248,7 +248,7 @@ Os códigos A–F acima continuam **PENDENTES** até serem executados.
 | 15 Fusos divergentes | Implementado | B11, F02 e F03; fuso IANA da operação e do snapshot arquivado |
 | 16 Escrita concorrente | **CAS ensaiado com conta real, UI pendente** | Ensaio transacional em Supabase confirmou primeira atualização e rejeitou `40001` para versão obsoleta, seguido de ROLLBACK; teste Safari com dois separadores ainda pendente |
 | 17 Aprovação oficial ausente | **API v2 publicada, aprovações ainda bloqueadas** | `official-schedules-v2` v1 ACTIVE com `verify_jwt=true` e CORS, migrações/ledger/revisões disponíveis; `VITE_OFFICIAL_APPROVAL_READY` desligada. Histórico 2026 ainda por importar, não é correto aceitar aprovações. Testes reais de JWT/HTTP pendentes |
-| 18 Ciclos de 28 dias | **28 dias disponíveis na branch PR47** | `test:four-week` valida geração única com certificação; migração `20261108124759` publicada e UI limitada a 28 dias. Falta geração real e recuperação Safari |
+| 18 Ciclos de 28 dias | **Núcleo/DB/UI implementados, stress CI aprovado** | Quatro semanas certificadas; mais quatro cenários com DST, mudança de ano, ano bissexto e múltiplos fusos. Migração real confirmada, faltando aceitar 28 dias no Safari |
 | 19 Perfis de colaboradores | **V0 implementado; ocorrências oficiais dependem de #17** | `test:scheduling-model` valida `unavailableWorkDates` sem turno, incluindo rejeição da certificação. `test:qualification-coverage` valida competências durante turnos e refeições; UI edita datas indisponíveis e etiquetas. Motivos administrativos e tipos de vínculo não especificados |
 | 20 Segurança Supabase | **RPC reforçado; 1 aviso Auth pendente** | Migração `20261108124844` aplicada e funções/permissões verificadas; verificar operações reais de gravação no Safari. Proteção de passwords comprometidas continua desligada, disponível em Supabase Pro+ |
 | 21 Código experimental | Implementado | `npm run test:architecture`; verificar ausência de laboratório na UI e preservação dos testes do domínio |
@@ -369,3 +369,10 @@ Provas técnicas atuais: `test:official-revisions`, `test:verified-official-serv
 **Sem novas ações manuais exigidas:** foi concluído um ensaio de leitura real por cada titular usando o papel `authenticated` e transações revertidas. A conta A vê 1 estado e 1 proposta; B vê 1 estado e 3 propostas; ambas veem 0 ledgers e 0 fontes históricas. O SQL real rejeitou também um pedido de gravação com revisão obsoleta (`40001`) após uma primeira alteração no mesmo bloco transacional; tudo terminou com `ROLLBACK`.
 
 A Edge `official-schedules-v2` foi publicada na versão 1 com JWT obrigatório e suporte CORS. A flag de aprovação mantém-se inativa e não há dados históricos verificados; esta é uma proteção legítima, não um erro de execução. A chamada HTTP remota autenticada, a prova de concorrência em dois separadores e a geração manual de 28 dias não foram executadas e não podem ser registadas como PASS.
+
+
+### Regressões em CI concluídas — último ciclo do PR47
+
+- `test:retired-edge`: simulação de GET e POST da API antiga v6 produziu 410 e não efetuou pedidos de rede; o gateway real continua a exigir JWT, conforme metadados Supabase.
+- `test:four-week`: quatro cenários adicionais de 28 dias inteiros foram gerados e certificados atravessando mudanças sazonais e calendáricas, sem unir horários semanais de forma artificial.
+- GitHub Actions `42534315836`: **validate + migration-contract aprovados**. Um teste de domínio aprovado não substitui uma interação real não executada.
