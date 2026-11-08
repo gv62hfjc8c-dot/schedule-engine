@@ -63,13 +63,13 @@ contains(deployedRpcMigration,/CREATE\s+SCHEMA\s+IF\s+NOT\s+EXISTS\s+schedule_en
 contains(deployedRpcMigration,/SECURITY\s+INVOKER/i,
   "Deployed public RPC must never stay SECURITY DEFINER.");
 const historical=file("supabase/migrations/20261108160000_pr47_historical_archive_foundation.sql");
-contains(historical,/CREATE\\s+TABLE\\s+IF\\s+NOT\\s+EXISTS\\s+public\\.schedule_engine_history_day_facts/i,
+contains(historical,/CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\s+public\.schedule_engine_history_day_facts/i,
   "The history migration must capture explicit person/day facts.");
-contains(historical,/CREATE\\s+TABLE\\s+IF\\s+NOT\\s+EXISTS\\s+public\\.schedule_engine_history_verifications/i,
+contains(historical,/CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\s+public\.schedule_engine_history_verifications/i,
   "Historical source uploads must be separately verified.");
-contains(historical,/REVOKE\\s+EXECUTE\\s+ON\\s+FUNCTION[\\s\\S]*?initialize_schedule_engine_approved_ledger/i,
+contains(historical,/REVOKE\s+EXECUTE\s+ON\s+FUNCTION[\s\S]*?initialize_schedule_engine_approved_ledger/i,
   "Unsafe official-ledger initialization must be disabled.");
-absent(historical,/GRANT\\s+(?:INSERT|UPDATE|DELETE|ALL)[\\s\\S]*?ON\\s+public\\.schedule_engine_history_(?:sources|day_facts|verifications)\\s+TO\\s+authenticated/i,
+absent(historical,/GRANT\s+(?:INSERT|UPDATE|DELETE|ALL)[\s\S]*?ON\s+public\.schedule_engine_history_(?:sources|day_facts|verifications)\s+TO\s+authenticated/i,
   "Do not grant the browser historical data writes.");
 const rpcHardening=file("supabase/deployment/pr47_state_rpc_private_schema.sql");
 contains(rpcHardening,/CREATE\s+SCHEMA\s+IF\s+NOT\s+EXISTS\s+schedule_engine_private/i,
