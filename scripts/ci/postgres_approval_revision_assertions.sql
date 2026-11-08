@@ -6,9 +6,9 @@ BEGIN
  OR has_function_privilege('anon',
   'public.commit_schedule_engine_approved_ledger(uuid,bigint,jsonb,text,text)','EXECUTE')
  THEN RAISE EXCEPTION 'Official mutation RPC exposed to browsers'; END IF;
- IF NOT has_function_privilege('service_role',
+ IF has_function_privilege('service_role',
   'public.commit_schedule_engine_approved_ledger(uuid,bigint,jsonb,text,text)','EXECUTE')
- THEN RAISE EXCEPTION 'Trusted service has no CAS commit capability'; END IF;
+ THEN RAISE EXCEPTION 'Old service-level CAS must be revoked after v2 enforcement'; END IF;
 END $$;
 INSERT INTO auth.users(id)VALUES('33333333-3333-4333-8333-333333333333');
 INSERT INTO public.schedule_engine_approved_ledgers(
