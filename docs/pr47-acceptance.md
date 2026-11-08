@@ -340,3 +340,11 @@ Provas técnicas atuais: `test:official-revisions`, `test:verified-official-serv
 - Se a conta nova já tiver estado remoto, esse estado continua a prevalecer. Se não tiver, a nova conta começa vazia e poderá gravar os próprios dados com a primeira edição.
 - `src/supabaseStateRepositoryTest.ts` confirma que o skip é isolado entre dois titulares e não escreve automaticamente na base de dados. **Safari confirmado em 08/11/2026**: uma conta nova abriu sem importar dados locais; colaborador fictício A1 persistiu após recarregar; na segunda conta, A1 estava ausente e B1 persistiu após recarregar. **Leitura SQL real**: 1 titular apenas com A1, 1 apenas com B1, 0 titulares com ambos, 3 contas com configuração. **Verificação inversa no Safari confirmada:** conta A mostra A1 e não mostra B1 após recarregar. Falta teste cruzado real usando JWTs distintos sobre a mesma API e uma proposta guardada por conta.
 - **Nunca carregar no botão de importação dos dados antigos para uma conta de ensaio** quando o conteúdo pertence à conta habitual.
+
+
+### Ensaio Safari — 08/11/2026, conta fictícia A, 02/11/2026
+
+- A consulta read-only ao Supabase confirmou exatamente **um colaborador ativo** (A1), disponível à segunda das 09:00–18:00; a operação de segunda funciona **09:00–17:00**, e exige **1 pessoa em abertura, operação e fecho**. Regra de refeição: 60 minutos se o trabalho efetivo ultrapassar 6 horas.
+- A simulação devolveu `not_found` sem solução e sem publicar horário. A ausência de sobreposição durante a refeição torna impossível cobrir 8 horas de operação com apenas uma pessoa; **é um cenário realmente incompatível com as hard constraints**, não prova de erro do algoritmo.
+- A consulta SQL read-only confirmou **0 propostas guardadas na conta A**, incluindo para 02/11/2026.
+- Próximo teste: reduzir apenas o horário operacional de segunda da **conta A de teste** para **09:00–13:00**, manter A1 disponível, gerar 02/11/2026 e verificar arquivo e recuperação. Não alterar configurações da conta principal.
