@@ -23,8 +23,9 @@ assert.deepEqual(migrations,[
   "20261103100427_trusted_approved_schedule_ledger.sql",
   "20261103101604_approved_context_proposals.sql",
   "20261103104023_partial_schedule_revisions.sql",
-  "20261108100000_pr47_four_week_proposals.sql",
-],"Active migration versions must exactly match the four installed histories plus one pending PR47 upgrade.");
+  "20261108124759_pr47_four_week_proposals.sql",
+  "20261108124844_pr47_state_rpc_private_schema.sql",
+],"Active migration versions must exactly match the four installed histories plus two deployed PR47 upgrades.");
 const state=file("supabase/migrations/20261102125810_generated_schedule_proposals.sql");
 contains(state,/security\s+definer/i,"State RPC must document its security context.");
 contains(state,/set\s+search_path\s*=\s*''/i,"Privileged RPC must use fixed empty search_path.");
@@ -52,9 +53,14 @@ contains(legacy,/NO client role receives EXECUTE/i,
 absent(legacy,/grant\s+execute\s+on\s+function\s+public\.save_schedule_engine_approved_ledger[\s\S]*?to\s+authenticated/i,
   "Legacy ledger must not grant browser approval mutations.");
 
-const fourWeeks=file("supabase/migrations/20261108100000_pr47_four_week_proposals.sql");
+const fourWeeks=file("supabase/migrations/20261108124759_pr47_four_week_proposals.sql");
 contains(fourWeeks,/end_date\s*<\s*start_date\s*\+\s*28/i,
   "Four-week proposals require the database CHECK to accept 28 days.");
+const deployedRpcMigration=file("supabase/migrations/20261108124844_pr47_state_rpc_private_schema.sql");
+contains(deployedRpcMigration,/CREATE\s+SCHEMA\s+IF\s+NOT\s+EXISTS\s+schedule_engine_private/i,
+  "Deployed migration must install the private schema.");
+contains(deployedRpcMigration,/SECURITY\s+INVOKER/i,
+  "Deployed public RPC must never stay SECURITY DEFINER.");
 const rpcHardening=file("supabase/deployment/pr47_state_rpc_private_schema.sql");
 contains(rpcHardening,/CREATE\s+SCHEMA\s+IF\s+NOT\s+EXISTS\s+schedule_engine_private/i,
   "Privileged code must be moved outside the Data API schema.");
