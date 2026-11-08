@@ -3,7 +3,7 @@ import { createSupabaseGeneratedScheduleRepository } from "./persistence/supabas
 import { INITIAL_WORK_CONSTRAINTS } from "./utils/workConstraints";
 import {
   proposalsForDay, selectedProposalForDay, calendarProposalForDay,
-  calendarArchiveOverview, unreadableArchiveAffectsDate,
+  calendarArchiveOverview, unreadableArchiveAffectsDate, previewFromStored,
 } from "./utils/savedScheduleView";
 import { monthCalendarDates } from "./utils/monthlyScheduleView";
 
@@ -168,6 +168,47 @@ ensure(overview.mixedSources&&overview.sourceIds.length===2&&
 const focused=calendarArchiveOverview(known,dates,confirmed.id);
 ensure(!focused.mixedSources && focused.sourceIds.length===1,
   "Focused month must represent a single independent proposal.");
+
+// PR47 acceptance / point 06: unlike the historical user's four copies,
+// these overlapping proposals deliberately DIFFER on the very same day.
+// The full detailed view must use the selected immutable snapshot, not the
+// newest schedule stitched into the older proposal.
+const correctedSameDate:GeneratedSchedulePayload={
+  ...original,
+  people:[{id:"a",name:"Nome mais recente",active:true}],
+  shifts:[{
+    date:"2026-11-02",personId:"a",
+    interval:{start:"10:00",end:"18:00"},
+    mealBreak:{start:"13:00",end:"14:00"},
+  }],
+};
+const updated=await repository.save(
+  correctedSameDate,"dddddddd-dddd-4ddd-8ddd-dddddddddddd");
+const divergentVersions=[confirmed,updated];
+const selectedOld=selectedProposalForDay(
+  divergentVersions,"2026-11-02",confirmed.id);
+const selectedNew=selectedProposalForDay(
+  divergentVersions,"2026-11-02",updated.id);
+ensure(selectedOld?.id===confirmed.id && selectedNew?.id===updated.id,
+  "Both divergent same-day versions remain individually selectable.");
+ensure(previewFromStored(selectedOld).assignments[0].interval.start==="09:00" &&
+  previewFromStored(selectedNew).assignments[0].interval.start==="10:00",
+  "Detailed view must show the selected proposal's original start time, not the latest.");
+ensure(selectedOld.payload.people[0].name==="Nome antigo" &&
+  selectedNew.payload.people[0].name==="Nome mais recente",
+  "Detailed view must use each snapshot's original people and names.");
+ensure(calendarProposalForDay(
+  divergentVersions,"2026-11-02",confirmed.id)?.id===confirmed.id &&
+  calendarProposalForDay(
+    divergentVersions,"2026-11-02",updated.id)?.id===updated.id,
+  "Focused month cannot change source silently when two proposals differ.");
+const divergentOverview=calendarArchiveOverview(
+  divergentVersions,dates,null);
+ensure(divergentOverview.overlappingDays===7 &&
+  !divergentOverview.mixedSources &&
+  divergentOverview.sourceIds[0]===updated.id,
+  "Overlapping complete windows may display the latest per date, with an explicit overlap warning.");
+
 
 ensure(unreadableArchiveAffectsDate([{id:"bad",startDate:"2026-11-02",
   endDate:"2026-11-08"}],"2026-11-02") &&
