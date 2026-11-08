@@ -28,7 +28,7 @@ assert.deepEqual(migrations,[
   "20261108141507_pr47_historical_archive_foundation.sql",
   "20261108142521_pr47_trusted_approval_revisions.sql",
   "20261108144725_pr47_verified_ledger_initialization.sql",
-  "20261108233000_pr47_approval_config_revision_cas.sql",
+  "20261108234026_pr47_approval_config_revision_cas.sql",
 ],"Active migration versions must exactly match the four installed histories, two deployed PR47 upgrades and one staged historical foundation.");
 const state=file("supabase/migrations/20261102125810_generated_schedule_proposals.sql");
 contains(state,/security\s+definer/i,"State RPC must document its security context.");
@@ -65,7 +65,7 @@ contains(deployedRpcMigration,/CREATE\s+SCHEMA\s+IF\s+NOT\s+EXISTS\s+schedule_en
   "Deployed migration must install the private schema.");
 contains(deployedRpcMigration,/SECURITY\s+INVOKER/i,
   "Deployed public RPC must never stay SECURITY DEFINER.");
-const safeCommit=file("supabase/migrations/20261108233000_pr47_approval_config_revision_cas.sql");
+const safeCommit=file("supabase/migrations/20261108234026_pr47_approval_config_revision_cas.sql");
 contains(safeCommit,/FOR SHARE/i,"Official commit must lock the operational configuration row.");
 contains(safeCommit,/p_expected_state_revision/i,"Official commit must compare current rules revision.");
 contains(safeCommit,/REVOKE\s+ALL\s+ON\s+FUNCTION/i,
