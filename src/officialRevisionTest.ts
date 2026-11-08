@@ -7,7 +7,7 @@ import { createApprovedScheduleLedger, approveSchedule, validateApprovedSchedule
 import { reviseApprovedScheduleForAbsence } from "./utils/partialScheduleRevision";
 import { parseOfficialScheduleRequest } from "./application/officialScheduleRequest";
 
-const check=(ok:unknown,msg:string):asserts ok=>{if(!ok)throw new Error("PR47-17: "+msg);};
+function check(ok:unknown,msg:string):asserts ok {if(!ok)throw new Error("PR47-17: "+msg);}
 const date="2026-11-02",span={start:"09:00",end:"13:00"};
 const weekly=WEEKDAYS.reduce((s,k)=>{s[k]=[];return s;},{} as WeeklyOperatingHours);
 const operatingCalendar:OperatingCalendarConfiguration={weeklyOperatingHours:weekly,
