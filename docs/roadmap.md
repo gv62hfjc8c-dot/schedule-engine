@@ -8,8 +8,13 @@
 > arquivo mais robusto e proteção de dependências, sem reintroduzir
 > aprovações oficiais. Estado atualizado por ponto:
 > [auditoria PR47](audit-pr47.md) e [arquitetura](architecture.md).
-> As caixas `[x]` históricas abaixo não comprovam que um recurso
-> experimental esteja atualmente visível na interface.
+> O PR #47 já acrescentou geração condicionada e certificada de 28 dias
+> no núcleo (interface ainda limitada a 14 dias até migração), hard
+> constraints para dias indisponíveis, conciliação de edições independentes
+> e reprodução do esquema Supabase em PostgreSQL descartável no CI.
+> A aprovação oficial e a desativação do serviço antigo ainda não estão
+> operacionais na interface. As caixas `[x]` históricas abaixo não
+> comprovam que um recurso experimental esteja atualmente visível.
 
 
 ## Ponto 1 — Calendário operacional
@@ -276,7 +281,8 @@ dependências com auditoria de segurança em CI.
 
 **Mantém-se fora do fluxo ativo:** aprovação oficial, turnos aprovados como
 contexto externo autoritativo, gestão de ausências oficiais e geração
-conjunta de ciclos completos de 28 dias. A eventual reintrodução da
+produtiva de ciclos completos de 28 dias (núcleo já testado;
+persistência ainda condicionada à migração). A eventual reintrodução da
 aprovação exige uma fronteira confiável em execução no servidor e
 compatibilidade com o esquema Supabase real — nunca apenas uma alteração
 de interface ou uma concessão de permissões ao browser.
