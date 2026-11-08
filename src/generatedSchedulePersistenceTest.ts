@@ -17,7 +17,12 @@ const payload: GeneratedSchedulePayload = {
     interval:{start:"09:00",end:"18:00"},
     mealBreak:{start:"12:00",end:"13:00"}}],
   configuration: {
-    availabilities: [],
+    availabilities: [
+      {personId:"a",weeklyAvailability:{
+        monday:[{start:"09:00",end:"18:00"}],tuesday:[],wednesday:[],
+        thursday:[],friday:[],saturday:[],sunday:[]
+      },exceptions:[]},
+    ],
     operatingCalendar: {
       weeklyOperatingHours: {
         monday:[{start:"09:00",end:"18:00"}],tuesday:[],wednesday:[],
@@ -27,7 +32,8 @@ const payload: GeneratedSchedulePayload = {
     workRules: {standardShiftDurationMinutes:480},
     presence: {
       weeklyPresenceRequirements: {
-        monday:null,tuesday:null,wednesday:null,thursday:null,
+        monday:{minimumAtOpening:0,minimumDuringOperation:0,minimumAtClosing:0},
+        tuesday:null,wednesday:null,thursday:null,
         friday:null,saturday:null,sunday:null,
       },presenceExceptions:[],
     },
