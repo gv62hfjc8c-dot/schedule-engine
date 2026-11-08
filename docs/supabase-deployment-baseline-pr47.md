@@ -1,5 +1,18 @@
 # PR #47 / Checkpoint D — Estado real do Supabase e recuperação
 
+## Estado publicado atualizado — 08/11/2026
+
+**Esta secção prevalece sobre as observações históricas de 07/11/2026 abaixo.**
+
+- A base de dados mantém as cinco tabelas RLS. Foram instaladas as migrações `20261108124759_pr47_four_week_proposals` e `20261108124844_pr47_state_rpc_private_schema`, cujos identificadores constam agora também no Git.
+- O CHECK de arquivo aceita no máximo **28 dias civis**; após a alteração, a tabela preservava as **4 propostas** existentes.
+- `public.save_schedule_engine_state` é agora `SECURITY INVOKER`, autorizado apenas a `authenticated`. A implementação `schedule_engine_private.save_state_impl` mantém `SECURITY DEFINER`, valida `auth.uid()` e revê versões atomicamente. Foi testado percurso idempotente numa transação explicitamente revertida.
+- A Edge Function `official-schedules` está na versão inerte **v6** (HTTP 410), com `verify_jwt=true`; o bundle v5 continua arquivado para rollback. A chamada HTTP autenticada continua por testar.
+- A auditoria SQL read-only atualizada `pr47_checkpoint_d_assertions.sql` devolveu **10 PASS / 10**, sem violar dados. O aviso do Security Advisor por RPC pública privilegiada desapareceu.
+- O aviso de **leaked password protection** continua ativo. Segundo a documentação Supabase, o recurso é exclusivo dos planos **Pro+**, pelo que não pode ser ativado sem mudança de plano. Não introduzir um custo sem autorização.
+- Os testes RLS em duas contas sintéticas passaram em CI, mas os testes de autenticação real e recuperação Safari continuam pendentes.
+
+
 **Observação (2026-11-07):** auditoria exclusivamente de leitura; nenhuma
 migração, alteração de Auth, eliminação de dados ou publicação de Edge Function
 foi executada neste checkpoint.
