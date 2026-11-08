@@ -16,7 +16,7 @@ import { isSchedulableForInterval } from "./availability";
 import { getOperatingIntervalsForDate, getWeekday } from "./operatingCalendar";
 import { resolvePresenceForDate } from "./presence";
 import { checkPresenceForWorkShifts } from "./workCoverage";
-import { MAX_PERIOD_DAYS } from "./periodGenerator";
+import { MAX_CONSTRAINED_PERIOD_DAYS } from "./constrainedPeriodGenerator";
 
 /**
  * P6.4: immutable approval ledger. One APPROVED record owns every civil date
@@ -436,10 +436,10 @@ function validateDraft(
     };
   }
   if ((civil(draft.endDate)! - civil(draft.startDate)!) / DAY + 1 >
-      MAX_PERIOD_DAYS) {
+      MAX_CONSTRAINED_PERIOD_DAYS) {
     return {
       code: "invalid_input",
-      issues: ["A aprovação V0 suporta até " + MAX_PERIOD_DAYS + " dias."],
+      issues: ["A aprovação V0 suporta até " + MAX_CONSTRAINED_PERIOD_DAYS + " dias."],
       workViolations: [],
     };
   }
