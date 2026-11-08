@@ -355,3 +355,10 @@ Provas técnicas atuais: `test:official-revisions`, `test:verified-official-serv
 - Verificação SQL read-only: **conta A: 1 proposta** (1 na data 02/11/2026), **conta B: 0**, **conta principal: 4**. Nenhuma das contas tinha ledger de horários oficialmente aprovados. A nova proposta permaneceu associada apenas ao proprietário A.
 - A primeira tentativa 09:00–17:00 com A1 sozinho não encontrou solução devido à cobertura contínua e pausa obrigatória; o cenário mais curto foi gerado e recuperado. Isto confirma comportamento coerente com as hard constraints, não a exaustividade do algoritmo.
 - **Ainda pendente:** guardar uma proposta na conta B, confirmar que não aparece em A e executar teste de acesso cruzado com JWTs reais.
+
+
+### Ensaio Safari — 08/11/2026, conta fictícia B, proposta de dois dias
+
+- O utilizador confirmou no Safari que, após atualizar a página na conta B, a proposta de **02–03/11/2026** permanecia consultável, com os turnos de B1 nos dois dias. Isto valida a recuperação de uma proposta de vários dias nessa conta.
+- Consulta anterior da base de dados confirmou que as propostas estão separadas por `owner_id`: A tem uma proposta de 02/11; B possui a proposta de 02–03/11 e duas propostas adicionais de 02/11; a conta habitual conserva quatro propostas.
+- **Ainda pendente:** regressar à conta A, atualizar e garantir que não aparece o turno de B1 em 03/11 nem qualquer proposta de B. O teste de acesso cruzado com JWTs reais permanece independente desta verificação de interface.
