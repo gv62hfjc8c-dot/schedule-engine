@@ -26,6 +26,7 @@ assert.deepEqual(migrations,[
   "20261108124759_pr47_four_week_proposals.sql",
   "20261108124844_pr47_state_rpc_private_schema.sql",
   "20261108141507_pr47_historical_archive_foundation.sql",
+  "20261108170000_pr47_trusted_approval_revisions.sql",
 ],"Active migration versions must exactly match the four installed histories, two deployed PR47 upgrades and one staged historical foundation.");
 const state=file("supabase/migrations/20261102125810_generated_schedule_proposals.sql");
 contains(state,/security\s+definer/i,"State RPC must document its security context.");
@@ -62,6 +63,11 @@ contains(deployedRpcMigration,/CREATE\s+SCHEMA\s+IF\s+NOT\s+EXISTS\s+schedule_en
   "Deployed migration must install the private schema.");
 contains(deployedRpcMigration,/SECURITY\s+INVOKER/i,
   "Deployed public RPC must never stay SECURITY DEFINER.");
+const revisions=file("supabase/migrations/20261108170000_pr47_trusted_approval_revisions.sql");
+contains(revisions,/p_operation\s+NOT\s+IN\s*\('approve','replace','cancel','revise'\)/i,
+  "Trusted official CAS must accept partial revision events.");
+contains(revisions,/REVOKE\s+ALL\s+ON\s+FUNCTION[\s\S]*?commit_schedule_engine_approved_ledger/i,
+  "Trusted approval RPC must revoke public clients.");
 const historical=file("supabase/migrations/20261108141507_pr47_historical_archive_foundation.sql");
 contains(historical,/CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\s+public\.schedule_engine_history_day_facts/i,
   "The history migration must capture explicit person/day facts.");
