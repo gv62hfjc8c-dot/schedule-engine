@@ -383,3 +383,18 @@ A Edge `official-schedules-v2` foi atualizada até à **versão 3** com JWT obri
 - Nova migração `20261108234026`: `commit_schedule_engine_approved_ledger_v2` aceita a **revisão da configuração**, bloqueia essa linha durante a transação e recusa operações desatualizadas sem mexer no ledger. O serviço antigo de gravação deixou de poder ser invocado diretamente por `service_role`.
 - O servidor passou a carregar os limites do dia curto e a política de dias disponíveis da configuração atual e a aplicá-los à certificação oficial; regressões dedicadas na suite `test:approved-schedules`.
 - `deno check` do endpoint e `liveEdgeSmokeTest.mjs` passaram; no HTTPS real, os dois serviços recusam GET/POST sem JWT e o v3 responde ao preflight CORS. O gateway não foi validado com JWT de A/B.
+
+
+## Ronda final única no Safari — restantes decisões de merge
+
+Esta ronda substitui as verificações manuais repetidas. A criação das duas contas A/B, persistência de colaboradores, propostas e isolamento em SQL já foram confirmados; **não repetir**.
+
+| ID | Operação Safari | Critério de aprovação | Estado |
+|---|---|---|---|
+| S1 — JWT real | Atualizar a branch e reiniciar Vite. Na **conta A**, abrir a proposta guardada de 02/11/2026 | Painel de **Aprovação oficial** consulta v2 com a sessão, indica histórico por verificar e **não** apresenta botão de aprovação. HTTP 401/404/503 não conta como sucesso | PENDENTE — Safari |
+| S2 — 28 dias | Na **conta B**, simular 02–29/11/2026 com configuração fictícia atual, confirmar corretamente o contexto exterior, guardar e recarregar | Aceita 28 dias, respeita cobertura e descansos, recupera a proposta inteira após reload | PENDENTE — Safari |
+| S3 — duas abas | Na **conta B**, abrir duas abas já carregadas. Alterar o nome B1 na aba 1; guardar. Alterar o **mesmo campo** para outro valor na aba 2, sem reload | A segunda tentativa mostra conflito e não sobrescreve a aba 1. Após reload prevalece a versão da aba 1 | PENDENTE — Safari |
+
+Se S1–S3 passarem, a aceitação visual está concluída. Se falhar algum, corrigir e repetir **apenas o teste que falhou**. O merge continua separado das exceções explícitas: importação histórica adiada e leaked-password protection exigindo plano Pro+.
+
+**Provas automáticas:** cenário de perda de rede antes/depois de commit com outbox e replay por UUID (PR47-14); transação real CAS de estado e ledger no Supabase com ROLLBACK (PR47-16/17); endpoint compilado com duas identidades sintéticas, 404 cruzado e histórico incompleto, além de RLS SQL real (PR47-23).
