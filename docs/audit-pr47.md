@@ -10,7 +10,7 @@ Os 23 pontos originais misturavam defeitos concretos, riscos, dívida técnica e
 | 02 | Ausência de turno apresentada como folga | Corrigido | Vista mensal passa a dizer "Sem turno"; resumo diário mostra "Por planear" |
 | 03 | API de aprovações antiga ativa no Supabase | Desativação técnica publicada, verificação HTTP pendente | Em 08/11/2026 foi publicada a Edge Function inerte `official-schedules` v6 (`verify_jwt=true`), que devolve 410; fonte v5 arquivada em 13 ficheiros para rollback. Confirmados metadados e fonte publicada, mas ainda falta ensaio HTTP autenticado e avaliação de consumidores externos |
 | 04 | Importação de browser para conta nova sem confirmar titularidade | Corrigido no adaptador | Consentimento explícito associado à conta; estado cloud mantém precedência |
-| 05 | Migrações Git ≠ objetos implantados | Inventário e linhagem guardados (D); reconciliação ainda pendente | Guardada baseline real (tabelas, policies, grants, functions, constraints, índices, IDs de migração). As 3 migrações antigas PR43 estão em rollback, fora da pasta executável. Falta validar reconstituição em staging |
+| 05 | Migrações Git ≠ objetos implantados | Reconstituição limpa aprovada em CI; reconciliação real pendente | As migrações históricas foram restauradas com IDs correspondentes, junto da migração aditiva de 28 dias. O PostgreSQL 17 efémero aplica-as e verifica invariantes; ainda falta reconciliar o deployment real do Supabase |
 | 06 | Calendário agrega dias de propostas diferentes | Isolamento de propostas implementado (C) | Vista por ID de proposta usa apenas um snapshot; panorama mantém propostas independentes com alertas de sobreposição e mistura, sem validar a combinação como escala oficial |
 | 07 | Limite de 40h usado como alvo pelo otimizador | Implementado no B (opt-in) | Contrato semanal por pessoa é limite hard; objetivo semanal é soft; sem campos prevalece o comportamento PR41 (40h). Horas extraordinárias não são inferidas |
 | 08 | Falta de certificação independente após otimizações | Corrigido | `certifyFinalGeneratedSchedule` examina trabalho, cobertura, elegibilidade, período, dias obrigatórios e jornadas curtas |
@@ -23,12 +23,12 @@ Os 23 pontos originais misturavam defeitos concretos, riscos, dívida técnica e
 | 15 | Fuso horário divergente entre partes da aplicação | Implementado no B | Fuso IANA único e persistido opcionalmente no estado v4, default legado Azores; calendário, gerador e cálculo visual de horas efetivas passam a usá-lo; arquivo mantém fuso do snapshot |
 | 16 | Conflito de escrita deixa utilizador bloqueado | Reforçado no F | Gravações rápidas da mesma sessão passam a fila sequencial e conservam a revisão CAS; troca de identidade invalida revisão antiga; conflitos entre abas independentes continuam a exigir recuperação explícita, sem merge automático |
 | 17 | Aprovação oficial ausente da UI | Sem mudança intencional | Decisão explícita do rollback; reintroduzir exigiria uma nova fronteira confiável e contrato de aprovação |
-| 18 | Ciclos de 28 dias vs limite do gerador de 14 | Modelo implementado, geração de 28 dias pendente | Ciclo fixo com âncora operacional, quatro subperíodos de sete dias, compatível com meses de 5 semanas e anos bissextos; gerador continua limitado a 14 dias até prova de capacidade |
-| 19 | `Person` sem contratos e perfis avançados | Parcial (B) | Adicionados limite contratual semanal, objetivo semanal e datas obrigatórias; qualificações/funções e ausências continuam fora do modelo até requisitos concretos |
-| 20 | Avisos de segurança Supabase | Auditados; 2 ajustes externos pendentes (D) | Função de estado mantém EXECUTE autenticado, pois é usada pela UI, mas é proprietária/revisada; avisos: SECURITY DEFINER exposto e proteção de palavras-passe comprometidas desativada. Refatoração e definição Auth exigem staging/operador |
+| 18 | Ciclos de 28 dias vs limite do gerador de 14 | Geração de 28 dias implementada no núcleo; ativação na UI pendente | `test:four-week` verifica 28 dias com certificação global e rejeição de 29. A interface mantém limite de 14 por defeito até validar e publicar a migração de arquivo, através de `VITE_GENERATOR_28_DAY_READY` |
+| 19 | `Person` sem contratos e perfis avançados | Parcial, qualificações adicionadas | Limite semanal hard, objetivo soft e dias obrigatórios implementados; `qualificationTags` e cobertura qualificada durante pausas verificados por `test:qualification-coverage`. Ausências e tipologias contratuais ainda exigem domínio e UI |
+| 20 | Avisos de segurança Supabase | Refatoração ensaiada em CI; 2 avisos reais pendentes | Public RPC `SECURITY INVOKER` com implementação privada `SECURITY DEFINER` ensaiado com CAS/histórico e rollback em PostgreSQL efémero. A produção ainda mantém o RPC antigo e a proteção de palavras-passe comprometidas desativada |
 | 21 | Experiências antigas no repositório | Limpeza seletiva implementada no E | Removidas 3 interfaces experimentais desligadas, eliminados laboratórios inacessíveis do wrapper do gerador; código de domínio e testes de aprovação mantidos; novo teste de arquitetura impede regressões |
 | 22 | Terminologia antiga na interface | Corrigido | Gravação Supabase e menções ao PR41 atualizadas |
-| 23 | Invariantes sem regressões dedicadas | Reforçado (A+B+C+D+E+F) | Inclui cenários determinísticos gerados e rejeitados com certificação independente, limites contratuais, DST, sessão/logout e serialização de gravações; ainda faltam aceitação Safari, RLS com duas contas reais e carga maior |
+| 23 | Invariantes sem regressões dedicadas | Reforçado com RLS sintético em CI | Além dos cenários de scheduling e persistência, o job `migration-contract` verifica isolamento com duas identidades sintéticas sobre estados, históricos, propostas e ledger; faltam Safari, Auth real com duas contas e carga maior |
 
 ## Checkpoint A — integridade do motor (implementado na branch PR #47)
 
@@ -205,3 +205,11 @@ A conversa MASTER continua a ser apenas um logbook de alterações validadas. Es
 - **Não realizado:** chamada HTTP autenticada à função; análise de consumidores externos; teste de rollback em ambiente isolado.
 - A versão v5 original permanece arquivada em `supabase/rollback/official-schedules-v5/`; reimplantação pode recuperar o endpoint caso se confirme dependência legítima.
 - Nenhuma tabela ou registo foi apagado nesta operação. Esta alteração operacional foi feita fora de uma migração e deve ser incluída no inventário de deployment.
+
+
+## Execução de testes sem branch paga — 08/11/2026
+
+- Foram reutilizados os jobs `validate` e `migration-contract` no GitHub Actions, com PostgreSQL 17 temporário e duas identidades sintéticas; **não foi criada nem cobrada nenhuma branch de desenvolvimento Supabase**.
+- Em `8d6bb69`, o workflow `42481514857` concluiu com `success` depois de ampliar `scripts/ci/postgres_migration_assertions.sql` para testar o isolamento entre duas contas em estados, históricos, propostas e ledgers, além de recusar escrita cruzada.
+- O CI também faz migração limpa, exercício da RPC privada, verificação do histórico/CAS e ensaio de rollback; essas provas são sintéticas e **não equivalem a autenticação real GoTrue nem à API Supabase**.
+- Os 23 pontos continuam sujeitos às portas de aceitação descritas em `docs/pr47-acceptance.md`. O ensaio real de duas contas ficará BLOCKED enquanto não houver ambiente de testes seguro sem custo; não se justifica introduzir dados fictícios na instância operacional para forçar um PASS.
