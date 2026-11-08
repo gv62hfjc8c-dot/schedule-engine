@@ -169,10 +169,9 @@ async function loadLedger(ownerId:string):Promise<ApprovedScheduleLedger|null>{
  */
 async function loadHistoricalEvidence(
   ownerId:string,target:WorkValidationDateRange,
-  env:ApprovalEnvironment,
+  env:ApprovalEnvironment,timeZone:string,
 ):Promise<HistoricalContextRequest>{
   const people=env.people.map(p=>p.id);
-  const timeZone=historyZone!;
   const base={
     targetPeriod:target,timeZone,workConstraints:env.workConstraints,
     historyStartDate:historyAnchor,personIds:people,
@@ -239,7 +238,6 @@ async function loadHistoricalEvidence(
   return {...base,archive};
 }
 
-let historyZone:string|null=null;
 Deno.serve(async(request:Request)=>{
   if(!["GET","POST"].includes(request.method))
     return json({ok:false,code:"method_not_allowed"},405);
@@ -248,27 +246,30 @@ Deno.serve(async(request:Request)=>{
   if(request.method==="GET"){
     try{
       const ledger=await loadLedger(ownerId);
-      return json({ok:true,ready:Boolean(ledger?.complete),
+      return json({ok:true,ready:false,ledgerPresent:Boolean(ledger),
         version:ledger?.version??null,
-        historyStatus:ledger?"ledger_present":"not_initialized",
-        message:ledger?"Arquivo oficial existente; aprovação requer verificação histórica.":
-          "Ainda não foi possível atestar o histórico para aprovação oficial."});
+        historyStatus:"target_context_not_verified",
+        message:ledger?"O contexto histórico será validado para cada período.":
+          "O histórico oficial ainda não está atestado; aprovação bloqueada."});
     }catch{return json({ok:false,code:"storage_error"},503);}
   }
   let input:unknown;
   try{input=await request.json();}
   catch{return json({ok:false,code:"invalid_input"},400);}
-  // History IANA zone is trusted from the currently saved ledger.
-  try{historyZone=(await loadLedger(ownerId))?.timeZone??null;}
+  // History IANA zone is request-local: NEVER use shared state for owner context.
+  let trustedZone:string|null=null;
+  try{trustedZone=(await loadLedger(ownerId))?.timeZone??null;}
   catch{return json({ok:false,code:"storage_error"},503);}
-  if(!historyZone)return json({ok:false,code:"history_incomplete",
+  if(!trustedZone)return json({ok:false,code:"history_incomplete",
     issues:["O arquivo oficial ainda não foi iniciado com cobertura histórica verificada."]},409);
+  const zone=trustedZone;
   const ports:VerifiedOfficialSchedulePorts={
     authenticateOwner:async()=>ownerId,
     loadLedger,
     loadEnvironment,
     loadSavedCandidate:loadCandidate,
-    loadHistoricalEvidence,
+    loadHistoricalEvidence:(owner,target,env)=>
+      loadHistoricalEvidence(owner,target,env,zone),
     now:()=>new Date().toISOString(),
     newRecordId:()=>crypto.randomUUID(),
     commit:async(id,next,expected)=>{
@@ -280,7 +281,8 @@ Deno.serve(async(request:Request)=>{
           p_next_payload:next,p_operation:isObject(input)?input.kind:null,
           p_record_id:isObject(input)?(
             input.kind==="cancel"?input.scheduleId:
-            input.kind==="revise"?next.records.find(r=>r.revision?.sourceId===input.sourceId)?.id:
+            input.kind==="revise"?next.records.find(r=>
+              r.status==="approved"&&r.revision?.sourceId===input.sourceId)?.id:
             input.candidateId):null,
         }),
       });
