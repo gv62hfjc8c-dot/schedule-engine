@@ -291,7 +291,7 @@ export default function App() {
     setPersistenceStatus("saving");
 
     const timeoutId = window.setTimeout(() => {
-      const requested = {
+      const requested: Parameters<typeof appStateRepository.save>[0] = {
           version: APP_STATE_VERSION,
           operationTimeZone,
           ...(cycleAnchorDate ? {cycleAnchorDate} : {}),
