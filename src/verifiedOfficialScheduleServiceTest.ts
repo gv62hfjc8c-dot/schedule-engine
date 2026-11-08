@@ -67,32 +67,32 @@ const ports:VerifiedOfficialSchedulePorts={
 };
 const request={kind:"approve",candidateId,expectedVersion:0};
 let result=await executeVerifiedOfficialScheduleRequest(request,ports);
-assert(!result.ok&&result.code==="history_incomplete"&&writes===0,
+assert(!result.ok&&result.code==="history_incomplete"&&Number(writes)===0,
   "No imported archive blocks approval, even when a legacy ledger falsely says complete.");
 const partial:HistoricalWorkArchive={timeZone,coverage:[
  {personId:"a",startDate:"2026-01-01",endDate:"2026-11-09",sourceId:"verified-a",verified:true},
 ],shifts:[]};
 history=partial;
 result=await executeVerifiedOfficialScheduleRequest(request,ports);
-assert(!result.ok&&result.code==="history_incomplete"&&writes===0,
+assert(!result.ok&&result.code==="history_incomplete"&&Number(writes)===0,
   "All current people must have known history; A alone is insufficient.");
 history={...partial,coverage:[
  ...partial.coverage,
  {personId:"b",startDate:"2026-01-01",endDate:"2026-11-09",sourceId:"verified-b",verified:true},
 ]};
 result=await executeVerifiedOfficialScheduleRequest({...request,ownerId:"victim"},ports);
-assert(!result.ok&&result.code==="invalid_input"&&writes===0,
+assert(!result.ok&&result.code==="invalid_input"&&Number(writes)===0,
   "Client-supplied identity must be rejected, not ignored.");
 result=await executeVerifiedOfficialScheduleRequest(request,ports);
-assert(result.ok&&result.version===1&&writes===1&&ledger.records.length===1,
+assert(result.ok&&result.version===1&&Number(writes)===1&&ledger.records.length===1,
   "A trusted owner with verified history can commit only a valid proposal.");
 result=await executeVerifiedOfficialScheduleRequest(request,ports);
-assert(!result.ok&&result.code==="stale_version"&&writes===1,
+assert(!result.ok&&result.code==="stale_version"&&Number(writes)===1,
   "A replay with stale expectedVersion cannot commit a duplicate approval.");
 history=null; // Cancellation may remove commitments even without imported history.
 result=await executeVerifiedOfficialScheduleRequest(
   {kind:"cancel",scheduleId:candidateId,expectedVersion:1},ports);
-assert(result.ok&&result.version===2&&writes===2&&
+assert(result.ok&&result.version===2&&Number(writes)===2&&
   ledger.records[0].status==="cancelled",
   "A trusted cancellation preserves history and requires CAS, not new work certification.");
 console.log("PR47-17: trusted approval gate rejects unknown 2026 history, owner spoofing and stale CAS; allows verified context.");
