@@ -159,7 +159,11 @@ const ownerConsent = { getItem: (key: string): string | null =>
     "A fresh account must be able to save its own new configuration.");
   const otherOwner={
     get user(){return {...cloud.client.user,id:"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"};},
-    request:cloud.client.request,
+    request:async(path:string,init?:RequestInit)=>{
+      if(path.startsWith("/rest/v1/schedule_engine_states")&&!init?.method)
+        return Response.json([]); // Other account has no remote configuration.
+      return cloud.client.request(path,init);
+    },
   };
   const second=createSupabaseStateRepository(otherOwner,legacy(fixture()).repo,browser);
   let otherBlocked=false;
