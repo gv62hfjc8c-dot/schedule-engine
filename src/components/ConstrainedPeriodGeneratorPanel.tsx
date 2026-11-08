@@ -19,6 +19,11 @@ import { INITIAL_WORK_CONSTRAINTS } from "../utils/workConstraints";
 import { MAX_CONSTRAINED_PERIOD_DAYS } from "../utils/constrainedPeriodGenerator";
 import { MAX_PERIOD_DAYS } from "../utils/periodGenerator";
 import { parseCivilDays } from "../utils/generatorPeriodCapability";
+import {
+  stagePendingGeneratedProposal,
+  loadPendingGeneratedProposal,
+  acknowledgePendingGeneratedProposal,
+} from "../utils/pendingGeneratedProposal";
 import { todayInTimeZone } from "../utils/monthlyScheduleView";
 import { weeklyPersonWorkSummary, formatWorkMinutes } from "../utils/weeklyWorkSummary";
 
@@ -29,6 +34,8 @@ export interface ConstrainedPeriodGeneratorPanelProps {
   workRules: WorkRulesConfiguration;
   presence: PresenceConfiguration;
   operationTimeZone: string;
+  /** Authenticated Supabase UUID; browser outbox is strictly owner-scoped. */
+  ownerId?: string | null;
   initialDate?: string;
   onSaveGenerated?(proposal: GeneratedSchedulePayload, proposalId: string): Promise<StoredGeneratedSchedule>;
   onBackToCalendar?(): void;
@@ -113,6 +120,7 @@ export default function ConstrainedPeriodGeneratorPanel({
   workRules,
   presence,
   operationTimeZone,
+  ownerId,
   initialDate,
   onSaveGenerated,
   onBackToCalendar,
@@ -129,6 +137,23 @@ export default function ConstrainedPeriodGeneratorPanel({
   const [retryPayload, setRetryPayload] = useState<{payload: GeneratedSchedulePayload; id: string} | null>(null);
   const saveAttempt = useRef(0);
 
+  function recoverPendingProposal(): void {
+    if(!ownerId)return;
+    try{
+      const existing=loadPendingGeneratedProposal(window.localStorage,ownerId);
+      if(existing){
+        setRetryPayload({payload:existing.payload,id:existing.id});
+        setSaveState("failed");
+        setSaveProblem("Foi recuperada uma tentativa de gravação ainda sem confirmação. "+
+          "Repete o envio com o mesmo identificador; não será criado um horário duplicado.");
+      }
+    }catch(problem){
+      setSaveState("failed");
+      setSaveProblem(problem instanceof Error?problem.message:
+        "A recuperação local está indisponível.");
+    }
+  }
+
   useEffect(() => {
     // An edited roster/configuration requires a fresh, explicit declaration.
     setConfirmed(false);
@@ -138,7 +163,9 @@ export default function ConstrainedPeriodGeneratorPanel({
     setSaveState("idle");
     setSaveProblem(null);
     setRetryPayload(null);
-  }, [people, availabilities, operatingCalendar, workRules, presence, operationTimeZone]);
+    recoverPendingProposal();
+  }, [people, availabilities, operatingCalendar, workRules, presence,
+      operationTimeZone, ownerId]);
 
   // A generated result is not guaranteed persisted until the server confirms.
   // Protect a browser reload/close during the in-flight write.
@@ -186,19 +213,38 @@ export default function ConstrainedPeriodGeneratorPanel({
     setSaveState("idle");
     setSaveProblem(null);
     setRetryPayload(null);
+    recoverPendingProposal();
   }
 
   function persistProposal(payload: GeneratedSchedulePayload, id: string) {
     const token = ++saveAttempt.current;
+    setRetryPayload({payload,id});
+    if(!ownerId){
+      setSaveState("failed");
+      setSaveProblem("Não foi possível identificar a conta da proposta.");
+      return;
+    }
+    try{
+      // Must complete synchronously BEFORE sending to Supabase, otherwise
+      // forced tab closure can permanently lose a generated proposal.
+      stagePendingGeneratedProposal(window.localStorage,{ownerId,id,payload});
+    }catch(problem){
+      setSaveState("failed");
+      setSaveProblem(problem instanceof Error?problem.message:
+        "Não foi possível garantir a cópia de recuperação no navegador.");
+      return;
+    }
     setSaveState("saving");
     setSaveProblem(null);
-    setRetryPayload({payload,id});
     if (!onSaveGenerated) {
       setSaveState("failed");
       setSaveProblem("O serviço de arquivo não está disponível.");
       return;
     }
     void onSaveGenerated(payload,id).then(() => {
+      // Even if another view was opened during the in-flight write, the
+      // identical server-confirmed UUID must be removed from the outbox.
+      acknowledgePendingGeneratedProposal(window.localStorage,ownerId,id);
       if (saveAttempt.current === token) {
         setSaveState("saved");
         setRetryPayload(null);
@@ -213,6 +259,23 @@ export default function ConstrainedPeriodGeneratorPanel({
   }
 
   function handleGenerate() {
+    if(ownerId){
+      try {
+        const existing=loadPendingGeneratedProposal(window.localStorage,ownerId);
+        if(existing){
+          setRetryPayload({payload:existing.payload,id:existing.id});
+          setSaveState("failed");
+          setSaveProblem("Confirma primeiro a gravação anterior usando "+
+            "'Tentar guardar novamente sem regenerar'.");
+          return;
+        }
+      }catch(problem){
+        setSaveState("failed");
+        setSaveProblem(problem instanceof Error?problem.message:
+          "A cópia de segurança local não pôde ser lida.");
+        return;
+      }
+    }
     const days=parseCivilDays(startDate,endDate);
     if(days!==null && days>UI_MAX_PERIOD_DAYS){
       setError("O motor suporta 28 dias, mas a base de dados ainda não foi "+
