@@ -252,7 +252,7 @@ function improveWeeklyHours(
       input.operatingCalendar.exceptions);
     return presence.status === "configured" &&
       checkPresenceForWorkShifts(date, operation, presence.requirements,
-        schedule.filter(s => s.date === date)).valid;
+        schedule.filter(s => s.date === date), input.people).valid;
   };
   const valid = (date: string) =>
     dateValid(date) &&
@@ -539,7 +539,7 @@ function regularizeWeekdayShifts(
                 input.operatingCalendar.exceptions);
               return presence.status==="configured" &&
                 checkPresenceForWorkShifts(date,operating,presence.requirements,
-                  result.filter(s=>s.date===date)).valid;
+                  result.filter(s=>s.date===date), input.people).valid;
             });
             if (coverageOk && validateWorkConstraints({
               timeZone:input.timeZone, rules:input.workConstraints,
@@ -668,7 +668,7 @@ function alignWeekdayClockPatterns(
               input.operatingCalendar.exceptions);
             const coverageOk=presence.status==="configured" &&
               checkPresenceForWorkShifts(current.date,operating,presence.requirements,
-                schedule.filter(s=>s.date===current.date)).valid;
+                schedule.filter(s=>s.date===current.date), input.people).valid;
             const workOk=coverageOk && validateWorkConstraints({
               timeZone:input.timeZone,rules:input.workConstraints,
               targetPeriod:{startDate:input.startDate,endDate:input.endDate},
@@ -784,7 +784,7 @@ function repairSwappedWeekdayStarts(
               input.operatingCalendar.exceptions);
             const coverage=presence.status==="configured"&&
               checkPresenceForWorkShifts(date,operation,presence.requirements,
-                result.filter(s=>s.date===date)).valid;
+                result.filter(s=>s.date===date), input.people).valid;
             const valid=coverage&&validateWorkConstraints({
               timeZone:input.timeZone,rules:input.workConstraints,
               targetPeriod:{startDate:input.startDate,endDate:input.endDate},
@@ -891,7 +891,7 @@ export function improveCoupledWeeklyClockPatterns(
       input.operatingCalendar.exceptions);
     return presence.status==="configured"&&
       checkPresenceForWorkShifts(date,op,presence.requirements,
-        trial.filter(s=>s.date===date)).valid &&
+        trial.filter(s=>s.date===date), input.people).valid &&
       validateWorkConstraints({
         timeZone:input.timeZone,rules:input.workConstraints,
         targetPeriod:{startDate:input.startDate,endDate:input.endDate},
@@ -1036,7 +1036,7 @@ function staggerPreferredMeals(
           input.operatingCalendar.exceptions);
         const coverageOk = presence.status === "configured" &&
           checkPresenceForWorkShifts(date, operation, presence.requirements,
-            schedule.filter(s => s.date === date)).valid;
+            schedule.filter(s => s.date === date), input.people).valid;
         const workOk = coverageOk && validateWorkConstraints({
           timeZone:input.timeZone, rules:input.workConstraints,
           targetPeriod:{startDate:input.startDate,endDate:input.endDate},
@@ -1136,7 +1136,7 @@ export function stabilizeWeeklyMealPatterns(
         input.operatingCalendar.exceptions);
       if(presence.status!=="configured"||
         !checkPresenceForWorkShifts(date,op,presence.requirements,
-          trial.filter(s=>s.date===date)).valid)return false;
+          trial.filter(s=>s.date===date), input.people).valid)return false;
     }
     return validateWorkConstraints({
       timeZone:input.timeZone,rules:input.workConstraints,
@@ -1334,7 +1334,7 @@ function rebalanceForCompleteShortDays(
         input.operatingCalendar.exceptions);
       if(presence.status!=="configured" ||
         !checkPresenceForWorkShifts(date,operating,presence.requirements,
-          proposal.filter(s=>s.date===date)).valid)return false;
+          proposal.filter(s=>s.date===date), input.people).valid)return false;
     }
     return validateWorkConstraints({
       timeZone:input.timeZone,rules:input.workConstraints,
@@ -1514,7 +1514,7 @@ function fillRequiredWorkdays(
         input.operatingCalendar.exceptions);
       if(presence.status!=="configured" ||
         !checkPresenceForWorkShifts(date,op,presence.requirements,
-          proposal.filter(s=>s.date===date)).valid)return false;
+          proposal.filter(s=>s.date===date), input.people).valid)return false;
     }
     return validateWorkConstraints({
       timeZone:input.timeZone,rules:input.workConstraints,
