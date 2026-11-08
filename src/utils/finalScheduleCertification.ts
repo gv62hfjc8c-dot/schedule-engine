@@ -5,7 +5,7 @@ import { isSchedulableForInterval, getSchedulableIntervalsForDate } from "./avai
 import { resolvePresenceForDate } from "./presence";
 import { checkPresenceForWorkShifts } from "./workCoverage";
 import { validateWorkConstraints, type WorkConstraintViolation } from "./workConstraints";
-import { isExplicitRequiredWorkday, validatePersonWeeklyContractCaps, missingRequiredOutsideWorkdays } from "./personSchedulingPolicies";
+import { isExplicitRequiredWorkday, isPersonUnavailableOnDate, validatePersonWeeklyContractCaps, missingRequiredOutsideWorkdays } from "./personSchedulingPolicies";
 
 export interface FinalScheduleCertification {
   valid: boolean;
@@ -36,6 +36,9 @@ export function certifyFinalGeneratedSchedule(
     seen.add(key);
     if (!activeIds.has(shift.personId))
       issues.push("Foi atribuída uma pessoa inexistente ou inativa: " + shift.personId + ".");
+    const assignedPerson=input.people.find(p=>p.id===shift.personId);
+    if(assignedPerson && isPersonUnavailableOnDate(assignedPerson,shift.date))
+      issues.push("Foi atribuído um turno num dia de indisponibilidade: "+key+".");
     const availability = input.availabilities.find(a => a.personId === shift.personId);
     if (!availability || !isSchedulableForInterval(
       shift.date, shift.interval, availability,
@@ -74,10 +77,11 @@ export function certifyFinalGeneratedSchedule(
     if (!coverage.valid) issues.push(date + ": " + coverage.issues.join(" "));
     for (const person of input.people.filter(p => p.active)) {
       const availability = input.availabilities.find(a => a.personId === person.id);
-      const allowed = availability ? getSchedulableIntervalsForDate(
-        date, availability, input.operatingCalendar.weeklyOperatingHours,
-        input.operatingCalendar.exceptions,
-      ) : [];
+      const allowed = availability && !isPersonUnavailableOnDate(person,date)
+        ? getSchedulableIntervalsForDate(
+          date, availability, input.operatingCalendar.weeklyOperatingHours,
+          input.operatingCalendar.exceptions,
+        ) : [];
       const required = isExplicitRequiredWorkday(person,date) ||
         (input.workRules.requireShiftsOnAvailableDays && allowed.length>0);
       if (required && !shifts.some(s => s.personId === person.id))
