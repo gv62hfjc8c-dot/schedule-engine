@@ -127,6 +127,13 @@ async function loadEnvironment(ownerId:string):Promise<ApprovalEnvironment>{
   if(dailyMaximum!==undefined &&
       (!Number.isSafeInteger(dailyMaximum)||(dailyMaximum as number)<=0))
     throw Error("Invalid daily constraint");
+  const shortMax=rules.fullShortDayMaximumMinutes;
+  if(shortMax!==undefined&&(!Number.isSafeInteger(shortMax)||
+    (shortMax as number)<0||(shortMax as number)>1440))
+    throw Error("Invalid short-day policy");
+  const mandatory=rules.requireShiftsOnAvailableDays;
+  if(mandatory!==undefined&&typeof mandatory!=="boolean")
+    throw Error("Invalid mandatory-availability policy");
   return {
     people:state.people as ApprovalEnvironment["people"],
     availabilities:state.availabilities as ApprovalEnvironment["availabilities"],
@@ -138,6 +145,7 @@ async function loadEnvironment(ownerId:string):Promise<ApprovalEnvironment>{
       weeklyPresenceRequirements:state.weeklyPresenceRequirements as ApprovalEnvironment["presence"]["weeklyPresenceRequirements"],
       presenceExceptions:state.presenceExceptions as ApprovalEnvironment["presence"]["presenceExceptions"],
     },
+    workRules:state.workRules as ApprovalEnvironment["workRules"],
     workConstraints:{
       ...INITIAL_WORK_CONSTRAINTS,
       maximumDailyEffectiveMinutes:typeof dailyMaximum==="number"?
