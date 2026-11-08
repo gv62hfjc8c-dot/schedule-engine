@@ -26,16 +26,20 @@ transportes HTTP ou a empresa consumidora. Os adaptadores continuam a ser
 responsabilidade da aplicação.
 
 A interface ativa contém calendário mensal, painel lateral resumido e página
-de gestão diária; a geração condicionada cobre **1–14 dias**. A geração de
-um horário válido e o seu arquivo **não equivalem à aprovação oficial**.
+de gestão diária; o núcleo de geração condicionada cobre **1–28 dias**
+na branch PR47, enquanto a interface continua **1–14 dias** até o CHECK
+da base de dados ser atualizado em segurança. A geração de um horário
+válido e o seu arquivo **não equivalem à aprovação oficial**.
 
 No PR #47, foram acrescentados: certificação independente após otimizações,
 limites individuais semanais (hard), objetivos semanais (soft), datas
 obrigatórias explícitas, fuso IANA operacional e **ciclos contabilísticos de
 28 dias**. O calendário pode fixar o snapshot de uma única proposta, porque
 um panorama que reúna propostas diferentes **não** é um horário mensal
-conjuntamente validado. O motor **não gera ainda 28 dias** num único cálculo
-certificado.
+conjuntamente validado. O motor **já gera e certifica** um período
+de 28 dias no mesmo cálculo, mas a base de dados atual não aceita ainda
+arquivar períodos acima de 14 dias. A interface está protegida por
+um rollout explícito.
 
 O estado de configuração mantém `version: 4`, com campos opcionais
 retrocompatíveis; o arquivo de propostas usa payload e contrato separados.
@@ -223,8 +227,9 @@ Ainda não existem no fluxo ativo:
 
 - aprovação e revisões oficiais de escalas;
 - contratos e objetivos de horas individualizados;
-- geração e validação conjunta de ciclos operacionais completos de 28 dias
-  (a camada contabilística de 28 dias já existe na branch PR #47).
+- habilitação do arquivo e geração de 28 dias em produção após migração
+  aditiva e teste de recuperação; geração condicionada em 28 dias já
+  testada no CI do PR #47.
 
 O motor já valida limites de horas diárias e semanais.
 
