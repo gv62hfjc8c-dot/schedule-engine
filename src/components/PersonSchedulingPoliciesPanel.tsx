@@ -23,6 +23,8 @@ function readMinutes(raw:string): number | undefined | null {
  */
 export default function PersonSchedulingPoliciesPanel({people,onChange}:Props) {
   const [draftDates,setDraftDates]=useState<Record<string,string>>({});
+  const [unavailableDraftDates,setUnavailableDraftDates]=useState<Record<string,string>>({});
+  const [qualificationDraft,setQualificationDraft]=useState<Record<string,string>>({});
   const active=people.filter(person=>person.active);
   const update=(id:string,patch:Partial<Person>)=>
     onChange(people.map(person=>person.id===id?{...person,...patch}:person));
@@ -94,6 +96,74 @@ export default function PersonSchedulingPoliciesPanel({people,onChange}:Props) {
           {date} ×
         </button>)}
       </div>}
+      <details className="se-multi-interval-editor">
+        <summary>Indisponibilidades e qualificações</summary>
+        <p className="section-description">
+          Dias de ausência ou férias impedem qualquer turno nesse dia.
+          Os motivos pessoais não são armazenados. As qualificações são
+          apenas etiquetas informativas enquanto não existirem requisitos
+          de cobertura por competência.
+        </p>
+        <div className="se-contract-dates">
+          <label className="se-control"><span>Dia indisponível</span>
+            <input type="date" value={unavailableDraftDates[person.id]??""}
+              onChange={event=>setUnavailableDraftDates(previous=>({
+                ...previous,[person.id]:event.target.value
+              }))}/>
+          </label>
+          <button type="button" className="se-outline"
+            disabled={!validSchedulingDate(unavailableDraftDates[person.id]??"") ||
+              person.requiredWorkDates?.includes(unavailableDraftDates[person.id]??"")}
+            onClick={()=>{
+              const date=unavailableDraftDates[person.id];
+              if(!validSchedulingDate(date) ||
+                 person.unavailableWorkDates?.includes(date) ||
+                 person.requiredWorkDates?.includes(date))return;
+              update(person.id,{unavailableWorkDates:[
+                ...(person.unavailableWorkDates??[]),date].sort()});
+              setUnavailableDraftDates(previous=>({...previous,[person.id]:""}));
+            }}>Adicionar indisponibilidade</button>
+        </div>
+        {Boolean(person.unavailableWorkDates?.length) &&
+          <div className="se-contract-chips" aria-label={"Dias indisponíveis de "+person.name}>
+            {person.unavailableWorkDates!.map(date=><button type="button"
+              className="se-outline" key={date}
+              title={"Remover indisponibilidade "+date}
+              onClick={()=>update(person.id,{unavailableWorkDates:
+                person.unavailableWorkDates!.filter(d=>d!==date)})}>
+              {date} ×
+            </button>)}
+          </div>}
+        <div className="se-contract-dates">
+          <label className="se-control"><span>Etiqueta de qualificação</span>
+            <input type="text" maxLength={64} placeholder="Ex.: Caixa"
+              value={qualificationDraft[person.id]??""}
+              onChange={event=>setQualificationDraft(previous=>({
+                ...previous,[person.id]:event.target.value
+              }))}/>
+          </label>
+          <button type="button" className="se-outline"
+            disabled={!/^[\p{L}\p{N} -]{1,64}$/u.test(
+              (qualificationDraft[person.id]??"").trim())}
+            onClick={()=>{
+              const label=(qualificationDraft[person.id]??"").trim();
+              if(!label||person.qualificationTags?.includes(label))return;
+              update(person.id,{qualificationTags:[
+                ...(person.qualificationTags??[]),label].sort()});
+              setQualificationDraft(previous=>({...previous,[person.id]:""}));
+            }}>Adicionar qualificação</button>
+        </div>
+        {Boolean(person.qualificationTags?.length) &&
+          <div className="se-contract-chips" aria-label={"Qualificações de "+person.name}>
+            {person.qualificationTags!.map(label=><button type="button"
+              className="se-outline" key={label}
+              title={"Remover qualificação "+label}
+              onClick={()=>update(person.id,{qualificationTags:
+                person.qualificationTags!.filter(v=>v!==label)})}>
+              {label} ×
+            </button>)}
+          </div>}
+      </details>
     </div>)}
     </div>
   </section>;
