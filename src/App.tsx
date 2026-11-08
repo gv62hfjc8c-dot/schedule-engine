@@ -291,8 +291,7 @@ export default function App() {
     setPersistenceStatus("saving");
 
     const timeoutId = window.setTimeout(() => {
-      void appStateRepository
-        .save({
+      const requested = {
           version: APP_STATE_VERSION,
           operationTimeZone,
           ...(cycleAnchorDate ? {cycleAnchorDate} : {}),
@@ -303,11 +302,26 @@ export default function App() {
           workRules,
           weeklyPresenceRequirements,
           presenceExceptions,
-        })
-        .then(() => {
-          if (requestId === saveRequestId.current) {
-            setPersistenceStatus("saved");
+        };
+      void appStateRepository.save(requested)
+        .then(reconciled => {
+          if (requestId !== saveRequestId.current) return;
+          if (reconciled && JSON.stringify(reconciled)!==JSON.stringify(requested)) {
+            // The server merged disjoint updates from another tab.
+            // Reflect them in React before a future edit can overwrite them.
+            setWeeklyHours(reconciled.weeklyOperatingHours);
+            setExceptions(reconciled.exceptions);
+            setPeople(reconciled.people);
+            setAvailabilities(reconciled.availabilities);
+            setWorkRules(reconciled.workRules);
+            setWeeklyPresenceRequirements(reconciled.weeklyPresenceRequirements);
+            setPresenceExceptions(reconciled.presenceExceptions);
+            const zone=resolveOperationTimeZone(reconciled.operationTimeZone);
+            setOperationTimeZone(zone);
+            setTimeZoneDraft(zone);
+            setCycleAnchorDate(reconciled.cycleAnchorDate??"");
           }
+          setPersistenceStatus("saved");
         })
         .catch((error) => {
           if (requestId === saveRequestId.current) {
@@ -801,7 +815,7 @@ export default function App() {
           </div>
         </header>
         <section className="panel" role="alert" style={{ padding: "24px" }}>
-          <h2>Dados guardados não carregados</h2>
+          <h2>Não foi possível sincronizar a configuração</h2>
           <p style={{ marginTop: "12px" }}>
             {persistenceProblem}
           </p>
