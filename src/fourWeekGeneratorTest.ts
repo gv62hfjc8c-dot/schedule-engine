@@ -76,4 +76,38 @@ const deterministic=generateConstrainedPeriodSchedule(input);
 assert(deterministic.status===result.status &&
   JSON.stringify(deterministic.assignments)===JSON.stringify(result.assignments),
   "Same 28-day scenario must remain deterministic.");
-console.log("PR47-18: 28-day certified generation, four weekly obligations, deterministic repeat, 29-day rejection passed.");
+
+function addCivilDate(iso:string,days:number):string {
+  const time=Date.parse(iso+"T00:00:00Z");
+  return new Date(time+days*86400000).toISOString().slice(0,10);
+}
+// Four complete cycles, including a leap day, year change and European DST.
+// A single period must always be certified as one solution, not four
+// independently generated weeks stitched into an apparently valid month.
+for(const [anchor,zone] of [
+  ["2026-03-23","Atlantic/Azores"],
+  ["2026-12-07","Europe/Lisbon"],
+  ["2027-02-01","UTC"],
+  ["2028-02-28","Atlantic/Azores"],
+] as const){
+  const scenario=structuredClone(input);
+  scenario.startDate=anchor;
+  scenario.endDate=addCivilDate(anchor,27);
+  scenario.timeZone=zone;
+  scenario.people[0].requiredWorkDates=[0,7,14,21]
+    .map(offset=>addCivilDate(anchor,offset));
+  scenario.externalContext={
+    startDate:addCivilDate(anchor,-7),
+    endDate:addCivilDate(anchor,34),
+    completeOutsideTarget:true,shifts:[],
+  };
+  const generated=generateConstrainedPeriodSchedule(scenario);
+  assert(generated.status==="generated",
+    "28-day stress cycle failed at "+anchor+" / "+zone+": "+generated.issues.join("; "));
+  assert(generated.days.length===28&&generated.assignments.length===4,
+    "Civil date accounting must preserve exactly 28 days at "+anchor+".");
+  assert(certifyFinalGeneratedSchedule(scenario,generated.assignments).valid,
+    "Independent 28-day certification failed at "+anchor+".");
+}
+
+console.log("PR47-18: 28-day certified generation, four weekly obligations, deterministic repeat, 29-day rejection plus 4 month/DST/leap-year stress cases passed.");
