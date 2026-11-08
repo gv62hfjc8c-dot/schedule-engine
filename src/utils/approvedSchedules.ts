@@ -599,7 +599,7 @@ function validateDraft(
     }
     const coverage = checkPresenceForWorkShifts(
       date, operating, presence.requirements, proposed
-    );
+    , environment.people);
     if (!coverage.valid) problems.push(
       date + ": cobertura insuficiente ou intervalos inválidos. " +
       coverage.issues.join(" ")
