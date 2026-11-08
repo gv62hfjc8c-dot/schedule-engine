@@ -34,10 +34,14 @@ BEGIN
  FROM public.schedule_engine_approved_ledger_history
  WHERE owner_id='33333333-3333-4333-8333-333333333333';
 
- saved:=public.commit_schedule_engine_approved_ledger_v2(
-   '33333333-3333-4333-8333-333333333333',
-   1,next_ledger,'revise','revision-2',0);
- IF saved THEN RAISE EXCEPTION 'Accepted stale operational revision 0'; END IF;
+ BEGIN
+   PERFORM public.commit_schedule_engine_approved_ledger_v2(
+     '33333333-3333-4333-8333-333333333333',
+     1,next_ledger,'revise','revision-2',0);
+   RAISE EXCEPTION 'Accepted invalid operational revision 0';
+ EXCEPTION WHEN raise_exception THEN
+   IF SQLERRM = 'Accepted invalid operational revision 0' THEN RAISE; END IF;
+ END;
 
  UPDATE public.schedule_engine_states SET revision=2
  WHERE owner_id='33333333-3333-4333-8333-333333333333';
