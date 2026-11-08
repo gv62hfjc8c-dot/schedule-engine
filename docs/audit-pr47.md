@@ -8,7 +8,7 @@ Os 23 pontos originais misturavam defeitos concretos, riscos, dívida técnica e
 |---|---|---|---|
 | 01 | Documentação desatualizada | Consolidado no E | README, arquitetura e roadmap distinguem versão estável PR46, alterações propostas PR47, experiência histórica e limites atuais; decisões/changelog históricos são preservados sem reescrever factos passados |
 | 02 | Ausência de turno apresentada como folga | Corrigido | Vista mensal passa a dizer "Sem turno"; resumo diário mostra "Por planear" |
-| 03 | API de aprovações antiga ativa no Supabase | Preparação segura D; serviço ainda ativo | Preservado o bundle publicado v5 com 13 ficheiros e hash de release; preparado endpoint inerte 410, **não publicado**. Desativação só após análise de clientes e validação de recuperação |
+| 03 | API de aprovações antiga ativa no Supabase | Desativação técnica publicada, verificação HTTP pendente | Em 08/11/2026 foi publicada a Edge Function inerte `official-schedules` v6 (`verify_jwt=true`), que devolve 410; fonte v5 arquivada em 13 ficheiros para rollback. Confirmados metadados e fonte publicada, mas ainda falta ensaio HTTP autenticado e avaliação de consumidores externos |
 | 04 | Importação de browser para conta nova sem confirmar titularidade | Corrigido no adaptador | Consentimento explícito associado à conta; estado cloud mantém precedência |
 | 05 | Migrações Git ≠ objetos implantados | Inventário e linhagem guardados (D); reconciliação ainda pendente | Guardada baseline real (tabelas, policies, grants, functions, constraints, índices, IDs de migração). As 3 migrações antigas PR43 estão em rollback, fora da pasta executável. Falta validar reconstituição em staging |
 | 06 | Calendário agrega dias de propostas diferentes | Isolamento de propostas implementado (C) | Vista por ID de proposta usa apenas um snapshot; panorama mantém propostas independentes com alertas de sobreposição e mistura, sem validar a combinação como escala oficial |
@@ -195,3 +195,13 @@ Sem alterações destrutivas no Supabase; `main` e
 - Não classificar `sem turno` como `folga`.
 
 A conversa MASTER continua a ser apenas um logbook de alterações validadas. Este documento é um registo de auditoria em PR aberto, não um registo de conclusões no MASTER.
+
+
+## Operação Supabase em 08/11/2026 — função legada
+
+- Após autorização expressa para corrigir os pontos, foi publicada `official-schedules` v6, substituindo a implementação anterior por resposta HTTP 410, com `verify_jwt=true`.
+- Projeto: `schedule-engine` (`zuczsheoixuwienbkprz`); SHA256 do bundle publicado: `c75be37b56e18f7783c5c0855ba4af81245a848b751069058cbfd5885750ec58`.
+- Confirmados por leitura Supabase o número da versão, o modo JWT e o conteúdo integral do único `index.ts` publicado.
+- **Não realizado:** chamada HTTP autenticada à função; análise de consumidores externos; teste de rollback em ambiente isolado.
+- A versão v5 original permanece arquivada em `supabase/rollback/official-schedules-v5/`; reimplantação pode recuperar o endpoint caso se confirme dependência legítima.
+- Nenhuma tabela ou registo foi apagado nesta operação. Esta alteração operacional foi feita fora de uma migração e deve ser incluída no inventário de deployment.
