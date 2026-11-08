@@ -1912,6 +1912,7 @@ export default function App() {
           workRules={workRules}
           presence={generatorPresence}
           operationTimeZone={operationTimeZone}
+          ownerId={supabaseAuthClient?.user?.id}
           initialDate={generatorInitialDate}
           onSaveGenerated={saveGenerated}
           onBackToCalendar={() => setActiveSection("schedules")}
