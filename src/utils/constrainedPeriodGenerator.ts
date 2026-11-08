@@ -12,7 +12,8 @@ import {
 } from "./workConstraints";
 import type { PresenceShortage } from "./presence";
 import type { DayScheduleStatus } from "./dailyGenerator";
-import { MAX_PERIOD_DAYS } from "./periodGenerator";
+/** The constrained engine certifies cross-day, weekly and monthly boundaries. */
+export const MAX_CONSTRAINED_PERIOD_DAYS=28;
 import { getOperatingIntervalsForDate } from "./operatingCalendar";
 import { getSchedulableIntervalsForDate, isSchedulableForInterval } from "./availability";
 import { checkPresenceForWorkShifts } from "./workCoverage";
@@ -1682,9 +1683,9 @@ export function generateConstrainedPeriodSchedule(
     ]);
   }
   const dayCount = (end - start) / DAY + 1;
-  if (dayCount > MAX_PERIOD_DAYS) {
+  if (dayCount > MAX_CONSTRAINED_PERIOD_DAYS) {
     return resultWith("invalid_input", [
-      `O gerador de períodos suporta até ${MAX_PERIOD_DAYS} dias consecutivos.`,
+      `O gerador condicionado suporta até ${MAX_CONSTRAINED_PERIOD_DAYS} dias consecutivos.`,
     ]);
   }
 
