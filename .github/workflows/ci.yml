@@ -70,6 +70,7 @@ jobs:
           psql -v ON_ERROR_STOP=1 -f scripts/ci/postgres_migration_assertions.sql
           psql -v ON_ERROR_STOP=1 -f scripts/ci/postgres_history_assertions.sql
           psql -v ON_ERROR_STOP=1 -f scripts/ci/postgres_approval_revision_assertions.sql
+          psql -v ON_ERROR_STOP=1 -f scripts/ci/postgres_approval_config_cas_assertions.sql
           psql -v ON_ERROR_STOP=1 -f scripts/ci/postgres_verified_ledger_initializer_assertions.sql
       - name: Rehearse private RPC, verify CAS/history, and restore original
         run: |
