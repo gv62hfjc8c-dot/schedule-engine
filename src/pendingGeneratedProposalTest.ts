@@ -86,6 +86,10 @@ check(failed,"A rejected durable stage must be surfaced before the first network
 // PR47-14: End-to-end crash/outbox rehearsal around the REAL repository.
 // A POST may reach PostgreSQL before the browser loses its reply. After a
 // browser restart, retrying the identical UUID must not create two rows.
+const testPayload=structuredClone(payload);
+testPayload.configuration.presence.weeklyPresenceRequirements.monday={
+  minimumAtOpening:0,minimumDuringOperation:0,minimumAtClosing:0,
+};
 for(const commitBeforeDisconnect of [true,false]){
   const persisted=new Map<string,Record<string,unknown>>();
   const data=new Map<string,string>();
@@ -126,10 +130,10 @@ for(const commitBeforeDisconnect of [true,false]){
       return Response.json(persisted.has(proposalId)?[persisted.get(proposalId)]:[]);
     },
   };
-  stagePendingGeneratedProposal(browser,{ownerId:owner,id:proposalId,payload});
+  stagePendingGeneratedProposal(browser,{ownerId:owner,id:proposalId,payload:testPayload});
   let interrupted=false;
   try{await createSupabaseGeneratedScheduleRepository(transport)
-    .save(payload,proposalId);}
+    .save(testPayload,proposalId);}
   catch{interrupted=true;}
   check(interrupted&&loadPendingGeneratedProposal(browser,owner)?.id===proposalId,
     "A rejected or lost response must preserve a durable pending proposal.");
