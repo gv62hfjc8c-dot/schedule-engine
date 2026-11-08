@@ -4,6 +4,7 @@ import type {
   Person,
   PersonAvailability,
   PresenceConfiguration,
+  WorkRulesConfiguration,
   WorkConstraintConfiguration,
 } from "../types";
 import type { ConfirmedExternalWorkContext } from "./constrainedPeriodGenerator";
@@ -12,7 +13,7 @@ import {
   type WorkValidationDateRange,
   type WorkConstraintViolation,
 } from "./workConstraints";
-import { isSchedulableForInterval } from "./availability";
+import { isSchedulableForInterval,getSchedulableIntervalsForDate } from "./availability";
 import { getOperatingIntervalsForDate, getWeekday } from "./operatingCalendar";
 import { resolvePresenceForDate } from "./presence";
 import { checkPresenceForWorkShifts } from "./workCoverage";
@@ -87,6 +88,8 @@ export interface ApprovalEnvironment {
   operatingCalendar: OperatingCalendarConfiguration;
   presence: PresenceConfiguration;
   workConstraints: WorkConstraintConfiguration;
+  /** Current operational hard policies; never trust a browser-provided policy. */
+  workRules?: WorkRulesConfiguration;
   /**
    * Server-verified historical shifts outside the proposed period.
    * Never source these from a browser request or infer them from missing rows.
@@ -667,9 +670,30 @@ function validateDraft(
       }
     }
     for(const person of environment.people) {
-      if(person.active && isExplicitRequiredWorkday(person,date) &&
-        !proposed.some(shift=>shift.personId===person.id))
+      if(!person.active)continue;
+      const entry=availability.get(person.id);
+      const permitted=entry&&!isPersonUnavailableOnDate(person,date)
+        ?getSchedulableIntervalsForDate(date,entry,
+          environment.operatingCalendar.weeklyOperatingHours,
+          environment.operatingCalendar.exceptions)
+        :[];
+      const mandatory=isExplicitRequiredWorkday(person,date)||
+        Boolean(environment.workRules?.requireShiftsOnAvailableDays&&permitted.length);
+      if(mandatory&&!proposed.some(shift=>shift.personId===person.id))
         problems.push(date + ": dia obrigatório sem turno para "+person.id+".");
+    }
+    const shortMax=environment.workRules?.fullShortDayMaximumMinutes??0;
+    if(shortMax>0&&operating.length===1){
+      const minutes=(clock:string)=>Number(clock.slice(0,2))*60+
+        Number(clock.slice(3,5));
+      const duration=minutes(operating[0].end)-minutes(operating[0].start);
+      if(duration>0&&duration<=shortMax){
+        for(const shift of proposed){
+          if(shift.interval.start!==operating[0].start||
+             shift.interval.end!==operating[0].end)
+            problems.push(date+": turno não cobre o dia curto completo de "+shift.personId+".");
+        }
+      }
     }
     const coverage = checkPresenceForWorkShifts(
       date, operating, presence.requirements, proposed
