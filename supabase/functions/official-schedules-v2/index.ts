@@ -34,8 +34,17 @@ const isObject=(x:unknown):x is RecordJson=>
 const endpoint=Deno.env.get("SUPABASE_URL")??"";
 const serviceRole=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")??"";
 const historyAnchor=Deno.env.get("SCHEDULE_ENGINE_HISTORY_ANCHOR_DATE")??"";
+// Authorization is supplied exclusively via Bearer headers, never cookies.
+// A wildcard origin permits Vite localhost without exposing user credentials.
+const corsHeaders={
+  "Access-Control-Allow-Origin":"*",
+  "Access-Control-Allow-Headers":"authorization, apikey, content-type, x-client-info, x-supabase-api-version",
+  "Access-Control-Allow-Methods":"GET, POST, OPTIONS",
+  "Access-Control-Max-Age":"600",
+};
 const json=(value:unknown,status=200)=>
   new Response(JSON.stringify(value),{status,headers:{
+    ...corsHeaders,
     "Content-Type":"application/json; charset=utf-8",
     "Cache-Control":"no-store",
     "X-Content-Type-Options":"nosniff",
@@ -240,6 +249,8 @@ async function loadHistoricalEvidence(
 }
 
 Deno.serve(async(request:Request)=>{
+  if(request.method==="OPTIONS")
+    return new Response(null,{status:204,headers:corsHeaders});
   if(!["GET","POST"].includes(request.method))
     return json({ok:false,code:"method_not_allowed"},405);
   const ownerId=await ownerFromJwt(request).catch(()=>null);
