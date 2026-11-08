@@ -17,6 +17,10 @@ import { getOperatingIntervalsForDate, getWeekday } from "./operatingCalendar";
 import { resolvePresenceForDate } from "./presence";
 import { checkPresenceForWorkShifts } from "./workCoverage";
 import { MAX_CONSTRAINED_PERIOD_DAYS } from "./constrainedPeriodGenerator";
+import {
+  isPersonUnavailableOnDate, isExplicitRequiredWorkday,
+  validatePersonWeeklyContractCaps,
+} from "./personSchedulingPolicies";
 
 /**
  * P6.4: immutable approval ledger. One APPROVED record owns every civil date
@@ -585,6 +589,8 @@ function validateDraft(
           shift.personId + ".");
         continue;
       }
+      if (isPersonUnavailableOnDate(person,date))
+        problems.push(date + ": pessoa indisponível na data "+shift.personId+".");
       if (entry.exceptions.filter(exception =>
         exception.date === date
       ).length > 1 || !shift.interval ||
@@ -596,6 +602,11 @@ function validateDraft(
         problems.push(date + ": turno fora da disponibilidade de " +
           shift.personId + ".");
       }
+    }
+    for(const person of environment.people) {
+      if(person.active && isExplicitRequiredWorkday(person,date) &&
+        !proposed.some(shift=>shift.personId===person.id))
+        problems.push(date + ": dia obrigatório sem turno para "+person.id+".");
     }
     const coverage = checkPresenceForWorkShifts(
       date, operating, presence.requirements, proposed
@@ -633,6 +644,14 @@ function validateDraft(
     issues: work.issues.length ? work.issues :
       ["A proposta viola regras obrigatórias de trabalho."],
     workViolations: work.violations,
+  };
+  const contracts=validatePersonWeeklyContractCaps(
+    environment.people,[...activeShifts,...draft.shifts],
+    environment.workConstraints.maximumWeeklyEffectiveMinutes,
+    ledger.timeZone,draft.startDate,draft.endDate,
+  );
+  if(!contracts.valid)return {
+    code:"work_constraint",issues:contracts.issues,workViolations:[],
   };
   return null;
 }
