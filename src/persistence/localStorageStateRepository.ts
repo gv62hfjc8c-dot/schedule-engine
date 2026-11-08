@@ -162,7 +162,7 @@ function isPerson(value: unknown): value is Person {
         (person.requiredWorkDates===undefined ||
          (Array.isArray(person.requiredWorkDates) &&
           !person.unavailableWorkDates.some((date: string)=>
-            person.requiredWorkDates.includes(date)))))) &&
+            (person.requiredWorkDates as string[]).includes(date)))))) &&
     (person.qualificationTags===undefined ||
       (Array.isArray(person.qualificationTags) &&
         person.qualificationTags.every((tag:unknown)=>
