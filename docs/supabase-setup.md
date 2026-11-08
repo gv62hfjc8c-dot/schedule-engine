@@ -18,9 +18,8 @@ Uma proposta gerada e guardada **não está oficialmente aprovada**.
 
 ## Instalação limpa — reprodução do contrato de base de dados
 
-O PR #47 mantém **quatro migrações com os mesmos identificadores que
-constam no Supabase publicado**, mais uma migração aditiva ainda não
-aplicada no servidor. Estes scripts foram reconstruídos a partir das
+O PR #47 mantém **quatro migrações históricas** e duas migrações de
+2026-11-08 com identificadores correspondentes ao Supabase publicado. Estes scripts foram reconstruídos a partir das
 linhagens históricas e **ensaiados numa instância PostgreSQL 17
 descartável no CI**, com stubs de autenticação: não são um dump
 byte a byte da instância de produção.
@@ -34,8 +33,10 @@ byte a byte da instância de produção.
    - `20261103100427_trusted_approved_schedule_ledger.sql`;
    - `20261103101604_approved_context_proposals.sql`;
    - `20261103104023_partial_schedule_revisions.sql`;
-   - `20261108100000_pr47_four_week_proposals.sql`
-     (aumenta o limite do CHECK do arquivo para 28 dias).
+   - `20261108124759_pr47_four_week_proposals.sql`
+     (aumenta o limite do CHECK do arquivo para 28 dias);
+   - `20261108124844_pr47_state_rpc_private_schema.sql`
+     (move a implementação privilegiada da gravação para esquema privado).
 3. A presença de estruturas legadas do ledger **não ativa** aprovação
    oficial na UI. As funções privilegiadas legadas não recebem EXECUTE
    do papel `authenticated`.
@@ -48,29 +49,24 @@ byte a byte da instância de produção.
    ```env
    VITE_SUPABASE_URL=https://SEU_PROJECT_REF.supabase.co
    VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_SUA_CHAVE_PUBLICA
-   # Apenas depois de validar o CHECK de 28 dias e a persistência:
-   # VITE_GENERATOR_28_DAY_READY=true
+   # A branch PR47 suporta 28 dias após aplicar as migrações acima.
    ```
 
 7. Reiniciar Vite para ler as variáveis e executar os testes de geração,
    arquivo, recuperação e duas contas.
 
-**A instância atual de produção ainda não tem a migração de 28 dias.**
-O seu histórico continua a conter apenas as quatro primeiras versões,
-e o CHECK real é `end_date < start_date + 14`. Não executar
-`supabase db push`, `migration repair` ou copiar manualmente o SQL
-do histórico na produção sem comparação de esquema real, **backup/restauro
-confirmado** e ensaio idempotente. A ativação da flag não cria nem
-verifica a migração — apenas desbloqueia a UI, por isso não a ativar
-na conta operacional por antecipação.
+**Na instância Schedule Engine, as migrações de 28 dias e RPC privado
+já foram aplicadas e verificadas em 08/11/2026.** O CHECK atual é
+`end_date < start_date + 28`. Não executar `supabase db push` nem
+`migration repair` sem comparar o histórico: os seis IDs presentes no
+repositório já constam do registo Supabase. Outras instalações exigem
+aplicar as migrações antes de disponibilizar a nova interface.
 
-A refatoração segura do RPC de configuração está **separada** das
-migrações históricas, em
-`supabase/deployment/pr47_state_rpc_private_schema.sql`; a definição
-pública original foi guardada em
-`supabase/rollback/pr47_state_rpc_public_restore.sql`.
-Os dois scripts e o restauro foram ensaiados num PostgreSQL descartável,
-**não publicados**.
+A refatoração da RPC de configuração foi aplicada na migração
+`20261108124844_pr47_state_rpc_private_schema.sql` e ensaiada em
+PostgreSQL descartável. O script de deployment permanece em
+`supabase/deployment/pr47_state_rpc_private_schema.sql` e o rollback
+está em `supabase/rollback/pr47_state_rpc_public_restore.sql`.
 
 ## Primeira migração dos dados do browser
 
@@ -102,12 +98,12 @@ conta. Não existe uma exigência fixa de três colaboradores.
   apenas aos seus registos.
 - O browser não tem UPDATE ou DELETE sobre propostas, nem permissões
   diretas de escrita nas tabelas de configuração.
-- Atualmente `save_schedule_engine_state` é `SECURITY DEFINER`
-  no esquema público, com `EXECUTE` apenas para `authenticated`, identidade
-  verificada e CAS. O PR #47 prepara um invólucro `SECURITY INVOKER`
-  público e uma implementação privilegiada em esquema privado, com
-  testes de migração e recuperação. **Esta alteração ainda não está
-  implantada.**
+- Atualmente `public.save_schedule_engine_state` é `SECURITY INVOKER`
+  no esquema público, com `EXECUTE` apenas para `authenticated`.
+  `schedule_engine_private.save_state_impl` mantém `SECURITY DEFINER`,
+  identidade do proprietário e CAS. O auditor Supabase deixou de reportar
+  exposição direta de `SECURITY DEFINER`. A gravação real via Safari
+  ainda tem de ser confirmada.
 - A autorização entre membros da mesma organização ainda não existe.
   Dados continuam segregados por proprietário individual.
 - Não incluir service keys, secrets, passwords, backups privados ou
