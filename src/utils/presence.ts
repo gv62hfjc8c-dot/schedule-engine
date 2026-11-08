@@ -41,7 +41,7 @@ export function isPresenceRequirementValid(
     if(!q||typeof q!=="object"||Array.isArray(q))return false;
     if(!Object.entries(q).every(([tag,min])=>
       tag.length>=1 && tag.length<=64 &&
-      /^[\\p{L}\\p{N} -]+$/u.test(tag) &&
+      /^[\p{L}\p{N} -]+$/u.test(tag) &&
       tag.trim()===tag && Number.isSafeInteger(min) && min>=0 && min<=1000))
       return false;
   }
