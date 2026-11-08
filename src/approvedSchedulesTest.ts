@@ -660,4 +660,38 @@ const rejected29 = approveSchedule({
 });
 assertFailure(rejected29,"invalid_input","A aprovação continua a rejeitar períodos de 29 dias.");
 
+
+const missingPersonnelEnv=workDayEnvironment([tue]);
+missingPersonnelEnv.people[0].unavailableWorkDates=[tue];
+assertFailure(approveSchedule({
+  ledger:ledger(),expectedVersion:0,at:now2,
+  draft:draft("absent-approval-blocked",tue,[shift(tue,"a")]),
+  environment:missingPersonnelEnv,
+}),"operational_constraint",
+"Approval cannot assign a person on an explicitly unavailable civil date.");
+
+const mandatoryPersonnelEnv=workDayEnvironment([tue]);
+mandatoryPersonnelEnv.people[1].requiredWorkDates=[tue];
+assertFailure(approveSchedule({
+  ledger:ledger(),expectedVersion:0,at:now2,
+  draft:draft("mandatory-approval-blocked",tue,[shift(tue,"a")]),
+  environment:mandatoryPersonnelEnv,
+}),"operational_constraint",
+"Approval cannot certify a day missing person B's mandatory shift.");
+
+const individualContractEnv=workDayEnvironment(
+  [mon,tue,wed],interval("09:00","18:00"),zero,
+);
+individualContractEnv.people[0].weeklyContractMinutes=1200;
+assertFailure(approveSchedule({
+  ledger:ledger(),expectedVersion:0,at:now2,
+  draft:draft("contract-approval-blocked",mon,[
+    shift(mon,"a","09:00","18:00",{start:"13:00",end:"14:00"}),
+    shift(tue,"a","09:00","18:00",{start:"13:00",end:"14:00"}),
+    shift(wed,"a","09:00","18:00",{start:"13:00",end:"14:00"}),
+  ],wed),
+  environment:individualContractEnv,
+}),"work_constraint",
+"Approval must reject 24h of effective work under a 20h individual weekly contract.");
+
 console.log("Approved Schedules Core V0: todos os testes passaram.");
