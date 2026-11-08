@@ -72,11 +72,8 @@ export function prepareHistoricalWorkContext(
      (input.historyStartDate!==undefined&&civil(input.historyStartDate)===null)||
      !Array.isArray(input.personIds)||
      input.personIds.some(id=>typeof id!=="string"||!id.trim())||
-     new Set(input.personIds).size!==input.personIds.length||
-     !input.archive||!Array.isArray(input.archive.coverage)||
-     !Array.isArray(input.archive.shifts)||
-     input.archive.timeZone!==input.timeZone) {
-    return invalid(["Histórico ausente, identidade das pessoas ou fuso incompatível."]);
+     new Set(input.personIds).size!==input.personIds.length) {
+    return invalid(["Identidade de pessoas ou datas do histórico incompatíveis."]);
   }
   const probe=validateWorkConstraints({
     targetPeriod:input.targetPeriod,
@@ -86,6 +83,15 @@ export function prepareHistoricalWorkContext(
   if(probe.status==="invalid_input"||!probe.requiredContext)
     return invalid(probe.issues.length?probe.issues:["Regras ou datas inválidas."]);
   const required=probe.requiredContext;
+  if(!input.archive) return {
+    status:"incomplete_context",requiredContext:required,
+    externalContext:null,missingCoverage:[],
+    issues:["Não existe histórico importado; os dias sem registos são desconhecidos."],
+  };
+  if(!Array.isArray(input.archive.coverage)||
+     !Array.isArray(input.archive.shifts)||
+     input.archive.timeZone!==input.timeZone)
+    return invalid(["Arquivo histórico sem cobertura, turnos ou fuso compatível."]);
   const coverage=input.archive.coverage;
   const people=new Set(input.personIds);
   for(const item of coverage) {
