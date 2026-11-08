@@ -221,7 +221,7 @@ A conversa MASTER continua a ser apenas um logbook de alterações validadas. Es
 - A migração de segurança da RPC foi aplicada com versão **20261108124844**. `public.save_schedule_engine_state` deixou de ser `SECURITY DEFINER`; `schedule_engine_private.save_state_impl` mantém a validação de proprietário e o controlo de revisão. A função pública permanece autorizada apenas para `authenticated`, não para `anon`.
 - A verificação dos avisos de segurança Supabase passou de **2 para 1**; permanece exclusivamente o aviso de proteção de palavras-passe comprometidas. A documentação Supabase indica que esta opção está disponível **no plano Pro e superior**.
 - A UI da branch PR47 foi ajustada para aceitar 28 dias, sem depender de feature flag; a instalação noutras instâncias exige aplicar primeiro as migrações correspondentes. CI e Safari da nova UI ainda devem ser confirmados.
-- Não foram eliminados registos nem feita aprovação oficial. Os testes de autenticação e persistência pelo browser continuam pendentes.
+- Não foram eliminados registos nem feita aprovação oficial. **Atualização de aceitação Safari em 08/11/2026:** duas contas de teste autenticadas; dados locais antigos recusados por omissão; nova opção de começar vazia funcionou; colaborador A1 persistiu na conta A após reload; B1 persistiu na conta B, sem mostrar A1. Leitura SQL read-only confirmou 1 conta apenas A1, 1 apenas B1, 0 ambas; persistência e segregação por proprietário confirmadas em armazenamento. Falta prova RLS cruzada com JWTs reais, teste inverso A e arquivo de propostas em cada conta.
 
 
 ## Verificação transacional não destrutiva da RPC em Supabase
