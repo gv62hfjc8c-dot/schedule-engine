@@ -679,6 +679,16 @@ assertFailure(approveSchedule({
 }),"operational_constraint",
 "Approval cannot certify a day missing person B's mandatory shift.");
 
+const closedMandatoryEnv=workDayEnvironment([tue]);
+closedMandatoryEnv.operatingCalendar.exceptions[0].intervals=[];
+closedMandatoryEnv.people[0].requiredWorkDates=[tue];
+assertFailure(approveSchedule({
+  ledger:ledger(),expectedVersion:0,at:now2,
+  draft:draft("closed-mandatory-blocked",tue,[]),
+  environment:closedMandatoryEnv,
+}),"operational_constraint",
+"Official approval must reject a mandatory shift on a closed operating day.");
+
 const individualContractEnv=workDayEnvironment(
   [mon,tue,wed],interval("09:00","18:00"),zero,
 );
