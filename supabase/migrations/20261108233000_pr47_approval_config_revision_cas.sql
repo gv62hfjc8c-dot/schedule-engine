@@ -44,4 +44,9 @@ REVOKE ALL ON FUNCTION
 GRANT EXECUTE ON FUNCTION
   public.commit_schedule_engine_approved_ledger_v2(uuid,bigint,jsonb,text,text,bigint)
   TO service_role;
+-- Retire the older service-only RPC. The new SECURITY DEFINER wrapper owns
+-- its internal invocation, but no external service may skip state revision CAS.
+REVOKE ALL ON FUNCTION
+  public.commit_schedule_engine_approved_ledger(uuid,bigint,jsonb,text,text)
+  FROM service_role;
 COMMIT;
