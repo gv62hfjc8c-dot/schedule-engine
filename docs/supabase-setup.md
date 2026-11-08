@@ -18,7 +18,7 @@ Uma proposta gerada e guardada **não está oficialmente aprovada**.
 
 ## Instalação limpa — reprodução do contrato de base de dados
 
-O PR #47 mantém **quatro migrações históricas** e cinco migrações de
+O PR #47 mantém **quatro migrações históricas** e seis migrações de
 2026-11-08 com identificadores correspondentes ao Supabase publicado.
 O arquivo histórico está preparado, mas **a importação real foi adiada**. Estes scripts foram reconstruídos a partir das
 linhagens históricas e **ensaiados numa instância PostgreSQL 17
@@ -44,7 +44,9 @@ byte a byte da instância de produção.
    - `20261108142521_pr47_trusted_approval_revisions.sql`
      (revisões parciais em RPC CAS privilegiado, sem escrita direta no browser);
    - `20261108144725_pr47_verified_ledger_initialization.sql`
-     (só inicializa um ledger oficial após verificar todos os pares colaborador/dia no intervalo declarado).
+     (só inicializa um ledger oficial após verificar todos os pares colaborador/dia no intervalo declarado);
+   - `20261108234026_pr47_approval_config_revision_cas.sql`
+     (impede aprovação se a configuração mudou entretanto; bloqueio de versão operacional e de ledger na mesma transação).
 3. A presença de estruturas legadas do ledger **não ativa** aprovação
    oficial na UI. As funções privilegiadas legadas não recebem EXECUTE
    do papel `authenticated`.
@@ -66,7 +68,7 @@ byte a byte da instância de produção.
 **Na instância Schedule Engine, as migrações de 28 dias e RPC privado
 já foram aplicadas e verificadas em 08/11/2026.** O CHECK atual é
 `end_date < start_date + 28`. Não executar `supabase db push` nem
-`migration repair` sem comparar o histórico: os nove IDs presentes no
+`migration repair` sem comparar o histórico: os dez IDs presentes no
 repositório já constam do registo Supabase. Outras instalações exigem
 aplicar as migrações antes de disponibilizar a nova interface.
 
@@ -162,7 +164,9 @@ ponto de regresso até à aprovação final do PR #47.
 
 - As migrações históricas, RPC de revisões e inicialização controlada do ledger foram aplicadas ao Supabase em 08/11/2026. As três tabelas históricas começaram **sem linhas**; as quatro propostas antigas continuam presentes.
 - A inicialização antiga do ledger que declarava completa a história 2020–2100 foi desativada. **Não a restaurar só para desbloquear a aprovação.** A Edge Function antiga v6 (HTTP 410) permanece inerte.
-- O novo endpoint em `supabase/functions/official-schedules-v2/index.ts` está **preparado, não publicado**. Exige autenticação, dados server-side e provas por pessoa/data. A UI só ativa comandos com `VITE_OFFICIAL_APPROVAL_READY=true`; **não ativar antes do deployment e dos testes reais**.
-- `SCHEDULE_ENGINE_HISTORY_ANCHOR_DATE` será configurada no serviço conforme a fonte histórica efetiva da organização; o browser nunca escolhe titular, ledger, âncora ou prova de completude.
+- O novo endpoint em `supabase/functions/official-schedules-v2/index.ts` está **publicado como v3**, com JWT obrigatório. O painel consulta a prontidão na API por omissão; o botão de aprovação só é apresentado se a validação independente do servidor devolver `ready=true`. `VITE_OFFICIAL_APPROVAL_READY=false` é um interruptor de emergência para ocultar a integração, não uma autorização para aprovar.
+- A âncora de histórico é obtida do **intervalo de cobertura do ledger verificado**, não da configuração do navegador ou de uma variável ausente. O browser nunca escolhe titular, ledger, âncora ou prova de completude.
 - A importação dos horários anteriores foi conscientemente adiada. Sem ela, não há prova histórica suficiente nem ledger inicializado e o endpoint deve recusar novas aprovações.
 - O PostgreSQL em CI prova políticas e RPC; não substitui Supabase Auth com duas contas, Safari e testes HTTP reais.
+
+- Em 08/11/2026 passou o ensaio HTTPS real sem JWT para ambas as funções (GET/POST 401), incluindo CORS na nova API; `deno check` verifica todas as dependências do endpoint na CI. O ambiente real não foi ensaiado com credenciais/JWTs de A/B.

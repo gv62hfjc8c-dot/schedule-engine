@@ -235,7 +235,7 @@ Os códigos A–F acima continuam **PENDENTES** até serem executados.
 | 02 Sem turno ≠ folga | Implementado | A07 e D06; nunca interpretar ausência de turno como folga |
 | 03 Edge Function antiga | **410 publicado e testado em CI; gateway autenticado pendente** | V6 com JWT obrigatório em Supabase; `test:retired-edge` comprova GET/POST 410, sem acessos externos. Falta verificar a resposta através do gateway com JWT e dependências externas |
 | 04 Consentimento na importação | Implementado e reforçado para múltiplas contas | **G01**: conta nova escolhe começar vazia, sem importar dados legados do browser; a decisão é por proprietário, não apaga dados antigos, não afeta outra conta, e requer teste Safari |
-| 05 Migrações divergentes | **9/9 versões no repositório e no Supabase** | Quatro reconstruídas e cinco PR47 publicadas; CI de instalação limpa passou. Gravação CAS e isolamento SQL real confirmados; testes HTTP distintos |
+| 05 Migrações divergentes | **10/10 versões alinhadas, migração de concorrência adicional testada** | Quatro históricas, seis PR47; PostgreSQL 17 reconstituído em CI, todas as versões também no Supabase, incluindo `20261108234026` |
 | 06 Propostas misturadas | Implementado | D02–D04 e F04; vista de uma proposta não importa turnos de outras |
 | 07 Alvo 40h vs contrato | Implementado (opcional) | B09, C08, F02 e F03; hard cap individual e alvo soft |
 | 08 Certificação independente | Implementado | C02–C05 e F03; nenhuma solução com hard constraints violadas é publicada |
@@ -246,14 +246,14 @@ Os códigos A–F acima continuam **PENDENTES** até serem executados.
 | 13 Snapshots inválidos | Reforçado | D06 e F04; registo incompatível não é apresentado como válido. **Não corromper dados reais** |
 | 14 Fecho durante gravação | **Mitigado** | D08 e F04; retries com UUID estável. Fecho forçado do navegador não oferece garantia de entrega |
 | 15 Fusos divergentes | Implementado | B11, F02 e F03; fuso IANA da operação e do snapshot arquivado |
-| 16 Escrita concorrente | **CAS ensaiado com conta real, UI pendente** | Ensaio transacional em Supabase confirmou primeira atualização e rejeitou `40001` para versão obsoleta, seguido de ROLLBACK; teste Safari com dois separadores ainda pendente |
-| 17 Aprovação oficial ausente | **API v2 publicada, aprovações ainda bloqueadas** | `official-schedules-v2` v1 ACTIVE com `verify_jwt=true` e CORS, migrações/ledger/revisões disponíveis; `VITE_OFFICIAL_APPROVAL_READY` desligada. Histórico 2026 ainda por importar, não é correto aceitar aprovações. Testes reais de JWT/HTTP pendentes |
+| 16 Escrita concorrente | **RPC com CAS de configuração e ledger em produção** | Transação real em Supabase rejeitou estado obsoleto; nova função `commit_schedule_engine_approved_ledger_v2` usa bloqueio de configuração `FOR SHARE`, com testes de rollback, histórico e permissões. Ensaio Safari com duas abas ainda não realizado |
+| 17 Aprovação oficial ausente | **Fluxo de aplicação publicado; pronta apenas com história verificada** | Edge `official-schedules-v2` v3 com JWT obrigatório, CORS e validação independente; painel consulta API sem precisar de flag de ativação; botão só surge com `ready=true` do servidor. Zero histórico 2026 importado e zero ledgers oficiais, logo aprovação permanece bloqueada. Teste remoto com JWT de sessão real pendente |
 | 18 Ciclos de 28 dias | **Núcleo/DB/UI implementados, stress CI aprovado** | Quatro semanas certificadas; mais quatro cenários com DST, mudança de ano, ano bissexto e múltiplos fusos. Migração real confirmada, faltando aceitar 28 dias no Safari |
 | 19 Perfis de colaboradores | **V0 implementado; ocorrências oficiais dependem de #17** | `test:scheduling-model` valida `unavailableWorkDates` sem turno, incluindo rejeição da certificação. `test:qualification-coverage` valida competências durante turnos e refeições; UI edita datas indisponíveis e etiquetas. Motivos administrativos e tipos de vínculo não especificados |
 | 20 Segurança Supabase | **RPC reforçado; 1 aviso Auth pendente** | Migração `20261108124844` aplicada e funções/permissões verificadas; verificar operações reais de gravação no Safari. Proteção de passwords comprometidas continua desligada, disponível em Supabase Pro+ |
 | 21 Código experimental | Implementado | `npm run test:architecture`; verificar ausência de laboratório na UI e preservação dos testes do domínio |
 | 22 Terminologia desatualizada | Implementado | A03, A06, D01 e revisão textual: «proposta guardada, não aprovada» |
-| 23 Cobertura de regressões | **CI + isolamento A/B real confirmados; E2E ainda incompleto** | Aplicação Safari guardou e recuperou propostas de A/B, SQL RLS com `authenticated` só leu as próprias propostas; falta HTTP real com JWTs, conflitos entre separadores, carga e cenário 28 dias |
+| 23 Cobertura de regressões | **Automação e isolamento A/B melhorados; aceitação real incompleta** | Suite de motor, Deno strict, PostgreSQL, RLS e HTTPS real sem JWT aprovadas; propostas A/B isoladas e persistidas após reload; faltam dois JWTs reais, concorrência e fecho forçado no Safari |
 
 ### Testes complementares necessários para fechar a rastreabilidade
 
@@ -318,15 +318,15 @@ uma alteração parcial sem repetir os testes afetados.
 
 ## Bloco H — aprovação oficial e história anual (PR47-17)
 
-**Sem dados históricos importados, o resultado esperado de uma tentativa de aprovação é BLOQUEADO, nunca APROVADO.** O novo serviço está preparado mas permanece sem deploy; os testes HTTP reais não podem ser assinalados PASS enquanto essa publicação não estiver concluída.
+**Sem dados históricos importados, o resultado esperado é BLOQUEADO, nunca APROVADO.** O serviço v3 está publicado; o teste HTTP real sem JWT já passou e a aprovação de um calendário real continua bloqueada até existir prova de histórico.
 
 | ID | Procedimento | Critério | Estado |
 |---|---|---|---|
-| H01 | HTTP sem JWT e sessão anónima para v2 | Resposta 401, zero operações | CI/HTTP simulado PASS; Edge v2 publicada com JWT obrigatório; ensaio remoto ainda PENDENTE |
+| H01 | HTTP sem JWT e sessão anónima para v2 | Resposta 401, zero operações | Sem JWT: **PASS em HTTPS real**; sessão anónima autenticada: PASS simulado, remoto pendente |
 | H02 | Conta A tenta aprovar proposta de B | 404/422, sem acesso nem escrita cruzada | PENDENTE — duas contas reais |
 | H03 | Conta sem histórico de 2026 tenta aprovar | 409 por histórico incompleto, ledger continua vazio | PENDENTE — Auth real |
 | H04 | Ficheiro histórico incompleto, um colaborador sem dias confirmados | Recusa; jamais presumir folga | PASS no CI de domínio; ensaio importador PENDENTE |
-| H05 | Proposta guardada, flag da UI desligada | Não aparece operação ativa nem é possível aprovar | PENDENTE — Safari |
+| H05 | Proposta guardada, ausência de histórico verificado | UI consulta prontidão ao servidor; sem `ready=true` não apresenta aprovação | Código/CI PASS; aceitação Safari pendente |
 | H06 | Histórico simulado completo e proposta com restrições válidas | Teste de aplicação guarda apenas com CAS, falhas não publicam sucesso | PASS em testes simulados; HTTP/ledger real PENDENTE |
 | H07 | Revisão parcial: baixa, férias ou saída depois de aprovar | Versão antiga preservada; novo turno certificado; tentativa retroativa recusada | PASS no domínio/CI; UI/HTTP PENDENTE |
 | H08 | Importar horários antigos e rever totais de 28 dias e histórico anual | Identidade estável, sem dupla contagem, revisão de conflitos, proveniência | PENDENTE — importação adiada pelo utilizador |
@@ -368,7 +368,7 @@ Provas técnicas atuais: `test:official-revisions`, `test:verified-official-serv
 
 **Sem novas ações manuais exigidas:** foi concluído um ensaio de leitura real por cada titular usando o papel `authenticated` e transações revertidas. A conta A vê 1 estado e 1 proposta; B vê 1 estado e 3 propostas; ambas veem 0 ledgers e 0 fontes históricas. O SQL real rejeitou também um pedido de gravação com revisão obsoleta (`40001`) após uma primeira alteração no mesmo bloco transacional; tudo terminou com `ROLLBACK`.
 
-A Edge `official-schedules-v2` foi publicada na versão 1 com JWT obrigatório e suporte CORS. A flag de aprovação mantém-se inativa e não há dados históricos verificados; esta é uma proteção legítima, não um erro de execução. A chamada HTTP remota autenticada, a prova de concorrência em dois separadores e a geração manual de 28 dias não foram executadas e não podem ser registadas como PASS.
+A Edge `official-schedules-v2` foi atualizada até à **versão 3** com JWT obrigatório, Deno strict e CORS. A UI consulta prontidão por omissão, mas bloqueia o botão até receber certificação do servidor. Continuam por executar testes remotos com JWTs de sessão reais e os cenários físicos de duas abas/fecho forçado.
 
 
 ### Regressões em CI concluídas — último ciclo do PR47
@@ -376,3 +376,10 @@ A Edge `official-schedules-v2` foi publicada na versão 1 com JWT obrigatório e
 - `test:retired-edge`: simulação de GET e POST da API antiga v6 produziu 410 e não efetuou pedidos de rede; o gateway real continua a exigir JWT, conforme metadados Supabase.
 - `test:four-week`: quatro cenários adicionais de 28 dias inteiros foram gerados e certificados atravessando mudanças sazonais e calendáricas, sem unir horários semanais de forma artificial.
 - GitHub Actions `42534315836`: **validate + migration-contract aprovados**. Um teste de domínio aprovado não substitui uma interação real não executada.
+
+
+### Reforço atómico aplicado
+
+- Nova migração `20261108234026`: `commit_schedule_engine_approved_ledger_v2` aceita a **revisão da configuração**, bloqueia essa linha durante a transação e recusa operações desatualizadas sem mexer no ledger. O serviço antigo de gravação deixou de poder ser invocado diretamente por `service_role`.
+- O servidor passou a carregar os limites do dia curto e a política de dias disponíveis da configuração atual e a aplicá-los à certificação oficial; regressões dedicadas na suite `test:approved-schedules`.
+- `deno check` do endpoint e `liveEdgeSmokeTest.mjs` passaram; no HTTPS real, os dois serviços recusam GET/POST sem JWT e o v3 responde ao preflight CORS. O gateway não foi validado com JWT de A/B.

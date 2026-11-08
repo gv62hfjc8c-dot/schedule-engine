@@ -77,3 +77,7 @@ vazio ou de documentos ainda não importados.
 **Aceitação pendente:** ensaios de importação com ficheiros reais,
 registos históricos versionados, aprovação/revisão segura, RLS real e
 validação final no Safari. Até lá o ponto 17 permanece **aberto**.
+
+## Atualização 08/11/2026 — endpoint v3 e CAS de configuração
+
+A API publicada utiliza a âncora temporal do próprio ledger verificado, certifica a proposta contra as regras operacionais atuais e exige a mesma revisão de configuração e do ledger na transação de gravação. A importação externa permanece adiada; não existe autorização implícita para considerar dias de 2026 sem trabalho.

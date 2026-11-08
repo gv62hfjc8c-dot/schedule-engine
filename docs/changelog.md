@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-11-08 — PR47: versão v3 segura, CAS de configuração e HTTPS real
+
+- API de aprovação `official-schedules-v2` atualizada para v3. Prontidão de aprovação certificada independentemente, fuso e âncora de histórico derivados de dados do servidor; CORS e JWT obrigatórios.
+- SQL `20261108234026` aplicado e validado: a aprovação oficial verifica em transação a **mesma revisão da configuração** usada no cálculo, não apenas a versão do ledger; chamada de escrita antiga revogada ao serviço.
+- O domínio revalida jornadas curtas integrais e dias de trabalho obrigatório por disponibilidade, além de todas as restrições anteriores. Testes de regressão e `deno check` aprovados.
+- Teste HTTP de produção via GitHub Actions validou 401 sem JWT nos dois serviços, em GET/POST, e resposta correta ao preflight CORS.
+- Mantidas 8 propostas de três contas, nenhum horário oficial e nenhuma importação histórica; única advertência Supabase: proteção de palavras-passe comprometidas (plano gratuito).
+
+
 ## 2026-11-08 — PR47: publicação segura da API v2 e provas SQL reais
 
 - Publicada Edge Function `official-schedules-v2` v1 (JWT obrigatório, CORS), sem reativar a API antiga v6 e sem criar qualquer horário oficial.
