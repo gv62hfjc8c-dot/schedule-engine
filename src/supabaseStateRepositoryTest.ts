@@ -6,6 +6,8 @@ import {
   LEGACY_IMPORT_CONSENT_PREFIX,
   LegacyImportConsentRequiredError,
   authorizeLegacyImportForOwner,
+  startFreshCloudAccountForOwner,
+  LEGACY_IMPORT_SKIP_PREFIX,
 } from "./persistence/supabaseStateRepository";
 import type { StateRepository, PersistedAppState } from "./persistence/stateRepository";
 import type { AuthIdentity } from "./persistence/supabaseAuth";
@@ -126,6 +128,45 @@ const ownerConsent = { getItem: (key: string): string | null =>
     storedValue === "confirmed", "Consent is explicitly owner-scoped.");
 }
 
+
+{
+  const cloud = createMockCloud();
+  const oldState=legacy(fixture());
+  const data=new Map<string,string>();
+  const browser={
+    getItem:(key:string)=>data.get(key)??null,
+    setItem:(key:string,value:string)=>{data.set(key,value);},
+  };
+  const first=createSupabaseStateRepository(cloud.client,oldState.repo,browser);
+  let prompted=false;
+  try{await first.load();}
+  catch(error){prompted=error instanceof LegacyImportConsentRequiredError;}
+  ensure(prompted,"A new account must not automatically claim unscoped browser data.");
+  startFreshCloudAccountForOwner(browser,cloud.client.user.id);
+  ensure(data.get(LEGACY_IMPORT_SKIP_PREFIX+cloud.client.user.id)==="skip",
+    "The fresh-account decision must be scoped to authenticated owner.");
+  const isolated=createSupabaseStateRepository(cloud.client,oldState.repo,browser);
+  ensure(await isolated.load()===null,
+    "An explicitly new account must start from empty cloud state.");
+  ensure(oldState.loads()===1,
+    "Choosing an empty account must not read the old browser data again.");
+  ensure(cloud.current().writes===0,
+    "Choosing an empty account must not automatically write or erase cloud data.");
+  ensure(data.get(LEGACY_IMPORT_CONSENT_PREFIX+cloud.client.user.id)!=="confirmed",
+    "Fresh-account choice must never be treated as legacy-import consent.");
+  await isolated.save(fixture(1));
+  ensure(cloud.current().state?.people.length===1,
+    "A fresh account must be able to save its own new configuration.");
+  const otherOwner={
+    get user(){return {...cloud.client.user,id:"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"};},
+    request:cloud.client.request,
+  };
+  const second=createSupabaseStateRepository(otherOwner,legacy(fixture()).repo,browser);
+  let otherBlocked=false;
+  try{await second.load();}
+  catch(error){otherBlocked=error instanceof LegacyImportConsentRequiredError;}
+  ensure(otherBlocked,"Skipping old data for owner A must never authorize owner B.");
+}
 
 {
   const cloud = createMockCloud();
