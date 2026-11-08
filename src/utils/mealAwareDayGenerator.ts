@@ -526,7 +526,7 @@ export function searchMealAwareDaySchedule(
       operatingIntervals,
       requirements,
       selected.map(candidate => toShift(input.date, candidate))
-    );
+    , input.people);
     if (coverage.issues.length > 0) {
       throw new Error(`Erro interno de cobertura: ${coverage.issues.join(" ")}`);
     }
@@ -598,7 +598,7 @@ export function searchMealAwareDaySchedule(
     .sort((a, b) => a.personId.localeCompare(b.personId, "en"));
   const finalCoverage = checkPresenceForWorkShifts(
     input.date, operatingIntervals, requirements, assignments
-  );
+  , input.people);
   const finalWork = validateWorkConstraints({
     timeZone: input.timeZone,
     rules: input.workConstraints,
