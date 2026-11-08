@@ -575,6 +575,10 @@ function validateDraft(
       if (proposed.length) {
         problems.push(date + ": o dia está fechado mas contém turnos.");
       }
+      for(const person of environment.people) {
+        if(person.active && isExplicitRequiredWorkday(person,date))
+          problems.push(date + ": dia de trabalho obrigatório com operação fechada para "+person.id+".");
+      }
       continue;
     }
     if (presence.status !== "configured") {
