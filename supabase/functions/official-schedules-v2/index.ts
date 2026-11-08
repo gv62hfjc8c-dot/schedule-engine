@@ -296,7 +296,7 @@ Deno.serve(async(request:Request)=>{
         version:ledger.version,
         historyStatus:certified.ok?"certified":"not_certified",
         message:certified.ok?"Proposta validada e pronta para aprovação oficial.":
-          certified.issues[0]??"A proposta não cumpre as restrições atuais."});
+          (!certified.ok?certified.failure.issues[0]:null)??"A proposta não cumpre as restrições atuais."});
     }catch{return json({ok:false,code:"storage_error"},503);}
   }
   let input:unknown;
