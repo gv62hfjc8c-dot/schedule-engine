@@ -70,3 +70,20 @@ export function acknowledgePendingGeneratedProposal(
   store.removeItem(key);
   return true;
 }
+
+/** Export even a corrupt pending envelope for operator-led recovery. */
+export function rawPendingGeneratedProposal(
+  store:ProposalOutboxStore,ownerId:string,
+):string|null{
+  return store.getItem(ownerKey(ownerId));
+}
+/**
+ * A user explicitly abandoning a local unconfirmed write is NOT confirmation
+ * of a server commit and never removes anything from the cloud.
+ * UI must require explicit acknowledgement and offer export first.
+ */
+export function discardPendingGeneratedProposal(
+  store:ProposalOutboxStore,ownerId:string,
+):void{
+  store.removeItem(ownerKey(ownerId));
+}
