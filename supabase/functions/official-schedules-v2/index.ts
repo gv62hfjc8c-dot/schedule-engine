@@ -115,11 +115,13 @@ function credibleEnvironment(state:unknown):state is RecordJson {
     isObject(state.weeklyPresenceRequirements)&&
     Array.isArray(state.presenceExceptions);
 }
-async function loadEnvironment(ownerId:string):Promise<ApprovalEnvironment>{
+async function loadEnvironment(ownerId:string):
+  Promise<ApprovalEnvironment & {configurationRevision:number}>{
   const row=oneRow(await readJson(
-    selectedOwnerPath("schedule_engine_states",ownerId,"payload")+"&limit=1"
+    selectedOwnerPath("schedule_engine_states",ownerId,"revision,payload")+"&limit=1"
   ));
-  if(!row||!credibleEnvironment(row.payload))
+  if(!row||!credibleEnvironment(row.payload)||
+     !Number.isSafeInteger(row.revision)||(row.revision as number)<1)
     throw Error("Authoritative operational configuration unavailable");
   const state=row.payload;
   const rules=state.workRules as RecordJson;
@@ -135,6 +137,7 @@ async function loadEnvironment(ownerId:string):Promise<ApprovalEnvironment>{
   if(mandatory!==undefined&&typeof mandatory!=="boolean")
     throw Error("Invalid mandatory-availability policy");
   return {
+    configurationRevision:row.revision as number,
     people:state.people as ApprovalEnvironment["people"],
     availabilities:state.availabilities as ApprovalEnvironment["availabilities"],
     operatingCalendar:{
@@ -317,10 +320,15 @@ Deno.serve(async(request:Request)=>{
   catch{return json({ok:false,code:"storage_error"},503);}
   if(!trustedZone)return json({ok:false,code:"history_incomplete",
     issues:["O arquivo oficial ainda não foi iniciado com cobertura histórica verificada."]},409);
+  let validatedStateRevision:number|null=null;
   const ports:VerifiedOfficialSchedulePorts={
     authenticateOwner:async()=>ownerId,
     loadLedger,
-    loadEnvironment,
+    loadEnvironment:async(owner)=>{
+      const env=await loadEnvironment(owner);
+      validatedStateRevision=env.configurationRevision;
+      return env;
+    },
     loadSavedCandidate:loadCandidate,
     loadHistoricalEvidence:async(owner,target,env)=>{
       const ledger=await loadLedger(owner);
@@ -332,10 +340,15 @@ Deno.serve(async(request:Request)=>{
     commit:async(id,next,expected)=>{
       if(validateApprovedScheduleLedger(next).length)
         throw Error("Uncertified official snapshot");
-      const result=await readJson("/rest/v1/rpc/commit_schedule_engine_approved_ledger",{
+      const operation=isObject(input)?input.kind:null;
+      if(operation!=="cancel"&&(!Number.isSafeInteger(validatedStateRevision)||
+        validatedStateRevision===null))
+        throw Error("Cannot commit without a verified state revision");
+      const result=await readJson("/rest/v1/rpc/commit_schedule_engine_approved_ledger_v2",{
         method:"POST",body:JSON.stringify({
           p_owner_id:id,p_expected_version:expected,
-          p_next_payload:next,p_operation:isObject(input)?input.kind:null,
+          p_expected_state_revision:validatedStateRevision,
+          p_next_payload:next,p_operation:operation,
           p_record_id:isObject(input)?(
             input.kind==="cancel"?input.scheduleId:
             input.kind==="revise"?next.records.find(r=>
