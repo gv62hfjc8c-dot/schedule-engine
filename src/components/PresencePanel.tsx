@@ -44,7 +44,7 @@ const emptyRequirement = (): PresenceRequirement => ({
 });
 
 const fields: {
-  key: keyof PresenceRequirement;
+  key: "minimumDuringOperation" | "minimumAtOpening" | "minimumAtClosing";
   label: string;
   help: string;
 }[] = [
