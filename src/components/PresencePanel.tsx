@@ -485,6 +485,7 @@ export default function PresencePanel({
                             ...exception, requirements: next,
                           })}
                           prefix={`Exceção ${exception.date}`}
+                          qualifications={qualifications}
                         />
                         {!validRequirement && (
                           <p className="presence-validation" role="alert">
