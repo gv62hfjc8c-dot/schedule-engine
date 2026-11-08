@@ -85,7 +85,7 @@ assert(occupied.status==="target_occupied"&&occupied.externalContext===null,
 
 if(!ready.externalContext)throw new Error("Verified historical context expected.");
 const hours:TimeInterval[]=[{start:"08:00",end:"12:00"}];
-const closed=Object.fromEntries(WEEKDAYS.map(d=>[d,[]])) as WeeklyOperatingHours;
+const closed=WEEKDAYS.reduce((hours,day)=>{hours[day]=[];return hours;},{} as WeeklyOperatingHours);
 const presence=createEmptyWeeklyPresenceRequirements();
 const one:PresenceRequirement={
   minimumAtOpening:1,minimumDuringOperation:1,minimumAtClosing:1,
