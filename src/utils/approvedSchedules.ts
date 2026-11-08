@@ -655,7 +655,7 @@ function validateDraft(
   const externalHistory=environment.historicalShifts??[];
   if(!Array.isArray(externalHistory) ||
      externalHistory.some(shift=>!shift||!shift.personId?.trim()||
-       !civil(shift.date)||!shift.interval||!("mealBreak" in shift)))
+       civil(shift.date)===null||!shift.interval||!("mealBreak" in shift)))
     return {code:"invalid_input",issues:["Contexto histórico externo inválido."],
       workViolations:[]};
   if(externalHistory.some(shift=>inside(shift.date,draft)))
@@ -669,6 +669,12 @@ function validateDraft(
     );
     return !source || !inside(shift.date, source);
   });
+
+  const approvedWorkIds=new Set(activeShifts.map(s=>s.date+"|"+s.personId));
+  if(externalHistory.some(shift=>approvedWorkIds.has(shift.date+"|"+shift.personId)))
+    return {code:"invalid_input",issues:[
+      "O mesmo turno não pode constar simultaneamente do histórico importado e do ledger oficial."
+    ],workViolations:[]};
 
   const work = validateWorkConstraints({
     timeZone: ledger.timeZone,
