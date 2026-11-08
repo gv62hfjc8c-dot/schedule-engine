@@ -12,13 +12,16 @@ interface Readiness {
   historyStatus:string;
   message:string;
 }
-const enabled=import.meta.env.VITE_OFFICIAL_APPROVAL_READY==="true";
+// Read-only readiness is always available now that the protected v2 service
+// is deployed. "false" remains an emergency rollout kill switch; the server,
+// never this flag, decides whether historical certification permits approval.
+const enabled=import.meta.env.VITE_OFFICIAL_APPROVAL_READY!=="false";
 
 /**
  * Readiness is ALWAYS resolved by the authenticated server. A saved proposal
  * cannot be promoted by a client boolean or by marking an unknown history empty.
- * The rollout flag stays disabled until the Edge service and its history
- * attestation have been verified against real Supabase Auth sessions.
+ * Historical gaps are always server-side blockers; the rollout kill switch
+ * cannot be used to grant approval without independently checked evidence.
  */
 export default function OfficialApprovalPanel({proposal}:Props){
   const [readiness,setReadiness]=useState<Readiness|null>(null);
