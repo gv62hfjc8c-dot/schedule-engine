@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { supabaseAuthClient } from "../persistence/supabaseInstance";
 import { accountingCycleForDate } from "../utils/accountingCycle28";
 import ScheduleViews from "./ScheduleViews";
+import OfficialApprovalPanel from "./OfficialApprovalPanel";
 import { createSupabaseGeneratedScheduleRepository } from "../persistence/supabaseGeneratedScheduleRepository";
 import type { StoredGeneratedSchedule, UnreadableGeneratedSchedule } from "../persistence/generatedScheduleRepository";
 import { proposalsForDay, selectedProposalForDay, calendarProposalForDay, calendarArchiveOverview, unreadableArchiveAffectsDate, archiveDayState, previewFromStored, savedProposalLabel } from "../utils/savedScheduleView";
@@ -232,12 +233,15 @@ export default function ScheduleHome({
         <button type="button" className="se-outline" onClick={() => setScreen("month")}>
           ← Voltar ao calendário
         </button>
-        <span className="se-context">Proposta guardada · não aprovada</span>
+        <span className="se-context">{import.meta.env.VITE_OFFICIAL_APPROVAL_READY==="true"
+          ? "Proposta arquivada · consultar estado oficial"
+          : "Proposta guardada · não aprovada"}</span>
       </div>
       <div className="se-readonly-note">
         Horário arquivado em {savedProposalLabel(stored)}. A vista utiliza os turnos
         e os nomes originais da geração e não executa novamente o motor.
       </div>
+      <OfficialApprovalPanel proposal={stored}/>
       <ScheduleViews
         assignments={stored.payload.shifts}
         people={stored.payload.people}
