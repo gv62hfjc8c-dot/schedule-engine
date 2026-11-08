@@ -234,7 +234,7 @@ Os códigos A–F acima continuam **PENDENTES** até serem executados.
 | 01 Documentação | Implementado | Comparar README, arquitetura, roadmap, setup e relatório com funcionalidades visíveis; nenhuma funcionalidade experimental declarada operacional |
 | 02 Sem turno ≠ folga | Implementado | A07 e D06; nunca interpretar ausência de turno como folga |
 | 03 Edge Function antiga | **Versão 410 publicada; ensaio HTTP pendente** | Foi publicada a v6 com `verify_jwt=true`; confirmar resposta autenticada e eventuais consumidores. Bundle v5 arquivado para rollback |
-| 04 Consentimento na importação | Implementado | **G01** abaixo, em conta descartável sem estado remoto; ensaio de precedência do estado cloud |
+| 04 Consentimento na importação | Implementado e reforçado para múltiplas contas | **G01**: conta nova escolhe começar vazia, sem importar dados legados do browser; a decisão é por proprietário, não apaga dados antigos, não afeta outra conta, e requer teste Safari |
 | 05 Migrações divergentes | **Versões PR47 alinhadas com a instância real** | Histórico remoto e dois SQLs de migração PR47 têm IDs idênticos `20261108124759` e `20261108124844`; ensaio sintético aprovado. Falta verificar end-to-end em Auth/UI |
 | 06 Propostas misturadas | Implementado | D02–D04 e F04; vista de uma proposta não importa turnos de outras |
 | 07 Alvo 40h vs contrato | Implementado (opcional) | B09, C08, F02 e F03; hard cap individual e alvo soft |
@@ -332,3 +332,11 @@ uma alteração parcial sem repetir os testes afetados.
 | H08 | Importar horários antigos e rever totais de 28 dias e histórico anual | Identidade estável, sem dupla contagem, revisão de conflitos, proveniência | PENDENTE — importação adiada pelo utilizador |
 
 Provas técnicas atuais: `test:official-revisions`, `test:verified-official-service`, `test:official-edge-bundle`, `test:history-context`, mais `scripts/ci/postgres_history_assertions.sql` e `scripts/ci/postgres_approval_revision_assertions.sql`. Estes testes não autorizam ativar a flag de aprovação nem efetuar merge sem evidência dos ensaios H01–H08 pertinentes.
+
+
+## PR47 — Contas de ensaio e dados legados do mesmo navegador
+
+- O Safari pode manter dados legados não associados a uma identidade; um utilizador novo não deve ser obrigado a reclamá-los. A opção **Começar esta conta vazia — não importar dados antigos** grava apenas uma decisão local associada ao identificador autenticado da conta, sem alterar a configuração existente nem importar dados de outra pessoa.
+- Se a conta nova já tiver estado remoto, esse estado continua a prevalecer. Se não tiver, a nova conta começa vazia e poderá gravar os próprios dados com a primeira edição.
+- `src/supabaseStateRepositoryTest.ts` confirma que o skip é isolado entre dois titulares e não escreve automaticamente na base de dados. Ainda falta confirmar no Safari e obter uma proposta guardada por conta.
+- **Nunca carregar no botão de importação dos dados antigos para uma conta de ensaio** quando o conteúdo pertence à conta habitual.
