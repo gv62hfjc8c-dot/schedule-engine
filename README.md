@@ -13,8 +13,8 @@ O fluxo operacional ativo inclui:
 - **Calendário mensal** com resumo por dia, indicadores e acesso à gestão
   diária (equipa, pesquisa, filtros, seleção persistente entre páginas).
 - **Gerador condicionado** com validação independente de hard constraints.
-  O núcleo suporta até **28 dias** no PR #47; a interface continua limitada
-  a **14 dias** enquanto a base de dados publicada mantiver esse limite.
+  O núcleo e a interface do PR #47 suportam até **28 dias**; a migração
+  de arquivo correspondente já foi aplicada no Supabase do projeto.
 - **Disponibilidade e operação** por padrão semanal, exceções e mínimos de
   cobertura de abertura, período central e fecho.
 - **Regras de trabalho**: limites diários/semanais, descanso e refeições,
@@ -25,11 +25,10 @@ O fluxo operacional ativo inclui:
 No PR #47, foram acrescentados contratos semanais individuais (limites
 **hard**), objetivos semanais (**soft**), datas de trabalho obrigatórias,
 fuso horário IANA por operação, ciclos contabilísticos fixos de 28 dias,
-**geração de 28 dias testada no núcleo** e indisponibilidades obrigatórias
-por pessoa. As qualificações são etiquetas descritivas, não requisitos
-de cobertura por competência. A geração de 28 dias na interface será
-ativada apenas depois da alteração do CHECK no Supabase real e verificação
-de gravação/reabertura com `VITE_GENERATOR_28_DAY_READY=true`.
+**geração de 28 dias testada no núcleo** e disponibilidade por pessoa.
+As qualificações podem ser exigidas na cobertura e são validadas também
+nas pausas. A UI do PR #47 aceita 28 dias; falta confirmação funcional
+no Safari do arquivo e recuperação de uma proposta longa.
 
 ### Não confundir proposta com aprovação
 
@@ -41,8 +40,8 @@ certificada.
 
 Os componentes históricos de aprovação subsistem como **código de domínio
 e testes**, sem ligação ao fluxo operacional ativo. O serviço antigo
-`official-schedules` no Supabase foi inventariado no Checkpoint D, mas
-**não foi desativado nem alterado**.
+`official-schedules` no Supabase foi substituído pela versão inerte
+v6 (HTTP 410), com fonte v5 preservada para recuperação.
 
 ## Instalação e execução
 
@@ -97,9 +96,8 @@ manualmente; não faz parte de `npm test`.
 - `src/application/`: experiências históricas de fronteira de
   confiança, **não ligadas à interface atual**.
 - `supabase/migrations/`: quatro identificadores históricos reconstruídos
-  para ensaio de instalação limpa e uma migração **PR47 ainda não aplicada**
-  que suporta arquivo de 28 dias. O CI ensaia as cinco migrações num
-  PostgreSQL descartável. **Não executar `db push` na produção** sem
+  e duas migrações PR47 **aplicadas** (28 dias e RPC privado), ensaiadas
+  em PostgreSQL descartável no CI. **Não executar `db push` na produção** sem
   verificar histórico, backup/restauro e operações de rollout.
 - `supabase/audit/` e `supabase/rollback/`: inventário read-only e
   fontes preservadas para recuperar a função antiga.
