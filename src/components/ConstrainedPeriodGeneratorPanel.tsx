@@ -17,6 +17,8 @@ import {
 import { prepareExplicitEmptyContext } from "../utils/explicitEmptyContext";
 import { INITIAL_WORK_CONSTRAINTS } from "../utils/workConstraints";
 import { MAX_CONSTRAINED_PERIOD_DAYS } from "../utils/constrainedPeriodGenerator";
+import { MAX_PERIOD_DAYS } from "../utils/periodGenerator";
+import { parseCivilDays } from "../utils/generatorPeriodCapability";
 import { todayInTimeZone } from "../utils/monthlyScheduleView";
 import { weeklyPersonWorkSummary, formatWorkMinutes } from "../utils/weeklyWorkSummary";
 
@@ -41,6 +43,9 @@ interface Snapshot extends ConstrainedPeriodGeneratorPanelProps {
 }
 
 const PREVIEW_MAX_NODES = 5_000;
+const UI_MAX_PERIOD_DAYS =
+  import.meta.env.VITE_GENERATOR_28_DAY_READY === "true"
+    ? MAX_CONSTRAINED_PERIOD_DAYS : MAX_PERIOD_DAYS;
 
 
 function addCivilDays(date: string, amount: number): string {
@@ -208,6 +213,15 @@ export default function ConstrainedPeriodGeneratorPanel({
   }
 
   function handleGenerate() {
+    const days=parseCivilDays(startDate,endDate);
+    if(days!==null && days>UI_MAX_PERIOD_DAYS){
+      setError("O motor suporta 28 dias, mas a base de dados ainda não foi "+
+        "confirmada como compatível. Limite operacional atual: "+
+        UI_MAX_PERIOD_DAYS+" dias.");
+      setSnapshot(null);
+      setSaveState("idle");
+      return;
+    }
     saveAttempt.current++;
     setSaveState("idle");
     setSaveProblem(null);
@@ -303,7 +317,7 @@ export default function ConstrainedPeriodGeneratorPanel({
             <p className="section-kicker">Planeamento de horários</p>
             <h2>Gerar horário</h2>
           </div>
-          <span className="work-rule-badge">Até {MAX_CONSTRAINED_PERIOD_DAYS} dias</span>
+          <span className="work-rule-badge">Até {UI_MAX_PERIOD_DAYS} dias</span>
         </div>
 
         <p className="section-description">
