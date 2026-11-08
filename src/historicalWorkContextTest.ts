@@ -30,6 +30,10 @@ const basic:HistoricalContextRequest={
   personIds:people.map(p=>p.id),
   archive:{timeZone:"Atlantic/Azores",coverage:[],shifts:[]},
 };
+const absentArchive=prepareHistoricalWorkContext({...basic,archive:null});
+assert(absentArchive.status==="incomplete_context" &&
+  absentArchive.externalContext===null,
+  "Archive not imported is incomplete, never an empty authoritative ledger.");
 const none=prepareHistoricalWorkContext(basic);
 assert(none.status==="incomplete_context"&&none.externalContext===null&&
   none.missingCoverage.length>0,
