@@ -18,6 +18,7 @@ interface ScheduleGeneratorPanelProps {
   workRules: WorkRulesConfiguration;
   presence: PresenceConfiguration;
   operationTimeZone: string;
+  ownerId?: string | null;
   initialDate?: string;
   onSaveGenerated?(
     payload: GeneratedSchedulePayload,
