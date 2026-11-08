@@ -125,7 +125,7 @@ e regras consistentes.
 | C03 | Dia 09:00–16:00 (7h), jornada curta até 7h, cobertura 1/0/1 | Se gerado, 7h presença, 1h refeição, 6h efetivas | PENDENTE |
 | C04 | Dia 09:00–18:00 (9h), jornada curta até 9h, cobertura 1/0/1 | Se gerado, 9h presença, 1h refeição, 8h efetivas | PENDENTE |
 | C05 | Cobertura superior à equipa disponível | Nunca guardar uma proposta inválida; diagnóstico explícito | PENDENTE |
-| C06 | Tentar gerar 15 dias e 29 dias consecutivos | O núcleo permite até 28 dias; a interface só pode desbloquear mais de 14 quando a migração de arquivo estiver publicada e verificada. 29 dias são rejeitados | PENDENTE |
+| C06 | Tentar gerar 15 dias, depois 28, depois 29 dias consecutivos | O motor aceita até 28; geração válida com 28 é arquivada e restaurada; 29 é rejeitado sem criar proposta | PENDENTE |
 | C07 | Depois de gerar, mudar datas/regras e tentar usar pré-visualização anterior | Resultado antigo invalida-se, confirmação renovada | PENDENTE |
 | C08 | Contrato de 20h com objetivo de 15h, num período de uma semana | Indicadores de trabalho efetivo e objetivos coerentes; hard cap nunca excedido | PENDENTE |
 | C09 | Marcar dia obrigatório dentro do período, com disponibilidade e operação | Geração satisfaz obrigação ou informa impossibilidade, sem falso sucesso | PENDENTE |
@@ -232,7 +232,7 @@ Os códigos A–F acima continuam **PENDENTES** até serem executados.
 | 02 Sem turno ≠ folga | Implementado | A07 e D06; nunca interpretar ausência de turno como folga |
 | 03 Edge Function antiga | **Versão 410 publicada; ensaio HTTP pendente** | Foi publicada a v6 com `verify_jwt=true`; confirmar resposta autenticada e eventuais consumidores. Bundle v5 arquivado para rollback |
 | 04 Consentimento na importação | Implementado | **G01** abaixo, em conta descartável sem estado remoto; ensaio de precedência do estado cloud |
-| 05 Migrações divergentes | **Reconstrução sintética em CI aprovada; instância real por reconciliar** | Job `migration-contract` reconstitui os ficheiros SQL num PostgreSQL 17 descartável. Validar diferenças da plataforma Supabase e histórico remoto antes de qualquer `db push` |
+| 05 Migrações divergentes | **Versões PR47 alinhadas com a instância real** | Histórico remoto e dois SQLs de migração PR47 têm IDs idênticos `20261108124759` e `20261108124844`; ensaio sintético aprovado. Falta verificar end-to-end em Auth/UI |
 | 06 Propostas misturadas | Implementado | D02–D04 e F04; vista de uma proposta não importa turnos de outras |
 | 07 Alvo 40h vs contrato | Implementado (opcional) | B09, C08, F02 e F03; hard cap individual e alvo soft |
 | 08 Certificação independente | Implementado | C02–C05 e F03; nenhuma solução com hard constraints violadas é publicada |
@@ -245,9 +245,9 @@ Os códigos A–F acima continuam **PENDENTES** até serem executados.
 | 15 Fusos divergentes | Implementado | B11, F02 e F03; fuso IANA da operação e do snapshot arquivado |
 | 16 Escrita concorrente | **Mitigado** | D07, F05 e **G02**; mesma sessão em série, divergências entre abas sem merge automático |
 | 17 Aprovação oficial ausente | **Fora do fluxo por decisão** | A06 e teste de arquitetura: confirmar ausência de comandos de aprovação na UI. **Não criar uma aprovação fictícia só para conseguir testá-la** |
-| 18 Ciclos de 28 dias | **Núcleo de 28 dias implementado; UI/SQL condicionados** | `test:four-week` valida geração única de 28 dias com certificação; a interface mantém limite legado até publicação e validação da migração `pr47_four_week_proposals` |
+| 18 Ciclos de 28 dias | **28 dias disponíveis na branch PR47** | `test:four-week` valida geração única com certificação; migração `20261108124759` publicada e UI limitada a 28 dias. Falta geração real e recuperação Safari |
 | 19 Perfis de colaboradores | **Parcial, com qualificação implementada** | `test:qualification-coverage` cobre exigência de qualificação durante turnos e refeições; contratos e dias obrigatórios presentes. Ausências e tipologias contratuais continuam fora da cobertura |
-| 20 Segurança Supabase | **Pendente de intervenção externa** | 10 verificações SQL read-only D, F06, bloco E e **G03**; os dois avisos externos mantêm-se |
+| 20 Segurança Supabase | **RPC reforçado; 1 aviso Auth pendente** | Migração `20261108124844` aplicada e funções/permissões verificadas; verificar operações reais de gravação no Safari. Proteção de passwords comprometidas continua desligada, disponível em Supabase Pro+ |
 | 21 Código experimental | Implementado | `npm run test:architecture`; verificar ausência de laboratório na UI e preservação dos testes do domínio |
 | 22 Terminologia desatualizada | Implementado | A03, A06, D01 e revisão textual: «proposta guardada, não aprovada» |
 | 23 Cobertura de regressões | **Reforçado, aceitação pendente** | `npm test` e F01–F08, mais A–D e G01–G03. Não certificar a ausência de defeitos fora dos cenários executados |
@@ -302,3 +302,12 @@ uma alteração parcial sem repetir os testes afetados.
 - O teste de isolamento entre duas contas sintéticas foi expandido depois dessa execução, em `scripts/ci/postgres_migration_assertions.sql`; confirmar a respetiva CI antes de marcar PASS.
 - A simulação não demonstra isolamento de duas contas reais do Supabase Auth. Essa verificação e os ajustes de Auth Dashboard continuam pendentes e não autorizam utilizar a base operacional como staging.
 - Não é necessário comprar uma branch Supabase. A aplicação só deve ativar geração de 28 dias após compatibilidade SQL confirmada na instância alvo e validação funcional.
+
+
+## Instância Supabase PR47 — correções publicadas
+
+- `20261108124759_pr47_four_week_proposals.sql`: aplicado e confirmado via `pg_constraint`. A tabela mantém as quatro propostas existentes.
+- `20261108124844_pr47_state_rpc_private_schema.sql`: aplicado; função pública `SECURITY INVOKER` e escrita privada com CAS. Auditor Supabase deixou de reportar execução privilegiada da RPC pública.
+- A funcionalidade **Leaked Password Protection** depende de Supabase Pro ou superior; não foi simulada por validação JavaScript do frontend, porque isso não protegeria o endpoint Auth.
+- A migração e o SQL do Git foram alinhados às versões instaladas. Antes de ensaios reais com dados no browser: atualizar a branch PR47, executar CI e consultar a configuração recuperada sem editar.
+- A nova interface PR47 aceita 28 dias; outros deployments devem aplicar migrações antes de publicar a UI.
