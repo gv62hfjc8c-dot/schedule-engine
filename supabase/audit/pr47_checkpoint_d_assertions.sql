@@ -81,13 +81,18 @@ with checks as (
     'Active state RPC is authenticated; do not revoke without replacement'
   union all
   select '09_state_rpc_fixed_search_path',
-    (select p.prosecdef and exists(
+    (select not p.prosecdef and exists(
        select 1 from unnest(p.proconfig) as cfg(setting)
        where cfg.setting = 'search_path=""'
      ) from pg_proc p join pg_namespace n on n.oid=p.pronamespace
      where n.nspname='public' and p.proname='save_schedule_engine_state'
-     and pg_get_function_identity_arguments(p.oid)='p_expected_revision bigint, p_payload jsonb'),
-    'SECURITY DEFINER state RPC retains explicit fixed search_path'
+     and pg_get_function_identity_arguments(p.oid)='p_expected_revision bigint, p_payload jsonb')
+    and exists (select 1 from pg_proc q join pg_namespace m on m.oid=q.pronamespace
+      where m.nspname='schedule_engine_private' and q.proname='save_state_impl'
+        and q.prosecdef
+        and exists(select 1 from unnest(q.proconfig) as cfg(setting)
+          where cfg.setting='search_path=""')),
+    'Public RPC is INVOKER; private writer is DEFINER; both fix search_path'
   union all
   select '10_generated_owner_insert_policy',
     exists(select 1 from pg_policies
