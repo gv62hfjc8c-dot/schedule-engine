@@ -27,6 +27,7 @@ assert.deepEqual(migrations,[
   "20261108124844_pr47_state_rpc_private_schema.sql",
   "20261108141507_pr47_historical_archive_foundation.sql",
   "20261108142521_pr47_trusted_approval_revisions.sql",
+  "20261108180000_pr47_verified_ledger_initialization.sql",
 ],"Active migration versions must exactly match the four installed histories, two deployed PR47 upgrades and one staged historical foundation.");
 const state=file("supabase/migrations/20261102125810_generated_schedule_proposals.sql");
 contains(state,/security\s+definer/i,"State RPC must document its security context.");
@@ -63,6 +64,13 @@ contains(deployedRpcMigration,/CREATE\s+SCHEMA\s+IF\s+NOT\s+EXISTS\s+schedule_en
   "Deployed migration must install the private schema.");
 contains(deployedRpcMigration,/SECURITY\s+INVOKER/i,
   "Deployed public RPC must never stay SECURITY DEFINER.");
+const verifiedInit=file("supabase/migrations/20261108180000_pr47_verified_ledger_initialization.sql");
+contains(verifiedInit,/initialize_schedule_engine_verified_ledger/,
+  "Trusted ledger initialization must require verified historic facts.");
+contains(verifiedInit,/schedule_engine_history_day_facts/,
+  "Verified initialization must inspect person-day history rather than a boolean.");
+contains(verifiedInit,/REVOKE\s+ALL\s+ON\s+FUNCTION[\s\S]*?initialize_schedule_engine_verified_ledger/,
+  "Verified initializer must deny browser execution.");
 const revisions=file("supabase/migrations/20261108142521_pr47_trusted_approval_revisions.sql");
 contains(revisions,/p_operation\s+NOT\s+IN\s*\('approve','replace','cancel','revise'\)/i,
   "Trusted official CAS must accept partial revision events.");
