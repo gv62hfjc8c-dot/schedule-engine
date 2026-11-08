@@ -21,3 +21,47 @@ jobs:
       - run: npm test
       - run: npm run typecheck
       - run: npm run build
+
+  migration-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: schedule_engine_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d schedule_engine_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      PGPASSWORD: postgres
+      PGHOST: 127.0.0.1
+      PGPORT: "5432"
+      PGUSER: postgres
+      PGDATABASE: schedule_engine_ci
+    steps:
+      - uses: actions/checkout@v4
+      - name: Recreate clean Supabase-compatible schema in disposable PostgreSQL
+        run: |
+          if ! command -v psql >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y postgresql-client
+          fi
+          psql -v ON_ERROR_STOP=1 -f scripts/ci/postgres_supabase_stub.sql
+          for migration in supabase/migrations/*.sql; do
+            echo "REHEARSAL $migration"
+            psql -v ON_ERROR_STOP=1 -f "$migration"
+          done
+          psql -v ON_ERROR_STOP=1 -f scripts/ci/postgres_migration_assertions.sql
+      - name: Rehearse private RPC, verify CAS/history, and restore original
+        run: |
+          psql -v ON_ERROR_STOP=1 -f supabase/deployment/pr47_state_rpc_private_schema.sql
+          psql -v ON_ERROR_STOP=1 -f scripts/ci/postgres_private_rpc_assertions.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/rollback/pr47_state_rpc_public_restore.sql
+          psql -v ON_ERROR_STOP=1 -f scripts/ci/postgres_rollback_assertions.sql
