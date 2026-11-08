@@ -29,6 +29,8 @@ export interface HistoricalContextRequest {
   /** Includes every person whose history may affect the generated period. */
   personIds: string[];
   archive: HistoricalWorkArchive | null;
+  /** Optional start of historical continuity, e.g. 2026-01-01. */
+  historyStartDate?: string;
 }
 export type HistoricalContextResult = {
   status: "ready" | "incomplete_context" | "target_occupied" | "invalid_input";
@@ -67,6 +69,7 @@ export function prepareHistoricalWorkContext(
   input:HistoricalContextRequest,
 ):HistoricalContextResult {
   if(!input||!ordered(input.targetPeriod)||
+     (input.historyStartDate!==undefined&&civil(input.historyStartDate)===null)||
      !Array.isArray(input.personIds)||
      input.personIds.some(id=>typeof id!=="string"||!id.trim())||
      new Set(input.personIds).size!==input.personIds.length||
@@ -105,8 +108,12 @@ export function prepareHistoricalWorkContext(
       return invalid(["Turno importado fora de um período histórico verificado."]);
   }
   const missing:Array<{date:string;personId:string}>=[];
-  // We must know EVERY person's external days, not only the days with shifts.
-  const start=civil(required.startDate)!,end=civil(required.endDate)!;
+  // Require EVERY person's verified history since the configured anchor,
+  // even on days without work; no assumption of implicit "off" days.
+  // Current work rules are NOT retroactively applied to old archived shifts.
+  const from=input.historyStartDate&&input.historyStartDate<required.startDate
+    ?input.historyStartDate:required.startDate;
+  const start=civil(from)!,end=civil(required.endDate)!;
   for(let stamp=start;stamp<=end;stamp+=DAY) {
     const date=new Date(stamp).toISOString().slice(0,10);
     if(date>=input.targetPeriod.startDate&&date<=input.targetPeriod.endDate)
