@@ -7,6 +7,7 @@ import {
   isPersistedAppState,
 } from "./localStorageStateRepository";
 import type { SupabaseAuthClient } from "./supabaseAuth";
+import { mergePersistedStates } from "../utils/threeWayStateMerge";
 
 interface BrowserStateSource {
   getItem(key: string): string | null;
@@ -34,6 +35,15 @@ export class SupabaseStateError extends Error {
   constructor(message: string, readonly status: number, readonly code?: string) {
     super(message);
     this.name = "SupabaseStateError";
+  }
+}
+export class SupabaseStateConflictError extends Error {
+  constructor(readonly fields:string[]) {
+    super("Edições simultâneas incompatíveis em: "+
+      fields.slice(0,8).join(", ")+
+      (fields.length>8?" …":"")+
+      ". Exporta as alterações locais antes de recarregar.");
+    this.name="SupabaseStateConflictError";
   }
 }
 
@@ -145,6 +155,7 @@ export function createSupabaseStateRepository(
 ): StateRepository {
   let revision: number | null = null;
   let revisionOwnerId: string | null = null;
+  let baseline: PersistedAppState | null = null;
   // Changes from a single browser session are serialized so each RPC sees
   // the revision returned by the previous write. Multi-tab conflicts still
   // fail closed under the PostgreSQL compare-and-swap contract.
@@ -158,6 +169,7 @@ export function createSupabaseStateRepository(
     if (client.user?.id !== expected) {
       revision = null;
       revisionOwnerId = null;
+      baseline = null;
       throw new Error("A sessão mudou durante a operação. Recarrega os dados da conta.");
     }
   };
@@ -230,6 +242,7 @@ export function createSupabaseStateRepository(
       verifyOwner(ownerId);
       revision = remote.revision;
       revisionOwnerId = ownerId;
+      baseline = remote.state===null?null:structuredClone(remote.state);
       if (remote.state !== null) {
         return remote.state;
       }
@@ -246,6 +259,7 @@ export function createSupabaseStateRepository(
         const nextRevision=await saveRemote(migrated, 0);
         verifyOwner(ownerId);
         revision=nextRevision;
+        baseline=structuredClone(migrated);
         return migrated;
       } catch (error) {
         // Concurrency: another tab may have imported first. Re-read only
@@ -254,6 +268,7 @@ export function createSupabaseStateRepository(
           const current = await readRemote();
           verifyOwner(ownerId);
           revision = current.revision;
+          baseline=current.state===null?null:structuredClone(current.state);
           if (current.state !== null) return current.state;
         }
         throw error;
@@ -265,17 +280,44 @@ export function createSupabaseStateRepository(
       if (revisionOwnerId !== ownerId || revision === null) {
         throw new Error("É necessário carregar os dados desta conta antes de guardar.");
       }
-      const operation=saveQueue.then(async()=>{
+      const operation=saveQueue.then(async():Promise<PersistedAppState|void>=>{
         verifyOwner(ownerId);
         if(revisionOwnerId !== ownerId || revision === null)
           throw new Error("A revisão da configuração já não pertence à conta atual.");
-        const nextRevision=await saveRemote(state,revision);
-        verifyOwner(ownerId);
-        revision=nextRevision;
+        const original=structuredClone(state);
+        const startBaseline=baseline===null?null:structuredClone(baseline);
+        let candidate=original;
+        let expected=revision;
+        let reconciled=false;
+        for(let attempt=0;attempt<3;attempt++){
+          verifyOwner(ownerId);
+          try {
+            const nextRevision=await saveRemote(candidate,expected);
+            verifyOwner(ownerId);
+            revision=nextRevision;
+            baseline=structuredClone(candidate);
+            // Caller must synchronize the in-memory UI on a successful merge
+            // so a later autosave cannot revert another tab's changes.
+            return reconciled?candidate:undefined;
+          }catch(error){
+            if(!(error instanceof SupabaseStateError)||
+              error.code!=="40001"||attempt===2) throw error;
+            const current=await readRemote();
+            verifyOwner(ownerId);
+            if(!current.state||!startBaseline) throw error;
+            const result=mergePersistedStates(startBaseline,original,current.state);
+            if(!result.ok)throw new SupabaseStateConflictError(result.conflicts);
+            if(!isPersistedAppState(result.state))
+              throw new Error("A conciliação gerou dados inválidos; gravação cancelada.");
+            candidate=result.state;
+            expected=current.revision;
+            reconciled=true;
+          }
+        }
       });
-      // A rejected write must remain visible to its own caller, but it
-      // must not permanently poison the queue for subsequent retries.
-      saveQueue=operation.catch(()=>undefined);
+      // A rejected write remains visible to its caller; it must not
+      // permanently poison the queue for subsequent safe retries.
+      saveQueue=operation.then(()=>undefined,()=>undefined);
       return operation;
     },
   };
