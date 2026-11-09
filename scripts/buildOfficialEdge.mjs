@@ -26,7 +26,7 @@ try {
     "The Edge bundle must never call the unsafe all-years initializer.");
   assert.doesNotMatch(source,/(?:from|import)\s+["']\.\.?\//,
     "Edge bundle must not contain unresolved relative imports.");
-  console.log("PR47-17: trusted Deno Edge function bundled without unresolved local imports (not deployed).");
+  console.log("PR47-17: trusted Deno Edge source bundled without unresolved local imports; deployment version verified separately.");
 } finally {
   rmSync(temp,{recursive:true,force:true});
 }
