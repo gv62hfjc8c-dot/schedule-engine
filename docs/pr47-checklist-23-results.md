@@ -101,3 +101,35 @@ end-to-end com um horário oficial verdadeiro no Safari macOS.
 
 **P06: implementação e CI PASS; reteste Safari específico continua pendente.**
 Não declarar 23/23 aceites até validar esse último comportamento.
+
+
+## Fecho funcional comunicado — 09/11/2026 (substitui o estado da checklist original)
+
+O responsável confirmou na aplicação, após `git pull`, que o fluxo de
+**propostas sobrepostas continua a funcionar corretamente**. A aceitação
+funcional comunicada abrange os pontos **02, 06, 07, 09, 10, 11 e 12**.
+
+**Resultado consolidado: 23/23 itens aceites dentro dos métodos e limites
+de evidência explicitamente indicados neste registo.** Isto inclui 16 PASS
+anteriores (alguns só por WebKit/CI) e sete resultados funcionais agora
+comunicados. O registo histórico inicial "7 POR TESTAR" descreve uma
+fotografia anterior e não o estado final desta ronda.
+
+**Ressalva P06:** o ensaio Safari confirmou coexistência e isolamento de
+propostas não aprovadas. A nova **proteção de períodos oficialmente
+aprovados** tem código e testes automáticos aprovados na execução
+GitHub Actions `42639795765`, mas **não foi testada contra uma aprovação
+real no Safari macOS**. Não atribuir a essa proteção uma prova que não
+ocorreu. A aprovação real continua condicionada ao histórico verificado,
+cuja importação foi adiada por decisão do responsável.
+
+Limitação arquitetural conhecida: a consulta de aprovações antes da
+geração bloqueia períodos ocupados, mas uma aprovação concorrente entre
+consulta e gravação não fica transacionalmente impedida no cliente.
+Qualquer publicação oficial tem de revalidar o estado atual e aplicar CAS
+no servidor; uma proposta arquivada nunca passa a oficial por inferência.
+
+**Autorização posterior:** o responsável autorizou expressamente o fecho
+e merge do PR47, mantendo estas ressalvas e o risco Auth do Supabase
+Free formalmente aceite. Esta autorização não altera os resultados
+históricos nem prova importação de dados reais.
