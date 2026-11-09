@@ -5,10 +5,9 @@ Motor de geração e validação de horários, concebido como núcleo de schedul
 
 ## Estado da aplicação
 
-A `main` contém o PR #48 integrado, incluindo classificação de ocorrências
-históricas. Os vínculos com validade temporal, a revisão de refeições e a
-certificação histórica por datas de entrada/saída estão em desenvolvimento
-num PR seguinte, sem importação de dados reais.
+A `main` contém os PR #48 e #49 integrados. A classificação histórica e a
+verificação de vínculos foram aplicadas à base operacional em 09/11/2026,
+sem qualquer importação de horários reais.
 
 O fluxo operacional ativo inclui:
 
@@ -108,10 +107,9 @@ interativos WebKit utilizam um backend sintético e não substituem uma sessão 
   com execução no serviço Edge, sem dar ao cliente acesso privilegiado.
 - `supabase/migrations/`: quatro identificadores históricos reconstruídos
   e seis migrações PR47 **aplicadas** (dez versões no Supabase), mais uma
-  migração **integrada no PR48 mas ainda não aplicada à instância operacional**
-  para classificar `worked`, `day_off`, `vacation` e `holiday`, e uma
-  migração de verificação histórica por vínculo ainda em revisão
-  (doze ficheiros versionados; dez já aplicados). A cadeia completa
+  migração PR48 para classificar `worked`, `day_off`, `vacation` e
+  `holiday`, e uma migração PR49 de verificação histórica por vínculo
+  (doze ficheiros versionados; doze aplicados). A cadeia completa
   é reconstruída num PostgreSQL 17 descartável na CI. **Não executar `db push` na produção** sem
   verificar histórico, backup/restauro e operações de rollout.
 - `supabase/audit/` e `supabase/rollback/`: inventário read-only e
