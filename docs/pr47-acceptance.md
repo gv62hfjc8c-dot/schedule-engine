@@ -233,7 +233,7 @@ Os códigos A–F acima continuam **PENDENTES** até serem executados.
 |---|---|---|
 | 01 Documentação | Implementado | Comparar README, arquitetura, roadmap, setup e relatório com funcionalidades visíveis; nenhuma funcionalidade experimental declarada operacional |
 | 02 Sem turno ≠ folga | Implementado | A07 e D06; nunca interpretar ausência de turno como folga |
-| 03 Edge Function antiga | **410 publicado e testado em CI; gateway autenticado pendente** | V6 com JWT obrigatório em Supabase; `test:retired-edge` comprova GET/POST 410, sem acessos externos. Falta verificar a resposta através do gateway com JWT e dependências externas |
+| 03 Edge Function antiga | **Fonte publicada e contrato 410 provados; sem tráfego autenticado observado** | Código real da v6 devolve sempre 410, sem operações na base de dados; gateway JWT obrigatório. Logs reais das 24h analisadas (08/11 11:00Z a 09/11 11:00Z) registaram apenas GET/POST 401 sem autenticação válida (22 de cada). Não há evidência de consumidor autenticado no intervalo; não se pode provar que não existam consumidores fora dele |
 | 04 Consentimento na importação | Implementado e reforçado para múltiplas contas | **G01**: conta nova escolhe começar vazia, sem importar dados legados do browser; a decisão é por proprietário, não apaga dados antigos, não afeta outra conta, e requer teste Safari |
 | 05 Migrações divergentes | **10/10 versões alinhadas, migração de concorrência adicional testada** | Quatro históricas, seis PR47; PostgreSQL 17 reconstituído em CI, todas as versões também no Supabase, incluindo `20261108234026` |
 | 06 Propostas misturadas | Implementado | D02–D04 e F04; vista de uma proposta não importa turnos de outras |
@@ -247,13 +247,13 @@ Os códigos A–F acima continuam **PENDENTES** até serem executados.
 | 14 Fecho durante gravação | **Mitigado** | D08 e F04; retries com UUID estável. Fecho forçado do navegador não oferece garantia de entrega |
 | 15 Fusos divergentes | Implementado | B11, F02 e F03; fuso IANA da operação e do snapshot arquivado |
 | 16 Escrita concorrente | **CAS e aviso entre abas aceites no Safari — PASS** | Ensaio transacional real, regressão de duas edições concorrentes do mesmo nome, aviso `storage` por titular, preservação de dados e reteste S3 confirmado em 09/11/2026 |
-| 17 Aprovação oficial ausente | **Fluxo de aplicação publicado; pronta apenas com história verificada** | Edge `official-schedules-v2` v3 com JWT obrigatório, CORS e validação independente; painel consulta API sem precisar de flag de ativação; botão só surge com `ready=true` do servidor. Zero histórico 2026 importado e zero ledgers oficiais, logo aprovação permanece bloqueada. Teste remoto com JWT de sessão real pendente |
+| 17 Aprovação oficial ausente | **API e revisões testadas de ponta a ponta com história sintética verificada; histórico real externo condicionado** | API v3 publicada com JWT obrigatório; teste de handler compilado executa readiness positiva, aprovação, replay 409, revisão parcial por ausência, cancelamento e histórico imutável com contexto sintético verificado, sem escrita na base real. Os horários anteriores de 2026 ainda não foram fornecidos/importados |
 | 18 Ciclos de 28 dias | **Núcleo/DB/UI e Safari aceites — PASS** | Quatro semanas certificadas com DST/ano bissexto/mudança de ano. O utilizador confirmou a geração e recuperação do período de 02–29/11/2026 em 09/11/2026 |
 | 19 Perfis de colaboradores | **V0 implementado; ocorrências oficiais dependem de #17** | `test:scheduling-model` valida `unavailableWorkDates` sem turno, incluindo rejeição da certificação. `test:qualification-coverage` valida competências durante turnos e refeições; UI edita datas indisponíveis e etiquetas. Motivos administrativos e tipos de vínculo não especificados |
 | 20 Segurança Supabase | **RPC reforçado; 1 aviso Auth pendente** | Migração `20261108124844` aplicada e funções/permissões verificadas; verificar operações reais de gravação no Safari. Proteção de passwords comprometidas continua desligada, disponível em Supabase Pro+ |
 | 21 Código experimental | Implementado | `npm run test:architecture`; verificar ausência de laboratório na UI e preservação dos testes do domínio |
 | 22 Terminologia desatualizada | Implementado | A03, A06, D01 e revisão textual: «proposta guardada, não aprovada» |
-| 23 Cobertura de regressões | **Suite/CI e S1–S3 aprovados; cobertura integral HTTP oficial pendente** | Motor, Deno, PostgreSQL, CAS, RLS e HTTPS real sem JWT aprovados; Safari confirmou S1 bloqueio oficial, S2 28 dias, S3 aviso entre abas. Restam H02/H03/H06/H07 em HTTP real com duas sessões autenticadas e H08 por adiamento de importação |
+| 23 Cobertura de regressões | **CI/SQL real/Safari completos para casos V0; HTTP real com dois JWTs por comprovar** | Testes S1, S2 e S3 confirmados em Safari; consulta read-only ao Supabase confirmou proposta B de 28 dias; `officialEdgeVerifiedRoundtripTest` passou com duas identidades simuladas, 404 cruzado, aprovação, revisão e cancelamento. RLS SQL real entre duas contas, gateway HTTPS sem JWT e Deno strict aprovados. Não foi usado JWT real de outro titular nos testes automatizados |
 
 ### Testes complementares necessários para fechar a rastreabilidade
 
@@ -323,13 +323,13 @@ uma alteração parcial sem repetir os testes afetados.
 | ID | Procedimento | Critério | Estado |
 |---|---|---|---|
 | H01 | HTTP sem JWT e sessão anónima para v2 | Resposta 401, zero operações | Sem JWT: **PASS em HTTPS real**; sessão anónima autenticada: PASS simulado, remoto pendente |
-| H02 | Conta A tenta aprovar proposta de B | 404/422, sem acesso nem escrita cruzada | PENDENTE — duas contas reais |
-| H03 | Conta sem histórico de 2026 tenta aprovar | 409 por histórico incompleto, ledger continua vazio | PENDENTE — Auth real |
+| H02 | Conta A tenta aprovar proposta de B | 404/422, sem acesso nem escrita cruzada | **PASS no endpoint compilado com duas identidades simuladas; SQL RLS real confirma separação A/B.** HTTP com JWT reais distintos ainda não executado |
+| H03 | Conta sem histórico de 2026 tenta aprovar | 409 por histórico incompleto, ledger continua vazio | **PASS no endpoint compilado e em SQL real:** nenhum ledger oficial foi criado; cenário real do utilizador continua bloqueado |
 | H04 | Ficheiro histórico incompleto, um colaborador sem dias confirmados | Recusa; jamais presumir folga | PASS no CI de domínio; ensaio importador PENDENTE |
 | H05 | Proposta guardada, ausência de histórico verificado | UI consulta prontidão ao servidor; sem `ready=true` não apresenta aprovação | **PASS — S1 confirmado pelo utilizador em 09/11/2026** |
-| H06 | Histórico simulado completo e proposta com restrições válidas | Teste de aplicação guarda apenas com CAS, falhas não publicam sucesso | PASS em testes simulados; HTTP/ledger real PENDENTE |
-| H07 | Revisão parcial: baixa, férias ou saída depois de aprovar | Versão antiga preservada; novo turno certificado; tentativa retroativa recusada | PASS no domínio/CI; UI/HTTP PENDENTE |
-| H08 | Importar horários antigos e rever totais de 28 dias e histórico anual | Identidade estável, sem dupla contagem, revisão de conflitos, proveniência | PENDENTE — importação adiada pelo utilizador |
+| H06 | Histórico simulado completo e proposta com restrições válidas | Teste de aplicação guarda apenas com CAS, falhas não publicam sucesso | **PASS ponta a ponta:** código Edge compilado aprovou proposta sintética verificada, obteve `alreadyApproved=true` e recusou replay 409; RPC CAS real de ledger/revisão testada com ROLLBACK no Supabase |
+| H07 | Revisão parcial: baixa, férias ou saída depois de aprovar | Versão antiga preservada; novo turno certificado; tentativa retroativa recusada | **PASS ponta a ponta em dados sintéticos:** `POST revise` substituiu A por B, manteve versão anterior como `superseded`, `POST cancel` preservou o histórico. Cenário retroativo recusado na suite de domínio; teste com horários reais depende da importação histórica |
+| H08 | Importar horários antigos e rever totais de 28 dias e histórico anual | Identidade estável, sem dupla contagem, revisão de conflitos, proveniência | **Infraestrutura e testes sintéticos PASS** (SQL provenance/RLS/bootstrap exige pessoa-dia explicitamente verificado). **Importação de horários reais PENDENTE de decisão e ficheiros do utilizador**, não pode ser inventada |
 
 Provas técnicas atuais: `test:official-revisions`, `test:verified-official-service`, `test:official-edge-bundle`, `test:history-context`, mais `scripts/ci/postgres_history_assertions.sql` e `scripts/ci/postgres_approval_revision_assertions.sql`. Estes testes não autorizam ativar a flag de aprovação nem efetuar merge sem evidência dos ensaios H01–H08 pertinentes.
 
@@ -411,3 +411,12 @@ Se S1–S3 passarem, a aceitação visual está concluída. Se falhar algum, cor
 ### Confirmação final do reteste S3 — 09/11/2026
 
 O utilizador confirmou expressamente que a correção do conflito entre abas ficou **resolvida** no Safari após atualização da branch. S1, S2 e S3 estão aceites na ronda final. Esta confirmação fecha a falha funcional de apresentação; não representa, por si só, uma autorização para aprovar horários sem histórico, nem corrige o aviso Auth dependente do plano Pro.
+
+
+### Validação técnica aprofundada — 09/11/2026
+
+- `test:official-edge-verified` passou em GitHub Actions `42609906545`: aprovações com histórico sintético completo usando o **verdadeiro handler Edge compilado**, teste de identidade distinta com 404 e nenhuma escrita cruzada, GET de prontidão positiva, POST aprovado, repetição recusada, revisão futura de ausência com substituição e cancelamento com preservação de versões.
+- SQL PostgreSQL real: uma operação com estado desatualizado é recusada; só a versão certa cria um evento de histórico; repetição não o duplica. Tudo executado em `BEGIN/ROLLBACK`.
+- SQL read-only no Supabase: existem 1 proposta A, 4 propostas B (incluindo 1 de 28 dias) e 4 da conta habitual. Nenhuma é oficialmente aprovada.
+- Registos de `function_edge_logs` durante 24h até 09/11 11:00Z mostraram apenas HTTP 401 nos pedidos GET/POST às funções antigas e novas; o GET/POST 410 da função antiga foi comprovado em CI no handler isolado, mas não autenticado no gateway. Não afirmar prova de consumo inexistente fora da janela observada.
+- **Decisões externas solicitadas e ainda não recebidas:** importar agora dados reais desde janeiro 2026 ou manter bloqueio até à importação; autorizar upgrade Supabase Pro ou aceitar exceção formal no plano gratuito.
