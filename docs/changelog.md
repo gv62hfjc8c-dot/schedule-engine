@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-11-09 — PR47: proteção de períodos aprovados e aceitação final
+
+- Gerador condicionado rejeita pedidos que coincidam com períodos oficialmente aprovados (incluindo dias fechados ou sem turnos).
+- UI consulta o ledger do titular antes de gerar; falha de leitura bloqueia em segurança, sem tratar histórico ausente como completo.
+- Módulo de leitura isolado preserva o limite arquitetural entre interface e comandos de aprovação; testes de regressão adicionados.
+- CI 42639795765 aprovou validate, migration-contract e webkit-acceptance.
+- Responsável confirmou no Safari propostas sobrepostas independentes, além dos seis outros cenários funcionais.
+- Proteção contra aprovação oficial sobreposta validada automaticamente, **sem ensaio end-to-end com horário oficial real no Safari**.
+- Responsável autorizou o merge com limites de evidência expressos, importação histórica posterior e risco Auth Free aceite.
+
 ## 2026-11-08 — PR47: versão v3 segura, CAS de configuração e HTTPS real
 
 - API de aprovação `official-schedules-v2` atualizada para v3. Prontidão de aprovação certificada independentemente, fuso e âncora de histórico derivados de dados do servidor; CORS e JWT obrigatórios.
