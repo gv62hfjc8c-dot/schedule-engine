@@ -103,3 +103,12 @@ assert(filterDailyTeam(rows,"selected","",selected).length===24,
   "É possível rever pessoas selecionadas entre páginas.");
 
 console.log("PR45: calendário, estados honestos, equipa numerosa e seleção cruzada passaram.");
+
+const withFutureEntry=people.map(person=>person.id==="p1"
+  ? {...person,employmentPeriods:[{startDate:tuesday,endDate:null}]}:person);
+const dayBefore=dailyTeamRows({date:monday,people:withFutureEntry,
+  availabilities,operation,preview:null});
+const dayAfter=dailyTeamRows({date:tuesday,people:withFutureEntry,
+  availabilities,operation,preview:null});
+assert(!dayBefore.some(row=>row.id==="p1")&&dayAfter.some(row=>row.id==="p1"),
+  "Uma pessoa não pode aparecer na equipa diária antes de iniciar o vínculo.");
