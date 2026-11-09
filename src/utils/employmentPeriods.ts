@@ -18,7 +18,7 @@ export function validateEmploymentPeriods(periods: EmploymentPeriod[] | undefine
   if (periods === undefined) return [];
   if (!Array.isArray(periods)) return ["Os períodos de vínculo devem formar uma lista."];
   const issues: string[] = [];
-  const sorted = [...periods].sort((a,b) => (a?.startDate ?? "").localeCompare(b?.startDate ?? ""));
+  const sorted = [...periods].sort((a,b) => String(a?.startDate ?? "").localeCompare(String(b?.startDate ?? "")));
   for (let i=0;i<sorted.length;i++) {
     const period = sorted[i];
     if (!period || typeof period.startDate !== "string" ||
@@ -40,6 +40,7 @@ export function validateEmploymentPeriods(periods: EmploymentPeriod[] | undefine
 export function employedOn(person: Pick<Person,"employmentPeriods">, date: string): boolean {
   if (stamp(date) === null) return false;
   if (person.employmentPeriods === undefined) return true; // preserve existing setups
+  if (validateEmploymentPeriods(person.employmentPeriods).length) return false;
   return person.employmentPeriods.some(p =>
     p.startDate <= date && (p.endDate === null || date <= p.endDate));
 }
@@ -48,6 +49,7 @@ export function employedInPeriod(person: Pick<Person,"employmentPeriods">,
   startDate: string, endDate: string): boolean {
   if (stamp(startDate) === null || stamp(endDate) === null || startDate > endDate) return false;
   if (person.employmentPeriods === undefined) return true;
+  if (validateEmploymentPeriods(person.employmentPeriods).length) return false;
   return person.employmentPeriods.some(p =>
     p.startDate <= endDate && (p.endDate === null || p.endDate >= startDate));
 }
