@@ -441,3 +441,22 @@ O utilizador confirmou expressamente que a correção do conflito entre abas fic
 - 05: dez migrações identificadas em produção e reconstruídas sem erro em PostgreSQL 17 descartável com contratos Supabase. Não se afirma criação de segundo projeto Supabase alojado.
 - **Classificação operacional: 16 PASS com modo de teste explicitado, 7 POR TESTAR.** Não há autorização para merge implícita nesta classificação, e os riscos do Supabase Free e histórico adiado mantêm-se.
 - **CI:** `42631894388`, 3/3 jobs `success`, commit `5f8e243`.
+
+
+## Fecho de aceitação de 09/11/2026 — autorização para merge
+
+Os pontos 02, 07, 09, 10, 11 e 12 foram reportados PASS pelo responsável.
+O ponto 06 foi retestado no Safari após o `git pull`: a coexistência e o
+isolamento das propostas sobrepostas funcionaram conforme esperado.
+A proteção de períodos **oficialmente aprovados** foi implementada e
+aprovada nos testes automáticos da CI (`42639795765`), mas não foi
+exercitada no Safari contra uma aprovação real. A aprovação oficial
+mantém-se bloqueada quando faltar histórico real verificado.
+
+O responsável autorizou expressamente o encerramento e merge do PR47,
+sem exigir o ensaio real que depende da importação histórica diferida.
+Mantêm-se os limites de prova documentados e o risco residual de Auth
+aceite no Supabase Free. Não foi necessário apagar dados nem aplicar
+migrações ou recursos pagos nesta aceitação.
+
+A decisão de merge não transforma uma proposta guardada em escala oficial.
