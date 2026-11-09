@@ -1073,7 +1073,7 @@ export default function App() {
               O fuso aplicado é utilizado no calendário e na geração; os horários já
               arquivados mantêm o fuso original. O ciclo tem sempre 28 dias e não
               corresponde necessariamente ao início ou fim de um mês.
-              O limite de geração continua a ser de 14 dias por proposta.
+              A geração certificada suporta períodos de até 28 dias por proposta.
             </p>
           </section>
           <div className="dashboard-grid">
