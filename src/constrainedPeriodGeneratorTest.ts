@@ -20,6 +20,8 @@ import {
   validateWorkConstraints,
 } from "./utils/workConstraints";
 import { checkPresenceForWorkShifts } from "./utils/workCoverage";
+import {reviseMealStart} from "./utils/mealBreakRevision";
+import {certifyFinalGeneratedSchedule} from "./utils/finalScheduleCertification";
 
 function assert(value: boolean, label: string): void {
   if (!value) throw new Error(label);
@@ -822,3 +824,40 @@ const unrelatedApprovedInput = { ...protectedPeriodInput,
 assert(!generateConstrainedPeriodSchedule(unrelatedApprovedInput).issues.some(
   issue=>issue.includes("oficialmente aprovado")),
   "P06: aprovação fora do período não deve bloquear por sobreposição.");
+
+
+const zero: PresenceRequirement = {minimumAtOpening:0,minimumDuringOperation:0,minimumAtClosing:0};
+const mealEditInput=inputs(tue,tue,["meal-person"],
+  {[tue]:interval("09:00","18:00")},
+  {[tue]:{"meal-person":interval("09:00","18:00")}},
+  {[tue]:zero},
+  {startDate:"2026-10-01",endDate:"2026-11-30"});
+const originalMealShift=[shift(tue,"meal-person","09:00","18:00","13:00","14:00")];
+const beforeMealEdit=JSON.stringify(originalMealShift);
+const revisedMeal=reviseMealStart(mealEditInput,originalMealShift,tue,"meal-person","12:00");
+assert(revisedMeal.status==="valid" &&
+  revisedMeal.shifts[0].mealBreak?.start==="12:00" &&
+  revisedMeal.shifts[0].mealBreak?.end==="13:00",
+  "Moving the meal window preserves the continuous attendance shift and recertifies coverage.");
+assert(JSON.stringify(originalMealShift)===beforeMealEdit,
+  "Editing the meal must not mutate an archived proposal snapshot.");
+const invalidMeal=reviseMealStart(mealEditInput,originalMealShift,tue,"meal-person","15:00");
+assert(invalidMeal.status==="invalid","Meal outside allowed effective-work window must be rejected.");
+assert(reviseMealStart(mealEditInput,originalMealShift,tue,"meal-person","08:00").status==="invalid",
+  "Meal outside shift must be rejected.");
+
+const beforeEmployment=inputs(mon,mon,["not-yet-employed"],
+  {[mon]:interval("09:00","13:00")},
+  {[mon]:{"not-yet-employed":interval("09:00","13:00")}},
+  {[mon]:one});
+beforeEmployment.people[0].employmentPeriods=[{startDate:tue,endDate:null}];
+const impossibleBeforeEntry=generateConstrainedPeriodSchedule(beforeEmployment);
+assert(impossibleBeforeEntry.status!=="generated",
+  "A collaborator who starts tomorrow cannot cover today's shift.");
+const forgedBeforeEntry=certifyFinalGeneratedSchedule(beforeEmployment,
+  [shift(mon,"not-yet-employed","09:00","13:00",null)]);
+assert(!forgedBeforeEntry.valid &&
+  forgedBeforeEntry.issues.some(issue=>issue.includes("fora do vínculo")),
+  "Independent final certification must reject shifts before employment.");
+
+console.log("Employment-period generation and immutable meal-break revision regressions passed.");
