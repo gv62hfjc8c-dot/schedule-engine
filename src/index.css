@@ -3032,11 +3032,12 @@ h2 {
     transform:translateX(-105%);
     transition:transform .2s ease;
     box-shadow:15px 0 36px rgb(0 0 0 / 15%);
+    z-index: 10000;
   }
   .application-sidebar.is-open {transform:translateX(0);}
   .app-nav-scrim {
     position:fixed;display:block;
-    inset:0;z-index:29;
+    inset:0;z-index:9999;
     border:0;
     background:rgb(8 15 25 / 63%);
   }
