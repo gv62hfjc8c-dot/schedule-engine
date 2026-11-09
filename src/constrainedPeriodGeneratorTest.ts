@@ -793,3 +793,32 @@ assert(adjustedClockShifts.every(s=>initialClockShifts.some(original=>
   original.personId===s.personId&&original.date===s.date&&
   effectiveMinutes(original)===effectiveMinutes(s))),
   "PR41: regularizar entradas não altera horas efetivas nem folgas.");
+
+
+// PR47/P06: an approved schedule owns ALL dates in its period, including
+// closed days with no assignments. New generation must not override it.
+const protectedPeriodInput = inputs(mon, tue, ["a"],
+  { [mon]: interval("09:00", "18:00"), [tue]: interval("09:00", "18:00") },
+  { [mon]: {a:interval("09:00","18:00")}, [tue]: {a:interval("09:00","18:00")} },
+  { [mon]: one, [tue]: one });
+protectedPeriodInput.protectedApprovedPeriods = [
+  { startDate: tue, endDate: tue },
+];
+const protectedPeriodResult = generateConstrainedPeriodSchedule(protectedPeriodInput);
+assert(protectedPeriodResult.status === "invalid_input" &&
+  protectedPeriodResult.assignments.length === 0 &&
+  protectedPeriodResult.issues.some(issue=>issue.includes("oficialmente aprovado")),
+  "P06: sobreposição com dia aprovado deve bloquear geração sem turnos.");
+const protectedBoundaryInput = { ...protectedPeriodInput,
+  protectedApprovedPeriods: [{startDate:sun,endDate:tue}] };
+assert(generateConstrainedPeriodSchedule(protectedBoundaryInput).status==="invalid_input",
+  "P06: sobreposição parcial ou no limite do período também bloqueia.");
+const invalidProtectedInput = { ...protectedPeriodInput,
+  protectedApprovedPeriods: [{startDate:"2026-11-03",endDate:"2026-11-02"}] };
+assert(generateConstrainedPeriodSchedule(invalidProtectedInput).status==="invalid_input",
+  "P06: contexto de proteção inválido não pode ser ignorado.");
+const unrelatedApprovedInput = { ...protectedPeriodInput,
+  protectedApprovedPeriods: [{startDate:nextMon,endDate:nextMon}] };
+assert(!generateConstrainedPeriodSchedule(unrelatedApprovedInput).issues.some(
+  issue=>issue.includes("oficialmente aprovado")),
+  "P06: aprovação fora do período não deve bloquear por sobreposição.");
