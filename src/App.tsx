@@ -18,7 +18,7 @@ import CalendarDateInput from "./components/CalendarDateInput";
 import PresencePanel from "./components/PresencePanel";
 import ScheduleGeneratorPanel from "./components/ScheduleGeneratorPanel";
 import ScheduleHome from "./components/ScheduleHome";
-import ApplicationNavigation,{areaFor,sectionLabel,type WorkspaceSection} from "./components/ApplicationNavigation";
+import ApplicationNavigation,{areaFor,sectionLabel} from "./components/ApplicationNavigation";
 import { supabaseAuthClient } from "./persistence/supabaseInstance";
 import { createSupabaseGeneratedScheduleRepository } from "./persistence/supabaseGeneratedScheduleRepository";
 import { authorizeLegacyImportForOwner, startFreshCloudAccountForOwner, LegacyImportConsentRequiredError } from "./persistence/supabaseStateRepository";
