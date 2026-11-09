@@ -55,6 +55,10 @@ habitualmente `http://localhost:5173/`. Se `git status --short`
 não estiver vazio, preservar primeiro essas alterações. O teste deve
 ocorrer sempre na **SHA exata** registada antes do início da sessão.
 
+## Checklist canónica de aceitação dos 23 pontos
+
+**Estado baseado nos testes pedidos pelo responsável (09/11/2026): 7 PASS, 9 PARCIAL, 7 POR TESTAR.** Não usar «Implementado» como substituto de PASS nem declarar encerrada uma verificação Safari apenas porque a CI passou. A matriz canónica e as provas estão em [docs/pr47-checklist-23-results.md](pr47-checklist-23-results.md). A classificação por comportamento pedido prevalece sobre a matriz de implementação e as antigas afirmações genéricas de «23 pontos tratados».
+
 ## Registo de resultados
 
 Para cada teste escrever **PASS / FAIL / BLOCKED / N/A**, SHA, observação
