@@ -5,6 +5,7 @@ import { getOperatingIntervalsForDate } from "./operatingCalendar";
 import { getEffectiveWorkMinutesInTimeZone } from "./workConstraints";
 import { DEFAULT_OPERATION_TIME_ZONE } from "./operationTimeZone";
 import { getSchedulableIntervalsForDate } from "./availability";
+import {employedOn} from "./employmentPeriods";
 
 /**
  * PR45 UI read model: a generated proposal is not an approved schedule.
@@ -105,7 +106,7 @@ export function dailyTeamRows(input: {
       if (shift.date === date) byPerson.set(shift.personId, shift);
     }
   }
-  return people.filter(person => person.active).map(person => {
+  return people.filter(person => person.active && employedOn(person,date)).map(person => {
     const shift = byPerson.get(person.id) ?? null;
     if (shift) return {id: person.id, name: person.name, kind: "assigned" as const, shift};
     if (!covered) return {id: person.id, name: person.name, kind: "unplanned" as const, shift: null};
