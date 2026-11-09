@@ -29,8 +29,8 @@ assert.deepEqual(migrations,[
   "20261108142521_pr47_trusted_approval_revisions.sql",
   "20261108144725_pr47_verified_ledger_initialization.sql",
   "20261108234026_pr47_approval_config_revision_cas.sql",
-  "20261109210000_history_day_occurrence_types.sql",
-  "20261109223000_employment_aware_historical_verification.sql",
+  "20261109230651_20261109210000_history_day_occurrence_types.sql",
+  "20261109230719_20261109223000_employment_aware_historical_verification.sql",
 ],"Active migration versions must match the reviewed lineage, including the typed historical day extension.");
 const state=file("supabase/migrations/20261102125810_generated_schedule_proposals.sql");
 contains(state,/security\s+definer/i,"State RPC must document its security context.");
@@ -93,7 +93,7 @@ contains(historical,/REVOKE\s+EXECUTE\s+ON\s+FUNCTION[\s\S]*?initialize_schedule
   "Unsafe official-ledger initialization must be disabled.");
 absent(historical,/GRANT\s+(?:INSERT|UPDATE|DELETE|ALL)[\s\S]*?ON\s+public\.schedule_engine_history_(?:sources|day_facts|verifications)\s+TO\s+authenticated/i,
   "Do not grant the browser historical data writes.");
-const occurrenceMigration=file("supabase/migrations/20261109210000_history_day_occurrence_types.sql");
+const occurrenceMigration=file("supabase/migrations/20261109230651_20261109210000_history_day_occurrence_types.sql");
 contains(occurrenceMigration,/ADD\s+COLUMN\s+occurrence_type\s+text\s+NOT\s+NULL/i,
   "Historical day type must be mandatory.");
 contains(occurrenceMigration,/worked.*day_off.*vacation.*holiday/i,
@@ -104,7 +104,7 @@ contains(occurrenceMigration,/jsonb_array_length\(shifts\)\s*=\s*0/i,
   "Leave, holiday and rest days must not silently carry shifts.");
 absent(occurrenceMigration,/grant\s+(?:insert|update|delete|all)\s+on\s+(?:table\s+)?public\.schedule_engine_history_day_facts\s+to\s+authenticated/i,
   "Classification migration must not grant browser history writes.");
-const employmentMigration=file("supabase/migrations/20261109223000_employment_aware_historical_verification.sql");
+const employmentMigration=file("supabase/migrations/20261109230719_20261109223000_employment_aware_historical_verification.sql");
 contains(employmentMigration,/initialize_schedule_engine_verified_ledger/,
   "Official initialization must enforce dated employment.");
 contains(employmentMigration,/employmentPeriods/,

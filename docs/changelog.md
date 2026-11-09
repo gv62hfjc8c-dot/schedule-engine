@@ -1,3 +1,11 @@
+## 2026-11-09 — Rollout histórico Supabase PR48/PR49
+
+- Aplicadas as duas migrações históricas à instância operacional após pré-verificação de 0 fontes, 0 factos e 0 ledgers oficiais.
+- Atribuídos pelo Supabase os números efetivos `20261109230651` (classificação) e `20261109230719` (verificador de vínculo), agora refletidos nos nomes dos ficheiros para preservar a linhagem.
+- Confirmados `occurrence_type NOT NULL`, duas constraints de classificação, RPC acessível apenas ao serviço privilegiado, 15 propostas preservadas e 3 estados de configuração preservados.
+- Nenhum turno histórico importado, nenhuma aprovação inicializada e nenhuma Edge Function publicada nesta operação.
+- Auditoria de segurança: apenas aviso preexistente relativo à proteção de palavras-passe comprometidas, não associado às migrações.
+
 # Changelog
 
 ## 2026-11-09 — PR49: vínculos por data e edição da refeição
