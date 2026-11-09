@@ -4,6 +4,10 @@ import { accountingCycleForDate } from "../utils/accountingCycle28";
 import ScheduleViews from "./ScheduleViews";
 import OfficialApprovalPanel from "./OfficialApprovalPanel";
 import { createSupabaseGeneratedScheduleRepository } from "../persistence/supabaseGeneratedScheduleRepository";
+import {
+  createHistoricalDayRepository,historicalFactsForDate,historicalDayTotals,
+  type HistoricalDayOccurrence,
+} from "../persistence/supabaseHistoricalDayRepository";
 import type { StoredGeneratedSchedule, UnreadableGeneratedSchedule } from "../persistence/generatedScheduleRepository";
 import { proposalsForDay, selectedProposalForDay, calendarProposalForDay, calendarArchiveOverview, unreadableArchiveAffectsDate, archiveDayState, previewFromStored, savedProposalLabel } from "../utils/savedScheduleView";
 import type {
@@ -53,10 +57,16 @@ function effectiveHoursLabel(shift: NonNullable<DayTeamRow["shift"]>, timeZone: 
     ? (minutes/60).toLocaleString("pt-PT") + "h efetivas"
     : "Duração não verificável no fuso";
 }
+const HISTORY_LABELS = {
+  worked:"Trabalho realizado",day_off:"Folga registada",
+  vacation:"Férias registadas",holiday:"Feriado registado",
+} as const;
 const PAGE_SIZE = 12;
 const archive = supabaseAuthClient
   ? createSupabaseGeneratedScheduleRepository(supabaseAuthClient)
   : null;
+const historicalArchive = supabaseAuthClient
+  ? createHistoricalDayRepository(supabaseAuthClient) : null;
 
 /**
  * One main entry screen, one quick-inspection side panel, one full-width
@@ -78,6 +88,9 @@ export default function ScheduleHome({
   const [showSelectedSummary, setShowSelectedSummary] = useState(false);
   const [savedRows, setSavedRows] = useState<StoredGeneratedSchedule[]>([]);
   const [unreadable, setUnreadable] = useState<UnreadableGeneratedSchedule[]>([]);
+  const [historicalFacts,setHistoricalFacts]=useState<HistoricalDayOccurrence[]>([]);
+  const [historyLoadState,setHistoryLoadState]=useState<"loading"|"ready"|"failed">("loading");
+  const [historyError,setHistoryError]=useState<string|null>(null);
   // Null: inspect independent latest proposals per day. ID: one immutable
   // snapshot for the entire visible calendar; never stitch from other records.
   const [focusedProposalId, setFocusedProposalId] = useState<string | null>(null);
@@ -115,6 +128,31 @@ export default function ScheduleHome({
       });
     return () => {current = false;};
   }, [month, savedRevision, retryLoad]);
+
+  useEffect(() => {
+    let active=true;
+    setHistoryLoadState("loading");
+    setHistoryError(null);
+    setHistoricalFacts([]);
+    if(!historicalArchive){
+      setHistoryError("Ligação ao arquivo histórico indisponível.");
+      setHistoryLoadState("failed");
+      return;
+    }
+    const days=monthCalendarDates(month);
+    void historicalArchive.listBetween(days[0],days[days.length-1])
+      .then(result=>{
+        if(!active)return;
+        setHistoricalFacts(result);
+        setHistoryLoadState("ready");
+      }).catch(problem=>{
+        if(!active)return;
+        setHistoryError(problem instanceof Error?problem.message:
+          "Não foi possível consultar o histórico factual.");
+        setHistoryLoadState("failed");
+      });
+    return ()=>{active=false;};
+  },[month,savedRevision,retryLoad]);
 
   useEffect(() => {
     if (initialMonth || loadState !== "ready" || savedRows.length > 0 ||
@@ -157,6 +195,12 @@ export default function ScheduleHome({
     date: selectedDate, people: snapshotPeople, availabilities: snapshotAvailability,
     operation: snapshotOperation, preview,
   }) : [], [selectedDate, people, availabilities, operatingCalendar, stored]);
+  const historicalDay=selectedDate?
+    historicalFactsForDate(historicalFacts,selectedDate):[];
+  const historicalTotals=selectedDate?
+    historicalDayTotals(historicalFacts,selectedDate):null;
+  const historicalDateAvailable=historyLoadState==="ready" &&
+    historicalDay.length>0 && !stored && !focusedProposalId;
   const summary = useMemo(() => daySummary(rows), [rows]);
   const matching = useMemo(() =>
     filterDailyTeam(rows, filter, search, selectedIds),
@@ -175,7 +219,8 @@ export default function ScheduleHome({
     unreadableArchiveAffectsDate(unreadable,selectedDate) : unreadable.length>0;
   const canInspectDay = selectedDayState === "proposal" ||
     selectedDayState === "unplanned" || selectedDayState === "closed";
-  const statusLabel = selectedDayState === "loading" ? "A recuperar arquivo" :
+  const statusLabel = historicalDateAvailable ? "Histórico factual · importado" :
+    selectedDayState === "loading" ? "A recuperar arquivo" :
     selectedDayState === "failed" ? "Falha na consulta do arquivo" :
     selectedDayState === "unknown" ? "Arquivo incompleto · por confirmar" :
     selectedDayState === "outside-proposal" ? "Fora da proposta selecionada" :
@@ -226,6 +271,7 @@ export default function ScheduleHome({
   const visibleFilters = selectedIds.size ? [...filters, "selected" as const] : filters;
   const currentMonth = month.slice(0, 7);
   const activeCount = people.filter(p => p.active).length;
+  const personName=(id:string)=>people.find(p=>p.id===id)?.name ?? id;
 
   if (screen === "saved" && stored) {
     return <section className="se-home" aria-label="Horário guardado">
@@ -250,6 +296,47 @@ export default function ScheduleHome({
         storageState="saved"
         sourceLabel="Horário guardado"
       />
+    </section>;
+  }
+
+  if (screen === "manage" && selectedDate && historicalDateAvailable) {
+    return <section className="se-home se-management" aria-label="Consulta do histórico factual">
+      <button type="button" className="se-outline" onClick={()=>setScreen("month")}>
+        ← Voltar ao calendário
+      </button>
+      <div className="se-heading">
+        <div>
+          <p className="section-kicker">Histórico factual importado</p>
+          <h2>{dateLabel(selectedDate,{weekday:"long",day:"numeric",month:"long",year:"numeric"})}</h2>
+          <p>Registos históricos da fonte original. Não são propostas nem aprovações oficiais.</p>
+        </div>
+      </div>
+      <div className="se-manage-stats">
+        <div><strong>{historicalTotals?.worked??0}</strong><span>Trabalharam</span></div>
+        <div><strong>{historicalTotals?.dayOff??0}</strong><span>Folgas</span></div>
+        <div><strong>{historicalTotals?.vacation??0}</strong><span>Férias</span></div>
+        <div><strong>{historicalTotals?.holiday??0}</strong><span>Feriados</span></div>
+      </div>
+      <div className="se-team-list" aria-label="Ocorrências históricas">
+        {historicalDay.map(fact=> <div className="se-person-row"
+          key={fact.sourceId+"|"+fact.personId}>
+          <span className="se-person-identity">
+            <strong>{personName(fact.personId)}</strong>
+            {fact.shifts.map(shift=><small key={shift.date}>
+              {shift.interval.start}–{shift.interval.end}
+              {shift.mealBreak ? " · Refeição "+shift.mealBreak.start+
+                "–"+shift.mealBreak.end : " · Sem refeição"}
+              {" · "}{effectiveHoursLabel(shift,operationTimeZone)}
+            </small>)}
+            <small>Fonte: {fact.sourceLabel}</small>
+          </span>
+          <span className="se-person-status">{HISTORY_LABELS[fact.type]}</span>
+        </div>)}
+      </div>
+      <div className="se-readonly-note">
+        A ausência de um colaborador nesta lista não equivale a folga.
+        O histórico não altera o planeamento nem as propostas guardadas.
+      </div>
     </section>;
   }
 
@@ -373,6 +460,7 @@ export default function ScheduleHome({
     <div className="se-readonly-note" role="note">
       Os horários gerados e guardados são recuperados automaticamente do Supabase.
       São propostas, não escalas oficialmente aprovadas.
+      O histórico factual importado é apresentado separadamente quando existe.
     </div>
     {loadState === "ready" && !focusedProposalId && archiveOverview.mixedSources &&
       <div className="se-readonly-note" role="note">
@@ -404,6 +492,11 @@ export default function ScheduleHome({
       <button type="button" className="se-outline"
         onClick={()=>setRetryLoad(value=>value+1)}>Recarregar arquivo</button>
     </div>}
+    {historyLoadState === "failed" && <div className="se-readonly-note" role="alert">
+      O histórico factual não pôde ser carregado: {historyError}
+      <button type="button" className="se-outline"
+        onClick={()=>setRetryLoad(value=>value+1)}>Repetir consulta histórica</button>
+    </div>}
     {loadState === "loading" && <div className="se-readonly-note" role="status">A recuperar horários guardados…</div>}
     {loadState === "failed" && <div className="se-readonly-note" role="alert">
       Não foi possível carregar os horários guardados: {loadProblem}
@@ -431,19 +524,25 @@ export default function ScheduleHome({
           {dates.map(date => {
             const active = selectedDate === date;
             const latest = calendarProposalForDay(savedRows,date,focusedProposalId);
-            const state = archiveDayState({
+            const baseState = archiveDayState({
               date,records:savedRows,unreadable,operation:operatingCalendar,
               focusedProposalId,loadState,
             });
+            const historicalCount=historyLoadState==="ready" && !focusedProposalId
+              ? historicalDayTotals(historicalFacts,date).total : 0;
+            const state=historicalCount>0 && baseState!=="proposal" &&
+              baseState!=="loading" && baseState!=="failed" &&
+              baseState!=="unknown" ? "history" : baseState;
             const inMonth = date.slice(0,7) === currentMonth;
             const proposalCount = latest && state === "proposal"
               ? latest.payload.shifts.filter(shift => shift.date === date).length : 0;
             return <button type="button" key={date}
               className={"se-day " + (active ? "selected " : "") +
                 (inMonth ? "" : "outside ") + state + (date === today ? " today" : "")}
-              title={latest ? "Proposta " + latest.id + " · guardada em " + savedProposalLabel(latest) : undefined}
+              title={state==="history"?"Histórico factual importado ("+historicalCount+" pessoas)":latest ? "Proposta " + latest.id + " · guardada em " + savedProposalLabel(latest) : undefined}
               aria-label={dateLabel(date,{day:"numeric",month:"long"}) + " · " +
-                (state === "proposal" ? "proposta guardada com " + proposalCount + " turnos" :
+                (state === "history" ? "histórico factual de "+historicalCount+" pessoas" :
+                 state === "proposal" ? "proposta guardada com " + proposalCount + " turnos" :
                  state === "closed" ? "operação encerrada" :
                  state === "loading" ? "a carregar" :
                   state === "failed" ? "arquivo indisponível" :
@@ -452,7 +551,8 @@ export default function ScheduleHome({
               aria-pressed={active}
               onClick={() => selectDate(date)}>
               <strong>{Number(date.slice(8,10))}</strong>
-              <small>{state === "proposal" ? proposalCount + " turno(s)" :
+              <small>{state === "history" ? "Histórico · "+historicalCount :
+                state === "proposal" ? proposalCount + " turno(s)" :
                 state === "closed" ? "Fechado" :
                 state === "loading" ? "A carregar" :
                 state === "failed" ? "Erro de leitura" :
@@ -463,6 +563,7 @@ export default function ScheduleHome({
         </div>
         <div className="se-legend">
           <span><i className="proposal" /> Proposta guardada</span>
+          <span><i className="history" /> Histórico factual</span>
           <span><i className="unplanned" /> Por planear</span>
           <span><i className="closed" /> Fechado</span>
         </div>
@@ -481,6 +582,22 @@ export default function ScheduleHome({
           <strong>Ciclo de 28 dias</strong>
           <p>{activeCycle.startDate} a {activeCycle.endDate} · semana {activeCycle.week}/4</p>
           <small>Referência contabilística; não representa aprovação nem geração automática de 28 dias.</small>
+        </div>}
+        {historicalDateAvailable && <div className="se-history-summary">
+          <h4>Registos históricos importados</h4>
+          <p>{historicalTotals?.total} colaborador(es) com ocorrência registada.</p>
+          <div className="se-count-grid">
+            <div><strong>{historicalTotals?.worked}</strong><span>Trabalho</span></div>
+            <div><strong>{historicalTotals?.dayOff}</strong><span>Folgas</span></div>
+            <div><strong>{historicalTotals?.vacation}</strong><span>Férias</span></div>
+            <div><strong>{historicalTotals?.holiday}</strong><span>Feriados</span></div>
+          </div>
+          <p className="se-panel-hint">
+            Fonte factual. Não é proposta gerada nem horário oficialmente aprovado.
+            As pessoas ausentes desta lista não são consideradas de folga.
+          </p>
+          <button type="button" className="se-outline"
+            onClick={()=>setScreen("manage")}>Consultar registos deste dia</button>
         </div>}
         {stored && <div className="se-archive-meta">
           <span>Guardada em {savedProposalLabel(stored)} · {stored.startDate} a {stored.endDate}</span>
@@ -504,7 +621,7 @@ export default function ScheduleHome({
         {stored && <button type="button" className="se-outline" onClick={() => setScreen("saved")}>
           Consultar horário completo →
         </button>}
-        {canInspectDay ? <div className="se-panel-team">
+        {!historicalDateAvailable && canInspectDay ? <div className="se-panel-team">
           <h4>Resumo da equipa</h4>
           <div className="se-team-total">Equipa ativa: <strong>{summary.total}</strong></div>
           <div className="se-count-grid">
@@ -533,7 +650,7 @@ export default function ScheduleHome({
               {filters.map(value => <option key={value} value={value}>{FILTER_LABELS[value]}</option>)}
             </select>
           </label>
-        </div> : <div className="se-readonly-note" role="status">
+        </div> : !historicalDateAvailable && <div className="se-readonly-note" role="status">
           O estado deste dia não está confirmado. Não serão apresentados
           indicadores de equipa ou ausência de turnos como se fossem definitivos.
           {selectedDayState === "outside-proposal"
@@ -541,11 +658,11 @@ export default function ScheduleHome({
             : " Consulta o aviso do arquivo antes de gerir este dia."}
         </div>}
         <button type="button" className="primary-button se-manage-action"
-          disabled={!canInspectDay}
+          disabled={!canInspectDay && !historicalDateAvailable}
           onClick={() => {
             setScreen("manage");setSearch("");setPage(1);
             setSelectedIds(new Set());setShowSelectedSummary(false);
-          }}>Gerir horário deste dia →</button>
+          }}>{historicalDateAvailable?"Consultar histórico deste dia →":"Gerir horário deste dia →"}</button>
       </aside>}
     </div>
   </section>;
