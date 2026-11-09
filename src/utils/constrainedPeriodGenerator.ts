@@ -40,6 +40,8 @@ export interface GenerateConstrainedPeriodInput
   startDate: string;
   endDate: string;
   externalContext: ConfirmedExternalWorkContext;
+  /** Authoritative active approved periods: the generator must not plan over them. */
+  protectedApprovedPeriods?: WorkValidationDateRange[];
   /**
    * Global search budget, not a fresh daily budget. The default is 50k
    * explored nodes for ALL dates and rejected/backtracked alternatives.
@@ -1687,6 +1689,27 @@ export function generateConstrainedPeriodSchedule(
     return resultWith("invalid_input", [
       `O gerador condicionado suporta até ${MAX_CONSTRAINED_PERIOD_DAYS} dias consecutivos.`,
     ]);
+  }
+
+  // Fail closed before searching: an official approval owns its calendar dates.
+  // Proposals remain append-only and cannot implicitly revise approved work.
+  if (input.protectedApprovedPeriods !== undefined) {
+    if (!Array.isArray(input.protectedApprovedPeriods) || input.protectedApprovedPeriods.some(
+      period => !period || civilDate(period.startDate) === null ||
+        civilDate(period.endDate) === null || period.startDate > period.endDate
+    )) {
+      return resultWith("invalid_input", [
+        "O contexto de períodos oficialmente aprovados é inválido.",
+      ]);
+    }
+    if (input.protectedApprovedPeriods.some(period =>
+      period.startDate <= input.endDate && period.endDate >= input.startDate
+    )) {
+      return resultWith("invalid_input", [
+        "O período solicitado sobrepõe-se a um horário oficialmente aprovado. "+
+        "Esse horário está protegido; utiliza uma revisão oficial para o alterar.",
+      ]);
+    }
   }
 
   const policyIssues=validatePeopleSchedulingPolicies(input.people ?? []);
