@@ -27,8 +27,7 @@ No PR #47, foram acrescentados contratos semanais individuais (limites
 fuso horário IANA por operação, ciclos contabilísticos fixos de 28 dias,
 **geração de 28 dias testada no núcleo** e disponibilidade por pessoa.
 As qualificações podem ser exigidas na cobertura e são validadas também
-nas pausas. A UI do PR #47 aceita 28 dias; falta confirmação funcional
-no Safari do arquivo e recuperação de uma proposta longa.
+nas pausas. A interface aceita 28 dias; a geração e recuperação da proposta de 02–29/11/2026 foram confirmadas no Safari em 09/11/2026 e numa consulta read-only ao Supabase. A transição contabilística para 30/11 também passou numa execução automatizada WebKit.
 
 ### Não confundir proposta com aprovação
 
@@ -38,8 +37,7 @@ consecutivos; o panorama indica essa proveniência e permite selecionar
 uma única proposta para consulta, sem a tratar como escala combinada
 certificada.
 
-Os componentes históricos de aprovação subsistem como **código de domínio
-e testes**, sem ligação ao fluxo operacional ativo. O serviço antigo
+O serviço de aprovação oficial v2 está publicado, e a interface consulta a prontidão através de sessão autenticada. A aprovação permanece bloqueada quando falta histórico verificado por pessoa/dia. Os laboratórios antigos não estão ligados à interface; as regras e testes de domínio permanecem. O serviço antigo
 `official-schedules` no Supabase foi substituído pela versão inerte
 v6 (HTTP 410), com fonte v5 preservada para recuperação.
 
@@ -85,19 +83,20 @@ continuam indispensáveis antes de qualquer merge importante.
 O [protocolo de aceitação PR #47](docs/pr47-acceptance.md) descreve
 os testes reproduzíveis, incluindo a edição completa de períodos de
 operação/disponibilidade, o arquivo e o ensaio read-only de isolamento RLS
-com duas contas num projeto de staging. O ensaio RLS tem de ser executado
-manualmente; não faz parte de `npm test`.
+com duas contas num projeto de staging. O ensaio RLS com contas reais de teste foi executado diretamente no Supabase,
+sem modificar dados, e os testes SQL de isolamento estão na CI. Os testes
+interativos WebKit utilizam um backend sintético e não substituem uma sessão Safari real.
 
 ## Arquitetura e controlo de alterações
 
 - `src/utils/`: domínio, geração, validação, regras e cálculos.
 - `src/components/`: interface React de consulta e geração.
 - `src/persistence/`: adaptadores de estado e arquivo (Supabase).
-- `src/application/`: experiências históricas de fronteira de
-  confiança, **não ligadas à interface atual**.
+- `src/application/`: contratos e serviços confiáveis de aprovação oficial,
+  com execução no serviço Edge, sem dar ao cliente acesso privilegiado.
 - `supabase/migrations/`: quatro identificadores históricos reconstruídos
-  e duas migrações PR47 **aplicadas** (28 dias e RPC privado), ensaiadas
-  em PostgreSQL descartável no CI. **Não executar `db push` na produção** sem
+  e seis migrações PR47 **aplicadas**, num total de dez versões alinhadas
+  com o Supabase e reconstruídas num PostgreSQL 17 descartável na CI. **Não executar `db push` na produção** sem
   verificar histórico, backup/restauro e operações de rollout.
 - `supabase/audit/` e `supabase/rollback/`: inventário read-only e
   fontes preservadas para recuperar a função antiga.
