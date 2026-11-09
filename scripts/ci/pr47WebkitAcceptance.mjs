@@ -142,9 +142,11 @@ try{
   await page.getByRole("heading",{name:"Calendário mensal"}).waitFor();
   await page.locator(".save-status.saved").waitFor();
   // 21: all four real navigation areas and no retired interactive lab.
-  const tabs=await page.locator(".workspace-tabs button").allTextContents();
-  assert.deepEqual(tabs.map(x=>x.trim()),
-    ["Horários","Operação","Equipa","Regras"]);
+  const tabs=await page.locator(".app-nav-link").evaluateAll(
+    elements=>elements.map(element=>element.getAttribute("aria-label")));
+  assert.deepEqual(tabs,["Horários","Operação","Equipa","Regras"]);
+  assert.equal(await page.locator(".workspace-tabs").count(),0,
+    "Horizontal workspace tabs must be replaced by application navigation.");
   assert(!/(?:laborat[oó]rio|approved context integration lab)/i.test(
     await page.locator("body").innerText()),"Retired lab leaked into UI");
   // 22: proposal terminology is not an official approval.
@@ -236,6 +238,22 @@ try{
   await page.getByText("Feriado registado").waitFor();
   await page.getByRole("button",{name:/Voltar ao calendário/}).click();
   await page.getByRole("button",{name:"Hoje"}).click();
+
+  // App Shell: usable desktop navigation and mobile drawer, same workspaces.
+  await page.setViewportSize({width:390,height:844});
+  const drawer=page.locator(".application-sidebar");
+  assert.equal(await drawer.isVisible(),true,"Sidebar must stay mounted on mobile.");
+  await page.getByRole("button",{name:"Abrir menu de navegação"}).click();
+  await drawer.locator(".app-nav-link[aria-label='Equipa']").click();
+  await page.getByRole("heading",{name:"Pessoas",exact:true}).waitFor();
+  assert.equal(await drawer.evaluate(el=>el.classList.contains("is-open")),false,
+    "Selecting a mobile workspace must close the drawer.");
+  await page.getByRole("button",{name:"Abrir menu de navegação"}).click();
+  await drawer.locator(".app-nav-link[aria-label='Horários']").click();
+  await page.getByRole("heading",{name:"Calendário mensal"}).waitFor();
+  await page.setViewportSize({width:1440,height:900});
+  assert.equal(await page.locator(".app-nav-link").count(),4,
+    "The same navigation structure is retained on desktop.");
 
   // 14: rejected network write cannot claim success, must offer JSON export.
   await page.getByRole("button",{name:"Operação",exact:true}).click();
