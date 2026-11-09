@@ -391,10 +391,18 @@ Esta ronda substitui as verificações manuais repetidas. A criação das duas c
 
 | ID | Operação Safari | Critério de aprovação | Estado |
 |---|---|---|---|
-| S1 — JWT real | Atualizar a branch e reiniciar Vite. Na **conta A**, abrir a proposta guardada de 02/11/2026 | Painel de **Aprovação oficial** consulta v2 com a sessão, indica histórico por verificar e **não** apresenta botão de aprovação. HTTP 401/404/503 não conta como sucesso | PENDENTE — Safari |
-| S2 — 28 dias | Na **conta B**, simular 02–29/11/2026 com configuração fictícia atual, confirmar corretamente o contexto exterior, guardar e recarregar | Aceita 28 dias, respeita cobertura e descansos, recupera a proposta inteira após reload | PENDENTE — Safari |
-| S3 — duas abas | Na **conta B**, abrir duas abas já carregadas. Alterar o nome B1 na aba 1; guardar. Alterar o **mesmo campo** para outro valor na aba 2, sem reload | A segunda tentativa mostra conflito e não sobrescreve a aba 1. Após reload prevalece a versão da aba 1 | PENDENTE — Safari |
+| S1 — JWT real | Atualizar a branch e reiniciar Vite. Na **conta A**, abrir a proposta guardada de 02/11/2026 | Painel de **Aprovação oficial** consulta v2 com a sessão, indica histórico por verificar e **não** apresenta botão de aprovação. HTTP 401/404/503 não conta como sucesso | **PASS — Safari, confirmado pelo utilizador em 09/11/2026** |
+| S2 — 28 dias | Na **conta B**, simular 02–29/11/2026 com configuração fictícia atual, confirmar corretamente o contexto exterior, guardar e recarregar | Aceita 28 dias, respeita cobertura e descansos, recupera a proposta inteira após reload | **PASS — Safari, confirmado pelo utilizador em 09/11/2026** |
+| S3 — duas abas | Na **conta B**, abrir duas abas já carregadas. Alterar o nome B1 na aba 1; guardar. Alterar o **mesmo campo** para outro valor na aba 2, sem reload | A segunda tentativa mostra conflito e não sobrescreve a aba 1. Após reload prevalece a versão da aba 1 | **FALHOU NA UI**: a segunda gravação não substituiu a primeira, mas também não apareceu aviso; captura mostrava «A guardar». Correção de aviso cruzado e timeout aplicada, **reteste pendente** |
 
 Se S1–S3 passarem, a aceitação visual está concluída. Se falhar algum, corrigir e repetir **apenas o teste que falhou**. O merge continua separado das exceções explícitas: importação histórica adiada e leaked-password protection exigindo plano Pro+.
 
 **Provas automáticas:** cenário de perda de rede antes/depois de commit com outbox e replay por UUID (PR47-14); transação real CAS de estado e ledger no Supabase com ROLLBACK (PR47-16/17); endpoint compilado com duas identidades sintéticas, 404 cruzado e histórico incompleto, além de RLS SQL real (PR47-23).
+
+
+### S3 — Falha real de aviso e correção (09/11/2026)
+
+- O utilizador confirmou S1 e S2, sem necessidade de os repetir. O screenshot de S2 mostra turnos de segunda a sexta entre 02 e 27/11 dentro do período pedido de 28 dias. A API não promove propostas a horários oficiais sem histórico.
+- Em S3, um segundo Safari privado mostrou «A guardar» e não comunicou o conflito. Uma consulta read-only confirmou que a conta B ainda tem o nome que venceu na primeira aba (revisão 41); não houve substituição silenciosa.
+- Correção PR47-16: evento owner-scoped de gravação confirmada enviado via localStorage e detetado nas outras abas do mesmo titular; a aba obsoleta é bloqueada com mensagem clara e opção de exportação antes do reload. Sem comunicação de dados ou tokens entre abas. Timeout de 20s para confirmação incerta, sem falsa indicação de sucesso. Adicionados regressões puras de isolamento de aviso e simulação de duas edições concorrentes do nome da mesma pessoa.
+- Só S3 precisa de um único reteste com Safari após atualização do Git. O estado da CI deve estar verde antes de o solicitar.
