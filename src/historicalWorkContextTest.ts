@@ -126,8 +126,8 @@ const withLidio={
   },
   archive:{timeZone:"Atlantic/Azores",shifts:[],
     coverage:[
-      {personId:"a",startDate:"2026-01-01",endDate:"2026-01-05",sourceId:"january",verified:true},
-      {personId:"b",startDate:"2026-01-05",endDate:"2026-01-05",sourceId:"january",verified:true},
+      {personId:"a",startDate:"2026-01-01",endDate:"2026-02-10",sourceId:"january",verified:true},
+      {personId:"b",startDate:"2026-01-05",endDate:"2026-02-10",sourceId:"january",verified:true},
     ]},
 } satisfies HistoricalContextRequest;
 const effectiveEmployment=prepareHistoricalWorkContext(withLidio);
