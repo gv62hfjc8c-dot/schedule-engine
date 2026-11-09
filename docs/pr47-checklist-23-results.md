@@ -88,3 +88,16 @@ A escrita de propostas continua append-only; não modifica o ledger oficial.
 A leitura prévia no cliente não constitui bloqueio transacional de concorrência
 entre uma geração e uma aprovação efetuadas simultaneamente; a aprovação
 oficial continua a depender da validação e CAS confiáveis do servidor.
+
+
+### Prova automática da proteção P06
+
+A execução GitHub Actions **42639795765**, commit `1de0151ab71e10b8df789068ad09927f7bef4a53`,
+terminou com os três jobs aprovados: `validate`, `migration-contract` e
+`webkit-acceptance`. O `npm test` inclui agora
+`test:approved-period-protection` e cenários de bloqueio no gerador
+condicionado. O teste WebKit existente é regressão geral, não um ensaio
+end-to-end com um horário oficial verdadeiro no Safari macOS.
+
+**P06: implementação e CI PASS; reteste Safari específico continua pendente.**
+Não declarar 23/23 aceites até validar esse último comportamento.
