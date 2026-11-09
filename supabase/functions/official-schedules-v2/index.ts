@@ -1,5 +1,5 @@
 /**
- * PR47-17 / trusted scheduling command API — deployed as v1, JWT required.
+ * PR47-17 / trusted scheduling command API — JWT required; deployment revision managed in Supabase.
  * No browser-supplied owner, ledger, environment, history or event clock.
  * Do NOT deploy with verify_jwt=false; service_role stays server-side.
  *
