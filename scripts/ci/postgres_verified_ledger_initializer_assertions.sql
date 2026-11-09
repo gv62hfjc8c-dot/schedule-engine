@@ -15,8 +15,10 @@ INSERT INTO auth.users(id)VALUES('44444444-4444-4444-8444-444444444444');
 INSERT INTO public.schedule_engine_states(owner_id,revision,payload)
 VALUES('44444444-4444-4444-8444-444444444444',1,
  '{"version":4,"people":[
-   {"id":"a","name":"A","active":true},
-   {"id":"b","name":"B","active":true}],
+   {"id":"a","name":"A","active":true,
+     "employmentPeriods":[{"startDate":"2026-11-02","endDate":null}]},
+   {"id":"b","name":"B","active":true,
+     "employmentPeriods":[{"startDate":"2026-11-03","endDate":null}]}],
    "availabilities":[],"weeklyOperatingHours":{},"exceptions":[],
    "workRules":{},"weeklyPresenceRequirements":{},
    "presenceExceptions":[]}'::jsonb);
@@ -35,16 +37,14 @@ VALUES
  'a','2026-11-02','2026-11-03','test-v1'),
 ('44444444-4444-4444-8444-444444444444',
  'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
- 'b','2026-11-02','2026-11-03','test-v1');
+ 'b','2026-11-03','2026-11-03','test-v1');
 INSERT INTO public.schedule_engine_history_day_facts
 (owner_id,source_id,person_id,work_date,shifts,occurrence_type)
 VALUES
 ('44444444-4444-4444-8444-444444444444',
  'cccccccc-cccc-4ccc-8ccc-cccccccccccc','a','2026-11-02','[]','day_off'),
 ('44444444-4444-4444-8444-444444444444',
- 'cccccccc-cccc-4ccc-8ccc-cccccccccccc','a','2026-11-03','[]','day_off'),
-('44444444-4444-4444-8444-444444444444',
- 'cccccccc-cccc-4ccc-8ccc-cccccccccccc','b','2026-11-02','[]','day_off');
+ 'cccccccc-cccc-4ccc-8ccc-cccccccccccc','a','2026-11-03','[]','day_off');
 DO $$
 BEGIN
  BEGIN
@@ -73,4 +73,13 @@ BEGIN
     OR initialized->'coverage'->>'startDate'<>'2026-11-02'
     OR initialized->'coverage'->>'endDate'<>'2026-11-03'
  THEN RAISE EXCEPTION 'Verified ledger initialization shape wrong'; END IF;
+END $$;
+
+-- An unrecorded pre-employment day is correct: b joined only on 03/11.
+DO $$
+BEGIN
+ IF EXISTS (SELECT 1 FROM public.schedule_engine_history_day_facts
+    WHERE owner_id='44444444-4444-4444-8444-444444444444'
+      AND person_id='b' AND work_date='2026-11-02')
+ THEN RAISE EXCEPTION 'Imported a non-employed day for B'; END IF;
 END $$;
