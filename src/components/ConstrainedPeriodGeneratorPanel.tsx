@@ -15,7 +15,7 @@ import {
   type GenerateConstrainedPeriodResult,
 } from "../utils/constrainedPeriodGenerator";
 import { prepareExplicitEmptyContext } from "../utils/explicitEmptyContext";
-import { createSupabaseApprovedLedgerRepository } from "../persistence/supabaseApprovedLedgerRepository";
+import { readProtectedApprovedPeriods } from "../persistence/readApprovedPeriodProtection";
 import { supabaseAuthClient } from "../persistence/supabaseInstance";
 import { INITIAL_WORK_CONSTRAINTS } from "../utils/workConstraints";
 import { MAX_CONSTRAINED_PERIOD_DAYS } from "../utils/constrainedPeriodGenerator";
@@ -349,18 +349,12 @@ export default function ConstrainedPeriodGeneratorPanel({
         setError("Não foi possível confirmar a conta para consultar horários aprovados.");
         return;
       }
-      const ledger = await createSupabaseApprovedLedgerRepository(
-        supabaseAuthClient
-      ).load();
-      if (supabaseAuthClient.user?.id !== ownerId) {
-        setError("A sessão mudou durante a consulta. Repete a operação.");
-        return;
-      }
-      // A missing ledger is UNKNOWN context, not a verified empty roster.
-      // The output remains only an unapproved, user-attested proposal.
-      const protectedApprovedPeriods = ledger?.records
-        .filter(record => record.status === "approved")
-        .map(record => ({ startDate: record.startDate, endDate: record.endDate })) ?? [];
+      // The public UI can READ protected dates but cannot import approval
+      // mutation modules. Missing ledger never certifies official completeness.
+      const protection = await readProtectedApprovedPeriods(
+        supabaseAuthClient, ownerId
+      );
+      const protectedApprovedPeriods = protection.periods;
       if (protectedApprovedPeriods.some(period =>
         period.startDate <= endDate && period.endDate >= startDate
       )) {
