@@ -30,6 +30,7 @@ import {
 } from "../utils/pendingGeneratedProposal";
 import { todayInTimeZone } from "../utils/monthlyScheduleView";
 import { weeklyPersonWorkSummary, formatWorkMinutes } from "../utils/weeklyWorkSummary";
+import {reviseMealStart} from "../utils/mealBreakRevision";
 
 export interface ConstrainedPeriodGeneratorPanelProps {
   people: Person[];
@@ -136,6 +137,8 @@ export default function ConstrainedPeriodGeneratorPanel({
   const [error, setError] = useState<string | null>(null);
   const [saveState, setSaveState] = useState<"idle"|"saving"|"saved"|"failed">("idle");
   const [saveProblem, setSaveProblem] = useState<string | null>(null);
+  const [mealEdit,setMealEdit]=useState<{date:string;personId:string;start:string}|null>(null);
+  const [mealIssue,setMealIssue]=useState<string|null>(null);
   const [retryPayload, setRetryPayload] = useState<{payload: GeneratedSchedulePayload; id: string} | null>(null);
   const saveAttempt = useRef(0);
 
@@ -165,6 +168,8 @@ export default function ConstrainedPeriodGeneratorPanel({
     setSaveState("idle");
     setSaveProblem(null);
     setRetryPayload(null);
+    setMealEdit(null);
+    setMealIssue(null);
     recoverPendingProposal();
   }, [people, availabilities, operatingCalendar, workRules, presence,
       operationTimeZone, ownerId]);
@@ -215,6 +220,8 @@ export default function ConstrainedPeriodGeneratorPanel({
     setSaveState("idle");
     setSaveProblem(null);
     setRetryPayload(null);
+    setMealEdit(null);
+    setMealIssue(null);
     recoverPendingProposal();
   }
 
@@ -252,6 +259,14 @@ export default function ConstrainedPeriodGeneratorPanel({
       if (saveAttempt.current === token) {
         setSaveState("saved");
         setRetryPayload(null);
+        // The archived copy is immutable: move preview to the newly confirmed
+        // proposal only after the server acknowledges its own new UUID.
+        setSnapshot(current=>current&&current.result.status==="generated" &&
+          current.startDate===payload.startDate && current.endDate===payload.endDate
+          ? {...current,result:{...current.result,
+              assignments:structuredClone(payload.shifts)}} : current);
+        setMealEdit(null);
+        setMealIssue(null);
       }
     }).catch(problem => {
       if (saveAttempt.current === token) {
@@ -407,6 +422,63 @@ export default function ConstrainedPeriodGeneratorPanel({
       setError(unexpected instanceof Error
         ? unexpected.message
         : "Ocorreu um erro inesperado. Nenhum horário foi publicado.");
+    }
+  }
+
+  async function handleSaveMealRevision() {
+    if(!mealEdit || result?.status!=="generated" || !sameInputs || saveState!=="saved"){
+      setMealIssue("Só é possível rever uma proposta atual com gravação confirmada.");
+      return;
+    }
+    if(!ownerId || !supabaseAuthClient || supabaseAuthClient.user?.id!==ownerId){
+      setMealIssue("A conta autenticada não foi confirmada.");
+      return;
+    }
+    try {
+      const pending=loadPendingGeneratedProposal(window.localStorage,ownerId);
+      if(pending){
+        setMealIssue("Confirma primeiro a gravação pendente da proposta.");
+        return;
+      }
+      const protection=await readProtectedApprovedPeriods(supabaseAuthClient,ownerId);
+      if(protection.periods.some(period=>period.startDate<=endDate &&
+          period.endDate>=startDate)){
+        setMealIssue("O período já está oficialmente aprovado. Usa o fluxo de revisão oficial.");
+        return;
+      }
+      const prepared=prepareExplicitEmptyContext({
+        startDate,endDate,timeZone,rules:effectiveConstraints,
+        confirmedNoExternalShifts:confirmed,
+      });
+      if(prepared.status!=="ready" || !prepared.externalContext){
+        setMealIssue("O contexto exterior deixou de estar confirmado.");
+        return;
+      }
+      const revised=reviseMealStart({
+        startDate,endDate,timeZone,people,availabilities,operatingCalendar,
+        workRules,presence,workConstraints:effectiveConstraints,
+        externalContext:prepared.externalContext,
+        protectedApprovedPeriods:protection.periods,
+      },result.assignments,mealEdit.date,mealEdit.personId,mealEdit.start);
+      if(revised.status!=="valid"){
+        setMealIssue(revised.issues.join(" "));
+        return;
+      }
+      setMealIssue(null);
+      persistProposal({
+        schemaVersion:1,
+        validationScope:"user_attested_no_external_shifts",
+        startDate,endDate,timeZone,
+        shifts:structuredClone(revised.shifts),
+        people:structuredClone(people),
+        configuration:structuredClone({
+          availabilities,operatingCalendar,workRules,presence,
+          workConstraints:effectiveConstraints,
+        }),
+      },crypto.randomUUID());
+    }catch(problem){
+      setMealIssue(problem instanceof Error?problem.message:
+        "Não foi possível validar a alteração da refeição.");
     }
   }
 
@@ -717,6 +789,44 @@ export default function ConstrainedPeriodGeneratorPanel({
       </section>
       </div>}
       {workspaceView === "schedule" && result?.status === "generated" && <ScheduleViews assignments={result.assignments} people={people} startDate={startDate} endDate={endDate} storageState={saveState} />}
+      {workspaceView === "schedule" && result?.status === "generated" && (
+        <section className="panel generator-meal-editor" aria-label="Editar refeições da proposta">
+          <h3>Editar hora de refeição</h3>
+          <p className="generator-hint">
+            Um turno continua a ser um único período com pausa de refeição.
+            Guardar uma alteração cria outra proposta imutável e verifica novamente
+            as hard constraints e a cobertura. A proposta anterior permanece no arquivo.
+          </p>
+          {result.assignments.filter(shift=>shift.mealBreak).map(shift=>(
+            <div key={shift.date+"|"+shift.personId} className="p63-action-row">
+              <strong>{people.find(p=>p.id===shift.personId)?.name??shift.personId}</strong>
+              <span>{shift.date} · {shift.interval.start}–{shift.interval.end}</span>
+              <span>Refeição {shift.mealBreak?.start}–{shift.mealBreak?.end}</span>
+              <button type="button" className="secondary-button"
+                disabled={saveState!=="saved"}
+                onClick={()=>{
+                  setMealEdit({date:shift.date,personId:shift.personId,
+                    start:shift.mealBreak!.start});
+                  setMealIssue(null);
+                }}>Editar refeição</button>
+              {mealEdit?.date===shift.date && mealEdit.personId===shift.personId && (
+                <div className="p63-action-row">
+                  <label>Início da refeição
+                    <input type="time" step={900} value={mealEdit.start}
+                      onChange={event=>setMealEdit({...mealEdit,start:event.target.value})}/>
+                  </label>
+                  <button type="button" className="primary-button"
+                    disabled={saveState!=="saved"}
+                    onClick={()=>{void handleSaveMealRevision();}}>Validar e guardar nova proposta</button>
+                  <button type="button" className="secondary-button"
+                    onClick={()=>{setMealEdit(null);setMealIssue(null);}}>Cancelar</button>
+                </div>
+              )}
+            </div>
+          ))}
+          {mealIssue && <p className="generator-issue" role="alert">{mealIssue}</p>}
+        </section>
+      )}
     </div>
   );
 }
