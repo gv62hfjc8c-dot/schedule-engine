@@ -1,3 +1,11 @@
+## 2026-11-09 — Application Shell responsiva
+
+- Substituídos os quatro separadores horizontais e o cabeçalho excessivamente alto por navegação lateral persistente, cabeçalho compacto e localização da área atual.
+- No tablet e telemóvel, navegação em painel recolhível com controlo acessível; o conteúdo preserva a mesma lógica operacional e os mesmos dados.
+- Mantidas as sete vistas existentes (calendário, geração, operação, presença, pessoas, disponibilidades e regras), sem alterar o algoritmo, a persistência, as aprovações ou os factos históricos.
+- Sem declarar PWA ou aplicação nativa implementadas: esta entrega cobre apenas a experiência Web responsiva e a estrutura visual inicial.
+- Regressões automatizadas da hierarquia de navegação e da utilização real em WebKit em desktop e telemóvel simulado.
+
 ## 2026-11-09 — Consulta de histórico factual no calendário
 
 - Corrigida lacuna entre dados importados nas tabelas `schedule_engine_history_*` e o ecrã mensal, que anteriormente apenas consultava propostas geradas.
