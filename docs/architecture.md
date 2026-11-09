@@ -38,7 +38,7 @@ obrigatórias explícitas, fuso IANA operacional e **ciclos contabilísticos de
 um panorama que reúna propostas diferentes **não** é um horário mensal
 conjuntamente validado. O motor **já gera e certifica** um período
 de 28 dias no mesmo cálculo; o CHECK de 28 dias foi aplicado na instância
-em 08/11/2026. A validação no Safari permanece pendente.
+em 08/11/2026. A geração e recuperação no Safari foram confirmadas em 09/11/2026; os limites do ciclo seguinte também foram exercitados automaticamente no WebKit.
 
 O estado de configuração mantém `version: 4`, com campos opcionais
 retrocompatíveis; o arquivo de propostas usa payload e contrato separados.
@@ -46,9 +46,11 @@ O Supabase já é a fonte principal de configuração e propostas. O
 `localStorage` serve para migração histórica controlada e preferências da
 interface, não para aprovar horários.
 
-O legado de aprovações e os seus testes de domínio permanecem isolados. Os
-laboratórios React que não eram renderizados foram retirados da branch do
-PR #47. Um teste do grafo de dependências impede importações acidentais de
+O código de domínio de aprovação e os testes permanecem isolados da UI:
+o frontend consulta a API autenticada `official-schedules-v2`, que valida
+a prontidão e aplica aprovações/revisões com RPC privilegiada, bloqueando
+aprovações sem histórico externo verificado. Os laboratórios React que não
+eram renderizados foram retirados da branch do PR #47. Um teste do grafo de dependências impede importações acidentais de
 aprovações no frontend atual.
 
 **Referências:** `docs/audit-pr47.md` (23 observações),
