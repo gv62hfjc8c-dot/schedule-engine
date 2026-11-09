@@ -25,6 +25,10 @@ import type { GeneratedSchedulePayload, StoredGeneratedSchedule } from "./persis
 import { createEmptyWeeklyPresenceRequirements } from "./utils/presence";
 import { appStateRepository } from "./persistence/appStateRepository";
 import { APP_STATE_VERSION } from "./persistence/stateRepository";
+import {
+  notifyOtherTabsOfStateCommit,
+  isOtherTabStateCommit,
+} from "./utils/crossTabStateSignal";
 import { DEFAULT_OPERATION_TIME_ZONE, isIanaOperationTimeZone, resolveOperationTimeZone } from "./utils/operationTimeZone";
 import {
   createPersonAvailability,
@@ -278,6 +282,32 @@ export default function App() {
     };
   }, []);
 
+  // A successful write in another Safari tab makes this tab's baseline
+  // obsolete. Block autosave immediately instead of leaving an optimistic
+  // "A guardar" or silently overwriting the first tab.
+  useEffect(() => {
+    if (!persistenceReady) return;
+    const onOtherTabSave = (event: StorageEvent) => {
+      const ownerId=supabaseAuthClient?.user?.id;
+      if (!ownerId ||
+          !isOtherTabStateCommit(event.key,event.newValue,ownerId))
+        return;
+      // Invalidate in-flight UI acknowledgements. The database remains the
+      // authority; CAS still rejects a genuine concurrent write.
+      saveRequestId.current++;
+      setPersistenceReady(false);
+      setPersistenceStatus("error");
+      setPersistenceProblem(
+        "Outra aba desta conta guardou alterações à configuração. " +
+        "Para impedir que edições simultâneas substituam dados, " +
+        "esta aba foi bloqueada. Se editaste algo aqui, descarrega " +
+        "primeiro uma cópia JSON; depois recarrega os dados do servidor."
+      );
+    };
+    window.addEventListener("storage",onOtherTabSave);
+    return () => window.removeEventListener("storage",onOtherTabSave);
+  }, [persistenceReady]);
+
   useEffect(() => {
     if (!persistenceReady) return;
 
@@ -303,8 +333,22 @@ export default function App() {
           weeklyPresenceRequirements,
           presenceExceptions,
         };
+      const requestedOwnerId=supabaseAuthClient?.user?.id;
       void appStateRepository.save(requested)
         .then(reconciled => {
+          // Send metadata only, never the personnel data or auth session.
+          // The storage event fires in other same-origin tabs, not this one.
+          // The SQL compare-and-swap is still the security boundary.
+          if (requestedOwnerId &&
+              supabaseAuthClient?.user?.id === requestedOwnerId) {
+            try {
+              notifyOtherTabsOfStateCommit(
+                window.localStorage,requestedOwnerId,crypto.randomUUID()
+              );
+            } catch {
+              // Storage may be unavailable in private mode. CAS remains safe.
+            }
+          }
           if (requestId !== saveRequestId.current) return;
           if (reconciled && JSON.stringify(reconciled)!==JSON.stringify(requested)) {
             // The server merged disjoint updates from another tab.
