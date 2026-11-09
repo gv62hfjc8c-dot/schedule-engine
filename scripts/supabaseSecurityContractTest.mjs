@@ -93,15 +93,15 @@ contains(historical,/REVOKE\s+EXECUTE\s+ON\s+FUNCTION[\s\S]*?initialize_schedule
 absent(historical,/GRANT\s+(?:INSERT|UPDATE|DELETE|ALL)[\s\S]*?ON\s+public\.schedule_engine_history_(?:sources|day_facts|verifications)\s+TO\s+authenticated/i,
   "Do not grant the browser historical data writes.");
 const occurrenceMigration=file("supabase/migrations/20261109210000_history_day_occurrence_types.sql");
-contains(occurrenceMigration,/ADD\\s+COLUMN\\s+occurrence_type\\s+text\\s+NOT\\s+NULL/i,
+contains(occurrenceMigration,/ADD\s+COLUMN\s+occurrence_type\s+text\s+NOT\s+NULL/i,
   "Historical day type must be mandatory.");
 contains(occurrenceMigration,/worked.*day_off.*vacation.*holiday/i,
   "Only explicit historical classifications are permitted.");
-contains(occurrenceMigration,/jsonb_array_length\\(shifts\\)\\s*>\\s*0/i,
+contains(occurrenceMigration,/jsonb_array_length\(shifts\)\s*>\s*0/i,
   "Worked days must carry at least one interval.");
-contains(occurrenceMigration,/jsonb_array_length\\(shifts\\)\\s*=\\s*0/i,
+contains(occurrenceMigration,/jsonb_array_length\(shifts\)\s*=\s*0/i,
   "Leave, holiday and rest days must not silently carry shifts.");
-absent(occurrenceMigration,/grant\\s+(?:insert|update|delete|all)\\s+on\\s+(?:table\\s+)?public\\.schedule_engine_history_day_facts\\s+to\\s+authenticated/i,
+absent(occurrenceMigration,/grant\s+(?:insert|update|delete|all)\s+on\s+(?:table\s+)?public\.schedule_engine_history_day_facts\s+to\s+authenticated/i,
   "Classification migration must not grant browser history writes.");
 const rpcHardening=file("supabase/deployment/pr47_state_rpc_private_schema.sql");
 contains(rpcHardening,/CREATE\s+SCHEMA\s+IF\s+NOT\s+EXISTS\s+schedule_engine_private/i,
