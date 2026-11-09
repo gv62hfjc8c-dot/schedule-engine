@@ -57,3 +57,34 @@ A última suite passou nos três jobs de GitHub Actions: `validate`, `migration-
 Não repetir S1/S2/S3 nem o WebKit já aprovado. Concentram-se os testes originais ainda sem execução em 02, 06, 07, 09, 10, 11 e 12. Para qualquer revisão de segurança ou equivalência nativa, usar as limitações descritas acima e não fazer passar WebKit por Safari macOS.
 
 **Esta tabela prevalece sobre afirmações genéricas anteriores de «23/23 resolvidos».** Sete cenários continuam por testar segundo o protocolo original.
+
+
+## Ronda funcional comunicada pelo responsável — 09/11/2026
+
+Após a checklist original, o responsável comunicou **PASS declarado** para os pontos
+02, 07, 09, 10, 11 e 12. Estes resultados são aceitação funcional reportada
+pelo responsável nesta conversa; não são provas novas de CI nem devem ser
+confundidos com os resultados automatizados anteriores.
+
+O responsável redefiniu o critério do ponto **06**: uma nova geração não pode
+alterar nem sobrepor silenciosamente um horário **oficialmente aprovado**.
+Este requisito é distinto do isolamento de propostas não aprovadas.
+
+**Intervenção implementada na branch PR47 (a validar):**
+- O núcleo recebe períodos oficiais protegidos e rejeita a geração quando
+  existe interseção, incluindo o dia inicial/final e datas sem turnos.
+- Antes de executar a geração, a interface consulta o ledger autenticado
+  da conta no Supabase; erros de consulta impedem a geração.
+- A ausência de ledger não é tratada como prova de contexto oficial
+  completo: qualquer resultado gerado continua a ser apenas proposta
+  não aprovada, dependente da declaração explícita do contexto exterior.
+- Testes de regressão acrescentados ao gerador condicionado.
+- Uma alteração genuína a horário aprovado continua reservada ao
+  comando confiável de revisão, com nova versão e histórico imutável.
+
+**Estado do ponto 06: IMPLEMENTADO / RETESTE PENDENTE.**
+Não marcar como PASS até confirmação da CI e do comportamento real no Safari.
+A escrita de propostas continua append-only; não modifica o ledger oficial.
+A leitura prévia no cliente não constitui bloqueio transacional de concorrência
+entre uma geração e uma aprovação efetuadas simultaneamente; a aprovação
+oficial continua a depender da validação e CAS confiáveis do servidor.
