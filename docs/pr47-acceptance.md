@@ -393,7 +393,7 @@ Esta ronda substitui as verificações manuais repetidas. A criação das duas c
 |---|---|---|---|
 | S1 — JWT real | Atualizar a branch e reiniciar Vite. Na **conta A**, abrir a proposta guardada de 02/11/2026 | Painel de **Aprovação oficial** consulta v2 com a sessão, indica histórico por verificar e **não** apresenta botão de aprovação. HTTP 401/404/503 não conta como sucesso | **PASS — Safari, confirmado pelo utilizador em 09/11/2026** |
 | S2 — 28 dias | Na **conta B**, simular 02–29/11/2026 com configuração fictícia atual, confirmar corretamente o contexto exterior, guardar e recarregar | Aceita 28 dias, respeita cobertura e descansos, recupera a proposta inteira após reload | **PASS — Safari, confirmado pelo utilizador em 09/11/2026** |
-| S3 — duas abas | Na **conta B**, abrir duas abas já carregadas. Alterar o nome B1 na aba 1; guardar. Alterar o **mesmo campo** para outro valor na aba 2, sem reload | A segunda tentativa mostra conflito e não sobrescreve a aba 1. Após reload prevalece a versão da aba 1 | **FALHOU NA UI**: a segunda gravação não substituiu a primeira, mas também não apareceu aviso; captura mostrava «A guardar». Correção de aviso cruzado e timeout aplicada, **reteste pendente** |
+| S3 — duas abas | Na **conta B**, abrir duas abas já carregadas. Alterar o nome B1 na aba 1; guardar. Alterar o **mesmo campo** para outro valor na aba 2, sem reload | A segunda tentativa mostra conflito e não sobrescreve a aba 1. Após reload prevalece a versão da aba 1 | **PASS — Safari, reteste confirmado pelo utilizador em 09/11/2026**. A correção de comunicação entre abas resolveu a falha original; proteções de CAS e exportação permanecem ativas. |
 
 Se S1–S3 passarem, a aceitação visual está concluída. Se falhar algum, corrigir e repetir **apenas o teste que falhou**. O merge continua separado das exceções explícitas: importação histórica adiada e leaked-password protection exigindo plano Pro+.
 
@@ -406,3 +406,8 @@ Se S1–S3 passarem, a aceitação visual está concluída. Se falhar algum, cor
 - Em S3, um segundo Safari privado mostrou «A guardar» e não comunicou o conflito. Uma consulta read-only confirmou que a conta B ainda tem o nome que venceu na primeira aba (revisão 41); não houve substituição silenciosa.
 - Correção PR47-16: evento owner-scoped de gravação confirmada enviado via localStorage e detetado nas outras abas do mesmo titular; a aba obsoleta é bloqueada com mensagem clara e opção de exportação antes do reload. Sem comunicação de dados ou tokens entre abas. Timeout de 20s para confirmação incerta, sem falsa indicação de sucesso. Adicionados regressões puras de isolamento de aviso e simulação de duas edições concorrentes do nome da mesma pessoa.
 - Só S3 precisa de um único reteste com Safari após atualização do Git. O estado da CI deve estar verde antes de o solicitar.
+
+
+### Confirmação final do reteste S3 — 09/11/2026
+
+O utilizador confirmou expressamente que a correção do conflito entre abas ficou **resolvida** no Safari após atualização da branch. S1, S2 e S3 estão aceites na ronda final. Esta confirmação fecha a falha funcional de apresentação; não representa, por si só, uma autorização para aprovar horários sem histórico, nem corrige o aviso Auth dependente do plano Pro.
