@@ -1,4 +1,5 @@
 import type { DatedWorkShift, Person } from "../types";
+import {employedOn, validateEmploymentPeriods} from "./employmentPeriods";
 import { getEffectiveWorkMinutesInTimeZone } from "./workConstraints";
 
 const DAY = 86_400_000;
@@ -36,6 +37,8 @@ export function personWeeklyTarget(person: Person, companyMaximum: number): numb
 export function validatePeopleSchedulingPolicies(people: Person[]): string[] {
   const issues: string[] = [];
   for (const person of people) {
+    issues.push(...validateEmploymentPeriods(person.employmentPeriods).map(
+      message=>person.id+": "+message));
     if (person.weeklyContractMinutes !== undefined &&
       !validMinutes(person.weeklyContractMinutes))
       issues.push("Limite semanal contratual inválido para " + person.id + ".");
@@ -96,6 +99,10 @@ export function validatePersonWeeklyContractCaps(
       issues.push("Data de turno inválida ao validar o contrato: " + shift.personId + ".");
       continue;
     }
+    if(!employedOn(person,shift.date)){
+      issues.push("Turno de "+person.id+" fora do período de vínculo em "+shift.date+".");
+      continue;
+    }
     if(isPersonUnavailableOnDate(person,shift.date)){
       issues.push("Turno de "+person.id+" atribuído durante indisponibilidade em "+shift.date+".");
       continue;
@@ -144,6 +151,7 @@ export function missingRequiredOutsideWorkdays(
     (person.requiredWorkDates??[])
       .filter(date=>date>=knownStart && date<=knownEnd &&
         (date<targetStart || date>targetEnd) &&
+        employedOn(person,date) &&
         !assigned.has(person.id+"|"+date))
       .map(date=>({personId:person.id,date}))
   );
