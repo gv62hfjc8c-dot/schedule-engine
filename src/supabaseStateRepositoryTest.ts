@@ -434,6 +434,34 @@ const ownerConsent = { getItem: (key: string): string | null =>
 }
 
 
+// Safari S3 regression: two open tabs rename the SAME person differently.
+// The backend must preserve the first committed name and report the exact
+// field conflict, not silently keep "A guardar" or perform last-write-wins.
+{
+  const cloud=createMockCloud();
+  cloud.setState(fixture());
+  const left=createSupabaseStateRepository(
+    cloud.client,legacy(null).repo,emptyStorage);
+  const right=createSupabaseStateRepository(
+    cloud.client,legacy(null).repo,emptyStorage);
+  const first=(await left.load())!;
+  const second=(await right.load())!;
+  const originalId=first.people[0].id;
+  await left.save({...first,people:first.people.map(person=>
+    person.id===originalId?{...person,name:"B1 - Oi"}:person)});
+  let rejected:unknown=null;
+  try{
+    await right.save({...second,people:second.people.map(person=>
+      person.id===originalId?{...person,name:"B1 - ola"}:person)});
+  }catch(error){rejected=error;}
+  ensure(rejected instanceof SupabaseStateConflictError &&
+    rejected.fields.some(path=>path.endsWith(".name") &&
+      path.includes(originalId)),
+    "S3: a second tab must report a named-person field conflict.");
+  ensure(cloud.current().state?.people[0].name==="B1 - Oi",
+    "S3: the name saved by the first tab must survive a stale second tab.");
+}
+
 // PR47-16: A local UI event can arrive while a previous CAS request is
 // waiting for a remote conflict/merge. The queued next event is based on the
 // stale UI, not the merged remote payload, and must not REVERT other-tab edits.
