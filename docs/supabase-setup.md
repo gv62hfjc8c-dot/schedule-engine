@@ -170,3 +170,8 @@ ponto de regresso até à aprovação final do PR #47.
 - O PostgreSQL em CI prova políticas e RPC; não substitui Supabase Auth com duas contas, Safari e testes HTTP reais.
 
 - Em 08/11/2026 passou o ensaio HTTPS real sem JWT para ambas as funções (GET/POST 401), incluindo CORS na nova API; `deno check` verifica todas as dependências do endpoint na CI. O ambiente real não foi ensaiado com credenciais/JWTs de A/B.
+
+
+## Opção de implantação ratificada — 09/11/2026
+
+O responsável confirmou a continuidade no plano **Supabase Free** e aceitou o risco residual da ausência de `auth_leaked_password_protection`. Não tentar corrigir este aviso ativando Pro ou recursos faturáveis. As medidas de RLS, privilégios e CAS permanecem obrigatórias. O histórico real desde janeiro de 2026 será importado depois: até essa altura, a aprovação oficial continua bloqueada por falta de evidência. Ver `docs/decisions/pr47-scope-and-residual-risks-2026-11-09.md`.

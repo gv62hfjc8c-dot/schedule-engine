@@ -1,7 +1,6 @@
 # PR #47 — Protocolo de aceitação e testes reproduzíveis
 
-**Estado:** preparado, não executado no Safari. **PR #47 permanece em draft
-e não pode fazer merge até os critérios de aceitação serem cumpridos.**
+**Estado em 09/11/2026:** CI e aceitação Safari S1/S2/S3 executadas e aprovadas. **O PR #47 permanece sem merge** até decisão expressa, segundo as exceções de âmbito e risco registadas em `docs/decisions/pr47-scope-and-residual-risks-2026-11-09.md`.
 
 Branch: `audit/pr47-consistency-hardening`  
 Versão de recuperação: `safety/pr46-baseline` (PR #46)  
@@ -419,4 +418,13 @@ O utilizador confirmou expressamente que a correção do conflito entre abas fic
 - SQL PostgreSQL real: uma operação com estado desatualizado é recusada; só a versão certa cria um evento de histórico; repetição não o duplica. Tudo executado em `BEGIN/ROLLBACK`.
 - SQL read-only no Supabase: existem 1 proposta A, 4 propostas B (incluindo 1 de 28 dias) e 4 da conta habitual. Nenhuma é oficialmente aprovada.
 - Registos de `function_edge_logs` durante 24h até 09/11 11:00Z mostraram apenas HTTP 401 nos pedidos GET/POST às funções antigas e novas; o GET/POST 410 da função antiga foi comprovado em CI no handler isolado, mas não autenticado no gateway. Não afirmar prova de consumo inexistente fora da janela observada.
-- **Decisões externas solicitadas e ainda não recebidas:** importar agora dados reais desde janeiro 2026 ou manter bloqueio até à importação; autorizar upgrade Supabase Pro ou aceitar exceção formal no plano gratuito.
+- **Decisões confirmadas em 09/11/2026:** histórico real desde janeiro de 2026 a importar posteriormente, com aprovação bloqueada até à verificação; Supabase Free mantido e aviso Auth de passwords comprometidas aceite como risco residual. Ver ADR de fecho. Não requer nova confirmação.
+
+
+### Gate da auditoria após decisão do responsável — 09/11/2026
+
+- S1 (consulta de bloqueio oficial), S2 (geração/recuperação de 28 dias) e S3 (alerta de conflito entre abas) — **PASS confirmado**.
+- Importação de horários anteriores de 2026: **DIFERIDA POR DECISÃO**, não bloquear o merge do motor; **não** aprovar propostas com historial incompleto.
+- Aviso `auth_leaked_password_protection`: **RISCO ACEITE** pelo responsável no plano Free; não marcar como corrigido nem subscrever Pro.
+- Provas HTTP remotas com dois JWTs reais/410 autenticado da v6: **não realizadas**; evidências substitutas registadas, não afirmar PASS.
+- Código e base de dados não recebem dados sintéticos definitivos por causa deste fecho; os testes sintéticos da CI e da transação revertida preservam o isolamento.

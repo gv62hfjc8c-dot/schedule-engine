@@ -81,3 +81,8 @@ validação final no Safari. Até lá o ponto 17 permanece **aberto**.
 ## Atualização 08/11/2026 — endpoint v3 e CAS de configuração
 
 A API publicada utiliza a âncora temporal do próprio ledger verificado, certifica a proposta contra as regras operacionais atuais e exige a mesma revisão de configuração e do ledger na transação de gravação. A importação externa permanece adiada; não existe autorização implícita para considerar dias de 2026 sem trabalho.
+
+
+## Decisão reiterada e fechada — 09/11/2026
+
+O responsável confirmou novamente que **incluirá os horários reais mais tarde**. Não voltar a pedir a importação como condição de conclusão do PR47. A funcionalidade de aprovação oficial que exige histórico completo permanece deliberadamente bloqueada até existir prova de pessoa/dia. Os testes com histórico sintético validam o algoritmo e o serviço, **não são história real**. A decisão de aceitação de risco do plano Free e o gate de merge estão em `pr47-scope-and-residual-risks-2026-11-09.md`.
