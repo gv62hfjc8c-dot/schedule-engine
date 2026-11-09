@@ -114,5 +114,38 @@ const result=generateConstrainedPeriodSchedule({
 assert(result.status==="generated"&&result.assignments.length===1&&
   result.assignments[0].personId==="b",
   "A 10h rest gap with imported historical work excludes A; engine selects B.");
+
+const withLidio={
+  ...basic,
+  targetPeriod:{startDate:"2026-01-06",endDate:"2026-01-06"},
+  historyStartDate:"2026-01-01",
+  personIds:["a","b"],
+  employmentPeriods:{
+    a:[{startDate:"2025-12-29",endDate:null}],
+    b:[{startDate:"2026-01-05",endDate:null}],
+  },
+  archive:{timeZone:"Atlantic/Azores",shifts:[],
+    coverage:[
+      {personId:"a",startDate:"2026-01-01",endDate:"2026-01-05",sourceId:"january",verified:true},
+      {personId:"b",startDate:"2026-01-05",endDate:"2026-01-05",sourceId:"january",verified:true},
+    ]},
+} satisfies HistoricalContextRequest;
+const effectiveEmployment=prepareHistoricalWorkContext(withLidio);
+assert(effectiveEmployment.status==="ready",
+  "Historical gaps before Lidio's entry must not block a verified employed period.");
+const priorToEmployment=prepareHistoricalWorkContext({...withLidio,
+  archive:{...withLidio.archive,shifts:[{
+    date:"2026-01-01",personId:"b",interval:{start:"08:00",end:"12:00"},mealBreak:null,
+  }]}});
+assert(priorToEmployment.status==="invalid_input",
+  "Historical work may not be attributed before a person's actual entry.");
+const invalidEmployment=prepareHistoricalWorkContext({...withLidio,
+  employmentPeriods:{...withLidio.employmentPeriods,b:[
+    {startDate:"2026-01-05",endDate:"2026-01-08"},
+    {startDate:"2026-01-07",endDate:null},
+  ]}});
+assert(invalidEmployment.status==="invalid_input",
+  "Overlapping employee relationships must be rejected.");
+
 console.log("PR47-history: unknown, unverified and incomplete 2026 history blocked; "+
   "verified import guides cross-day scheduling correctly.");
