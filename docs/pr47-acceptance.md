@@ -246,14 +246,14 @@ Os códigos A–F acima continuam **PENDENTES** até serem executados.
 | 13 Snapshots inválidos | Reforçado | D06 e F04; registo incompatível não é apresentado como válido. **Não corromper dados reais** |
 | 14 Fecho durante gravação | **Mitigado** | D08 e F04; retries com UUID estável. Fecho forçado do navegador não oferece garantia de entrega |
 | 15 Fusos divergentes | Implementado | B11, F02 e F03; fuso IANA da operação e do snapshot arquivado |
-| 16 Escrita concorrente | **RPC com CAS de configuração e ledger em produção** | Transação real em Supabase rejeitou estado obsoleto; nova função `commit_schedule_engine_approved_ledger_v2` usa bloqueio de configuração `FOR SHARE`, com testes de rollback, histórico e permissões. Ensaio Safari com duas abas ainda não realizado |
+| 16 Escrita concorrente | **CAS e aviso entre abas aceites no Safari — PASS** | Ensaio transacional real, regressão de duas edições concorrentes do mesmo nome, aviso `storage` por titular, preservação de dados e reteste S3 confirmado em 09/11/2026 |
 | 17 Aprovação oficial ausente | **Fluxo de aplicação publicado; pronta apenas com história verificada** | Edge `official-schedules-v2` v3 com JWT obrigatório, CORS e validação independente; painel consulta API sem precisar de flag de ativação; botão só surge com `ready=true` do servidor. Zero histórico 2026 importado e zero ledgers oficiais, logo aprovação permanece bloqueada. Teste remoto com JWT de sessão real pendente |
-| 18 Ciclos de 28 dias | **Núcleo/DB/UI implementados, stress CI aprovado** | Quatro semanas certificadas; mais quatro cenários com DST, mudança de ano, ano bissexto e múltiplos fusos. Migração real confirmada, faltando aceitar 28 dias no Safari |
+| 18 Ciclos de 28 dias | **Núcleo/DB/UI e Safari aceites — PASS** | Quatro semanas certificadas com DST/ano bissexto/mudança de ano. O utilizador confirmou a geração e recuperação do período de 02–29/11/2026 em 09/11/2026 |
 | 19 Perfis de colaboradores | **V0 implementado; ocorrências oficiais dependem de #17** | `test:scheduling-model` valida `unavailableWorkDates` sem turno, incluindo rejeição da certificação. `test:qualification-coverage` valida competências durante turnos e refeições; UI edita datas indisponíveis e etiquetas. Motivos administrativos e tipos de vínculo não especificados |
 | 20 Segurança Supabase | **RPC reforçado; 1 aviso Auth pendente** | Migração `20261108124844` aplicada e funções/permissões verificadas; verificar operações reais de gravação no Safari. Proteção de passwords comprometidas continua desligada, disponível em Supabase Pro+ |
 | 21 Código experimental | Implementado | `npm run test:architecture`; verificar ausência de laboratório na UI e preservação dos testes do domínio |
 | 22 Terminologia desatualizada | Implementado | A03, A06, D01 e revisão textual: «proposta guardada, não aprovada» |
-| 23 Cobertura de regressões | **Automação e isolamento A/B melhorados; aceitação real incompleta** | Suite de motor, Deno strict, PostgreSQL, RLS e HTTPS real sem JWT aprovadas; propostas A/B isoladas e persistidas após reload; faltam dois JWTs reais, concorrência e fecho forçado no Safari |
+| 23 Cobertura de regressões | **Suite/CI e S1–S3 aprovados; cobertura integral HTTP oficial pendente** | Motor, Deno, PostgreSQL, CAS, RLS e HTTPS real sem JWT aprovados; Safari confirmou S1 bloqueio oficial, S2 28 dias, S3 aviso entre abas. Restam H02/H03/H06/H07 em HTTP real com duas sessões autenticadas e H08 por adiamento de importação |
 
 ### Testes complementares necessários para fechar a rastreabilidade
 
@@ -326,7 +326,7 @@ uma alteração parcial sem repetir os testes afetados.
 | H02 | Conta A tenta aprovar proposta de B | 404/422, sem acesso nem escrita cruzada | PENDENTE — duas contas reais |
 | H03 | Conta sem histórico de 2026 tenta aprovar | 409 por histórico incompleto, ledger continua vazio | PENDENTE — Auth real |
 | H04 | Ficheiro histórico incompleto, um colaborador sem dias confirmados | Recusa; jamais presumir folga | PASS no CI de domínio; ensaio importador PENDENTE |
-| H05 | Proposta guardada, ausência de histórico verificado | UI consulta prontidão ao servidor; sem `ready=true` não apresenta aprovação | Código/CI PASS; aceitação Safari pendente |
+| H05 | Proposta guardada, ausência de histórico verificado | UI consulta prontidão ao servidor; sem `ready=true` não apresenta aprovação | **PASS — S1 confirmado pelo utilizador em 09/11/2026** |
 | H06 | Histórico simulado completo e proposta com restrições válidas | Teste de aplicação guarda apenas com CAS, falhas não publicam sucesso | PASS em testes simulados; HTTP/ledger real PENDENTE |
 | H07 | Revisão parcial: baixa, férias ou saída depois de aprovar | Versão antiga preservada; novo turno certificado; tentativa retroativa recusada | PASS no domínio/CI; UI/HTTP PENDENTE |
 | H08 | Importar horários antigos e rever totais de 28 dias e histórico anual | Identidade estável, sem dupla contagem, revisão de conflitos, proveniência | PENDENTE — importação adiada pelo utilizador |
