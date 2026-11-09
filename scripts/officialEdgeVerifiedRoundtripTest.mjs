@@ -22,7 +22,10 @@ const requirements=Object.fromEntries(days.map(day=>
   [day,day==="monday"?{
     minimumAtOpening:1,minimumDuringOperation:1,minimumAtClosing:1,
   }:null]));
-const people=[{id:"a",name:"A",active:true},{id:"b",name:"B",active:true}];
+const people=[
+  {id:"a",name:"A",active:true,employmentPeriods:[{startDate:start,endDate:null}]},
+  {id:"b",name:"B",active:true,employmentPeriods:[{startDate:date,endDate:null}]},
+];
 const availabilities=people.map(p=>({
   personId:p.id,weeklyAvailability:weekly,exceptions:[],
 }));
@@ -71,9 +74,11 @@ const facts=[];
 for(let t=Date.parse(start+"T00:00:00Z");
   t<=Date.parse(end+"T00:00:00Z");t+=86400000){
   const day=new Date(t).toISOString().slice(0,10);
-  for(const p of people)facts.push({
-    source_id:"source-"+p.id,person_id:p.id,work_date:day,shifts:[],
-  });
+  for(const p of people){
+    if(day<p.employmentPeriods[0].startDate)continue;
+    facts.push({source_id:"source-"+p.id,person_id:p.id,
+      work_date:day,shifts:[],occurrence_type:"day_off"});
+  }
 }
 let ledger={
   version:0,timeZone,coverage:{startDate:start,endDate:end},
