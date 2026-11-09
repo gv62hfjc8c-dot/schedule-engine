@@ -1,4 +1,5 @@
 import type { DatedWorkShift, TimeInterval, WorkConstraintConfiguration } from "../types";
+import {employedOn,validateEmploymentPeriods} from "./employmentPeriods";
 import {
   searchMealAwareDaySchedule,
   type GenerateMealAwareDayInput,
@@ -1450,7 +1451,7 @@ function missingRequiredWorkdays(
   const assigned = new Set(assignments.map(s => s.date+"|"+s.personId));
   const missing: Array<{date: string; personId: string}> = [];
   for (const date of dates) {
-    for (const person of input.people.filter(p => p.active)) {
+    for (const person of input.people.filter(p => p.active && employedOn(p,date))) {
       const availability = input.availabilities.find(a => a.personId === person.id);
       if (!availability) continue;
       const permitted = getSchedulableIntervalsForDate(date,availability,
@@ -1713,6 +1714,10 @@ export function generateConstrainedPeriodSchedule(
   }
 
   const policyIssues=validatePeopleSchedulingPolicies(input.people ?? []);
+  for(const person of input.people??[]){
+    policyIssues.push(...validateEmploymentPeriods(person.employmentPeriods)
+      .map(issue=>person.name+": "+issue));
+  }
   if (policyIssues.length) return resultWith("invalid_input",policyIssues);
   const maxNodes = input.maxSearchNodes ?? DEFAULT_GLOBAL_MAX_NODES;
   if (!Number.isSafeInteger(maxNodes) || maxNodes < 1) {
@@ -1899,7 +1904,8 @@ export function generateConstrainedPeriodSchedule(
     diagnostic.attempts++;
     const dayInput: GenerateMealAwareDayInput = {
       date: dates[index],
-      people: input.people,
+      people: input.people.map(person=>({...person,
+        active:person.active && employedOn(person,dates[index])})),
       availabilities: input.availabilities,
       operatingCalendar: input.operatingCalendar,
       workRules: input.workRules,
