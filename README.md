@@ -5,8 +5,9 @@ Motor de geração e validação de horários, concebido como núcleo de schedul
 
 ## Estado da aplicação
 
-A `main` contém a versão aprovada do PR #46. As melhorias de consistência
-dos checkpoints A–F, incluindo a preparação de aceitação, encontram-se **em revisão no PR #47**, ainda sem merge.
+A `main` contém o PR #47 integrado, com auditoria e aceitação documentadas.
+A classificação de ocorrências históricas está em desenvolvimento no PR #48,
+sem dados reais importados.
 
 O fluxo operacional ativo inclui:
 
@@ -95,15 +96,17 @@ interativos WebKit utilizam um backend sintético e não substituem uma sessão 
 - `src/application/`: contratos e serviços confiáveis de aprovação oficial,
   com execução no serviço Edge, sem dar ao cliente acesso privilegiado.
 - `supabase/migrations/`: quatro identificadores históricos reconstruídos
-  e seis migrações PR47 **aplicadas**, num total de dez versões alinhadas
-  com o Supabase e reconstruídas num PostgreSQL 17 descartável na CI. **Não executar `db push` na produção** sem
+  e seis migrações PR47 **aplicadas** (dez versões no Supabase), mais uma
+  migração **proposta no PR48** para classificar `worked`, `day_off`,
+  `vacation` e `holiday` (onze ficheiros versionados). A cadeia completa
+  é reconstruída num PostgreSQL 17 descartável na CI. **Não executar `db push` na produção** sem
   verificar histórico, backup/restauro e operações de rollout.
 - `supabase/audit/` e `supabase/rollback/`: inventário read-only e
   fontes preservadas para recuperar a função antiga.
 
-A versão estável do PR #46 está marcada na branch Git
-`safety/pr46-baseline`. O PR #47 é desenvolvido numa única branch,
-com checkpoints separados, e só será integrado depois da auditoria final.
+A versão estável do PR #46 mantém-se preservada em
+`safety/pr46-baseline`. O PR #47 foi integrado na `main`; o PR #48
+não importa nem altera horários históricos reais.
 
 Documentação de referência: [arquitetura](docs/architecture.md),
 [matriz das 23 observações](docs/audit-pr47.md) e
