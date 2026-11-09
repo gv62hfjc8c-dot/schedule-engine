@@ -388,9 +388,9 @@ assert(closedResult.status === "generated" &&
   closedResult.days.every(day => day.lastDailyStatus === "closed"),
   "Catorze dias consecutivos fechados aceites com contexto completo.");
 
-const tooLong = { ...closed14, endDate: "2026-11-09" };
+const tooLong = { ...closed14, endDate: "2026-11-23" };
 assert(generateConstrainedPeriodSchedule(tooLong).status === "invalid_input",
-  "Quinze dias excedem o horizonte V0.");
+  "Vinte e nove dias excedem o horizonte de 28 dias do gerador condicionado.");
 assert(generateConstrainedPeriodSchedule({
   ...closed14, startDate: "2026-11-08", endDate: "2026-10-26",
 }).status === "invalid_input",
@@ -567,6 +567,73 @@ assert(shortPolicyResult.assignments.length>0 &&
   "PR41: qualquer turno no domingo de 5h tem de cobrir todas as 5 horas.");
 
 
+// PR47-A: a full short-day attendance span may legitimately contain a meal.
+// A 7h opening with 1h meal has only 6h effective work. Previously the
+// generator could certify it, but could not construct the actual assignment.
+const mealEdges:PresenceRequirement={
+  minimumAtOpening:1,minimumDuringOperation:0,minimumAtClosing:1,
+};
+const sevenDate="2026-11-02";
+const sevenHour=inputs(sevenDate,sevenDate,["a"],
+  {[sevenDate]:interval("09:00","16:00")},
+  {[sevenDate]:{a:interval("09:00","16:00")}},
+  {[sevenDate]:mealEdges},
+  {startDate:"2026-11-01",endDate:"2026-11-09"});
+sevenHour.workRules.fullShortDayMaximumMinutes=420;
+const sevenResult=generateConstrainedPeriodSchedule({
+  ...sevenHour,maxSearchNodes:10000,
+});
+assert(sevenResult.status==="generated" &&
+  sevenResult.assignments.length===1 &&
+  sevenResult.assignments[0].interval.start==="09:00" &&
+  sevenResult.assignments[0].interval.end==="16:00" &&
+  sevenResult.assignments[0].mealBreak!==null &&
+  effectiveMinutes(sevenResult.assignments[0])===360,
+  "PR47-A: dia curto de 7h pode ser preenchido com 6h efetivas e pausa.");
+independentlyValidate(sevenHour,sevenResult.assignments);
+
+// When opening is 9h, 8h effective work + one-hour meal must be considered
+// against the effective-work maximum, not the full attendance duration.
+const nineHour=inputs(sevenDate,sevenDate,["a"],
+  {[sevenDate]:interval("09:00","18:00")},
+  {[sevenDate]:{a:interval("09:00","18:00")}},
+  {[sevenDate]:mealEdges},
+  {startDate:"2026-11-01",endDate:"2026-11-09"});
+nineHour.workRules.fullShortDayMaximumMinutes=540;
+const nineResult=generateConstrainedPeriodSchedule({
+  ...nineHour,maxSearchNodes:10000,
+});
+assert(nineResult.status==="generated" &&
+  nineResult.assignments.length===1 &&
+  nineResult.assignments[0].interval.start==="09:00" &&
+  nineResult.assignments[0].interval.end==="18:00" &&
+  nineResult.assignments[0].mealBreak!==null &&
+  effectiveMinutes(nineResult.assignments[0])===480,
+  "PR47-A: maximo diario mede trabalho efetivo, nao a presenca de 9h.");
+independentlyValidate(nineHour,nineResult.assignments);
+
+// With zero mandatory coverage, the search may first select nobody.
+// The mandatory-workday repair must still build the full 7h meal-aware shift.
+const sevenMandatory=inputs(sevenDate,sevenDate,["a"],
+  {[sevenDate]:interval("09:00","16:00")},
+  {[sevenDate]:{a:interval("09:00","16:00")}},
+  {[sevenDate]:{minimumAtOpening:0,minimumDuringOperation:0,
+    minimumAtClosing:0}},
+  {startDate:"2026-11-01",endDate:"2026-11-09"});
+sevenMandatory.workRules.fullShortDayMaximumMinutes=420;
+sevenMandatory.workRules.requireShiftsOnAvailableDays=true;
+const mandatorySeven=generateConstrainedPeriodSchedule({
+  ...sevenMandatory,maxSearchNodes:10000,
+});
+assert(mandatorySeven.status==="generated" &&
+  mandatorySeven.assignments.length===1 &&
+  mandatorySeven.assignments[0].mealBreak!==null &&
+  mandatorySeven.assignments[0].interval.start==="09:00" &&
+  mandatorySeven.assignments[0].interval.end==="16:00",
+  "PR47-A: jornada obrigatoria curta de 7h deve permitir refeicao.");
+independentlyValidate(sevenMandatory,mandatorySeven.assignments);
+
+
 // PR41: availability remains optional by default; opting in makes every
 // operating day with schedulable availability a mandatory working day.
 const requiredDates = ["2026-11-05", "2026-11-06"];
@@ -726,3 +793,32 @@ assert(adjustedClockShifts.every(s=>initialClockShifts.some(original=>
   original.personId===s.personId&&original.date===s.date&&
   effectiveMinutes(original)===effectiveMinutes(s))),
   "PR41: regularizar entradas não altera horas efetivas nem folgas.");
+
+
+// PR47/P06: an approved schedule owns ALL dates in its period, including
+// closed days with no assignments. New generation must not override it.
+const protectedPeriodInput = inputs(mon, tue, ["a"],
+  { [mon]: interval("09:00", "18:00"), [tue]: interval("09:00", "18:00") },
+  { [mon]: {a:interval("09:00","18:00")}, [tue]: {a:interval("09:00","18:00")} },
+  { [mon]: one, [tue]: one });
+protectedPeriodInput.protectedApprovedPeriods = [
+  { startDate: tue, endDate: tue },
+];
+const protectedPeriodResult = generateConstrainedPeriodSchedule(protectedPeriodInput);
+assert(protectedPeriodResult.status === "invalid_input" &&
+  protectedPeriodResult.assignments.length === 0 &&
+  protectedPeriodResult.issues.some(issue=>issue.includes("oficialmente aprovado")),
+  "P06: sobreposição com dia aprovado deve bloquear geração sem turnos.");
+const protectedBoundaryInput = { ...protectedPeriodInput,
+  protectedApprovedPeriods: [{startDate:sun,endDate:tue}] };
+assert(generateConstrainedPeriodSchedule(protectedBoundaryInput).status==="invalid_input",
+  "P06: sobreposição parcial ou no limite do período também bloqueia.");
+const invalidProtectedInput = { ...protectedPeriodInput,
+  protectedApprovedPeriods: [{startDate:"2026-11-03",endDate:"2026-11-02"}] };
+assert(generateConstrainedPeriodSchedule(invalidProtectedInput).status==="invalid_input",
+  "P06: contexto de proteção inválido não pode ser ignorado.");
+const unrelatedApprovedInput = { ...protectedPeriodInput,
+  protectedApprovedPeriods: [{startDate:nextMon,endDate:nextMon}] };
+assert(!generateConstrainedPeriodSchedule(unrelatedApprovedInput).issues.some(
+  issue=>issue.includes("oficialmente aprovado")),
+  "P06: aprovação fora do período não deve bloquear por sobreposição.");

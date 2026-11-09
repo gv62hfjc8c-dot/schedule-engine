@@ -1,0 +1,85 @@
+{
+  "backup_type": "deployed_supabase_edge_function_source_only",
+  "source": "Supabase get_edge_function / deployed version 5",
+  "observed_date": "2026-11-07",
+  "function_name": "official-schedules",
+  "deployed_version": 5,
+  "deployed_verify_jwt": true,
+  "deployed_ezbr_sha256": "8cc1967656a0c62d7c6cbbf8ddd309ab52c942e0bb501fc0f1b0c4e3124e2649",
+  "preserved_source_root": "supabase/rollback/official-schedules-v5/",
+  "entrypoint_path": "supabase/functions/official-schedules/index.ts",
+  "source_files": [
+    {
+      "path": "supabase/functions/official-schedules/index.ts",
+      "git_blob_sha1": "32e8d73215dfc5e4516960ea6b523aff7ccbdb55",
+      "bytes": 10731
+    },
+    {
+      "path": "src/application/executeApprovedScheduleCommand.ts",
+      "git_blob_sha1": "0a692f3b498af49d0b6ab938da1098c1e560d3f7",
+      "bytes": 5449
+    },
+    {
+      "path": "src/utils/approvedSchedules.ts",
+      "git_blob_sha1": "e4a1e8e23ba696f35c879980556f4d43c3f7c661",
+      "bytes": 29333
+    },
+    {
+      "path": "src/utils/workConstraints.ts",
+      "git_blob_sha1": "6f6744d405ed3497059b957d436656ac6246b2fd",
+      "bytes": 17206
+    },
+    {
+      "path": "src/utils/availability.ts",
+      "git_blob_sha1": "2d71a20d0ae42709fd9fe453eb136c9196024014",
+      "bytes": 4305
+    },
+    {
+      "path": "src/utils/operatingCalendar.ts",
+      "git_blob_sha1": "40277e536798f1f9e928429d999ec2287c421f2c",
+      "bytes": 1129
+    },
+    {
+      "path": "src/utils/presence.ts",
+      "git_blob_sha1": "ebf1d0f4379d7052de5f1a00322e05913bb92609",
+      "bytes": 17750
+    },
+    {
+      "path": "src/utils/workCoverage.ts",
+      "git_blob_sha1": "f2a17e7c4f65a50154ba6a7c833a1dc89e5c9297",
+      "bytes": 2601
+    },
+    {
+      "path": "src/utils/workRules.ts",
+      "git_blob_sha1": "b8727d9ce023e05e1644ac9dd1b70efe7495e13b",
+      "bytes": 3215
+    },
+    {
+      "path": "src/utils/scheduleLimits.ts",
+      "git_blob_sha1": "81b41204c4d919eccd7133c5e709a4583a88bd34",
+      "bytes": 109
+    },
+    {
+      "path": "src/utils/partialScheduleRevision.ts",
+      "git_blob_sha1": "b3525173e5fb480b9d0ebc7477c24cdf4b766066",
+      "bytes": 7807
+    },
+    {
+      "path": "src/persistence/generatedScheduleRepository.ts",
+      "git_blob_sha1": "84e842e71be3a4d8bf7ffc39367f53b8b076adc8",
+      "bytes": 4590
+    },
+    {
+      "path": "src/application/officialScheduleRequest.ts",
+      "git_blob_sha1": "b316ed0d397d1dae4fadb84c6533cb2b0f3d392e",
+      "bytes": 3303
+    }
+  ],
+  "deployed_change_performed": false,
+  "warnings": [
+    "Not a backup of database tables, rows, authentication settings, runtime secrets or environment variables.",
+    "Redeploy all source_files preserving their path relationships and verify_jwt=true; do not deploy only the entrypoint.",
+    "Do not use this rollback bundle as part of the active scheduling engine code."
+  ],
+  "integrity_description": "Each file's Git blob SHA-1 is an accidental-tampering check; the deployed function identity is separately recorded by ezbr_sha256."
+}

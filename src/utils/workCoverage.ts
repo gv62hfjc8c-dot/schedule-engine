@@ -1,6 +1,7 @@
 import type {
   DatedWorkShift,
   PresenceRequirement,
+  Person,
   TimeInterval,
 } from "../types";
 import { getWeekday } from "./operatingCalendar";
@@ -29,7 +30,8 @@ export function checkPresenceForWorkShifts(
   date: string,
   operatingIntervals: TimeInterval[],
   requirements: PresenceRequirement,
-  shifts: DatedWorkShift[]
+  shifts: DatedWorkShift[],
+  people?: Person[],
 ): PresenceCheckResult {
   try {
     getWeekday(date);
@@ -75,9 +77,55 @@ export function checkPresenceForWorkShifts(
   if (issues.length > 0) {
     return { valid: false, issues, shortages: [] };
   }
-  return checkPresenceForWorkingIntervals(
+  const base=checkPresenceForWorkingIntervals(
     operatingIntervals,
     requirements,
     working
   );
+  if(!base.valid)return base;
+
+  // Qualification coverage is a separate, opt-in HARD constraint.
+  // Count only effective work (excluding meals) at EVERY clock segment.
+  const expected=Object.entries(requirements.qualifiedCoverage??{})
+    .filter(([,minimum])=>minimum>0);
+  if(!expected.length)return base;
+  if(!people)return {
+    valid:false,shortages:base.shortages,
+    issues:["A validação de qualificações exige a lista de colaboradores."],
+  };
+  const byId=new Map(people.map(p=>[p.id,p]));
+  const clock=(value:string):number=>
+    Number(value.slice(0,2))*60+Number(value.slice(3,5));
+  const format=(value:number):string=>
+    String(Math.floor(value/60)).padStart(2,"0")+":"+
+    String(value%60).padStart(2,"0");
+  for(const open of operatingIntervals){
+    const first=clock(open.start),last=clock(open.end);
+    const edges=new Set<number>([first,last]);
+    for(const person of working)for(const shift of person.intervals){
+      const a=clock(shift.start),b=clock(shift.end);
+      if(a>first&&a<last)edges.add(a);
+      if(b>first&&b<last)edges.add(b);
+    }
+    const sorted=[...edges].sort((a,b)=>a-b);
+    for(let index=0;index<sorted.length-1;index++){
+      const start=sorted[index],end=sorted[index+1];
+      if(start>=end)continue;
+      const workingPeople=working.filter(person=>
+        person.intervals.some(interval=>
+          clock(interval.start)<=start&&clock(interval.end)>=end));
+      for(const [qualification,minimum] of expected){
+        const actual=workingPeople.filter(person=>{
+          const p=byId.get(person.personId);
+          return p?.active===true &&
+            p.qualificationTags?.includes(qualification)===true;
+        }).length;
+        if(actual<minimum)issues.push(
+          date+": qualificação '"+qualification+"' insuficiente entre "+
+          format(start)+"–"+format(end)+": "+actual+"/"+minimum+".");
+      }
+    }
+  }
+  return issues.length
+    ? {valid:false,issues,shortages:base.shortages} : base;
 }

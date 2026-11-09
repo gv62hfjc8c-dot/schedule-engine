@@ -17,7 +17,12 @@ const payload: GeneratedSchedulePayload = {
     interval:{start:"09:00",end:"18:00"},
     mealBreak:{start:"12:00",end:"13:00"}}],
   configuration: {
-    availabilities: [],
+    availabilities: [
+      {personId:"a",weeklyAvailability:{
+        monday:[{start:"09:00",end:"18:00"}],tuesday:[],wednesday:[],
+        thursday:[],friday:[],saturday:[],sunday:[]
+      },exceptions:[]},
+    ],
     operatingCalendar: {
       weeklyOperatingHours: {
         monday:[{start:"09:00",end:"18:00"}],tuesday:[],wednesday:[],
@@ -27,7 +32,8 @@ const payload: GeneratedSchedulePayload = {
     workRules: {standardShiftDurationMinutes:480},
     presence: {
       weeklyPresenceRequirements: {
-        monday:null,tuesday:null,wednesday:null,thursday:null,
+        monday:{minimumAtOpening:0,minimumDuringOperation:0,minimumAtClosing:0},
+        tuesday:null,wednesday:null,thursday:null,
         friday:null,saturday:null,sunday:null,
       },presenceExceptions:[],
     },
@@ -60,11 +66,17 @@ const client = {
         time_zone:data.time_zone,payload:data.payload,
         created_at:new Date(Date.UTC(2026,10,3,9,created++)).toISOString(),
       };
+      if (records.some(previous=>previous.id===data.id))
+        return Response.json({message:"duplicate key value violates unique constraint"},{status:409});
       records.unshift(row);
       return Response.json([row],{status:201});
     }
     assert(method==="GET","only reading and appending allowed");
     const url=new URL(path,"https://example.invalid");
+    if (url.searchParams.has("id")) {
+      const id=url.searchParams.get("id")!.replace("eq.","");
+      return Response.json(records.filter(record=>record.id===id));
+    }
     if (!url.searchParams.has("end_date")) return Response.json(records.slice(0,1));
     const start=url.searchParams.get("end_date")!.replace("gte.","");
     const end=url.searchParams.get("start_date")!.replace("lte.","");
@@ -84,6 +96,13 @@ const changed={...payload,shifts:[{
   mealBreak:{start:"13:00",end:"14:00"},
 }]};
 const newer=await repo.save(changed);
+const confirmedRetry=await repo.save(payload,first.id);
+assert(confirmedRetry.id===first.id && records.length===2,
+  "retry after the server committed must reuse the same snapshot, not append another.");
+let differentPayloadRejected=false;
+try {await repo.save(changed,first.id);} catch {differentPayloadRejected=true;}
+assert(differentPayloadRejected && records.length===2,
+  "same proposal UUID can never silently overwrite different content.");
 const latestRecord=await repo.latest();
 assert(latestRecord?.id===newer.id,"recover last stored schedule before loading calendar");
 const afterRestart=await createSupabaseGeneratedScheduleRepository(client)
@@ -141,7 +160,7 @@ assert(anonymousRejected,"requires authentication");
 
 const manyRecords=Array.from({length:211},(_,i)=>({
   ...records[0],
-  id:String(i).padStart(36,"0"),
+  id:"00000000-0000-4000-8000-"+String(211-i).padStart(12,"0"),
 }));
 let pages=0;
 const pagingClient={
@@ -149,13 +168,16 @@ const pagingClient={
   request:async(path:string)=>{
     const url=new URL(path,"https://example.invalid");
     pages++;
-    return Response.json(manyRecords.slice(
-      Number(url.searchParams.get("offset")??0),
-      Number(url.searchParams.get("offset")??0)+100));
+    const cursor=url.searchParams.get("or");
+    const id=cursor?.match(/id\.lt\.([\da-f-]+)/)?.[1]??null;
+    const filtered=id?manyRecords.filter(row=>String(row.id)<id):manyRecords;
+    return Response.json(filtered.slice(0,100));
   },
 };
 const paged=await createSupabaseGeneratedScheduleRepository(pagingClient)
   .listBetween("2026-11-01","2026-11-30");
 assert(paged.length===211&&pages===3,
-  "more than 100 saved proposals never disappear due to pagination");
+  "more than 100 saved proposals never disappear due to keyset pagination");
+assert(requests.every(r=>!r.path.includes("&offset=")),
+  "archive reads must not use offset pagination");
 console.log("PR46: persist, restore, versions, snapshots, RLS contracts and pagination passed.");

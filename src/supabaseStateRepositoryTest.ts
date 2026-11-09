@@ -2,6 +2,12 @@ import {
   createSupabaseStateRepository,
   preserveLegacyPeople,
   SupabaseStateError,
+  SupabaseStateConflictError,
+  LEGACY_IMPORT_CONSENT_PREFIX,
+  LegacyImportConsentRequiredError,
+  authorizeLegacyImportForOwner,
+  startFreshCloudAccountForOwner,
+  LEGACY_IMPORT_SKIP_PREFIX,
 } from "./persistence/supabaseStateRepository";
 import type { StateRepository, PersistedAppState } from "./persistence/stateRepository";
 import type { AuthIdentity } from "./persistence/supabaseAuth";
@@ -102,12 +108,75 @@ function legacy(value: PersistedAppState | null) {
 }
 
 const emptyStorage = { getItem: (_key: string): string | null => null };
+const ownerConsent = { getItem: (key: string): string | null =>
+  key === LEGACY_IMPORT_CONSENT_PREFIX + "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+    ? "confirmed" : null };
+
+{
+  const cloud = createMockCloud();
+  const repo = createSupabaseStateRepository(cloud.client, legacy(fixture()).repo, emptyStorage);
+  let blocked = false;
+  try { await repo.load(); }
+  catch (error) { blocked = error instanceof LegacyImportConsentRequiredError; }
+  ensure(blocked, "Never import browser data to an unconfirmed owner.");
+  ensure(cloud.current().writes === 0, "A rejected legacy import must never write.");
+  let storedKey = "", storedValue = "";
+  authorizeLegacyImportForOwner({setItem: (key,value) => {
+    storedKey = key; storedValue = value;
+  }},cloud.client.user.id);
+  ensure(storedKey === LEGACY_IMPORT_CONSENT_PREFIX + cloud.client.user.id &&
+    storedValue === "confirmed", "Consent is explicitly owner-scoped.");
+}
+
+
+{
+  const cloud = createMockCloud();
+  const oldState=legacy(fixture());
+  const data=new Map<string,string>();
+  const browser={
+    getItem:(key:string)=>data.get(key)??null,
+    setItem:(key:string,value:string)=>{data.set(key,value);},
+  };
+  const first=createSupabaseStateRepository(cloud.client,oldState.repo,browser);
+  let prompted=false;
+  try{await first.load();}
+  catch(error){prompted=error instanceof LegacyImportConsentRequiredError;}
+  ensure(prompted,"A new account must not automatically claim unscoped browser data.");
+  startFreshCloudAccountForOwner(browser,cloud.client.user.id);
+  ensure(data.get(LEGACY_IMPORT_SKIP_PREFIX+cloud.client.user.id)==="skip",
+    "The fresh-account decision must be scoped to authenticated owner.");
+  const isolated=createSupabaseStateRepository(cloud.client,oldState.repo,browser);
+  ensure(await isolated.load()===null,
+    "An explicitly new account must start from empty cloud state.");
+  ensure(oldState.loads()===1,
+    "Choosing an empty account must not read the old browser data again.");
+  ensure(cloud.current().writes===0,
+    "Choosing an empty account must not automatically write or erase cloud data.");
+  ensure(data.get(LEGACY_IMPORT_CONSENT_PREFIX+cloud.client.user.id)!=="confirmed",
+    "Fresh-account choice must never be treated as legacy-import consent.");
+  await isolated.save(fixture(1));
+  ensure(cloud.current().state?.people.length===1,
+    "A fresh account must be able to save its own new configuration.");
+  const otherOwner={
+    get user(){return {...cloud.client.user,id:"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"};},
+    request:async(path:string,init?:RequestInit)=>{
+      if(path.startsWith("/rest/v1/schedule_engine_states")&&!init?.method)
+        return Response.json([]); // Other account has no remote configuration.
+      return cloud.client.request(path,init);
+    },
+  };
+  const second=createSupabaseStateRepository(otherOwner,legacy(fixture()).repo,browser);
+  let otherBlocked=false;
+  try{await second.load();}
+  catch(error){otherBlocked=error instanceof LegacyImportConsentRequiredError;}
+  ensure(otherBlocked,"Skipping old data for owner A must never authorize owner B.");
+}
 
 {
   const cloud = createMockCloud();
   const prior = legacy(fixture());
   const repo = createSupabaseStateRepository(
-    cloud.client, prior.repo, emptyStorage
+    cloud.client, prior.repo, ownerConsent
   );
 
   const imported = await repo.load();
@@ -136,7 +205,8 @@ const emptyStorage = { getItem: (_key: string): string | null => null };
   try {
     await staleTab.save({ ...fixture(), workRules: { standardShiftDurationMinutes: 240 } });
   } catch (error) {
-    conflict = error instanceof SupabaseStateError && error.code === "40001";
+    conflict = error instanceof SupabaseStateConflictError &&
+      error.fields.includes("workRules.standardShiftDurationMinutes");
   }
   ensure(conflict, "Conflitos de duas abas devem ser rejeitados.");
   ensure(
@@ -176,7 +246,9 @@ const emptyStorage = { getItem: (_key: string): string | null => null };
   });
   const browser = {
     getItem(key: string) {
-      return key === "schedule-engine:app-state:v1" ? history : null;
+      return key === "schedule-engine:app-state:v1" ? history :
+        key === LEGACY_IMPORT_CONSENT_PREFIX + "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+          ? "confirmed" : null;
     },
   };
   const restored = preserveLegacyPeople({ ...fixture(), people: [] }, browser);
@@ -192,6 +264,265 @@ const emptyStorage = { getItem: (_key: string): string | null => null };
   );
   await repo.load();
   ensure(cloud.current().state?.people.length === 3, "Importação recupera pessoas v1.");
+}
+
+
+// PR47-F: a revision loaded for one authenticated owner must never be
+// reusable for another account, even if both accounts have revision 1.
+{
+  const cloud=createMockCloud();
+  cloud.setState(fixture());
+  let currentUser:AuthIdentity | null={...cloud.client.user};
+  let writes=0;
+  const client={
+    get user(){return currentUser;},
+    request:async(path:string,init?:RequestInit)=>{
+      if(init?.method==="POST") writes++;
+      return cloud.client.request(path,init);
+    },
+  };
+  const repository=createSupabaseStateRepository(client,legacy(null).repo,emptyStorage);
+  await repository.load();
+  currentUser={id:"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",email:"other@example.test"};
+  let switched=false;
+  try {await repository.save(fixture());}
+  catch(error){switched=error instanceof Error && error.message.includes("desta conta");}
+  ensure(switched && writes===0,
+    "An old account revision must not authorize a write in a new account.");
+}
+// Changing owner while waiting for a remote read must not hydrate data
+// belonging to the prior identity.
+{
+  const cloud=createMockCloud();
+  cloud.setState(fixture());
+  let currentUser:AuthIdentity | null={...cloud.client.user};
+  const client={
+    get user(){return currentUser;},
+    request:async(path:string,init?:RequestInit)=>{
+      const response=await cloud.client.request(path,init);
+      currentUser={id:"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",email:"new@example.test"};
+      return response;
+    },
+  };
+  const repository=createSupabaseStateRepository(client,legacy(null).repo,emptyStorage);
+  let rejected=false;
+  try {await repository.load();} catch(error) {
+    rejected=error instanceof Error && error.message.includes("sessão mudou");
+  }
+  ensure(rejected,"A stale cloud read after session change must be rejected.");
+}
+// The server may already have committed when the session changes; never
+// acknowledge an in-flight save as a successful write for another account.
+{
+  const cloud=createMockCloud();
+  cloud.setState(fixture());
+  let currentUser:AuthIdentity | null={...cloud.client.user};
+  const client={
+    get user(){return currentUser;},
+    request:async(path:string,init?:RequestInit)=>{
+      const response=await cloud.client.request(path,init);
+      if(init?.method==="POST")
+        currentUser={id:"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",email:"new@example.test"};
+      return response;
+    },
+  };
+  const repository=createSupabaseStateRepository(client,legacy(null).repo,emptyStorage);
+  await repository.load();
+  let rejected=false;
+  try {await repository.save({...fixture(),workRules:{standardShiftDurationMinutes:420}});}
+  catch(error){rejected=error instanceof Error && error.message.includes("sessão mudou");}
+  ensure(rejected,"A save with a changed authenticated owner must never report success.");
+}
+
+
+// PR47-F: two rapid saves in one tab cannot race on the same revision.
+// The first RPC is held while the second is queued; both must eventually
+// commit in invocation order with distinct expected CAS revision numbers.
+{
+  const cloud=createMockCloud();
+  cloud.setState(fixture());
+  let releaseFirst=()=>{};
+  const gate=new Promise<void>(resolve=>{releaseFirst=()=>resolve();});
+  let postCount=0;
+  const client={
+    user:cloud.client.user,
+    request:async(path:string,init?:RequestInit)=>{
+      if(init?.method==="POST"){
+        postCount++;
+        if(postCount===1)await gate;
+      }
+      return cloud.client.request(path,init);
+    },
+  };
+  const repository=createSupabaseStateRepository(client,legacy(null).repo,emptyStorage);
+  await repository.load();
+  const earlier=repository.save({
+    ...fixture(),workRules:{standardShiftDurationMinutes:420},
+  });
+  const latest=repository.save({
+    ...fixture(),workRules:{standardShiftDurationMinutes:360},
+  });
+  await Promise.resolve();
+  await Promise.resolve();
+  ensure(postCount===1,
+    "Two edits in the same tab must never issue concurrent RPC writes.");
+  releaseFirst();
+  await Promise.all([earlier,latest]);
+  ensure(postCount===2 && cloud.current().revision===3 &&
+    cloud.current().state?.workRules.standardShiftDurationMinutes===360,
+    "Writes must commit serially and preserve the latest user configuration.");
+}
+
+
+// PR47: two authenticated tabs editing disjoint fields are reconciled with
+// a three-way CAS retry. The second tab must receive merged data for hydration.
+{
+  const cloud=createMockCloud();
+  cloud.setState(fixture());
+  const first=createSupabaseStateRepository(cloud.client,legacy(null).repo,emptyStorage);
+  const second=createSupabaseStateRepository(cloud.client,legacy(null).repo,emptyStorage);
+  const left=await first.load();
+  const right=await second.load();
+  ensure(Boolean(left&&right),"Both tabs must load the same baseline.");
+  await first.save({...left!,people:left!.people.map((p,i)=>
+    i===0?{...p,name:"Nome após edição na aba A"}:p)});
+  const reconciled=await second.save({...right!,
+    workRules:{standardShiftDurationMinutes:360}});
+  ensure(Boolean(reconciled)&&
+    reconciled!.people[0].name==="Nome após edição na aba A" &&
+    reconciled!.workRules.standardShiftDurationMinutes===360 &&
+    cloud.current().revision===3,
+    "Two disjoint edits from distinct tabs must survive one automatic safe merge.");
+  await second.save({...reconciled!,operationTimeZone:"Europe/Lisbon"});
+  ensure(cloud.current().state?.people[0].name==="Nome após edição na aba A" &&
+    cloud.current().state?.workRules.standardShiftDurationMinutes===360,
+    "A subsequent edit from merged tab must not revert other-tab fields.");
+}
+// Even on the same object, distinct person fields can be merged safely.
+{
+  const cloud=createMockCloud();
+  cloud.setState(fixture());
+  const a=createSupabaseStateRepository(cloud.client,legacy(null).repo,emptyStorage);
+  const b=createSupabaseStateRepository(cloud.client,legacy(null).repo,emptyStorage);
+  const sa=(await a.load())!;
+  const sb=(await b.load())!;
+  await a.save({...sa,people:sa.people.map((p,i)=>
+    i===0?{...p,name:"Nova identificação"}:p)});
+  const merged=await b.save({...sb,people:sb.people.map((p,i)=>
+    i===0?{...p,weeklyContractMinutes:1200}:p)});
+  ensure(Boolean(merged) && merged!.people[0].name==="Nova identificação" &&
+    merged!.people[0].weeklyContractMinutes===1200,
+    "Disjoint fields of the same person must survive.");
+}
+// Concurrent edits of the SAME field fail closed; no last-write-wins.
+{
+  const cloud=createMockCloud();
+  cloud.setState(fixture());
+  const a=createSupabaseStateRepository(cloud.client,legacy(null).repo,emptyStorage);
+  const b=createSupabaseStateRepository(cloud.client,legacy(null).repo,emptyStorage);
+  const sa=(await a.load())!;
+  const sb=(await b.load())!;
+  await a.save({...sa,workRules:{standardShiftDurationMinutes:420}});
+  let conflict:unknown=null;
+  try {await b.save({...sb,workRules:{standardShiftDurationMinutes:300}});}
+  catch(error){conflict=error;}
+  ensure(conflict instanceof SupabaseStateConflictError &&
+    conflict.fields.includes("workRules.standardShiftDurationMinutes"),
+    "Conflicting same-field edits must display a recoverable field-level conflict.");
+  ensure(cloud.current().state?.workRules.standardShiftDurationMinutes===420,
+    "A conflicting edit must never overwrite the previous tab.");
+}
+
+
+// Safari S3 regression: two open tabs rename the SAME person differently.
+// The backend must preserve the first committed name and report the exact
+// field conflict, not silently keep "A guardar" or perform last-write-wins.
+{
+  const cloud=createMockCloud();
+  cloud.setState(fixture());
+  const left=createSupabaseStateRepository(
+    cloud.client,legacy(null).repo,emptyStorage);
+  const right=createSupabaseStateRepository(
+    cloud.client,legacy(null).repo,emptyStorage);
+  const first=(await left.load())!;
+  const second=(await right.load())!;
+  const originalId=first.people[0].id;
+  await left.save({...first,people:first.people.map(person=>
+    person.id===originalId?{...person,name:"B1 - Oi"}:person)});
+  let rejected:unknown=null;
+  try{
+    await right.save({...second,people:second.people.map(person=>
+      person.id===originalId?{...person,name:"B1 - ola"}:person)});
+  }catch(error){rejected=error;}
+  ensure(rejected instanceof SupabaseStateConflictError &&
+    rejected.fields.some(path=>path.endsWith(".name") &&
+      path.includes(originalId)),
+    "S3: a second tab must report a named-person field conflict.");
+  ensure(cloud.current().state?.people[0].name==="B1 - Oi",
+    "S3: the name saved by the first tab must survive a stale second tab.");
+}
+
+// PR47-16: A local UI event can arrive while a previous CAS request is
+// waiting for a remote conflict/merge. The queued next event is based on the
+// stale UI, not the merged remote payload, and must not REVERT other-tab edits.
+{
+  const cloud=createMockCloud();
+  cloud.setState(fixture());
+  const tabA=createSupabaseStateRepository(cloud.client,legacy(null).repo,emptyStorage);
+  const aBaseline=(await tabA.load())!;
+  let releaseFirst=()=>{};
+  const gate=new Promise<void>(resolve=>{releaseFirst=()=>resolve();});
+  let postCount=0;
+  const delayedClient={
+    user:cloud.client.user,
+    request:async(path:string,init?:RequestInit)=>{
+      if(init?.method==="POST" && ++postCount===1)await gate;
+      return cloud.client.request(path,init);
+    },
+  };
+  const tabB=createSupabaseStateRepository(delayedClient,legacy(null).repo,emptyStorage);
+  const bBaseline=(await tabB.load())!;
+  const bFirst=tabB.save({...bBaseline,workRules:{standardShiftDurationMinutes:360}});
+  await Promise.resolve();
+  await Promise.resolve();
+  const aState={...aBaseline,people:aBaseline.people.map((p,i)=>
+    i===0?{...p,name:"Pessoa editada na aba A"}:p)};
+  await tabA.save(aState);
+  const bSecond=tabB.save({...bBaseline,
+    workRules:{standardShiftDurationMinutes:360},
+    cycleAnchorDate:"2026-11-02"});
+  releaseFirst();
+  await bFirst;
+  const merged=await bSecond;
+  ensure(cloud.current().revision===4 &&
+    cloud.current().state?.people[0].name==="Pessoa editada na aba A" &&
+    cloud.current().state?.workRules.standardShiftDurationMinutes===360 &&
+    cloud.current().state?.cycleAnchorDate==="2026-11-02" &&
+    merged?.people[0].name==="Pessoa editada na aba A",
+    "A queued UI state must preserve a remote person change after an earlier CAS merge.");
+}
+// After an incompatible concurrent edit, later queued requests cannot
+// silently overwrite the server. Only an explicit reload re-arms writes.
+{
+  const cloud=createMockCloud();
+  cloud.setState(fixture());
+  const tabA=createSupabaseStateRepository(cloud.client,legacy(null).repo,emptyStorage);
+  const tabB=createSupabaseStateRepository(cloud.client,legacy(null).repo,emptyStorage);
+  const a=(await tabA.load())!,b=(await tabB.load())!;
+  await tabA.save({...a,workRules:{standardShiftDurationMinutes:420}});
+  let blocked=false;
+  try{await tabB.save({...b,workRules:{standardShiftDurationMinutes:300}});}
+  catch(error){blocked=error instanceof SupabaseStateConflictError;}
+  ensure(blocked,"Conflicting edits must fail without last-write-wins.");
+  let locked=false;
+  try{await tabB.save({...b,people:[{...b.people[0],name:"Perigoso"}]});}
+  catch(error){locked=error instanceof Error && error.message.includes("recarregar");}
+  ensure(locked && cloud.current().state?.people[0].name===b.people[0].name,
+    "After a conflict, no queued or later autosave can overwrite server data.");
+  const latest=(await tabB.load())!;
+  await tabB.save({...latest,cycleAnchorDate:"2026-11-02"});
+  ensure(cloud.current().state?.workRules.standardShiftDurationMinutes===420,
+    "Explicit reload must re-arm safely from latest server state.");
 }
 
 console.log("Supabase repository: todos os testes passaram.");

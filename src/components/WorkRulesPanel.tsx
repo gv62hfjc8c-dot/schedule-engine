@@ -1,7 +1,9 @@
 import type {
   WeeklyOperatingHours,
+  Person,
   WorkRulesConfiguration,
 } from "../types";
+import PersonSchedulingPoliciesPanel from "./PersonSchedulingPoliciesPanel";
 import {
   createClosingShift,
   createOpeningShift,
@@ -15,6 +17,8 @@ interface WorkRulesPanelProps {
   weeklyOperatingHours: WeeklyOperatingHours;
   workRules: WorkRulesConfiguration;
   onChange: (rules: WorkRulesConfiguration) => void;
+  people: Person[];
+  onPeopleChange(people: Person[]): void;
 }
 
 const weekdayLabels = {
@@ -44,6 +48,8 @@ export default function WorkRulesPanel({
   weeklyOperatingHours,
   workRules,
   onChange,
+  people,
+  onPeopleChange,
 }: WorkRulesPanelProps) {
   const duration =
     workRules.standardShiftDurationMinutes;
@@ -223,7 +229,7 @@ export default function WorkRulesPanel({
             <div className="work-rule-card">
               <div>
                 <strong>Jornada integral em dias curtos</strong>
-                <p>Se um dia tiver até esta duração de funcionamento, quem for escalado cumpre todo o período. Por exemplo, 5h para domingos das 14:00 às 19:00. Introduz 0 para desativar.</p>
+                <p>Se um dia tiver até esta duração de funcionamento, quem for escalado cumpre todo o período. A regra exige presença desde a abertura até ao fecho; a pausa de refeição continua obrigatória quando aplicável. Por exemplo, 5h para domingos das 14:00 às 19:00. Introduz 0 para desativar.</p>
               </div>
               <label className="work-duration-field">
                 <span>Até (horas)</span>
@@ -412,6 +418,7 @@ export default function WorkRulesPanel({
           </p>
         </aside>
       </div>
+      <PersonSchedulingPoliciesPanel people={people} onChange={onPeopleChange}/>
     </>
   );
 }

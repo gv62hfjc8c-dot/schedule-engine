@@ -3,6 +3,10 @@ import type {
   PersonAvailability, PresenceConfiguration, WorkConstraintConfiguration,
   WorkRulesConfiguration,
 } from "../types";
+import { APP_STATE_VERSION } from "./stateRepository";
+import { isPersistedAppState } from "./localStorageStateRepository";
+import { prepareExplicitEmptyContext } from "../utils/explicitEmptyContext";
+import { certifyFinalGeneratedSchedule } from "../utils/finalScheduleCertification";
 
 /**
  * A stored generated proposal is never an approved or authoritative schedule.
@@ -35,10 +39,27 @@ export interface StoredGeneratedSchedule {
   payload: GeneratedSchedulePayload;
 }
 
+/** A corrupt record is never used as a schedule, and its presence stays visible. */
+export interface UnreadableGeneratedSchedule {
+  id: string | null;
+  startDate: string | null;
+  endDate: string | null;
+}
+export interface GeneratedScheduleArchiveResult {
+  records: StoredGeneratedSchedule[];
+  unreadable: UnreadableGeneratedSchedule[];
+}
+
 export interface GeneratedScheduleRepository {
-  save(payload: GeneratedSchedulePayload): Promise<StoredGeneratedSchedule>;
-  /** All proposals overlapping a civil date interval. No arbitrary recent-only cap. */
+  /**
+   * Idempotent when the same UUID and identical snapshot are retried.
+   * Never overwrite a previously archived proposal.
+   */
+  save(payload: GeneratedSchedulePayload, proposalId?: string): Promise<StoredGeneratedSchedule>;
+  /** Strict query: fails closed when any archived row cannot be validated. */
   listBetween(startDate: string, endDate: string): Promise<StoredGeneratedSchedule[]>;
+  /** Read verified proposals while explicitly reporting any unreadable rows. */
+  listBetweenDetailed(startDate: string, endDate: string): Promise<GeneratedScheduleArchiveResult>;
   /** Most recently persisted proposal across all periods. */
   latest(): Promise<StoredGeneratedSchedule | null>;
 }
@@ -56,6 +77,69 @@ const duration = (start: string, end: string) => {
   const m = (s: string) => Number(s.slice(0, 2)) * 60 + Number(s.slice(3, 5));
   return m(end) - m(start);
 };
+
+
+const WEEKDAYS = ["monday","tuesday","wednesday","thursday","friday","saturday","sunday"] as const;
+
+function validScheduleIntervals(value: unknown): boolean {
+  if (!Array.isArray(value)) return false;
+  const intervals: Array<{start:number;end:number}> = [];
+  for (const interval of value) {
+    if (!isObject(interval) || typeof interval.start !== "string" ||
+        typeof interval.end !== "string" ||
+        !timePattern.test(interval.start) || !timePattern.test(interval.end) ||
+        interval.start === "24:00" || duration(interval.start,interval.end) <= 0)
+      return false;
+    const toMinutes = (v:string) => Number(v.slice(0,2))*60 + Number(v.slice(3,5));
+    intervals.push({start:toMinutes(interval.start),end:toMinutes(interval.end)});
+  }
+  intervals.sort((a,b)=>a.start-b.start);
+  return intervals.every((interval,i)=>i===0 || intervals[i-1].end <= interval.start);
+}
+
+function validStoredConfiguration(value: GeneratedSchedulePayload): boolean {
+  const c=value.configuration;
+  if (!isPersistedAppState({
+    version: APP_STATE_VERSION,
+    weeklyOperatingHours:c.operatingCalendar.weeklyOperatingHours,
+    exceptions:c.operatingCalendar.exceptions,
+    people:value.people, availabilities:c.availabilities,
+    workRules:c.workRules,
+    weeklyPresenceRequirements:c.presence.weeklyPresenceRequirements,
+    presenceExceptions:c.presence.presenceExceptions,
+  })) return false;
+  try { new Intl.DateTimeFormat("en",{timeZone:value.timeZone}); }
+  catch { return false; }
+  const rules = c.workConstraints;
+  const meal = rules.mealBreak;
+  const integer = (n:unknown) => typeof n==="number" && Number.isSafeInteger(n);
+  if (!meal || !integer(rules.minimumRestBetweenShiftsMinutes) ||
+      rules.minimumRestBetweenShiftsMinutes <= 0 ||
+      !integer(rules.maximumDailyEffectiveMinutes) ||
+      rules.maximumDailyEffectiveMinutes <= 0 ||
+      !integer(rules.maximumWeeklyEffectiveMinutes) ||
+      rules.maximumWeeklyEffectiveMinutes <= 0 ||
+      !integer(meal.requiredAboveEffectiveMinutes) ||
+      meal.requiredAboveEffectiveMinutes < 0 ||
+      !integer(meal.durationMinutes) || meal.durationMinutes <= 0 ||
+      !integer(meal.earliestStartAfterWorkMinutes) ||
+      !integer(meal.latestStartAfterWorkMinutes) ||
+      meal.earliestStartAfterWorkMinutes < 0 ||
+      meal.latestStartAfterWorkMinutes < meal.earliestStartAfterWorkMinutes)
+    return false;
+
+  if (!WEEKDAYS.every(day=>validScheduleIntervals(
+    c.operatingCalendar.weeklyOperatingHours[day]))) return false;
+  if (!c.operatingCalendar.exceptions.every(e=>
+    validDate(e.date) && validScheduleIntervals(e.intervals))) return false;
+  const ids = new Set(value.people.map(p=>p.id));
+  if (!c.availabilities.every(a=>ids.has(a.personId) &&
+      WEEKDAYS.every(day=>validScheduleIntervals(a.weeklyAvailability[day])) &&
+      a.exceptions.every(e=>validDate(e.date)&&validScheduleIntervals(e.intervals))))
+    return false;
+  if (!c.presence.presenceExceptions.every(e=>validDate(e.date))) return false;
+  return true;
+}
 
 export function isGeneratedSchedulePayload(value: unknown): value is GeneratedSchedulePayload {
   if (!isObject(value) || value.schemaVersion !== 1 ||
@@ -99,5 +183,39 @@ export function isGeneratedSchedulePayload(value: unknown): value is GeneratedSc
         shift.mealBreak.end >= shift.interval.end) return false;
     }
   }
-  return true;
+  return validStoredConfiguration(value as unknown as GeneratedSchedulePayload);
+}
+
+/**
+ * Independently re-evaluate the archived shifts against THEIR ORIGINAL
+ * personnel, availability, operation, mandatory coverage and work rules.
+ * The stored user attestation is only a declared external context; this
+ * verifies internal consistency, never authoritative approval.
+ *
+ * Strict readers quarantine failing rows; they NEVER delete or modify them.
+ */
+export function certifyGeneratedSchedulePayload(
+  value:unknown,
+):{valid:boolean;issues:string[]}{
+  if(!isGeneratedSchedulePayload(value))return {
+    valid:false,issues:["Estrutura do snapshot incompatível."],
+  };
+  const c=value.configuration;
+  const declared=prepareExplicitEmptyContext({
+    startDate:value.startDate,endDate:value.endDate,
+    timeZone:value.timeZone,rules:c.workConstraints,
+    confirmedNoExternalShifts:true,
+  });
+  if(declared.status!=="ready"||!declared.externalContext)
+    return {valid:false,issues:declared.issues.length?declared.issues:
+      ["Não foi possível reconstituir o contexto do snapshot."]};
+  const result=certifyFinalGeneratedSchedule({
+    startDate:value.startDate,endDate:value.endDate,
+    timeZone:value.timeZone,
+    people:value.people,availabilities:c.availabilities,
+    operatingCalendar:c.operatingCalendar,workRules:c.workRules,
+    presence:c.presence,workConstraints:c.workConstraints,
+    externalContext:declared.externalContext,
+  },value.shifts);
+  return {valid:result.valid,issues:result.issues};
 }

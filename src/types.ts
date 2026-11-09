@@ -33,6 +33,19 @@ export interface Person {
   id: string;
   name: string;
   active: boolean;
+  /** Optional individual HARD weekly ceiling (effective minutes), e.g. 1200 for 20h. */
+  weeklyContractMinutes?: number;
+  /** Optional SOFT weekly target. Defaults to contract ceiling or company limit. */
+  weeklyTargetMinutes?: number;
+  /** Explicit hard workdays; independent of general availability. */
+  requiredWorkDates?: string[];
+  /**
+   * Whole civil days excluded from scheduling (holidays, leave or
+   * unforeseen absences). No medical or other sensitive reason is stored.
+   */
+  unavailableWorkDates?: string[];
+  /** Optional competence labels, descriptive until role-based coverage is defined. */
+  qualificationTags?: string[];
 }
 
 export type WeeklyAvailability = Record<
@@ -70,6 +83,12 @@ export interface PresenceRequirement {
   minimumDuringOperation: number;
   minimumAtOpening: number;
   minimumAtClosing: number;
+  /**
+   * Optional hard requirement: at every open instant, at least N workers
+   * holding each named qualification must be on duty (not at meals).
+   * Zero or missing means no demand for that competence.
+   */
+  qualifiedCoverage?: Record<string,number>;
 }
 
 /** null means explicitly unconfigured, unlike an all-zero requirement. */

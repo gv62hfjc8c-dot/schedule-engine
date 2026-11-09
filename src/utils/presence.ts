@@ -33,9 +33,19 @@ export function isPresenceRequirementValid(
 
   // Three independent hard minimums for distinct operating windows.
   // Opening/closing may be lower or higher than the central requirement.
-  return [base, opening, closing].every(
+  if(![base, opening, closing].every(
     (value) => Number.isSafeInteger(value) && value >= 0
-  );
+  )) return false;
+  if(requirement.qualifiedCoverage!==undefined){
+    const q=requirement.qualifiedCoverage;
+    if(!q||typeof q!=="object"||Array.isArray(q))return false;
+    if(!Object.entries(q).every(([tag,min])=>
+      tag.length>=1 && tag.length<=64 &&
+      /^[\p{L}\p{N} -]+$/u.test(tag) &&
+      tag.trim()===tag && Number.isSafeInteger(min) && min>=0 && min<=1000))
+      return false;
+  }
+  return true;
 }
 
 export type PresenceResolution =

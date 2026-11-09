@@ -1,5 +1,43 @@
 # Changelog
 
+## 2026-11-09 — PR47: proteção de períodos aprovados e aceitação final
+
+- Gerador condicionado rejeita pedidos que coincidam com períodos oficialmente aprovados (incluindo dias fechados ou sem turnos).
+- UI consulta o ledger do titular antes de gerar; falha de leitura bloqueia em segurança, sem tratar histórico ausente como completo.
+- Módulo de leitura isolado preserva o limite arquitetural entre interface e comandos de aprovação; testes de regressão adicionados.
+- CI 42639795765 aprovou validate, migration-contract e webkit-acceptance.
+- Responsável confirmou no Safari propostas sobrepostas independentes, além dos seis outros cenários funcionais.
+- Proteção contra aprovação oficial sobreposta validada automaticamente, **sem ensaio end-to-end com horário oficial real no Safari**.
+- Responsável autorizou o merge com limites de evidência expressos, importação histórica posterior e risco Auth Free aceite.
+
+## 2026-11-08 — PR47: versão v3 segura, CAS de configuração e HTTPS real
+
+- API de aprovação `official-schedules-v2` atualizada para v3. Prontidão de aprovação certificada independentemente, fuso e âncora de histórico derivados de dados do servidor; CORS e JWT obrigatórios.
+- SQL `20261108234026` aplicado e validado: a aprovação oficial verifica em transação a **mesma revisão da configuração** usada no cálculo, não apenas a versão do ledger; chamada de escrita antiga revogada ao serviço.
+- O domínio revalida jornadas curtas integrais e dias de trabalho obrigatório por disponibilidade, além de todas as restrições anteriores. Testes de regressão e `deno check` aprovados.
+- Teste HTTP de produção via GitHub Actions validou 401 sem JWT nos dois serviços, em GET/POST, e resposta correta ao preflight CORS.
+- Mantidas 8 propostas de três contas, nenhum horário oficial e nenhuma importação histórica; única advertência Supabase: proteção de palavras-passe comprometidas (plano gratuito).
+
+
+## 2026-11-08 — PR47: publicação segura da API v2 e provas SQL reais
+
+- Publicada Edge Function `official-schedules-v2` v1 (JWT obrigatório, CORS), sem reativar a API antiga v6 e sem criar qualquer horário oficial.
+- RLS real ensaiado como `authenticated` para as contas de teste A e B: 1 estado por conta, 1 proposta A e 3 B; sem visibilidade cruzada.
+- Ensaio real de CAS com atualização transitória, rejeição de escrita obsoleta (`40001`) e `ROLLBACK` integral.
+- Histórico 2026 continua por importar; autorização de aprovação oficialmente bloqueada até à certificação do contexto. Único aviso Supabase remanescente: proteção de passwords comprometidas dependente do plano.
+
+
+## 2026-11-08 — PR47: histórico verificado e fronteira de aprovação preparada
+
+- Aplicadas as migrações Supabase `20261108141507` (fontes, dias históricos, verificação RLS), `20261108142521` (CAS de revisões oficiais) e `20261108144725` (inicialização de ledger exclusivamente após prova de cada pessoa/dia).
+- Bloqueada a inicialização antiga do ledger que declarava indevidamente completo o intervalo 2020–2100. Nenhum registo histórico ou oficial foi fabricado; persistem 4 propostas guardadas.
+- Revalidação de aprovação reforçada para 28 dias, ausências, dias obrigatórios, limites contratuais, descanso e turnos históricos sem dupla contagem.
+- Reintroduzido o domínio de revisões parciais com versão anterior imutável, motivo administrativo e substituição certificada.
+- Serviço de aplicação confiável e endpoint Edge v2 preparados, com pedidos de intenção mínima; UI de aprovação adicionada atrás de feature flag desligada. **Ainda não existe deploy de Edge v2 nem aprovações oficiais operacionais**, porque os horários reais desde janeiro de 2026 foram expressamente adiados para importação posterior.
+- CI executa motor, integridade de arquivo, regras, verificação de RLS/SQL, aprovação, revisão, bundle e HTTP simulado; estes ensaios **não substituem** Auth real, Safari e validação de dependências externas.
+- PR47 continua em draft, sem merge. Um aviso externo de leaked-password protection continua ativo no plano Supabase gratuito.
+
+
 ## 2026-10-26 — P6.4: restringir escrita de horários aprovados
 
 - D040: apenas o proprietário autenticado solicita aprovação, cancelamento ou substituição;

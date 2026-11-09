@@ -128,4 +128,75 @@ await expired.signOut();
 ensure(storage.getItem(AUTH_SESSION_KEY) === null, "Logout limpa a sessão.");
 ensure(expired.user === null, "Logout remove identidade.");
 
+
+// PR47-F: an in-flight refresh must never resurrect a session after logout.
+{
+  const memory=new MemoryStorage();
+  memory.setItem(AUTH_SESSION_KEY,JSON.stringify({
+    access_token:"old-token",refresh_token:"old-refresh",expires_at:0,
+    user:{id:"first-user",email:"first@example.test"},
+  }));
+  let releaseRefresh=()=>{};
+  const gate=new Promise<void>(resolve=>{releaseRefresh=()=>resolve();});
+  let refreshStarted=false;
+  const delayedFetch:typeof fetch=async(input)=>{
+    const url=String(input);
+    if(url.endsWith("token?grant_type=refresh_token")){
+      refreshStarted=true;
+      await gate;
+      return Response.json({
+        access_token:"late-token",refresh_token:"late-refresh",expires_in:3600,
+        user:{id:"first-user",email:"first@example.test"},
+      });
+    }
+    if(url.endsWith("/auth/v1/logout"))return new Response(null,{status:204});
+    if(url.endsWith("/rest/v1/schedule_engine_states"))return Response.json([]);
+    return Response.json({message:"unsupported"},{status:404});
+  };
+  const client=new SupabaseAuthClient(config,delayedFetch,memory);
+  const request=client.request("/rest/v1/schedule_engine_states")
+    .then(()=>false,()=>true);
+  await Promise.resolve();
+  await Promise.resolve();
+  ensure(refreshStarted,"The refresh request must be in flight.");
+  await client.signOut();
+  ensure(client.user===null && memory.getItem(AUTH_SESSION_KEY)===null,
+    "Local logout must clear immediately, without waiting for the refresh.");
+  releaseRefresh();
+  ensure(await request,
+    "A delayed refresh response must be rejected after signout.");
+  ensure(client.user===null && memory.getItem(AUTH_SESSION_KEY)===null,
+    "A late refresh cannot resurrect an authenticated identity.");
+}
+// PR47-F: completing an old remote logout must not erase a subsequent login.
+{
+  const memory=new MemoryStorage();
+  memory.setItem(AUTH_SESSION_KEY,JSON.stringify({
+    access_token:"old-token",refresh_token:"old-refresh",expires_at:Math.floor(Date.now()/1000)+3600,
+    user:{id:"first-user",email:"first@example.test"},
+  }));
+  let releaseLogout=()=>{};
+  const gate=new Promise<void>(resolve=>{releaseLogout=()=>resolve();});
+  const delayedFetch:typeof fetch=async(input)=>{
+    const url=String(input);
+    if(url.endsWith("/auth/v1/logout")){await gate;return new Response(null,{status:204});}
+    if(url.endsWith("token?grant_type=password"))
+      return Response.json({
+        access_token:"new-token",refresh_token:"new-refresh",expires_in:3600,
+        user:{id:"second-user",email:"second@example.test"},
+      });
+    return Response.json({message:"unsupported"},{status:404});
+  };
+  const client=new SupabaseAuthClient(config,delayedFetch,memory);
+  const oldLogout=client.signOut();
+  ensure(client.user===null,"Logout clears local identity synchronously.");
+  const newUser=await client.signIn("second@example.test","example-password");
+  ensure(newUser.id==="second-user","A new account can authenticate while old logout is pending.");
+  releaseLogout();
+  await oldLogout;
+  ensure(client.user?.id==="second-user" &&
+    memory.getItem(AUTH_SESSION_KEY)!==null,
+    "A stale logout completion cannot clear a newer account.");
+}
+
 console.log("Supabase Auth V0: todos os testes passaram.");

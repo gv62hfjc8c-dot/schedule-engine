@@ -171,6 +171,10 @@ export class SupabaseAuthClient {
           const body = await this.authRequest("token?grant_type=refresh_token", {
             refresh_token: current.refresh_token,
           });
+          // A logout or a different login invalidates the old refresh.
+          // Never let a late response resurrect a signed-out account.
+          if(this.session !== current)
+            throw new Error("A sessão mudou durante a renovação. Inicia sessão novamente.");
           return this.useTokenResponse(body, current.user);
         } catch (error) {
           // On network failure keep the refresh token for a future retry.
@@ -189,7 +193,8 @@ export class SupabaseAuthClient {
     if (this.session.expires_at <= Math.floor(Date.now() / 1000) + 60) {
       await this.refreshSession();
     }
-    return this.session!.access_token;
+    if(!this.session) throw new Error("A sessão foi terminada.");
+    return this.session.access_token;
   }
 
   async restore(): Promise<AuthIdentity | null> {
@@ -237,13 +242,23 @@ export class SupabaseAuthClient {
   }
 
   async signOut(): Promise<void> {
-    if (this.session) {
-      try {
-        await this.request("/auth/v1/logout", { method: "POST" });
-      } catch {
-        // Signout locally even when the network is offline.
-      }
-    }
+    const previous=this.session;
+    // Local logout must be immediate. Do not wait for network or a token
+    // refresh: a late response must not clear a subsequent new login.
     this.saveSession(null);
+    if(!previous) return;
+    try {
+      await this.fetcher(this.config.url+"/auth/v1/logout",{
+        method:"POST",
+        headers:{
+          apikey:this.config.publishableKey,
+          Authorization:"Bearer "+previous.access_token,
+          Accept:"application/json",
+        },
+        cache:"no-store",
+      });
+    } catch {
+      // The local session is already invalidated even when offline.
+    }
   }
 }

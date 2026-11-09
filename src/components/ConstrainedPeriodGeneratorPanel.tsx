@@ -15,8 +15,21 @@ import {
   type GenerateConstrainedPeriodResult,
 } from "../utils/constrainedPeriodGenerator";
 import { prepareExplicitEmptyContext } from "../utils/explicitEmptyContext";
+import { readProtectedApprovedPeriods } from "../persistence/readApprovedPeriodProtection";
+import { supabaseAuthClient } from "../persistence/supabaseInstance";
 import { INITIAL_WORK_CONSTRAINTS } from "../utils/workConstraints";
-import { MAX_PERIOD_DAYS } from "../utils/periodGenerator";
+import { MAX_CONSTRAINED_PERIOD_DAYS } from "../utils/constrainedPeriodGenerator";
+
+import { parseCivilDays } from "../utils/generatorPeriodCapability";
+import {
+  stagePendingGeneratedProposal,
+  loadPendingGeneratedProposal,
+  acknowledgePendingGeneratedProposal,
+  rawPendingGeneratedProposal,
+  discardPendingGeneratedProposal,
+} from "../utils/pendingGeneratedProposal";
+import { todayInTimeZone } from "../utils/monthlyScheduleView";
+import { weeklyPersonWorkSummary, formatWorkMinutes } from "../utils/weeklyWorkSummary";
 
 export interface ConstrainedPeriodGeneratorPanelProps {
   people: Person[];
@@ -24,8 +37,11 @@ export interface ConstrainedPeriodGeneratorPanelProps {
   operatingCalendar: OperatingCalendarConfiguration;
   workRules: WorkRulesConfiguration;
   presence: PresenceConfiguration;
+  operationTimeZone: string;
+  /** Authenticated Supabase UUID; browser outbox is strictly owner-scoped. */
+  ownerId?: string | null;
   initialDate?: string;
-  onSaveGenerated?(proposal: GeneratedSchedulePayload): Promise<StoredGeneratedSchedule>;
+  onSaveGenerated?(proposal: GeneratedSchedulePayload, proposalId: string): Promise<StoredGeneratedSchedule>;
   onBackToCalendar?(): void;
 }
 
@@ -38,12 +54,8 @@ interface Snapshot extends ConstrainedPeriodGeneratorPanelProps {
 }
 
 const PREVIEW_MAX_NODES = 5_000;
+const UI_MAX_PERIOD_DAYS = MAX_CONSTRAINED_PERIOD_DAYS;
 
-function todayKey(): string {
-  const now = new Date();
-  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60_000);
-  return local.toISOString().slice(0, 10);
-}
 
 function addCivilDays(date: string, amount: number): string {
   const utc = new Date(`${date}T00:00:00Z`);
@@ -109,21 +121,40 @@ export default function ConstrainedPeriodGeneratorPanel({
   operatingCalendar,
   workRules,
   presence,
+  operationTimeZone,
+  ownerId,
   initialDate,
   onSaveGenerated,
   onBackToCalendar,
 }: ConstrainedPeriodGeneratorPanelProps) {
   const [workspaceView, setWorkspaceView] = useState<"settings" | "schedule">("settings");
-  const [startDate, setStartDate] = useState(() => initialDate ?? readGeneratorDate("constrained:start", todayKey));
-  const [endDate, setEndDate] = useState(() => initialDate ?? readGeneratorDate("constrained:end", () => addCivilDays(todayKey(), 6)));
-  const [timeZone, setTimeZone] = useState("Atlantic/Azores");
+  const [startDate, setStartDate] = useState(() => initialDate ?? readGeneratorDate("constrained:start", () => todayInTimeZone(operationTimeZone)));
+  const [endDate, setEndDate] = useState(() => initialDate ?? readGeneratorDate("constrained:end", () => addCivilDays(todayInTimeZone(operationTimeZone), 6)));
+  const timeZone=operationTimeZone;
   const [confirmed, setConfirmed] = useState(false);
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saveState, setSaveState] = useState<"idle"|"saving"|"saved"|"failed">("idle");
   const [saveProblem, setSaveProblem] = useState<string | null>(null);
-  const [retryPayload, setRetryPayload] = useState<GeneratedSchedulePayload | null>(null);
+  const [retryPayload, setRetryPayload] = useState<{payload: GeneratedSchedulePayload; id: string} | null>(null);
   const saveAttempt = useRef(0);
+
+  function recoverPendingProposal(): void {
+    if(!ownerId)return;
+    try{
+      const existing=loadPendingGeneratedProposal(window.localStorage,ownerId);
+      if(existing){
+        setRetryPayload({payload:existing.payload,id:existing.id});
+        setSaveState("failed");
+        setSaveProblem("Foi recuperada uma tentativa de gravação ainda sem confirmação. "+
+          "Repete o envio com o mesmo identificador; não será criado um horário duplicado.");
+      }
+    }catch(problem){
+      setSaveState("failed");
+      setSaveProblem(problem instanceof Error?problem.message:
+        "A recuperação local está indisponível.");
+    }
+  }
 
   useEffect(() => {
     // An edited roster/configuration requires a fresh, explicit declaration.
@@ -134,7 +165,21 @@ export default function ConstrainedPeriodGeneratorPanel({
     setSaveState("idle");
     setSaveProblem(null);
     setRetryPayload(null);
-  }, [people, availabilities, operatingCalendar, workRules, presence]);
+    recoverPendingProposal();
+  }, [people, availabilities, operatingCalendar, workRules, presence,
+      operationTimeZone, ownerId]);
+
+  // A generated result is not guaranteed persisted until the server confirms.
+  // Protect a browser reload/close during the in-flight write.
+  useEffect(() => {
+    if (saveState !== "saving") return;
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [saveState]);
 
   const effectiveConstraints = { ...INITIAL_WORK_CONSTRAINTS,
     maximumDailyEffectiveMinutes: workRules.maximumDailyEffectiveMinutes ?? 480,
@@ -170,19 +215,40 @@ export default function ConstrainedPeriodGeneratorPanel({
     setSaveState("idle");
     setSaveProblem(null);
     setRetryPayload(null);
+    recoverPendingProposal();
   }
 
-  function persistProposal(payload: GeneratedSchedulePayload) {
+  function persistProposal(payload: GeneratedSchedulePayload, id: string) {
     const token = ++saveAttempt.current;
+    setRetryPayload({payload,id});
+    if(!ownerId){
+      setSaveState("failed");
+      setSaveProblem("Não foi possível identificar a conta da proposta.");
+      return;
+    }
+    try{
+      // Must complete synchronously BEFORE sending to Supabase, otherwise
+      // forced tab closure can permanently lose a generated proposal.
+      stagePendingGeneratedProposal(window.localStorage,{ownerId,id,payload});
+    }catch(problem){
+      setSaveState("failed");
+      setSaveProblem(problem instanceof Error?problem.message:
+        "Não foi possível garantir a cópia de recuperação no navegador.");
+      return;
+    }
     setSaveState("saving");
     setSaveProblem(null);
-    setRetryPayload(payload);
     if (!onSaveGenerated) {
       setSaveState("failed");
       setSaveProblem("O serviço de arquivo não está disponível.");
       return;
     }
-    void onSaveGenerated(payload).then(() => {
+    void onSaveGenerated(payload,id).then(() => {
+      // Even if another view was opened during the in-flight write, the
+      // identical server-confirmed UUID must be removed from the outbox.
+      // The server confirmation remains valid even if local cleanup fails.
+      try{ acknowledgePendingGeneratedProposal(window.localStorage,ownerId,id); }
+      catch{ /* Safe idempotent replay remains available on next load. */ }
       if (saveAttempt.current === token) {
         setSaveState("saved");
         setRetryPayload(null);
@@ -196,7 +262,65 @@ export default function ConstrainedPeriodGeneratorPanel({
     });
   }
 
-  function handleGenerate() {
+  function exportLocalRecovery():void {
+    if(!ownerId)return;
+    try{
+      const raw=rawPendingGeneratedProposal(window.localStorage,ownerId);
+      if(!raw)return;
+      const url=URL.createObjectURL(new Blob([raw],{type:"application/json"}));
+      const anchor=document.createElement("a");
+      anchor.href=url;
+      anchor.download="schedule-engine-proposta-pendente.json";
+      anchor.click();
+      window.setTimeout(()=>URL.revokeObjectURL(url),1000);
+    }catch(problem){
+      setSaveProblem(problem instanceof Error?problem.message:
+        "Não foi possível exportar a proposta pendente.");
+    }
+  }
+  function discardLocalRecovery():void {
+    if(!ownerId ||
+      !window.confirm("Descartar a única cópia local desta tentativa? "+
+        "A gravação remota pode ainda existir e não será eliminada. "+
+        "Exporta uma cópia JSON primeiro se pretenderes guardar a proposta."))
+      return;
+    try{
+      discardPendingGeneratedProposal(window.localStorage,ownerId);
+      setRetryPayload(null);
+      setSaveState("idle");
+      setSaveProblem(null);
+    }catch(problem){
+      setSaveProblem(problem instanceof Error?problem.message:
+        "Não foi possível libertar o arquivo local.");
+    }
+  }
+
+  async function handleGenerate() {
+    if(ownerId){
+      try {
+        const existing=loadPendingGeneratedProposal(window.localStorage,ownerId);
+        if(existing){
+          setRetryPayload({payload:existing.payload,id:existing.id});
+          setSaveState("failed");
+          setSaveProblem("Confirma primeiro a gravação anterior usando "+
+            "'Tentar guardar novamente sem regenerar'.");
+          return;
+        }
+      }catch(problem){
+        setSaveState("failed");
+        setSaveProblem(problem instanceof Error?problem.message:
+          "A cópia de segurança local não pôde ser lida.");
+        return;
+      }
+    }
+    const days=parseCivilDays(startDate,endDate);
+    if(days!==null && days>UI_MAX_PERIOD_DAYS){
+      setError("O período não pode ultrapassar " + UI_MAX_PERIOD_DAYS +
+        " dias. Seleciona um intervalo mais curto.");
+      setSnapshot(null);
+      setSaveState("idle");
+      return;
+    }
     saveAttempt.current++;
     setSaveState("idle");
     setSaveProblem(null);
@@ -218,6 +342,26 @@ export default function ConstrainedPeriodGeneratorPanel({
       return;
     }
     try {
+      // A declaration of no EXTERNAL shifts does not authorize overriding
+      // approved dates INSIDE the target. Read the trusted ledger each time.
+      if (!supabaseAuthClient || !ownerId ||
+          supabaseAuthClient.user?.id !== ownerId) {
+        setError("Não foi possível confirmar a conta para consultar horários aprovados.");
+        return;
+      }
+      // The public UI can READ protected dates but cannot import approval
+      // mutation modules. Missing ledger never certifies official completeness.
+      const protection = await readProtectedApprovedPeriods(
+        supabaseAuthClient, ownerId
+      );
+      const protectedApprovedPeriods = protection.periods;
+      if (protectedApprovedPeriods.some(period =>
+        period.startDate <= endDate && period.endDate >= startDate
+      )) {
+        setError("O período sobrepõe-se a um horário oficialmente aprovado. "+
+          "A geração não pode alterá-lo; usa o fluxo de revisão oficial.");
+        return;
+      }
       const generated = generateConstrainedPeriodSchedule({
         startDate,
         endDate,
@@ -229,6 +373,7 @@ export default function ConstrainedPeriodGeneratorPanel({
         presence,
         workConstraints: effectiveConstraints,
         externalContext: prepared.externalContext,
+        protectedApprovedPeriods,
         maxSearchNodes: PREVIEW_MAX_NODES,
       });
       setWorkspaceView(generated.status === "generated" ? "schedule" : "settings");
@@ -243,12 +388,13 @@ export default function ConstrainedPeriodGeneratorPanel({
             availabilities, operatingCalendar, workRules, presence,
             workConstraints: effectiveConstraints,
           }),
-        });
+        }, crypto.randomUUID());
       }
       setSnapshot({
         startDate,
         endDate,
         timeZone,
+        operationTimeZone,
         people,
         availabilities,
         operatingCalendar,
@@ -273,11 +419,17 @@ export default function ConstrainedPeriodGeneratorPanel({
         {saveState === "saving" && <strong>A guardar proposta no Supabase…</strong>}
         {saveState === "saved" && <strong>Horário guardado com sucesso. Podes sair e voltar a consultá-lo no calendário. Não está oficialmente aprovado.</strong>}
         {saveState === "failed" && <>
-          <strong>O horário foi gerado, mas não ficou guardado.</strong>
+          <strong>A gravação desta proposta ainda não foi confirmada.</strong>
           <p>{saveProblem ?? "Erro de armazenamento."}</p>
           <button type="button" disabled={!retryPayload} onClick={() => {
-            if (retryPayload) persistProposal(retryPayload);
+            if (retryPayload) persistProposal(retryPayload.payload,retryPayload.id);
           }}>Tentar guardar novamente sem regenerar</button>
+          {ownerId && <div className="p63-action-row">
+            <button type="button" className="se-outline"
+              onClick={exportLocalRecovery}>Descarregar cópia local (JSON)</button>
+            <button type="button" className="se-outline"
+              onClick={discardLocalRecovery}>Descartar tentativa local</button>
+          </div>}
         </>}
       </div>}
       <nav className="generator-workspace-tabs" aria-label="Secções de horários">
@@ -291,12 +443,12 @@ export default function ConstrainedPeriodGeneratorPanel({
             <p className="section-kicker">Planeamento de horários</p>
             <h2>Gerar horário</h2>
           </div>
-          <span className="work-rule-badge">Até {MAX_PERIOD_DAYS} dias</span>
+          <span className="work-rule-badge">Até {UI_MAX_PERIOD_DAYS} dias</span>
         </div>
 
         <p className="section-description">
           Pesquisa turnos, refeições e alternativas entre dias, respeitando
-          cobertura, 11 horas de descanso e o limite de 40 horas semanais.
+          cobertura, descanso e limites semanais globais e individuais.
           Cada proposta válida é guardada no Supabase para consulta futura, sem aprovação automática.
         </p>
 
@@ -334,12 +486,8 @@ export default function ConstrainedPeriodGeneratorPanel({
               className="date-input"
               type="text"
               value={timeZone}
-              placeholder="Atlantic/Azores"
-              autoComplete="off"
-              onChange={(event) => {
-                setTimeZone(event.target.value);
-                resetScenario();
-              }}
+              readOnly
+              title="Alterar em Operação → Fuso horário e ciclo contabilístico"
             />
           </label>
         </div>
@@ -449,27 +597,18 @@ export default function ConstrainedPeriodGeneratorPanel({
             {result.status === "generated" &&
               weekMonday(startDate) === weekMonday(endDate) && (
               <div className="p63-violations">
-                <h4>Horas semanais atribuídas · objetivo 40h por pessoa</h4>
-                {people.filter(p => p.active).map(person => {
-                  const total = result.assignments
-                    .filter(shift => shift.personId === person.id)
-                    .reduce((sum, shift) => {
-                      const minutes = (clock: string) =>
-                        Number(clock.slice(0, 2)) * 60 + Number(clock.slice(3, 5));
-                      return sum + minutes(shift.interval.end) -
-                        minutes(shift.interval.start) -
-                        (shift.mealBreak
-                          ? minutes(shift.mealBreak.end) - minutes(shift.mealBreak.start)
-                          : 0);
-                    }, 0);
-                  const format = (value: number) =>
-                    `${Math.floor(value / 60)}h${String(value % 60).padStart(2, "0")}`;
-                  return (
-                    <p key={person.id}>
-                      <strong>{person.name}</strong>: {format(total)} / 40h00
-                      {" · "}défice {format(Math.max(0, 2400 - total))}
-                    </p>
-                  );
+                <h4>Horas semanais efetivas · objetivos individuais</h4>
+                {people.filter(p=>p.active).map(person=>{
+                  const workload=weeklyPersonWorkSummary(person,result.assignments,
+                    timeZone,effectiveConstraints.maximumWeeklyEffectiveMinutes);
+                  return <p key={person.id}>
+                    <strong>{person.name}</strong>: {formatWorkMinutes(workload.effectiveMinutes)}
+                    {" / objetivo "}{formatWorkMinutes(workload.targetMinutes)}
+                    {" · máximo "}{formatWorkMinutes(workload.hardMaximumMinutes)}
+                    {" · défice "}{formatWorkMinutes(workload.deficitMinutes)}
+                    {workload.aboveTargetMinutes!==null && workload.aboveTargetMinutes>0 &&
+                      <>{" · acima do objetivo "}{formatWorkMinutes(workload.aboveTargetMinutes)}</>}
+                  </p>;
                 })}
                 <p className="generator-hint">
                   Objetivo preferencial; melhoria local limitada, sem garantia

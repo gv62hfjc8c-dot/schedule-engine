@@ -4,6 +4,7 @@ import type {
   Person,
   PersonAvailability,
   PresenceConfiguration,
+  WorkRulesConfiguration,
   WorkConstraintConfiguration,
 } from "../types";
 import type { ConfirmedExternalWorkContext } from "./constrainedPeriodGenerator";
@@ -12,11 +13,15 @@ import {
   type WorkValidationDateRange,
   type WorkConstraintViolation,
 } from "./workConstraints";
-import { isSchedulableForInterval } from "./availability";
+import { isSchedulableForInterval,getSchedulableIntervalsForDate } from "./availability";
 import { getOperatingIntervalsForDate, getWeekday } from "./operatingCalendar";
 import { resolvePresenceForDate } from "./presence";
 import { checkPresenceForWorkShifts } from "./workCoverage";
-import { MAX_PERIOD_DAYS } from "./periodGenerator";
+import { MAX_CONSTRAINED_PERIOD_DAYS } from "./constrainedPeriodGenerator";
+import {
+  isPersonUnavailableOnDate, isExplicitRequiredWorkday,
+  validatePersonWeeklyContractCaps,
+} from "./personSchedulingPolicies";
 
 /**
  * P6.4: immutable approval ledger. One APPROVED record owns every civil date
@@ -28,6 +33,21 @@ import { MAX_PERIOD_DAYS } from "./periodGenerator";
  * Persistence will need an atomic compare-and-swap by ledger version.
  */
 export type ApprovedScheduleStatus = "approved" | "cancelled" | "superseded";
+/** Administrative reason code only; do not store medical details. */
+export type AbsenceReason =
+  "sick_leave" | "vacation" | "leave" | "accident" | "departure" | "other";
+export interface ScheduleAbsence extends WorkValidationDateRange {
+  personId: string;
+  reason: AbsenceReason;
+}
+export interface ApprovedScheduleRevision extends WorkValidationDateRange {
+  sourceId: string;
+  personId: string;
+  reason: AbsenceReason;
+  changedDates: string[];
+  note?: string;
+}
+
 
 export interface ApprovedScheduleRecord extends WorkValidationDateRange {
   id: string;
@@ -39,6 +59,10 @@ export interface ApprovedScheduleRecord extends WorkValidationDateRange {
   changedAt: string | null;
   replacementId: string | null;
   replacesId: string | null;
+  /** Immutable personnel labels at approval time, not current UI names. */
+  people?: Array<{id:string;name:string}>;
+  absences?: ScheduleAbsence[];
+  revision?: ApprovedScheduleRevision;
 }
 
 export interface ApprovedScheduleLedger {
@@ -64,6 +88,13 @@ export interface ApprovalEnvironment {
   operatingCalendar: OperatingCalendarConfiguration;
   presence: PresenceConfiguration;
   workConstraints: WorkConstraintConfiguration;
+  /** Current operational hard policies; never trust a browser-provided policy. */
+  workRules?: WorkRulesConfiguration;
+  /**
+   * Server-verified historical shifts outside the proposed period.
+   * Never source these from a browser request or infer them from missing rows.
+   */
+  historicalShifts?: DatedWorkShift[];
 }
 
 /** Core mutations never throw for expected domain conflicts. */
@@ -184,6 +215,10 @@ function cloneRecord(record: ApprovedScheduleRecord): ApprovedScheduleRecord {
   return {
     ...record,
     shifts: record.shifts.map(cloneShift),
+    ...(record.people?{people:record.people.map(p=>({...p}))}:{}),
+    ...(record.absences?{absences:record.absences.map(a=>({...a}))}:{}),
+    ...(record.revision?{revision:{...record.revision,
+      changedDates:[...record.revision.changedDates]}}:{}),
   };
 }
 
@@ -271,6 +306,37 @@ function ledgerIssues(ledger: ApprovedScheduleLedger): string[] {
       !shift.interval || !("mealBreak" in shift)
     )) {
       issues.push("Um turno não pertence ao período do horário " + record.id + ".");
+    }
+    if(record.people!==undefined &&
+       (!Array.isArray(record.people) ||
+        record.people.some(p=>!p||typeof p.id!=="string"||!p.id.trim()||
+          typeof p.name!=="string") ||
+        new Set(record.people.map(p=>p.id)).size!==record.people.length))
+      issues.push("Identificação histórica das pessoas inválida em "+record.id+".");
+    const acceptedReasons:AbsenceReason[]=[
+      "sick_leave","vacation","leave","accident","departure","other",
+    ];
+    if(record.absences!==undefined &&
+       (!Array.isArray(record.absences) ||
+        record.absences.some(a=>!a||!a.personId?.trim()||
+          !dateRangeOK(a)||a.startDate<record.startDate||
+          a.endDate>record.endDate||!acceptedReasons.includes(a.reason))))
+      issues.push("Ocorrência administrativa inválida em "+record.id+".");
+    if(record.revision!==undefined) {
+      const revision=record.revision;
+      if(!revision||!revision.sourceId?.trim()||
+         !revision.personId?.trim()||
+         !dateRangeOK(revision)||revision.startDate<record.startDate||
+         revision.endDate>record.endDate||
+         revision.sourceId!==record.replacesId||
+         !acceptedReasons.includes(revision.reason)||
+         (revision.note!==undefined &&
+          (typeof revision.note!=="string"||revision.note.length>240))||
+         !Array.isArray(revision.changedDates)||
+         revision.changedDates.some(date=>civil(date)===null||
+            date<revision.startDate||date>revision.endDate)||
+         new Set(revision.changedDates).size!==revision.changedDates.length)
+        issues.push("Revisão histórica incompatível em "+record.id+".");
     }
     if (record.status === "approved") active.push(record);
   }
@@ -436,10 +502,10 @@ function validateDraft(
     };
   }
   if ((civil(draft.endDate)! - civil(draft.startDate)!) / DAY + 1 >
-      MAX_PERIOD_DAYS) {
+      MAX_CONSTRAINED_PERIOD_DAYS) {
     return {
       code: "invalid_input",
-      issues: ["A aprovação V0 suporta até " + MAX_PERIOD_DAYS + " dias."],
+      issues: ["A aprovação V0 suporta até " + MAX_CONSTRAINED_PERIOD_DAYS + " dias."],
       workViolations: [],
     };
   }
@@ -571,6 +637,10 @@ function validateDraft(
       if (proposed.length) {
         problems.push(date + ": o dia está fechado mas contém turnos.");
       }
+      for(const person of environment.people) {
+        if(person.active && isExplicitRequiredWorkday(person,date))
+          problems.push(date + ": dia de trabalho obrigatório com operação fechada para "+person.id+".");
+      }
       continue;
     }
     if (presence.status !== "configured") {
@@ -585,6 +655,8 @@ function validateDraft(
           shift.personId + ".");
         continue;
       }
+      if (isPersonUnavailableOnDate(person,date))
+        problems.push(date + ": pessoa indisponível na data "+shift.personId+".");
       if (entry.exceptions.filter(exception =>
         exception.date === date
       ).length > 1 || !shift.interval ||
@@ -597,9 +669,35 @@ function validateDraft(
           shift.personId + ".");
       }
     }
+    for(const person of environment.people) {
+      if(!person.active)continue;
+      const entry=availability.get(person.id);
+      const permitted=entry&&!isPersonUnavailableOnDate(person,date)
+        ?getSchedulableIntervalsForDate(date,entry,
+          environment.operatingCalendar.weeklyOperatingHours,
+          environment.operatingCalendar.exceptions)
+        :[];
+      const mandatory=isExplicitRequiredWorkday(person,date)||
+        Boolean(environment.workRules?.requireShiftsOnAvailableDays&&permitted.length);
+      if(mandatory&&!proposed.some(shift=>shift.personId===person.id))
+        problems.push(date + ": dia obrigatório sem turno para "+person.id+".");
+    }
+    const shortMax=environment.workRules?.fullShortDayMaximumMinutes??0;
+    if(shortMax>0&&operating.length===1){
+      const minutes=(clock:string)=>Number(clock.slice(0,2))*60+
+        Number(clock.slice(3,5));
+      const duration=minutes(operating[0].end)-minutes(operating[0].start);
+      if(duration>0&&duration<=shortMax){
+        for(const shift of proposed){
+          if(shift.interval.start!==operating[0].start||
+             shift.interval.end!==operating[0].end)
+            problems.push(date+": turno não cobre o dia curto completo de "+shift.personId+".");
+        }
+      }
+    }
     const coverage = checkPresenceForWorkShifts(
       date, operating, presence.requirements, proposed
-    );
+    , environment.people);
     if (!coverage.valid) problems.push(
       date + ": cobertura insuficiente ou intervalos inválidos. " +
       coverage.issues.join(" ")
@@ -609,6 +707,16 @@ function validateDraft(
     code: "operational_constraint", issues: problems, workViolations: [],
   };
 
+  const externalHistory=environment.historicalShifts??[];
+  if(!Array.isArray(externalHistory) ||
+     externalHistory.some(shift=>!shift||!shift.personId?.trim()||
+       civil(shift.date)===null||!shift.interval||!("mealBreak" in shift)))
+    return {code:"invalid_input",issues:["Contexto histórico externo inválido."],
+      workViolations:[]};
+  if(externalHistory.some(shift=>inside(shift.date,draft)))
+    return {code:"period_occupied",
+      issues:["Existem turnos históricos no período a aprovar; exige revisão do histórico."],
+      workViolations:[]};
   const activeShifts = listApprovedShifts(ledger).filter(shift => {
     if (!excludedApprovedId) return true;
     const source = ledger.records.find(record =>
@@ -617,6 +725,12 @@ function validateDraft(
     return !source || !inside(shift.date, source);
   });
 
+  const approvedWorkIds=new Set(activeShifts.map(s=>s.date+"|"+s.personId));
+  if(externalHistory.some(shift=>approvedWorkIds.has(shift.date+"|"+shift.personId)))
+    return {code:"invalid_input",issues:[
+      "O mesmo turno não pode constar simultaneamente do histórico importado e do ledger oficial."
+    ],workViolations:[]};
+
   const work = validateWorkConstraints({
     timeZone: ledger.timeZone,
     rules: environment.workConstraints,
@@ -624,7 +738,7 @@ function validateDraft(
     knownSchedule: {
       ...ledger.coverage,
       complete: true,
-      shifts: [...activeShifts, ...draft.shifts],
+      shifts: [...activeShifts,...externalHistory, ...draft.shifts],
     },
   });
   if (work.status !== "valid") return {
@@ -633,6 +747,14 @@ function validateDraft(
     issues: work.issues.length ? work.issues :
       ["A proposta viola regras obrigatórias de trabalho."],
     workViolations: work.violations,
+  };
+  const contracts=validatePersonWeeklyContractCaps(
+    environment.people,[...activeShifts,...externalHistory,...draft.shifts],
+    environment.workConstraints.maximumWeeklyEffectiveMinutes,
+    ledger.timeZone,draft.startDate,draft.endDate,
+  );
+  if(!contracts.valid)return {
+    code:"work_constraint",issues:contracts.issues,workViolations:[],
   };
   return null;
 }
@@ -660,6 +782,7 @@ function commitDraft(
     changedAt: null,
     replacementId: null,
     replacesId: replaced?.id ?? null,
+    people:input.environment.people.map(p=>({id:p.id,name:p.name})),
   };
   const newRecords = input.ledger.records.map(old => (
     replaced && old.id === replaced.id

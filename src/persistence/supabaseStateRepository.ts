@@ -7,15 +7,56 @@ import {
   isPersistedAppState,
 } from "./localStorageStateRepository";
 import type { SupabaseAuthClient } from "./supabaseAuth";
+import { mergePersistedStates } from "../utils/threeWayStateMerge";
 
 interface BrowserStateSource {
   getItem(key: string): string | null;
+}
+
+/**
+ * Legacy browser data is not owner-scoped. A new cloud identity must explicitly
+ * claim it before any first import. Existing cloud state is never affected.
+ */
+export const LEGACY_IMPORT_CONSENT_PREFIX = "schedule-engine:legacy-import:owner:";
+export const LEGACY_IMPORT_SKIP_PREFIX = "schedule-engine:legacy-import:skip-owner:";
+
+/**
+ * An explicit owner-specific decision to start a NEW cloud account.
+ * The legacy browser data remains untouched and can still be imported
+ * later by its rightful owner. Never apply this choice to another user.
+ */
+export function startFreshCloudAccountForOwner(
+  storage: Pick<Storage, "setItem">, ownerId: string,
+): void {
+  if (!ownerId.trim()) throw new Error("Conta não autenticada.");
+  storage.setItem(LEGACY_IMPORT_SKIP_PREFIX + ownerId, "skip");
+}
+export class LegacyImportConsentRequiredError extends Error {
+  constructor() {
+    super("Existem dados antigos neste navegador sem associação confirmada à conta atual. A importação requer consentimento explícito.");
+    this.name = "LegacyImportConsentRequiredError";
+  }
+}
+export function authorizeLegacyImportForOwner(
+  storage: Pick<Storage, "setItem">, ownerId: string,
+): void {
+  if (!ownerId.trim()) throw new Error("Conta não autenticada.");
+  storage.setItem(LEGACY_IMPORT_CONSENT_PREFIX + ownerId, "confirmed");
 }
 
 export class SupabaseStateError extends Error {
   constructor(message: string, readonly status: number, readonly code?: string) {
     super(message);
     this.name = "SupabaseStateError";
+  }
+}
+export class SupabaseStateConflictError extends Error {
+  constructor(readonly fields:string[]) {
+    super("Edições simultâneas incompatíveis em: "+
+      fields.slice(0,8).join(", ")+
+      (fields.length>8?" …":"")+
+      ". Exporta as alterações locais antes de recarregar.");
+    this.name="SupabaseStateConflictError";
   }
 }
 
@@ -126,21 +167,47 @@ export function createSupabaseStateRepository(
   browser: BrowserStateSource
 ): StateRepository {
   let revision: number | null = null;
+  let revisionOwnerId: string | null = null;
+  let baseline: PersistedAppState | null = null;
+  // The latest UI request can be older than a merged server revision when
+  // multiple autosaves are queued. Track UI deltas independently from the
+  // server snapshot so a later request cannot silently revert remote edits.
+  let lastUiState: PersistedAppState | null = null;
+  let conflictLocked=false;
+  // Changes from a single browser session are serialized so each RPC sees
+  // the revision returned by the previous write. Multi-tab conflicts still
+  // fail closed under the PostgreSQL compare-and-swap contract.
+  let saveQueue: Promise<void> = Promise.resolve();
+  const requireOwner = ():string => {
+    const id=client.user?.id;
+    if (!id) throw new Error("É necessário iniciar sessão.");
+    return id;
+  };
+  const verifyOwner=(expected:string):void => {
+    if (client.user?.id !== expected) {
+      revision = null;
+      revisionOwnerId = null;
+      baseline = null;
+      lastUiState=null;
+      conflictLocked=true;
+      throw new Error("A sessão mudou durante a operação. Recarrega os dados da conta.");
+    }
+  };
 
   async function readRemote(): Promise<{
     revision: number;
     state: PersistedAppState | null;
   }> {
-    const user = client.user;
-    if (!user) throw new Error("É necessário iniciar sessão.");
-
-    const query = `?select=revision,payload&owner_id=eq.${encodeURIComponent(user.id)}&limit=1`;
+    const ownerId=requireOwner();
+    const query = `?select=revision,payload&owner_id=eq.${encodeURIComponent(ownerId)}&limit=1`;
     const response = await client.request(
       "/rest/v1/schedule_engine_states" + query
     );
+    verifyOwner(ownerId);
     if (!response.ok) throw await readError(response);
 
     const rows = await readJson(response);
+    verifyOwner(ownerId);
     if (!Array.isArray(rows)) throw new Error("Resposta Supabase inválida.");
     if (rows.length === 0) return { revision: 0, state: null };
     if (rows.length !== 1) throw new Error("Estado Supabase ambíguo.");
@@ -164,6 +231,7 @@ export function createSupabaseStateRepository(
       throw new Error("O estado local é incompatível. Gravação bloqueada.");
     }
 
+    const ownerId=requireOwner();
     const response = await client.request(
       "/rest/v1/rpc/save_schedule_engine_state",
       {
@@ -175,9 +243,11 @@ export function createSupabaseStateRepository(
         }),
       }
     );
+    verifyOwner(ownerId);
     if (!response.ok) throw await readError(response);
 
     const result = await readJson(response);
+    verifyOwner(ownerId);
     if (typeof result !== "number" ||
         !Number.isSafeInteger(result) || result <= 0) {
       throw new Error("Confirmação de gravação inválida no Supabase.");
@@ -187,26 +257,47 @@ export function createSupabaseStateRepository(
 
   return {
     async load() {
+      const ownerId=requireOwner();
       const remote = await readRemote();
+      verifyOwner(ownerId);
       revision = remote.revision;
+      revisionOwnerId = ownerId;
+      baseline = remote.state===null?null:structuredClone(remote.state);
+      lastUiState=remote.state===null?null:structuredClone(remote.state);
+      conflictLocked=false;
       if (remote.state !== null) {
         return remote.state;
       }
 
+      // An explicitly new account must not read or claim unscoped browser
+      // state. This decision is per owner and never changes legacy data.
+      if (browser.getItem(LEGACY_IMPORT_SKIP_PREFIX + ownerId) === "skip")
+        return null;
+
       // First import only. Never replace an existing cloud state with local data.
       const old = await oldRepository.load();
+      verifyOwner(ownerId);
       if (!old) return null;
+      if (browser.getItem(LEGACY_IMPORT_CONSENT_PREFIX + ownerId) !== "confirmed")
+        throw new LegacyImportConsentRequiredError();
       const migrated = preserveLegacyPeople(old, browser);
 
       try {
-        revision = await saveRemote(migrated, 0);
+        const nextRevision=await saveRemote(migrated, 0);
+        verifyOwner(ownerId);
+        revision=nextRevision;
+        baseline=structuredClone(migrated);
+        lastUiState=structuredClone(migrated);
         return migrated;
       } catch (error) {
         // Concurrency: another tab may have imported first. Re-read only
         // after a known revision conflict, never on arbitrary network errors.
         if (error instanceof SupabaseStateError && error.code === "40001") {
           const current = await readRemote();
+          verifyOwner(ownerId);
           revision = current.revision;
+          baseline=current.state===null?null:structuredClone(current.state);
+          lastUiState=current.state===null?null:structuredClone(current.state);
           if (current.state !== null) return current.state;
         }
         throw error;
@@ -214,12 +305,63 @@ export function createSupabaseStateRepository(
     },
 
     async save(state) {
-      if (revision === null) {
-        throw new Error(
-          "É necessário carregar os dados Supabase antes de guardar."
-        );
+      const ownerId=requireOwner();
+      if (revisionOwnerId !== ownerId || revision === null || conflictLocked) {
+        throw new Error("É necessário recarregar os dados desta conta antes de guardar.");
       }
-      revision = await saveRemote(state, revision);
+      // Snapshot caller state at invocation time, NOT after waiting for the
+      // queue. A newer UI event may already have edited the same objects.
+      const original=structuredClone(state);
+      const uiBaseline=lastUiState===null?null:structuredClone(lastUiState);
+      lastUiState=structuredClone(original);
+      const operation=saveQueue.then(async():Promise<PersistedAppState|void>=>{
+        verifyOwner(ownerId);
+        if(conflictLocked || revisionOwnerId!==ownerId || revision===null)
+          throw new Error("Gravação bloqueada após conflito. Exporta os dados e recarrega a conta.");
+        const startBaseline=baseline===null?null:structuredClone(baseline);
+        let candidate=original;
+        let reconciled=false;
+        if(uiBaseline && startBaseline) {
+          const queued=mergePersistedStates(uiBaseline,original,startBaseline);
+          if(!queued.ok)throw new SupabaseStateConflictError(queued.conflicts);
+          candidate=queued.state;
+          if(!isPersistedAppState(candidate))
+            throw new Error("A conciliação dos pedidos em fila produziu dados inválidos.");
+          reconciled=JSON.stringify(candidate)!==JSON.stringify(original);
+        }
+        let expected=revision;
+        for(let attempt=0;attempt<3;attempt++){
+          verifyOwner(ownerId);
+          try {
+            const nextRevision=await saveRemote(candidate,expected);
+            verifyOwner(ownerId);
+            revision=nextRevision;
+            baseline=structuredClone(candidate);
+            // If server changes were merged, the caller must hydrate them.
+            return reconciled?candidate:undefined;
+          }catch(error){
+            if(!(error instanceof SupabaseStateError)||
+              error.code!=="40001"||attempt===2) throw error;
+            const current=await readRemote();
+            verifyOwner(ownerId);
+            if(!current.state||!startBaseline) throw error;
+            const result=mergePersistedStates(startBaseline,candidate,current.state);
+            if(!result.ok)throw new SupabaseStateConflictError(result.conflicts);
+            if(!isPersistedAppState(result.state))
+              throw new Error("A conciliação gerou dados inválidos; gravação cancelada.");
+            candidate=result.state;
+            expected=current.revision;
+            reconciled=true;
+          }
+        }
+      }).catch(error=>{
+        // Any uncertain/failed write locks all queued writes. Otherwise a
+        // later queued snapshot could overwrite a conflicting server edit.
+        conflictLocked=true;
+        throw error;
+      });
+      saveQueue=operation.then(()=>undefined,()=>undefined);
+      return operation;
     },
   };
 }

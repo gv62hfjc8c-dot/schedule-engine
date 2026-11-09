@@ -1,3 +1,4 @@
+import { isPersonUnavailableOnDate } from "./personSchedulingPolicies";
 import type {
   DatedWorkShift,
   Person,
@@ -198,7 +199,8 @@ function createCandidates(
   constraints: WorkConstraintConfiguration,
   firstOpening: number,
   lastClosing: number,
-  flexibleDurations = false
+  flexibleDurations = false,
+  fullShortDayMaximumMinutes = 0
 ): Candidate[] {
   const result = new Map<string, Candidate>();
   const meal = constraints.mealBreak;
@@ -219,9 +221,18 @@ function createCandidates(
     for (const requestedEffective of effectiveChoices) {
       const effectiveWithMeal = Math.min(requestedEffective,
         operatingDuration - meal.durationMinutes);
+      // A complete short-day attendance span can contain an optional meal.
+      // Example: 09:00–16:00 with one hour of meal is 6h effective work.
+      // Without this candidate, a full 7h short day becomes unrepresentable.
+      const optionalFullShortDayMeal =
+        flexibleDurations && fullShortDayMaximumMinutes > 0 &&
+        operatingDuration <= fullShortDayMaximumMinutes &&
+        requestedEffective + meal.durationMinutes === operatingDuration &&
+        requestedEffective <= meal.requiredAboveEffectiveMinutes;
       const withMeal =
-        requestedEffective > meal.requiredAboveEffectiveMinutes &&
-        effectiveWithMeal > meal.requiredAboveEffectiveMinutes &&
+        (requestedEffective > meal.requiredAboveEffectiveMinutes &&
+          effectiveWithMeal > meal.requiredAboveEffectiveMinutes ||
+          optionalFullShortDayMeal) &&
         effectiveWithMeal > meal.earliestStartAfterWorkMinutes &&
         meal.earliestStartAfterWorkMinutes <= meal.latestStartAfterWorkMinutes &&
         (!flexibleDurations ||
@@ -412,7 +423,8 @@ export function searchMealAwareDaySchedule(
     );
   }
 
-  const active = people.filter(person => person.active)
+  const active = people.filter(person =>
+    person.active && !isPersonUnavailableOnDate(person,input.date))
     .sort((a, b) => a.id.localeCompare(b.id, "en"));
   const effectiveAvailability = new Map<string, NumericInterval[]>();
   for (const person of active) {
@@ -472,7 +484,8 @@ export function searchMealAwareDaySchedule(
     input.workConstraints,
     operating[0].start,
     operating[operating.length - 1].end,
-    options.flexibleDurations ?? false
+    options.flexibleDurations ?? false,
+    input.workRules.fullShortDayMaximumMinutes ?? 0
   )).filter(candidate => candidateValidForDailyWork(
     input.date, candidate, input.workConstraints, input.timeZone
   ));
@@ -513,7 +526,7 @@ export function searchMealAwareDaySchedule(
       operatingIntervals,
       requirements,
       selected.map(candidate => toShift(input.date, candidate))
-    );
+    , input.people);
     if (coverage.issues.length > 0) {
       throw new Error(`Erro interno de cobertura: ${coverage.issues.join(" ")}`);
     }
@@ -585,7 +598,7 @@ export function searchMealAwareDaySchedule(
     .sort((a, b) => a.personId.localeCompare(b.personId, "en"));
   const finalCoverage = checkPresenceForWorkShifts(
     input.date, operatingIntervals, requirements, assignments
-  );
+  , input.people);
   const finalWork = validateWorkConstraints({
     timeZone: input.timeZone,
     rules: input.workConstraints,

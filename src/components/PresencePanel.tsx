@@ -44,7 +44,7 @@ const emptyRequirement = (): PresenceRequirement => ({
 });
 
 const fields: {
-  key: keyof PresenceRequirement;
+  key: "minimumDuringOperation" | "minimumAtOpening" | "minimumAtClosing";
   label: string;
   help: string;
 }[] = [
@@ -69,10 +69,12 @@ function RequirementFields({
   requirement,
   onChange,
   prefix,
+  qualifications,
 }: {
   requirement: PresenceRequirement;
   onChange: (next: PresenceRequirement) => void;
   prefix: string;
+  qualifications: string[];
 }) {
   return (
     <div className="presence-fields">
@@ -95,6 +97,29 @@ function RequirementFields({
           />
         </label>
       ))}
+      {qualifications.length>0 && <details className="se-multi-interval-editor">
+        <summary>Mínimos obrigatórios por qualificação</summary>
+        <p className="presence-muted">
+          Para cada etiqueta, o mínimo aplica-se em todos os períodos
+          abertos. Só conta trabalho efetivo; as pausas não cobrem o posto.
+          Zero significa que não existe obrigação dessa competência.
+        </p>
+        {qualifications.map(tag=><label className="presence-field" key={tag}>
+          <span>{tag}</span>
+          <input type="number" min="0" max="1000" step="1"
+            aria-label={prefix+": mínimo para "+tag}
+            value={requirement.qualifiedCoverage?.[tag]??0}
+            onChange={event=>{
+              const number=Number(event.target.value||"0");
+              if(!Number.isSafeInteger(number)||number<0||number>1000)return;
+              const demands={...(requirement.qualifiedCoverage??{})};
+              if(number===0)delete demands[tag];
+              else demands[tag]=number;
+              onChange({...requirement,
+                qualifiedCoverage:Object.keys(demands).length?demands:undefined});
+            }}/>
+        </label>)}
+      </details>}
     </div>
   );
 }
@@ -150,6 +175,7 @@ export default function PresencePanel({
   onExceptionsChange,
 }: PresencePanelProps) {
   const activePeople = people.filter((person) => person.active);
+  const qualifications=[...new Set(activePeople.flatMap(p=>p.qualificationTags??[]))].sort();
   const availabilityById = new Map(
     availabilities.map((availability) => [availability.personId, availability])
   );
@@ -299,6 +325,7 @@ export default function PresencePanel({
                       requirement={requirement}
                       onChange={(next) => updateWeekly(day, next)}
                       prefix={labels[day]}
+                      qualifications={qualifications}
                     />
                     {!valid && (
                       <p className="presence-validation" role="alert">
@@ -458,6 +485,7 @@ export default function PresencePanel({
                             ...exception, requirements: next,
                           })}
                           prefix={`Exceção ${exception.date}`}
+                          qualifications={qualifications}
                         />
                         {!validRequirement && (
                           <p className="presence-validation" role="alert">

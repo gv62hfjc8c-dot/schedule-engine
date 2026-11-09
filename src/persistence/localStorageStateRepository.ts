@@ -12,7 +12,7 @@ import type {
   WeeklyOperatingHours,
   WorkRulesConfiguration,
 } from "../types";
-import { createEmptyWeeklyPresenceRequirements } from "../utils/presence";
+import { createEmptyWeeklyPresenceRequirements, isPresenceRequirementValid } from "../utils/presence";
 import {
   APP_STATE_VERSION,
   type PersistedAppState,
@@ -123,7 +123,52 @@ function isPerson(value: unknown): value is Person {
   return (
     typeof person.id === "string" &&
     typeof person.name === "string" &&
-    typeof person.active === "boolean"
+    typeof person.active === "boolean" &&
+    (person.weeklyContractMinutes === undefined ||
+      (typeof person.weeklyContractMinutes === "number" &&
+        Number.isSafeInteger(person.weeklyContractMinutes) &&
+        person.weeklyContractMinutes >= 0 &&
+        person.weeklyContractMinutes <= 10080 &&
+        person.weeklyContractMinutes % 15 === 0)) &&
+    (person.weeklyTargetMinutes === undefined ||
+      (typeof person.weeklyTargetMinutes === "number" &&
+        Number.isSafeInteger(person.weeklyTargetMinutes) &&
+        person.weeklyTargetMinutes >= 0 &&
+        person.weeklyTargetMinutes <= 10080 &&
+        person.weeklyTargetMinutes % 15 === 0)) &&
+    (person.weeklyContractMinutes === undefined ||
+      person.weeklyTargetMinutes === undefined ||
+      (typeof person.weeklyTargetMinutes === "number" &&
+        typeof person.weeklyContractMinutes === "number" &&
+        person.weeklyTargetMinutes <= person.weeklyContractMinutes)) &&
+    (person.requiredWorkDates === undefined ||
+      (Array.isArray(person.requiredWorkDates) &&
+        person.requiredWorkDates.every((date: unknown) => {
+          if (typeof date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
+          const stamp = Date.parse(date + "T00:00:00Z");
+          return Number.isFinite(stamp) &&
+            new Date(stamp).toISOString().slice(0,10) === date;
+        }) &&
+        new Set(person.requiredWorkDates).size === person.requiredWorkDates.length)) &&
+    (person.unavailableWorkDates === undefined ||
+      (Array.isArray(person.unavailableWorkDates) &&
+        person.unavailableWorkDates.every((date: unknown) => {
+          if (typeof date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
+          const stamp=Date.parse(date+"T00:00:00Z");
+          return Number.isFinite(stamp) &&
+            new Date(stamp).toISOString().slice(0,10)===date;
+        }) &&
+        new Set(person.unavailableWorkDates).size===person.unavailableWorkDates.length &&
+        (person.requiredWorkDates===undefined ||
+         (Array.isArray(person.requiredWorkDates) &&
+          !person.unavailableWorkDates.some((date: string)=>
+            (person.requiredWorkDates as string[]).includes(date)))))) &&
+    (person.qualificationTags===undefined ||
+      (Array.isArray(person.qualificationTags) &&
+        person.qualificationTags.every((tag:unknown)=>
+          typeof tag==="string" && tag.trim().length>0 &&
+          tag.length<=64 && /^[\p{L}\p{N} -]+$/u.test(tag)) &&
+        new Set(person.qualificationTags).size===person.qualificationTags.length))
   );
 }
 
@@ -177,9 +222,7 @@ function isPresenceRequirement(
     typeof requirement.minimumDuringOperation === "number" &&
     typeof requirement.minimumAtOpening === "number" &&
     typeof requirement.minimumAtClosing === "number" &&
-    Number.isFinite(requirement.minimumDuringOperation) &&
-    Number.isFinite(requirement.minimumAtOpening) &&
-    Number.isFinite(requirement.minimumAtClosing)
+    isPresenceRequirementValid(requirement as unknown as PresenceRequirement)
   );
 }
 
@@ -264,6 +307,19 @@ export function isPersistedAppState(
 
   return (
     state.version === APP_STATE_VERSION &&
+    (state.operationTimeZone === undefined || (
+      typeof state.operationTimeZone === "string" &&
+      (() => { try {
+        new Intl.DateTimeFormat("en", {timeZone: state.operationTimeZone as string});
+        return true;
+      } catch { return false; } })()
+    )) &&
+    (state.cycleAnchorDate === undefined || (
+      typeof state.cycleAnchorDate === "string" &&
+      /^\d{4}-\d{2}-\d{2}$/.test(state.cycleAnchorDate) &&
+      Number.isFinite(Date.parse(state.cycleAnchorDate + "T00:00:00Z")) &&
+      new Date(state.cycleAnchorDate + "T00:00:00Z").toISOString().slice(0,10) === state.cycleAnchorDate
+    )) &&
     isWeeklyIntervals(state.weeklyOperatingHours) &&
     Array.isArray(state.exceptions) &&
     state.exceptions.every(isOperatingException) &&
