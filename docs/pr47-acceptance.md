@@ -57,7 +57,7 @@ ocorrer sempre na **SHA exata** registada antes do início da sessão.
 
 ## Checklist canónica de aceitação dos 23 pontos
 
-**Estado baseado nos testes pedidos pelo responsável (09/11/2026): 7 PASS, 9 PARCIAL, 7 POR TESTAR.** Não usar «Implementado» como substituto de PASS nem declarar encerrada uma verificação Safari apenas porque a CI passou. A matriz canónica e as provas estão em [docs/pr47-checklist-23-results.md](pr47-checklist-23-results.md). A classificação por comportamento pedido prevalece sobre a matriz de implementação e as antigas afirmações genéricas de «23 pontos tratados».
+**Estado após automação documentada (09/11/2026): 16 PASS (incluindo testes automatizados WebKit/CI), 0 PARCIAL, 7 POR TESTAR.** O ambiente WebKit do CI não substitui uma sessão nativa Safari/macOS; ver evidências e ressalvas da [checklist canónica](pr47-checklist-23-results.md). Não usar «Implementado» como substituto de PASS nem declarar encerrada uma verificação Safari apenas porque a CI passou. A matriz canónica e as provas estão em [docs/pr47-checklist-23-results.md](pr47-checklist-23-results.md). A classificação por comportamento pedido prevalece sobre a matriz de implementação e as antigas afirmações genéricas de «23 pontos tratados».
 
 ## Registo de resultados
 
@@ -432,3 +432,12 @@ O utilizador confirmou expressamente que a correção do conflito entre abas fic
 - Aviso `auth_leaked_password_protection`: **RISCO ACEITE** pelo responsável no plano Free; não marcar como corrigido nem subscrever Pro.
 - Provas HTTP remotas com dois JWTs reais/410 autenticado da v6: **não realizadas**; evidências substitutas registadas, não afirmar PASS.
 - Código e base de dados não recebem dados sintéticos definitivos por causa deste fecho; os testes sintéticos da CI e da transação revertida preservam o isolamento.
+
+
+### Revisão dos nove resultados parciais — 09/11/2026
+
+- 01, 14, 15, 18, 19, 21 e 22 passaram testes reais da aplicação no WebKit automatizado, usando backend isolado e sintético, com persistência por RPC simulada e reload.
+- 03: o Supabase confirmou v6 inerte/JWT, a fonte executável coincide com a origem arquivada no Git e existem 13 ficheiros de rollback + manifesto. Não se afirma 410 autenticado remotamente.
+- 05: dez migrações identificadas em produção e reconstruídas sem erro em PostgreSQL 17 descartável com contratos Supabase. Não se afirma criação de segundo projeto Supabase alojado.
+- **Classificação operacional: 16 PASS com modo de teste explicitado, 7 POR TESTAR.** Não há autorização para merge implícita nesta classificação, e os riscos do Supabase Free e histórico adiado mantêm-se.
+- **CI:** `42631894388`, 3/3 jobs `success`, commit `5f8e243`.

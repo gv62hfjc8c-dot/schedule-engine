@@ -291,3 +291,8 @@ O utilizador confirmou que a correção de comunicação de conflitos entre abas
 - **Supabase Auth:** manter **Free**. O aviso de leaked-password protection permanece tecnicamente aberto e é registado como **risco explicitamente aceite**, sem qualquer despesa autorizada.
 - **Auditoria:** 23 itens tratados no âmbito técnico, com exceções de produto acima. O teste HTTP remoto com dois JWTs reais e a resposta 410 pelo gateway autenticado não foram realizados; não converter essas ausências em PASS. Este limite de validação fica documentado, não deverá dar origem a repetição indiscriminada de testes já aceites.
 - Referência vinculativa: `docs/decisions/pr47-scope-and-residual-risks-2026-11-09.md`. O merge permanece uma decisão explícita posterior.
+
+
+## Reclassificação por testes executados — 09/11/2026
+
+A checklist fiel do responsável foi atualizada depois de se executar `webkit-acceptance` (React/Vite reais, backend sintético), documentação-to-UI test, validação do código legacy efetivamente publicado e CI PostgreSQL isolada. **16 PASS qualificados, 7 POR TESTAR**; nenhum item é dado como PASS nativo Safari sem ter sido testado em Safari do Mac. As exceções de histórico real adiado e aviso Auth do plano Free permanecem. Ver `docs/pr47-checklist-23-results.md`. Não confundir aceitação automatizada de um fluxo com prova de consumo externo ou ambiente hosted de Supabase.
