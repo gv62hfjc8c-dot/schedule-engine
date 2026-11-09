@@ -31,6 +31,24 @@ jobs:
           PR47_EDGE_TEST_URL: https://zuczsheoixuwienbkprz.supabase.co/functions/v1
         run: node scripts/ci/liveEdgeSmokeTest.mjs
 
+
+  webkit-acceptance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Install isolated WebKit browser for UI acceptance
+        run: |
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps webkit
+      - name: Exercise Schedule Engine actual WebKit UI with synthetic Supabase
+        run: node scripts/ci/pr47WebkitAcceptance.mjs
+
   migration-contract:
     runs-on: ubuntu-latest
     timeout-minutes: 10
