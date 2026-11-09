@@ -1,3 +1,11 @@
+## 2026-11-09 — Consulta de histórico factual no calendário
+
+- Corrigida lacuna entre dados importados nas tabelas `schedule_engine_history_*` e o ecrã mensal, que anteriormente apenas consultava propostas geradas.
+- O calendário apresenta dias com ocorrências importadas como **Histórico factual**, não como propostas nem como aprovação oficial. O detalhe do dia mostra os colaboradores, trabalho contínuo, refeição, folga, férias, feriado e nome da fonte.
+- A ausência de registo nunca é classificada como folga. O histórico não sobrepõe propostas persistidas nem altera o motor de scheduling, os vínculos ou os registos oficiais.
+- Leitura autenticada por proprietário com RLS; regressões de integridade e apresentação sem escrita.
+- A importação factual de janeiro já tinha sido executada na base de dados; esta alteração integra apenas a **consulta na interface**, sem nova importação.
+
 ## 2026-11-09 — Rollout histórico Supabase PR48/PR49
 
 - Aplicadas as duas migrações históricas à instância operacional após pré-verificação de 0 fontes, 0 factos e 0 ledgers oficiais.
