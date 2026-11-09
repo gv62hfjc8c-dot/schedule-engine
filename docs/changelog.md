@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-11-09 — PR49: vínculos por data e edição da refeição
+
+- Pessoa mantém identificador permanente e períodos de vínculo sem sobreposição;
+  entrada/saída não é inferida pela mera presença no Excel.
+- Geração e validação final impedem trabalho fora do vínculo.
+- Histórico exige cobertura apenas em dias de vínculo e rejeita turnos
+  anteriores à entrada ou posteriores à saída.
+- Editor permite alterar o início da refeição de uma proposta gerada,
+  mantendo o turno contínuo e recertificando todas as hard constraints;
+  a alteração cria uma nova proposta em vez de modificar o arquivo.
+- Inicialização de histórico oficial passa a exigir períodos de vínculo
+  explícitos para todos os colaboradores relevantes. Edge Function lê
+  `occurrence_type` e valida evidência no âmbito dos vínculos.
+- Não foram importados os Excel, alterados utilizadores reais ou ativadas
+  aprovações oficiais. Migrações pendentes de rollout controlado.
+
 ## 2026-11-09 — Classificação explícita de ocorrências históricas
 
 - O arquivo de factos históricos por pessoa/dia passa a exigir `occurrence_type`: `worked`, `day_off`, `vacation` ou `holiday`.

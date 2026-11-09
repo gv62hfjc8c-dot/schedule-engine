@@ -1,4 +1,5 @@
 import type { DatedWorkShift, WorkConstraintConfiguration } from "../types";
+import {employedOn,validateEmploymentPeriods, type EmploymentPeriod} from "./employmentPeriods";
 import type { ConfirmedExternalWorkContext } from "./constrainedPeriodGenerator";
 import {
   validateWorkConstraints, type WorkValidationDateRange,
@@ -28,6 +29,8 @@ export interface HistoricalContextRequest {
   workConstraints: WorkConstraintConfiguration;
   /** Includes every person whose history may affect the generated period. */
   personIds: string[];
+  /** Historical eligibility by stable person ID. Undefined means legacy unbounded history. */
+  employmentPeriods?: Record<string,EmploymentPeriod[]>;
   archive: HistoricalWorkArchive | null;
   /** Optional start of historical continuity, e.g. 2026-01-01. */
   historyStartDate?: string;
@@ -72,7 +75,11 @@ export function prepareHistoricalWorkContext(
      (input.historyStartDate!==undefined&&civil(input.historyStartDate)===null)||
      !Array.isArray(input.personIds)||
      input.personIds.some(id=>typeof id!=="string"||!id.trim())||
-     new Set(input.personIds).size!==input.personIds.length) {
+     new Set(input.personIds).size!==input.personIds.length ||
+     (input.employmentPeriods!==undefined && (
+       !input.employmentPeriods || typeof input.employmentPeriods!=="object" ||
+       Object.keys(input.employmentPeriods).some(id=>!input.personIds.includes(id)) ||
+       Object.values(input.employmentPeriods).some(periods=>validateEmploymentPeriods(periods).length>0)))) {
     return invalid(["Identidade de pessoas ou datas do histórico incompatíveis."]);
   }
   const probe=validateWorkConstraints({
@@ -92,6 +99,7 @@ export function prepareHistoricalWorkContext(
      !Array.isArray(input.archive.shifts)||
      input.archive.timeZone!==input.timeZone)
     return invalid(["Arquivo histórico sem cobertura, turnos ou fuso compatível."]);
+  const isEmployed=(id:string,date:string)=>employedOn({employmentPeriods:input.employmentPeriods?.[id]},date);
   const coverage=input.archive.coverage;
   const people=new Set(input.personIds);
   for(const item of coverage) {
@@ -107,6 +115,8 @@ export function prepareHistoricalWorkContext(
        typeof shift.interval.end!=="string"||!("mealBreak" in shift))
       return invalid(["Turno histórico sem pessoa, data ou intervalo válido."]);
     const key=shift.date+"|"+shift.personId;
+    if(!isEmployed(shift.personId,shift.date))
+      return invalid(["Turno histórico anterior à entrada ou posterior à saída: "+key+"."]);
     if(keys.has(key))return invalid(["Turnos históricos duplicados para "+key+"."]);
     keys.add(key);
     if(!coverage.some(c=>c.verified&&c.personId===shift.personId &&
@@ -125,6 +135,7 @@ export function prepareHistoricalWorkContext(
     if(date>=input.targetPeriod.startDate&&date<=input.targetPeriod.endDate)
       continue; // The generator owns target days; do not require past attestations there.
     for(const personId of input.personIds) {
+      if(!isEmployed(personId,date))continue; // An uncontracted date is not a missing shift.
       const proven=coverage.some(c=>c.verified&&c.personId===personId &&
         c.startDate<=date&&c.endDate>=date);
       if(!proven&&missing.length<32)missing.push({date,personId});

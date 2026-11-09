@@ -30,6 +30,7 @@ assert.deepEqual(migrations,[
   "20261108144725_pr47_verified_ledger_initialization.sql",
   "20261108234026_pr47_approval_config_revision_cas.sql",
   "20261109210000_history_day_occurrence_types.sql",
+  "20261109223000_employment_aware_historical_verification.sql",
 ],"Active migration versions must match the reviewed lineage, including the typed historical day extension.");
 const state=file("supabase/migrations/20261102125810_generated_schedule_proposals.sql");
 contains(state,/security\s+definer/i,"State RPC must document its security context.");
@@ -103,6 +104,15 @@ contains(occurrenceMigration,/jsonb_array_length\(shifts\)\s*=\s*0/i,
   "Leave, holiday and rest days must not silently carry shifts.");
 absent(occurrenceMigration,/grant\s+(?:insert|update|delete|all)\s+on\s+(?:table\s+)?public\.schedule_engine_history_day_facts\s+to\s+authenticated/i,
   "Classification migration must not grant browser history writes.");
+const employmentMigration=file("supabase/migrations/20261109223000_employment_aware_historical_verification.sql");
+contains(employmentMigration,/initialize_schedule_engine_verified_ledger/,
+  "Official initialization must enforce dated employment.");
+contains(employmentMigration,/employmentPeriods/,
+  "Verifier must inspect the actual employment dates.");
+contains(employmentMigration,/outside_contract_count/,
+  "Historical facts outside employment must be rejected.");
+contains(employmentMigration,/REVOKE\s+ALL\s+ON\s+FUNCTION/,
+  "The official initialization RPC must remain uncallable from the browser.");
 const rpcHardening=file("supabase/deployment/pr47_state_rpc_private_schema.sql");
 contains(rpcHardening,/CREATE\s+SCHEMA\s+IF\s+NOT\s+EXISTS\s+schedule_engine_private/i,
   "Privileged code must be moved outside the Data API schema.");

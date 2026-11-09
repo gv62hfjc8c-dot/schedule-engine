@@ -38,6 +38,7 @@ import {
   getOperatingIntervalsForDate,
   WEEKDAYS,
 } from "./utils/operatingCalendar";
+import {validateEmploymentPeriods} from "./utils/employmentPeriods";
 import {
   createPerson,
   getActivePeople,
@@ -197,6 +198,8 @@ export default function App() {
     null
   );
   const [editingPersonName, setEditingPersonName] = useState("");
+  const [employmentStartDraft,setEmploymentStartDraft] = useState("");
+  const [employmentEndDraft,setEmploymentEndDraft] = useState("");
   const [personError, setPersonError] = useState("");
   const [exceptionIssue, setExceptionIssue] = useState("");
   const [availabilityExceptionIssue, setAvailabilityExceptionIssue] = useState("");
@@ -625,12 +628,16 @@ export default function App() {
   const startEditingPerson = (person: Person) => {
     setEditingPersonId(person.id);
     setEditingPersonName(person.name);
+    setEmploymentStartDraft("");
+    setEmploymentEndDraft("");
     setPersonError("");
   };
 
   const cancelEditingPerson = () => {
     setEditingPersonId(null);
     setEditingPersonName("");
+    setEmploymentStartDraft("");
+    setEmploymentEndDraft("");
     setPersonError("");
   };
 
@@ -650,6 +657,28 @@ export default function App() {
         error instanceof Error ? error.message : "Nome inválido."
       );
     }
+  };
+
+  const addPersonEmploymentPeriod = (person:Person) => {
+    const periods=[...(person.employmentPeriods??[]),
+      {startDate:employmentStartDraft,endDate:employmentEndDraft || null}];
+    const problems=validateEmploymentPeriods(periods);
+    if(problems.length){
+      setPersonError(problems.join(" "));
+      return;
+    }
+    setPeople(current=>current.map(p=>p.id===person.id
+      ? {...p,employmentPeriods:periods} : p));
+    setEmploymentStartDraft("");
+    setEmploymentEndDraft("");
+    setPersonError("");
+  };
+
+  const removePersonEmploymentPeriod = (person:Person,index:number) => {
+    setPeople(current=>current.map(p=>p.id===person.id
+      ? {...p,employmentPeriods:person.employmentPeriods?.filter((_,i)=>i!==index)??[]}
+      : p));
+    setPersonError("");
   };
 
   const changePersonActive = (
@@ -1448,6 +1477,41 @@ export default function App() {
                         <div>
                           <strong>{person.name}</strong>
                           <span>ID {person.id.slice(0, 8)}</span>
+                          {person.employmentPeriods!==undefined && !editing && (
+                            <small>Vínculos: {person.employmentPeriods.length
+                              ? person.employmentPeriods.map(p=>p.startDate+" a "+(p.endDate??"presente")).join("; ")
+                              : "nenhum período configurado"}</small>
+                          )}
+                        </div>
+                      )}
+                      {editing && (
+                        <div className="person-employment-editor">
+                          <p>Vínculos laborais (datas inclusivas)</p>
+                          {(person.employmentPeriods??[]).map((period,index)=>(
+                            <div key={index}>
+                              <span>{period.startDate} a {period.endDate??"presente"}</span>{" "}
+                              <button type="button" className="secondary-button"
+                                onClick={()=>removePersonEmploymentPeriod(person,index)}>
+                                Remover vínculo
+                              </button>
+                            </div>
+                          ))}
+                          <label>Entrada
+                            <input aria-label={"Entrada de "+person.name} type="date"
+                              value={employmentStartDraft}
+                              onChange={event=>setEmploymentStartDraft(event.target.value)}/>
+                          </label>
+                          <label>Saída (opcional)
+                            <input aria-label={"Saída de "+person.name} type="date"
+                              value={employmentEndDraft}
+                              onChange={event=>setEmploymentEndDraft(event.target.value)}/>
+                          </label>
+                          <button type="button" className="secondary-button"
+                            disabled={!employmentStartDraft}
+                            onClick={()=>addPersonEmploymentPeriod(person)}>
+                            Adicionar vínculo
+                          </button>
+                          <small>Os vínculos não alteram horários históricos ou propostas já arquivadas.</small>
                         </div>
                       )}
                     </div>

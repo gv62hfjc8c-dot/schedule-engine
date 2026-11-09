@@ -2771,3 +2771,44 @@ h2 {
   }
   .se-multi-interval-row button { grid-column: 1 / -1; }
 }
+
+
+/* PR49 — employment periods belong to a person, not to individual shifts. */
+.person-identity { flex-wrap: wrap; }
+.person-employment-editor {
+  display: grid;
+  flex: 1 1 100%;
+  min-width: min(100%, 250px);
+  gap: 9px;
+  padding: 12px;
+  margin-top: 8px;
+  border: 1px solid var(--border-color, #d6e0ea);
+  border-radius: 10px;
+  background: var(--surface, #fff);
+}
+.person-employment-editor p { margin: 0; font-weight: 700; font-size: 12px; }
+.person-employment-editor > div { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.person-employment-editor label { display: grid; gap: 4px; font-size: 12px; }
+.person-employment-editor input[type="date"] {
+  width: min(100%, 215px);
+  min-height: 38px;
+  color: inherit;
+  background: var(--surface, #fff);
+  border: 1px solid var(--border-color, #bac7d6);
+  border-radius: 8px;
+  padding: 6px 9px;
+}
+.person-employment-editor .secondary-button { width: fit-content; }
+.person-identity small { display: block; margin-top: 5px; font-size: 11px; opacity: .75; }
+.generator-meal-editor { display: grid; gap: 11px; padding: 20px 24px; }
+.generator-meal-editor > h3, .generator-meal-editor > p { margin: 0; }
+.generator-meal-editor > .p63-action-row {
+  padding: 12px;
+  border: 1px solid var(--border-color, #d6e0ea);
+  border-radius: 8px;
+}
+.generator-meal-editor input[type="time"] {
+  min-height: 38px; border-radius: 8px; padding: 5px 10px;
+  color: inherit; background: var(--surface, #fff);
+  border: 1px solid var(--border-color, #bac7d6);
+}

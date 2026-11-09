@@ -1,4 +1,5 @@
 import type { DatedWorkShift } from "../types";
+import {employedOn} from "./employmentPeriods";
 import type { GenerateConstrainedPeriodInput } from "./constrainedPeriodGenerator";
 import { getOperatingIntervalsForDate } from "./operatingCalendar";
 import { isSchedulableForInterval, getSchedulableIntervalsForDate } from "./availability";
@@ -37,6 +38,8 @@ export function certifyFinalGeneratedSchedule(
     if (!activeIds.has(shift.personId))
       issues.push("Foi atribuída uma pessoa inexistente ou inativa: " + shift.personId + ".");
     const assignedPerson=input.people.find(p=>p.id===shift.personId);
+    if(assignedPerson && !employedOn(assignedPerson,shift.date))
+      issues.push("Turno atribuído fora do vínculo do colaborador: "+key+".");
     if(assignedPerson && isPersonUnavailableOnDate(assignedPerson,shift.date))
       issues.push("Foi atribuído um turno num dia de indisponibilidade: "+key+".");
     const availability = input.availabilities.find(a => a.personId === shift.personId);
@@ -59,7 +62,7 @@ export function certifyFinalGeneratedSchedule(
     const shifts = byDay.get(date) ?? [];
     if (!operating.length) {
       if (shifts.length) issues.push(date + ": turno num dia encerrado.");
-      if (input.people.some(p=>p.active && isExplicitRequiredWorkday(p,date)))
+      if (input.people.some(p=>p.active && employedOn(p,date) && isExplicitRequiredWorkday(p,date)))
         issues.push(date + ": dia obrigatório configurado para operação encerrada.");
       continue;
     }
@@ -75,7 +78,7 @@ export function certifyFinalGeneratedSchedule(
     }
     const coverage = checkPresenceForWorkShifts(date, operating, presence.requirements, shifts, input.people);
     if (!coverage.valid) issues.push(date + ": " + coverage.issues.join(" "));
-    for (const person of input.people.filter(p => p.active)) {
+    for (const person of input.people.filter(p => p.active && employedOn(p,date))) {
       const availability = input.availabilities.find(a => a.personId === person.id);
       const allowed = availability && !isPersonUnavailableOnDate(person,date)
         ? getSchedulableIntervalsForDate(

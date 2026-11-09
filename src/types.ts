@@ -33,6 +33,8 @@ export interface Person {
   id: string;
   name: string;
   active: boolean;
+  /** Date-effective contracts. Undefined preserves legacy behavior, [] means never employed. */
+  employmentPeriods?: Array<{startDate:string;endDate:string|null}>;
   /** Optional individual HARD weekly ceiling (effective minutes), e.g. 1200 for 20h. */
   weeklyContractMinutes?: number;
   /** Optional SOFT weekly target. Defaults to contract ceiling or company limit. */
