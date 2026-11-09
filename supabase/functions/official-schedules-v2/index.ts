@@ -27,6 +27,7 @@ import type {
 import type { WorkValidationDateRange } from "../../../src/utils/workConstraints.ts";
 import type { DatedWorkShift } from "../../../src/types.ts";
 import { prepareHistoricalWorkContext } from "../../../src/utils/historicalWorkContext.ts";
+import {validateEmploymentPeriods} from "../../../src/utils/employmentPeriods.ts";
 
 type RecordJson=Record<string,unknown>;
 const isObject=(x:unknown):x is RecordJson=>
@@ -196,10 +197,18 @@ async function loadHistoricalEvidence(
   const people=env.people.map(p=>p.id);
   const timeZone=ledger.timeZone;
   const historyAnchor=ledger.coverage.startDate;
+  const employmentPeriods=Object.fromEntries(env.people.map(person=>
+    [person.id,person.employmentPeriods]));
   const base={
     targetPeriod:target,timeZone,workConstraints:env.workConstraints,
-    historyStartDate:historyAnchor,personIds:people,
+    historyStartDate:historyAnchor,personIds:people,employmentPeriods,
   };
+  // A new hire or an archived employee with undefined historical dates must
+  // invalidate readiness, not resurrect all-years assumed employment.
+  if(env.people.some(person=>!Array.isArray(person.employmentPeriods) ||
+      person.employmentPeriods.length===0 ||
+      validateEmploymentPeriods(person.employmentPeriods).length>0))
+    return {...base,archive:null};
   if(!validDate(historyAnchor)||!ledger.complete||people.length===0)
     return {...base,archive:null};
   const [sources,verifications,facts]=await Promise.all([
@@ -208,7 +217,7 @@ async function loadHistoricalEvidence(
     readAll(selectedOwnerPath("schedule_engine_history_verifications",ownerId,
       "source_id,person_id,first_date,last_date,verifier_version")),
     readAll(selectedOwnerPath("schedule_engine_history_day_facts",ownerId,
-      "source_id,person_id,work_date,shifts")+
+      "source_id,person_id,work_date,shifts,occurrence_type")+
       "&work_date=gte."+historyAnchor),
   ]);
   if(!sources.length||!verifications.length)return {...base,archive:null};
@@ -234,8 +243,11 @@ async function loadHistoricalEvidence(
     if(typeof fact.source_id!=="string" ||
        !sourceZones.has(fact.source_id) ||
        typeof fact.person_id!=="string" ||
-       !validDate(fact.work_date) || !Array.isArray(fact.shifts))
-      throw Error("Invalid historical day fact");
+       !validDate(fact.work_date) || !Array.isArray(fact.shifts) ||
+       (fact.occurrence_type==="worked" ? fact.shifts.length===0
+         : !["day_off","vacation","holiday"].includes(String(fact.occurrence_type)) ||
+           fact.shifts.length!==0))
+      throw Error("Invalid historical day fact or occurrence classification");
     // Former staff can be retained in storage; only selected current people
     // contribute to this scheduling validation scope.
     if(!people.includes(fact.person_id))continue;
