@@ -2812,3 +2812,25 @@ h2 {
   color: inherit; background: var(--surface, #fff);
   border: 1px solid var(--border-color, #bac7d6);
 }
+
+
+/* Factual historical records: distinct from generated and approved proposals. */
+.se-day.history {
+  border: 1px solid #2f8f9d;
+  background: color-mix(in srgb, #2f8f9d 16%, #182334);
+}
+.se-day.history small {color: #83d6dc;font-weight: 650;}
+.se-legend i.history {background: #2f8f9d;}
+.se-panel-status.history {background: #1f656e;color: #e9ffff;}
+.se-history-summary {display: grid;gap: 10px;}
+.se-history-summary h4,.se-history-summary p {margin: 0;}
+.se-history-summary .se-count-grid > div {
+  border: 1px solid #50657b;
+  border-radius: 8px;
+  padding: 10px;
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+}
+.se-history-summary .se-count-grid strong {font-size: 20px;}
+.se-history-summary .se-count-grid span {font-size: 11px;}
