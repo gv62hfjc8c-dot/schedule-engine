@@ -14,11 +14,11 @@ const generator=read("src/components/ConstrainedPeriodGeneratorPanel.tsx");
 const approvals=read("src/components/OfficialApprovalPanel.tsx");
 const migrationFiles=readdirSync("supabase/migrations")
   .filter(x=>x.endsWith(".sql"));
-assert.equal(migrationFiles.length,12,"Expected ten deployed migrations and two staged history upgrades.");
+assert.equal(migrationFiles.length,12,"Expected twelve deployed migrations, including the two history upgrades.");
 assert.match(docs,/quatro identificadores históricos reconstruídos\s+e seis migrações PR47/,
   "Documented migration lineage must match the deployed version count.");
 assert.match(docs,/doze ficheiros versionados/,
-  "README must distinguish the staged migration from deployed versions.");
+  "README must distinguish the twelve applied migrations and Git alignment.");
 assert.match(docs,/28 dias/);
 assert.match(architecture,/1–28 dias/);
 assert.match(app,/A geração certificada suporta períodos de até 28 dias por proposta/);
