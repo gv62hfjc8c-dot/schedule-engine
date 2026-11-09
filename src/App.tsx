@@ -18,6 +18,7 @@ import CalendarDateInput from "./components/CalendarDateInput";
 import PresencePanel from "./components/PresencePanel";
 import ScheduleGeneratorPanel from "./components/ScheduleGeneratorPanel";
 import ScheduleHome from "./components/ScheduleHome";
+import ApplicationNavigation,{areaFor,sectionLabel} from "./components/ApplicationNavigation";
 import { supabaseAuthClient } from "./persistence/supabaseInstance";
 import { createSupabaseGeneratedScheduleRepository } from "./persistence/supabaseGeneratedScheduleRepository";
 import { authorizeLegacyImportForOwner, startFreshCloudAccountForOwner, LegacyImportConsentRequiredError } from "./persistence/supabaseStateRepository";
@@ -197,6 +198,7 @@ export default function App() {
   const [editingPersonId, setEditingPersonId] = useState<string | null>(
     null
   );
+  const [mobileNavigationOpen,setMobileNavigationOpen]=useState(false);
   const [editingPersonName, setEditingPersonName] = useState("");
   const [employmentStartDraft,setEmploymentStartDraft] = useState("");
   const [employmentEndDraft,setEmploymentEndDraft] = useState("");
@@ -973,72 +975,39 @@ export default function App() {
   }
 
   return (
-    <main className="app-shell">
-      <header className="page-header">
-        <div>
-          <p className="eyebrow">Horários e planeamento</p>
-          <h1>Schedule Engine</h1>
-          <p className="page-subtitle">
-            Consulta o calendário mensal, prepara horários e gere a configuração operacional
-            sem confundir propostas de simulação com horários aprovados.
-          </p>
-        </div>
-
-        <div className="header-statuses">
-          
-
-          <div
-            className={`save-status ${persistenceStatus}`}
-            title="Estado da gravação da configuração no Supabase"
-          >
-            <span className="save-status-dot" />
-            {persistenceStatus === "loading" && "A carregar"}
-            {persistenceStatus === "saving" && "A guardar"}
-            {persistenceStatus === "saved" && "Guardado"}
-            {persistenceStatus === "error" && "Erro ao guardar"}
-          </div>
-        </div>
-      </header>
-
-      <nav className="workspace-tabs" aria-label="Áreas principais">
-        {([
-          {id:"schedules",label:"Horários",sections:["schedules","generator"]},
-          {id:"operation",label:"Operação",sections:["calendar","presence"]},
-          {id:"team",label:"Equipa",sections:["people","availability"]},
-          {id:"rules",label:"Regras",sections:["workRules"]},
-        ] as const).map(group => (
-          <button key={group.id} type="button"
-            className={`workspace-tab ${(group.sections as readonly string[]).includes(activeSection) ? "active" : ""}`}
-            aria-current={(group.sections as readonly string[]).includes(activeSection) ? "page" : undefined}
-            onClick={() => setActiveSection(group.sections[0])}>
-            <svg className="workspace-tab-icon" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              {group.id === "operation" && <><rect x="3" y="9" width="18" height="12" rx="2"/><path d="M3 9l2-6h14l2 6M9 21v-8h6v8"/></>}
-              {group.id === "team" && <><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></>}
-              {group.id === "rules" && <><path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="2" fill="currentColor" stroke="none"/><circle cx="16" cy="17" r="2" fill="currentColor" stroke="none"/></>}
-              {group.id === "schedules" && <><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18M8 15l2 2 4-4"/></>}
-            </svg>
-            <span>{group.label}</span>
-          </button>
-        ))}
-      </nav>
-      {(["calendar","presence","people","availability"] as const).includes(
-        activeSection as "calendar" | "presence" | "people" | "availability"
-      ) && (
-        <nav className="workspace-subtabs" aria-label="Secções da área">
-          {(activeSection === "calendar" || activeSection === "presence"
-            ? [{id:"calendar",label:"Calendário operacional"},{id:"presence",label:"Presença mínima"}]
-            : [{id:"people",label:"Pessoas"},{id:"availability",label:"Disponibilidades"}]
-          ).map(item => (
-            <button key={item.id} type="button"
-              className={`workspace-subtab ${activeSection===item.id?"active":""}`}
-              aria-current={activeSection===item.id?"page":undefined}
-              onClick={() => setActiveSection(item.id as typeof activeSection)}>
-              {item.label}
+    <main className="app-shell application-layout">
+      <ApplicationNavigation activeSection={activeSection}
+        navigate={setActiveSection}
+        mobileOpen={mobileNavigationOpen}
+        closeMobile={()=>setMobileNavigationOpen(false)}/>
+      <div className="application-workspace">
+        <header className="application-topbar">
+          <div className="application-topbar-start">
+            <button type="button" className="app-menu-trigger"
+              aria-label="Abrir menu de navegação"
+              aria-expanded={mobileNavigationOpen}
+              onClick={()=>setMobileNavigationOpen(value=>!value)}>
+              <span aria-hidden="true">☰</span>
             </button>
-          ))}
-        </nav>
-      )}
-
+            <div className="app-breadcrumb" aria-label="Localização atual">
+              <span>{({schedules:"Horários",operation:"Operação",team:"Equipa",rules:"Regras"} as const)[areaFor(activeSection)]}</span>
+              <span className="app-breadcrumb-divider" aria-hidden="true">/</span>
+              <strong>{sectionLabel(activeSection)}</strong>
+            </div>
+          </div>
+          <div className="header-statuses">
+            <div className={`save-status ${persistenceStatus}`}
+              title="Estado da gravação da configuração no Supabase"
+              aria-live="polite">
+              <span className="save-status-dot"/>
+              {persistenceStatus === "loading" && "A carregar"}
+              {persistenceStatus === "saving" && "A guardar"}
+              {persistenceStatus === "saved" && "Guardado"}
+              {persistenceStatus === "error" && "Erro ao guardar"}
+            </div>
+          </div>
+        </header>
+        <div className="application-page">
       {activeSection === "schedules" && (
         <ScheduleHome
           people={people}
@@ -2067,6 +2036,8 @@ export default function App() {
           onBackToCalendar={() => setActiveSection("schedules")}
         />
       )}
+        </div>
+      </div>
     </main>
   );
 }
