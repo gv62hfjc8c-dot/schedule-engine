@@ -104,6 +104,18 @@ try {
     }
     assert.equal(init.headers?.Authorization,"Bearer synthetic-service-only",
       "Server must use its own service identity only for database calls.");
+    if(path==="/rest/v1/rpc/commit_schedule_engine_approved_ledger_v2"){
+      commitCalls++;
+      const body=JSON.parse(String(init.body));
+      assert.equal(body.p_owner_id,A);
+      assert.equal(body.p_expected_state_revision,
+        body.p_operation==="cancel"?null:1);
+      if(body.p_expected_version!==ledger.version)return json(false);
+      assert.equal(body.p_next_payload.version,ledger.version+1);
+      ledger=copy(body.p_next_payload);
+      officialWrites++;
+      return json(true);
+    }
     const selectedOwner=params.get("owner_id")?.replace("eq.","");
     const onlyA=selectedOwner===A, onlyB=selectedOwner===B;
     assert(onlyA||onlyB,"Database reads/writes must specify a verified owner.");
@@ -127,18 +139,7 @@ try {
       return page(verifications);
     if(path==="/rest/v1/schedule_engine_history_day_facts")
       return page(facts);
-    if(path==="/rest/v1/rpc/commit_schedule_engine_approved_ledger_v2"){
-      commitCalls++;
-      const body=JSON.parse(String(init.body));
-      assert.equal(body.p_owner_id,A);
-      assert.equal(body.p_expected_state_revision,
-        body.p_operation==="cancel"?null:1);
-      if(body.p_expected_version!==ledger.version)return json(false);
-      assert.equal(body.p_next_payload.version,ledger.version+1);
-      ledger=copy(body.p_next_payload);
-      officialWrites++;
-      return json(true);
-    }
+
     throw Error("Unexpected trusted endpoint: "+path);
   };
   const output=join(temp,"roundtrip.mjs");
