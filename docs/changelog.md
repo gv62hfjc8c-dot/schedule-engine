@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-11-09 — Classificação explícita de ocorrências históricas
+
+- O arquivo de factos históricos por pessoa/dia passa a exigir `occurrence_type`: `worked`, `day_off`, `vacation` ou `holiday`.
+- As restrições PostgreSQL impedem trabalho sem turnos e ausências com turnos; ausência de linha mantém-se como desconhecido.
+- Testes de migração verificam persistência das classificações, combinações inválidas e impossibilidade de inserir factos sem tipo.
+- Regras específicas para Excel janeiro/2026 registadas em `docs/decisions/history-occurrence-classification-2026-11-09.md`.
+- Nenhum histórico real importado, nenhum ledger oficial criado e nenhuma aprovação ativada.
+
 ## 2026-11-09 — PR47: proteção de períodos aprovados e aceitação final
 
 - Gerador condicionado rejeita pedidos que coincidam com períodos oficialmente aprovados (incluindo dias fechados ou sem turnos).

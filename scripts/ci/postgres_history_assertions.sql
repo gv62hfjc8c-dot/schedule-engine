@@ -34,12 +34,12 @@ VALUES
  'worked','Independent synthetic source',repeat('b',64),'Atlantic/Azores',
  '2026-01-01','2026-11-30');
 INSERT INTO public.schedule_engine_history_day_facts
-(owner_id,source_id,person_id,work_date,shifts)
+(owner_id,source_id,person_id,work_date,shifts,occurrence_type)
 VALUES
 ('11111111-1111-4111-8111-111111111111','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
- 'a','2026-11-02','[]'::jsonb),
+ 'a','2026-11-02','[]'::jsonb,'day_off'),
 ('22222222-2222-4222-8222-222222222222','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
- 'b','2026-11-02','[]'::jsonb);
+ 'b','2026-11-02','[]'::jsonb,'holiday');
 DO $$
 BEGIN
  IF (SELECT count(*) FROM public.schedule_engine_history_day_facts)<>2
@@ -76,3 +76,61 @@ BEGIN
  THEN RAISE EXCEPTION 'Account B history RLS leaking or missing'; END IF;
 END $$;
 RESET ROLE;
+
+-- The classification is enforceable in PostgreSQL, not only in the UI.
+DO $$
+DECLARE
+  classification_count integer;
+BEGIN
+  SELECT count(*) INTO classification_count
+    FROM public.schedule_engine_history_day_facts
+   WHERE occurrence_type IN ('day_off','holiday');
+  IF classification_count <> 2 THEN
+    RAISE EXCEPTION 'Historical day classifications not persisted';
+  END IF;
+
+  BEGIN
+    INSERT INTO public.schedule_engine_history_day_facts
+      (owner_id,source_id,person_id,work_date,shifts,occurrence_type)
+    VALUES
+      ('11111111-1111-4111-8111-111111111111',
+       'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+       'a','2026-11-03','[]'::jsonb,'worked');
+    RAISE EXCEPTION 'Accepted worked with zero shifts';
+  EXCEPTION WHEN check_violation THEN NULL;
+  END;
+
+  BEGIN
+    INSERT INTO public.schedule_engine_history_day_facts
+      (owner_id,source_id,person_id,work_date,shifts,occurrence_type)
+    VALUES
+      ('11111111-1111-4111-8111-111111111111',
+       'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+       'a','2026-11-03','[{"start":"08:00","end":"12:00"}]'::jsonb,
+       'vacation');
+    RAISE EXCEPTION 'Accepted vacation with work shifts';
+  EXCEPTION WHEN check_violation THEN NULL;
+  END;
+
+  BEGIN
+    INSERT INTO public.schedule_engine_history_day_facts
+      (owner_id,source_id,person_id,work_date,shifts,occurrence_type)
+    VALUES
+      ('11111111-1111-4111-8111-111111111111',
+       'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+       'a','2026-11-03','[]'::jsonb,'not_employed');
+    RAISE EXCEPTION 'Accepted absence-before-employment as a fact';
+  EXCEPTION WHEN check_violation THEN NULL;
+  END;
+
+  BEGIN
+    INSERT INTO public.schedule_engine_history_day_facts
+      (owner_id,source_id,person_id,work_date,shifts)
+    VALUES
+      ('11111111-1111-4111-8111-111111111111',
+       'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+       'a','2026-11-03','[]'::jsonb);
+    RAISE EXCEPTION 'Accepted an unclassified historical fact';
+  EXCEPTION WHEN not_null_violation THEN NULL;
+  END;
+END $$;

@@ -37,14 +37,14 @@ VALUES
  'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
  'b','2026-11-02','2026-11-03','test-v1');
 INSERT INTO public.schedule_engine_history_day_facts
-(owner_id,source_id,person_id,work_date,shifts)
+(owner_id,source_id,person_id,work_date,shifts,occurrence_type)
 VALUES
 ('44444444-4444-4444-8444-444444444444',
- 'cccccccc-cccc-4ccc-8ccc-cccccccccccc','a','2026-11-02','[]'),
+ 'cccccccc-cccc-4ccc-8ccc-cccccccccccc','a','2026-11-02','[]','day_off'),
 ('44444444-4444-4444-8444-444444444444',
- 'cccccccc-cccc-4ccc-8ccc-cccccccccccc','a','2026-11-03','[]'),
+ 'cccccccc-cccc-4ccc-8ccc-cccccccccccc','a','2026-11-03','[]','day_off'),
 ('44444444-4444-4444-8444-444444444444',
- 'cccccccc-cccc-4ccc-8ccc-cccccccccccc','b','2026-11-02','[]');
+ 'cccccccc-cccc-4ccc-8ccc-cccccccccccc','b','2026-11-02','[]','day_off');
 DO $$
 BEGIN
  BEGIN
@@ -60,9 +60,9 @@ BEGIN
  THEN RAISE EXCEPTION 'Rejected bootstrap unexpectedly wrote a ledger'; END IF;
 END $$;
 INSERT INTO public.schedule_engine_history_day_facts
-(owner_id,source_id,person_id,work_date,shifts)
+(owner_id,source_id,person_id,work_date,shifts,occurrence_type)
 VALUES('44444444-4444-4444-8444-444444444444',
- 'cccccccc-cccc-4ccc-8ccc-cccccccccccc','b','2026-11-03','[]');
+ 'cccccccc-cccc-4ccc-8ccc-cccccccccccc','b','2026-11-03','[]','day_off');
 DO $$
 DECLARE initialized jsonb;
 BEGIN

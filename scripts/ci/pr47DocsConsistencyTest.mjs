@@ -14,9 +14,11 @@ const generator=read("src/components/ConstrainedPeriodGeneratorPanel.tsx");
 const approvals=read("src/components/OfficialApprovalPanel.tsx");
 const migrationFiles=readdirSync("supabase/migrations")
   .filter(x=>x.endsWith(".sql"));
-assert.equal(migrationFiles.length,10,"README must describe all ten applied SQL migrations.");
+assert.equal(migrationFiles.length,11,"Expected ten deployed migrations and one staged history classification.");
 assert.match(docs,/quatro identificadores históricos reconstruídos\s+e seis migrações PR47/,
   "Documented migration lineage must match the deployed version count.");
+assert.match(docs,/onze ficheiros versionados/,
+  "README must distinguish the staged migration from deployed versions.");
 assert.match(docs,/28 dias/);
 assert.match(architecture,/1–28 dias/);
 assert.match(app,/A geração certificada suporta períodos de até 28 dias por proposta/);
@@ -31,4 +33,4 @@ assert.match(docs,/hist[oó]rico verificado/i);
 assert.match(architecture,/histórico externo verificado/i);
 assert.doesNotMatch(docs,/falta confirmação funcional\s+no Safari do arquivo/);
 assert.doesNotMatch(architecture,/A validação no Safari permanece pendente/);
-console.log("PR47-01 documentation contract: 28-day capability, archive semantics, trusted official approval, Safari evidence and ten migration lineage PASS.");
+console.log("PR47-01 documentation contract: 28-day capability, archive semantics, trusted official approval, Safari evidence and staged classification migration lineage PASS.");
