@@ -189,6 +189,16 @@ try{
   matches(await page.getByLabel("Objetivo semanal (h)").inputValue(),
     "15","Soft target persisted in UI.");
   await page.getByTitle("Remover a obrigação de 2026-11-16").waitFor();
+  // 22/01: revisit primary areas and check displayed content reflects the
+  // README's proposal-vs-approval boundary, not just domain helper output.
+  await page.getByRole("button",{name:"Equipa",exact:true}).click();
+  await page.getByRole("heading",{name:"Pessoas",exact:true}).waitFor();
+  await page.getByRole("button",{name:"Horários",exact:true}).click();
+  await page.getByRole("button",{name:"+ Criar horário",exact:true}).click();
+  await page.getByText(/Cada proposta válida é guardada no Supabase/).waitFor();
+  await page.getByText(/Até 28 dias/).waitFor();
+  await page.getByRole("button",{name:"← Voltar ao calendário mensal"}).click();
+  await page.getByRole("heading",{name:"Calendário mensal"}).waitFor();
   // 14: rejected network write cannot claim success, must offer JSON export.
   await page.getByRole("button",{name:"Operação",exact:true}).click();
   failNextSave=true;
