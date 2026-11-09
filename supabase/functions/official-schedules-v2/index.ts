@@ -198,7 +198,7 @@ async function loadHistoricalEvidence(
   const timeZone=ledger.timeZone;
   const historyAnchor=ledger.coverage.startDate;
   const employmentPeriods=Object.fromEntries(env.people.map(person=>
-    [person.id,person.employmentPeriods]));
+    [person.id,person.employmentPeriods??[]]));
   const base={
     targetPeriod:target,timeZone,workConstraints:env.workConstraints,
     historyStartDate:historyAnchor,personIds:people,employmentPeriods,
