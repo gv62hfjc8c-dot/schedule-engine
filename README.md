@@ -5,9 +5,10 @@ Motor de geração e validação de horários, concebido como núcleo de schedul
 
 ## Estado da aplicação
 
-A `main` contém o PR #47 integrado, com auditoria e aceitação documentadas.
-A classificação de ocorrências históricas está em desenvolvimento no PR #48,
-sem dados reais importados.
+A `main` contém o PR #48 integrado, incluindo classificação de ocorrências
+históricas. Os vínculos com validade temporal, a revisão de refeições e a
+certificação histórica por datas de entrada/saída estão em desenvolvimento
+num PR seguinte, sem importação de dados reais.
 
 O fluxo operacional ativo inclui:
 
@@ -41,6 +42,16 @@ certificada.
 O serviço de aprovação oficial v2 está publicado, e a interface consulta a prontidão através de sessão autenticada. A aprovação permanece bloqueada quando falta histórico verificado por pessoa/dia. Os laboratórios antigos não estão ligados à interface; as regras e testes de domínio permanecem. O serviço antigo
 `official-schedules` no Supabase foi substituído pela versão inerte
 v6 (HTTP 410), com fonte v5 preservada para recuperação.
+
+
+Os vínculos temporais serão guardados por pessoa no estado de configuração.
+Para pessoas com vínculos explícitos, o gerador não pode atribuir turnos fora
+das respetivas datas. Uma conta antiga sem datas mantém compatibilidade na
+simulação, mas **não pode certificar o histórico oficial** até ter vínculos
+explicitamente declarados e verificados.
+
+O editor de refeições cria uma **nova proposta imutável** após revalidar
+cobertura, descanso e limites, sem alterar a versão anteriormente arquivada.
 
 ## Instalação e execução
 
@@ -97,8 +108,10 @@ interativos WebKit utilizam um backend sintético e não substituem uma sessão 
   com execução no serviço Edge, sem dar ao cliente acesso privilegiado.
 - `supabase/migrations/`: quatro identificadores históricos reconstruídos
   e seis migrações PR47 **aplicadas** (dez versões no Supabase), mais uma
-  migração **proposta no PR48** para classificar `worked`, `day_off`,
-  `vacation` e `holiday` (onze ficheiros versionados). A cadeia completa
+  migração **integrada no PR48 mas ainda não aplicada à instância operacional**
+  para classificar `worked`, `day_off`, `vacation` e `holiday`, e uma
+  migração de verificação histórica por vínculo ainda em revisão
+  (doze ficheiros versionados; dez já aplicados). A cadeia completa
   é reconstruída num PostgreSQL 17 descartável na CI. **Não executar `db push` na produção** sem
   verificar histórico, backup/restauro e operações de rollout.
 - `supabase/audit/` e `supabase/rollback/`: inventário read-only e
