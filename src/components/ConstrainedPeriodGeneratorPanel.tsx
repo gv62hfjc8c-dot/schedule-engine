@@ -15,6 +15,8 @@ import {
   type GenerateConstrainedPeriodResult,
 } from "../utils/constrainedPeriodGenerator";
 import { prepareExplicitEmptyContext } from "../utils/explicitEmptyContext";
+import { createSupabaseApprovedLedgerRepository } from "../persistence/supabaseApprovedLedgerRepository";
+import { supabaseAuthClient } from "../persistence/supabaseInstance";
 import { INITIAL_WORK_CONSTRAINTS } from "../utils/workConstraints";
 import { MAX_CONSTRAINED_PERIOD_DAYS } from "../utils/constrainedPeriodGenerator";
 
@@ -293,7 +295,7 @@ export default function ConstrainedPeriodGeneratorPanel({
     }
   }
 
-  function handleGenerate() {
+  async function handleGenerate() {
     if(ownerId){
       try {
         const existing=loadPendingGeneratedProposal(window.localStorage,ownerId);
@@ -340,6 +342,32 @@ export default function ConstrainedPeriodGeneratorPanel({
       return;
     }
     try {
+      // A declaration of no EXTERNAL shifts does not authorize overriding
+      // approved dates INSIDE the target. Read the trusted ledger each time.
+      if (!supabaseAuthClient || !ownerId ||
+          supabaseAuthClient.user?.id !== ownerId) {
+        setError("Não foi possível confirmar a conta para consultar horários aprovados.");
+        return;
+      }
+      const ledger = await createSupabaseApprovedLedgerRepository(
+        supabaseAuthClient
+      ).load();
+      if (supabaseAuthClient.user?.id !== ownerId) {
+        setError("A sessão mudou durante a consulta. Repete a operação.");
+        return;
+      }
+      // A missing ledger is UNKNOWN context, not a verified empty roster.
+      // The output remains only an unapproved, user-attested proposal.
+      const protectedApprovedPeriods = ledger?.records
+        .filter(record => record.status === "approved")
+        .map(record => ({ startDate: record.startDate, endDate: record.endDate })) ?? [];
+      if (protectedApprovedPeriods.some(period =>
+        period.startDate <= endDate && period.endDate >= startDate
+      )) {
+        setError("O período sobrepõe-se a um horário oficialmente aprovado. "+
+          "A geração não pode alterá-lo; usa o fluxo de revisão oficial.");
+        return;
+      }
       const generated = generateConstrainedPeriodSchedule({
         startDate,
         endDate,
@@ -351,6 +379,7 @@ export default function ConstrainedPeriodGeneratorPanel({
         presence,
         workConstraints: effectiveConstraints,
         externalContext: prepared.externalContext,
+        protectedApprovedPeriods,
         maxSearchNodes: PREVIEW_MAX_NODES,
       });
       setWorkspaceView(generated.status === "generated" ? "schedule" : "settings");
