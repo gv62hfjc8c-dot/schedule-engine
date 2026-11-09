@@ -6,7 +6,7 @@
  * No personnel data, payloads, credentials or session tokens are broadcast.
  */
 const prefix="schedule-engine:state-commit:v1:";
-const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function crossTabCommitKey(ownerId:string):string {
   if(!uuid.test(ownerId))
