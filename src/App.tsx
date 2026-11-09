@@ -320,6 +320,10 @@ export default function App() {
     const requestId = ++saveRequestId.current;
     setPersistenceStatus("saving");
 
+    // A lost HTTP response may otherwise leave "A guardar" on screen
+    // indefinitely. A timeout means UNKNOWN commit state, not a failed write:
+    // preserve the local snapshot for export and require an explicit reload.
+    let confirmationTimeoutId: number | null = null;
     const timeoutId = window.setTimeout(() => {
       const requested: Parameters<typeof appStateRepository.save>[0] = {
           version: APP_STATE_VERSION,
@@ -333,6 +337,18 @@ export default function App() {
           weeklyPresenceRequirements,
           presenceExceptions,
         };
+      confirmationTimeoutId = window.setTimeout(() => {
+        if (requestId !== saveRequestId.current) return;
+        ++saveRequestId.current; // Ignore a late success or error for this UI.
+        setPersistenceReady(false);
+        setPersistenceProblem(
+          "A base de dados não confirmou a gravação dentro do prazo. " +
+          "O resultado pode ser incerto: não assumes que ficou guardado. " +
+          "Descarrega uma cópia JSON antes de recarregar e verificar " +
+          "a última configuração do servidor."
+        );
+        setPersistenceStatus("error");
+      }, 20000);
       const requestedOwnerId=supabaseAuthClient?.user?.id;
       void appStateRepository.save(requested)
         .then(reconciled => {
@@ -377,11 +393,17 @@ export default function App() {
             );
             setPersistenceStatus("error");
           }
+        })
+        .finally(() => {
+          if (confirmationTimeoutId !== null)
+            window.clearTimeout(confirmationTimeoutId);
         });
     }, 250);
 
     return () => {
       window.clearTimeout(timeoutId);
+      if (confirmationTimeoutId !== null)
+        window.clearTimeout(confirmationTimeoutId);
     };
   }, [
     persistenceReady,
