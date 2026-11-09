@@ -220,7 +220,7 @@ try {
   assert.equal(ledger.records[1].status,"cancelled");
   assert.equal(officialWrites,3);
   assert.equal(commitCalls,3,"No stale or cross-tenant write may reach RPC.");
-  assert(authCalls>=9,"Every method must authenticate the caller.");
+  assert.equal(authCalls,8,"Every request must authenticate the caller exactly once.");
   console.log("PR47 H02/H03/H06/H07: verified-history approval, cross-owner 404, immutable revision, cancellation, stale CAS and no duplicate commits passed in bundled Edge.");
 }finally{
   globalThis.fetch=priorFetch;
