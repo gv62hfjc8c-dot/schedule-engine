@@ -56,6 +56,7 @@ export default function ApplicationNavigation({
         <span className="app-sidebar-kicker">Áreas de trabalho</span>
         {PRIMARY_NAV.map(item=><div key={item.id} className="app-nav-group">
           <button type="button" className={"app-nav-link"+(activeArea===item.id?" active":"")}
+            aria-label={item.label}
             aria-current={activeArea===item.id?"page":undefined}
             onClick={()=>go(item.section)}>
             <svg width="19" height="19" viewBox="0 0 24 24" fill="none"
