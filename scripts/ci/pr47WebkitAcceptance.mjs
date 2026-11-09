@@ -214,20 +214,6 @@ try{
   await page.getByText(/Até 28 dias/).waitFor();
   await page.getByRole("button",{name:"← Voltar ao calendário mensal"}).click();
   await page.getByRole("heading",{name:"Calendário mensal"}).waitFor();
-  // 14: rejected network write cannot claim success, must offer JSON export.
-  await page.getByRole("button",{name:"Operação",exact:true}).click();
-  failNextSave=true;
-  await page.getByLabel(/Início de um ciclo fixo de 28 dias/)
-    .fill("2026-11-09");
-  await page.getByRole("heading",{name:"Não foi possível sincronizar a configuração"})
-    .waitFor({timeout:10000});
-  await page.getByRole("button",{
-    name:"Descarregar cópia das alterações pendentes (JSON)",
-  }).waitFor();
-  matches(persisted.cycleAnchorDate,"2026-11-02",
-    "Unacknowledged write must not replace the server baseline.");
-  assert(saves>=4,"Real UI must have persisted multiple independent changes.");
-  assert.equal(errors.length,0,"No browser errors: "+errors.join("; "));
   // Historical facts must be shown in the calendar itself, not as proposals.
   await page.getByRole("button",{name:"Mês anterior"}).click();
   await page.getByRole("button",{name:"Mês anterior"}).click();
@@ -250,6 +236,21 @@ try{
   await page.getByText("Feriado registado").waitFor();
   await page.getByRole("button",{name:/Voltar ao calendário/}).click();
   await page.getByRole("button",{name:"Hoje"}).click();
+
+  // 14: rejected network write cannot claim success, must offer JSON export.
+  await page.getByRole("button",{name:"Operação",exact:true}).click();
+  failNextSave=true;
+  await page.getByLabel(/Início de um ciclo fixo de 28 dias/)
+    .fill("2026-11-09");
+  await page.getByRole("heading",{name:"Não foi possível sincronizar a configuração"})
+    .waitFor({timeout:10000});
+  await page.getByRole("button",{
+    name:"Descarregar cópia das alterações pendentes (JSON)",
+  }).waitFor();
+  matches(persisted.cycleAnchorDate,"2026-11-02",
+    "Unacknowledged write must not replace the server baseline.");
+  assert(saves>=4,"Real UI must have persisted multiple independent changes.");
+  assert.equal(errors.length,0,"No browser errors: "+errors.join("; "));
   console.log("PR47 WebKit: 01 documentation limit, 14 failed write warning, 15 persisted zone, 18 29/30 cycle, 19 person policy persistence, 21 retired UI, 22 terminology PASS (synthetic backend).");
 }finally{
   if(browser)await browser.close();
