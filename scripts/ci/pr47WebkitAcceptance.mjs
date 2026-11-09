@@ -113,6 +113,21 @@ try{
       saves++;
       return respond(revision);
     }
+    if(path==="/rest/v1/schedule_engine_history_sources"&&method==="GET")
+      return respond([{source_id:"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        source_label:"01. Horarios Janeiro 2026.xlsx",source_kind:"worked",
+        time_zone:"Atlantic/Azores"}]);
+    if(path==="/rest/v1/schedule_engine_history_day_facts"&&method==="GET"){
+      const dateFrom=url.searchParams.get("work_date")??"";
+      const from=dateFrom.startsWith("gte.")?dateFrom.slice(4):"";
+      const to=(url.searchParams.getAll("work_date").find(x=>x.startsWith("lte."))??"").slice(4);
+      const syntheticDay="2026-01-01";
+      return respond(from<=syntheticDay&&to>=syntheticDay?[{
+        source_id:"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        person_id:personId,work_date:syntheticDay,
+        occurrence_type:"holiday",shifts:[],
+      }]:[]);
+    }
     if(path==="/rest/v1/schedule_engine_generated_schedules"&&method==="GET")
       return respond([]);
     if(path==="/functions/v1/official-schedules-v2")
@@ -213,6 +228,28 @@ try{
     "Unacknowledged write must not replace the server baseline.");
   assert(saves>=4,"Real UI must have persisted multiple independent changes.");
   assert.equal(errors.length,0,"No browser errors: "+errors.join("; "));
+  // Historical facts must be shown in the calendar itself, not as proposals.
+  await page.getByRole("button",{name:"Mês anterior"}).click();
+  await page.getByRole("button",{name:"Mês anterior"}).click();
+  await page.getByRole("button",{name:"Mês anterior"}).click();
+  await page.getByRole("button",{name:"Mês anterior"}).click();
+  await page.getByRole("button",{name:"Mês anterior"}).click();
+  await page.getByRole("button",{name:"Mês anterior"}).click();
+  await page.getByRole("button",{name:"Mês anterior"}).click();
+  await page.getByRole("button",{name:"Mês anterior"}).click();
+  await page.getByRole("button",{name:"Mês anterior"}).click();
+  await page.getByRole("button",{name:"Mês anterior"}).click();
+  const januaryHeading=page.getByRole("heading",{name:/janeiro de 2026/i});
+  await januaryHeading.waitFor();
+  await page.locator(".se-day.history").waitFor();
+  const factualDay=page.locator(".se-day.history");
+  assert.match(await factualDay.innerText(),/Histórico/);
+  await factualDay.click();
+  await page.getByText("Histórico factual · importado").waitFor();
+  await page.getByRole("button",{name:/Consultar histórico deste dia/}).click();
+  await page.getByText("Feriado registado").waitFor();
+  await page.getByRole("button",{name:/Voltar ao calendário/}).click();
+  await page.getByRole("button",{name:"Hoje"}).click();
   console.log("PR47 WebKit: 01 documentation limit, 14 failed write warning, 15 persisted zone, 18 29/30 cycle, 19 person policy persistence, 21 retired UI, 22 terminology PASS (synthetic backend).");
 }finally{
   if(browser)await browser.close();
