@@ -249,7 +249,13 @@ try{
   await page.getByText("Histórico factual · importado").waitFor();
   await page.getByRole("button",{name:/Consultar histórico deste dia/}).click();
   await page.getByText("Feriado registado").waitFor();
-  await page.getByRole("button",{name:/Voltar ao calendário/}).click();
+  const daily=page.getByRole("region",{name:"Consulta do histórico factual"});
+  await daily.getByRole("navigation",{name:"Navegação entre dias"}).waitFor();
+  await daily.getByRole("button",{name:"Dia anterior"}).waitFor();
+  await daily.getByRole("button",{name:"Dia seguinte"}).waitFor();
+  assert.equal(await daily.locator(".se-daily-person-card").count(),1,
+    "The historical roster must show one card per person and not infer absences.");
+  await page.getByRole("button",{name:/Calendário mensal/}).click();
   await page.getByRole("button",{name:"Hoje"}).click();
 
   // App Shell: usable desktop navigation and mobile drawer, same workspaces.
