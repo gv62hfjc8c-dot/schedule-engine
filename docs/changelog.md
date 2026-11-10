@@ -1,3 +1,12 @@
+## 2026-11-10 — Gestão diária: consulta por pessoa e refeições
+
+- Redesenhada a consulta diária com cartões por colaborador e campos separados para presença, intervalo de refeição e horas efetivas.
+- Conservada a semântica de turno contínuo com uma única pausa; sem fabricação de folgas a partir de turnos ausentes.
+- Navegação anterior/seguinte limitada ao mês carregado para evitar mostrar datas de histórico ainda não verificadas.
+- Consulta diária de propostas com várias versões permite escolher um snapshot guardado, sem o alterar.
+- Estados históricos e propostas mantêm rótulos distintos; a interface diária continua somente de consulta. Edição de propostas arquivadas e aprovações exigem os fluxos controlados existentes.
+- Testes de apresentação e de WebKit cobrem os novos elementos sem modificar dados nem SQL.
+
 ## 2026-11-10 — Calendário mensal: experiência visual v2
 
 - Reorganizado o ecrã do calendário para priorizar a grelha mensal: informações gerais resumidas com explicação detalhada opcional; avisos de erro e dados incompatíveis permanecem sempre visíveis.
