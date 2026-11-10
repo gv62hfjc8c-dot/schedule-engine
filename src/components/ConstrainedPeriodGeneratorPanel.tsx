@@ -614,11 +614,24 @@ export default function ConstrainedPeriodGeneratorPanel({
           </label>
         </div>
 
-        <div className="generator-facts">
-          <div><span>Trabalho máximo</span><strong>{`${(effectiveConstraints.maximumDailyEffectiveMinutes / 60).toLocaleString("pt-PT")}h/dia · ${(effectiveConstraints.maximumWeeklyEffectiveMinutes / 60).toLocaleString("pt-PT")}h/semana`}</strong></div>
-          <div><span>Descanso mínimo</span><strong>11h entre jornadas</strong></div>
-          <div><span>Refeição obrigatória</span><strong>60min se mais de 6h</strong></div>
+        <div className="generator-readiness" role="status">
+          <div>
+            <strong>{readinessLabel}</strong>
+            <span>{periodIsValid
+              ? periodDays+" dia(s) · "+people.filter(person=>person.active).length+" colaborador(es) ativos · "+timeZone
+              : "Escolhe um intervalo válido até "+UI_MAX_PERIOD_DAYS+" dias."}</span>
+          </div>
+          <span className={"generator-readiness-dot "+(context.status==="ready"?"ready":"pending")} aria-hidden="true"/>
         </div>
+        <details className="generator-technical-details" open={showTechnicalDetails}
+          onToggle={event=>setShowTechnicalDetails(event.currentTarget.open)}>
+          <summary>Regras técnicas consideradas na simulação</summary>
+          <div className="generator-facts">
+            <div><span>Trabalho máximo</span><strong>{`${(effectiveConstraints.maximumDailyEffectiveMinutes / 60).toLocaleString("pt-PT")}h/dia · ${(effectiveConstraints.maximumWeeklyEffectiveMinutes / 60).toLocaleString("pt-PT")}h/semana`}</strong></div>
+            <div><span>Descanso mínimo</span><strong>11h entre jornadas</strong></div>
+            <div><span>Refeição obrigatória</span><strong>60min se mais de 6h</strong></div>
+          </div>
+        </details>
 
         <div className="period-generator-disclaimer p63-context-box" role="group" aria-label="Contexto exterior ao período">
           <strong>Contexto exterior — confirmação obrigatória</strong>
@@ -673,17 +686,23 @@ export default function ConstrainedPeriodGeneratorPanel({
             Simular período com regras
           </button>
           <p className="generator-hint">
-            Limite de {PREVIEW_MAX_NODES.toLocaleString("pt-PT")} nós de pesquisa.
-            Um limite atingido não prova inexistência de solução.
+            {context.status==="ready"
+              ? "A confirmação está completa. A simulação poderá guardar automaticamente uma nova proposta."
+              : "Indica datas válidas e confirma expressamente o contexto exterior para continuar."}
           </p>
         </div>
 
-        <p className="generator-footnote">
-          O resultado é válido apenas para o cenário exterior expressamente
-          declarado. Se existirem outros turnos conhecidos, não confirmes
-          ausência: o motor precisa desses turnos para os considerar.
-          As propostas válidas são guardadas automaticamente, mas não são aprovadas.
-        </p>
+        <details className="generator-technical-details generator-technical-note">
+          <summary>Limites da pesquisa e da validade</summary>
+          <p className="generator-footnote">
+            O resultado é válido apenas para o cenário exterior expressamente
+            declarado. Se existirem outros turnos conhecidos, não confirmes
+            ausência: o motor precisa desses turnos para os considerar.
+            As propostas válidas são guardadas automaticamente, mas não são aprovadas.
+            A pesquisa tem um limite de {PREVIEW_MAX_NODES.toLocaleString("pt-PT")} nós;
+            atingir esse limite não prova que não existe solução.
+          </p>
+        </details>
       </section>
 
       <section className="panel generator-results" aria-live="polite">
