@@ -19,6 +19,7 @@ export default function SupabaseGate({ children }: Props) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
     if (!client) return;
@@ -69,56 +70,88 @@ export default function SupabaseGate({ children }: Props) {
 
   if (status !== "ready" || !identity) {
     return (
-      <main className="app-shell" style={{ padding: 24 }}>
-        <section className="panel" style={{ padding: 24, maxWidth: 480 }}>
-          <h1>Schedule Engine</h1>
-          <p>Inicia sessão para aceder aos horários guardados no Supabase.</p>
-          <form onSubmit={(event) => {
-            event.preventDefault();
-            setError("");
-            setBusy(true);
-            void client.signIn(email, password).then((user) => {
-              setIdentity(user);
-              setPassword("");
-              setStatus("ready");
-            }).catch((reason: unknown) => {
-              setError(
-                reason instanceof Error
-                  ? reason.message
-                  : "A autenticação falhou."
-              );
-            }).finally(() => setBusy(false));
-          }}>
-            <label htmlFor="supabase-email">Email</label>
-            <input
-              id="supabase-email"
-              type="email"
-              autoComplete="username"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              required
-              style={{ display: "block", width: "100%", marginBottom: 12 }}
-            />
-            <label htmlFor="supabase-password">Palavra-passe</label>
-            <input
-              id="supabase-password"
-              type="password"
-              autoComplete="current-password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              required
-              style={{ display: "block", width: "100%", marginBottom: 12 }}
-            />
-            {error && <p role="alert">{error}</p>}
-            <button type="submit" disabled={busy}>
-              {busy ? "A autenticar…" : "Entrar"}
-            </button>
-          </form>
-          <p>
-            Utiliza uma conta criada em Authentication → Users
-            no teu projeto Supabase.
-          </p>
-        </section>
+      <main className="auth-screen">
+        <div className="auth-layout">
+          <aside className="auth-brand-panel" aria-label="Apresentação do Schedule Engine">
+            <div className="auth-brand-header">
+              <div className="auth-brand-symbol" aria-hidden="true">SE</div>
+              <strong>Schedule Engine</strong>
+            </div>
+            <div className="auth-brand-intro">
+              <span className="auth-eyebrow">PLANEAMENTO DE EQUIPAS</span>
+              <h1>Horários organizados. Decisões fundamentadas.</h1>
+              <p>Prepara turnos, consulta a cobertura necessária e acompanha as propostas da tua equipa num único espaço de trabalho.</p>
+            </div>
+            <div className="auth-brand-features" aria-label="Principais capacidades">
+              <span><span className="auth-feature-dot" aria-hidden="true" /> Planeamento com regras e restrições</span>
+              <span><span className="auth-feature-dot" aria-hidden="true" /> Consulta diária e mensal</span>
+              <span><span className="auth-feature-dot" aria-hidden="true" /> Histórico e versões de propostas</span>
+            </div>
+            <p className="auth-brand-footer">Schedule Engine · Planeamento profissional</p>
+          </aside>
+          <section className="auth-form-section" aria-labelledby="auth-title">
+            <div className="auth-form-wrap">
+              <div className="auth-mobile-brand">
+                <span className="auth-brand-symbol" aria-hidden="true">SE</span>
+                <strong>Schedule Engine</strong>
+              </div>
+              <span className="auth-eyebrow">ACESSO À CONTA</span>
+              <h2 id="auth-title">Bem-vindo de volta</h2>
+              <p className="auth-form-subtitle">Inicia sessão para continuares a gerir os horários da tua equipa.</p>
+              <form className="auth-form" onSubmit={(event) => {
+                event.preventDefault();
+                if(busy)return;
+                setError("");
+                setBusy(true);
+                void client.signIn(email.trim(),password).then((user) => {
+                  setIdentity(user);
+                  setPassword("");
+                  setShowPassword(false);
+                  setStatus("ready");
+                }).catch((reason: unknown) => {
+                  const message=reason instanceof Error ? reason.message : "A autenticação falhou.";
+                  const normalized=message.toLowerCase();
+                  setError(normalized.includes("invalid login")||normalized.includes("invalid credentials")||
+                    normalized.includes("credenciais inválidas")?
+                    "Email ou palavra-passe incorretos. Verifica os dados e tenta novamente.":
+                    "Não foi possível iniciar sessão. "+message);
+                }).finally(() => setBusy(false));
+              }}>
+                <div className="auth-field">
+                  <label htmlFor="supabase-email">Email</label>
+                  <input id="supabase-email" type="email" autoComplete="username"
+                    inputMode="email" autoCapitalize="none" spellCheck={false}
+                    value={email} onChange={(event)=>setEmail(event.target.value)}
+                    placeholder="nome@empresa.pt" required disabled={busy}/>
+                </div>
+                <div className="auth-field">
+                  <label htmlFor="supabase-password">Palavra-passe</label>
+                  <div className="auth-password-field">
+                    <input id="supabase-password"
+                      type={showPassword?"text":"password"}
+                      autoComplete="current-password" value={password}
+                      onChange={(event)=>setPassword(event.target.value)}
+                      placeholder="Introduz a tua palavra-passe"
+                      required disabled={busy}/>
+                    <button className="auth-show-password" type="button"
+                      disabled={busy}
+                      aria-label={showPassword?"Ocultar palavra-passe":"Mostrar palavra-passe"}
+                      aria-pressed={showPassword}
+                      onClick={()=>setShowPassword(value=>!value)}>
+                      {showPassword?"Ocultar":"Mostrar"}
+                    </button>
+                  </div>
+                </div>
+                {error&&<p className="auth-error" role="alert">{error}</p>}
+                <button className="auth-submit" type="submit" disabled={busy}
+                  aria-busy={busy}>
+                  {busy?"A iniciar sessão…":"Entrar no Schedule Engine"}
+                </button>
+              </form>
+              <p className="auth-access-note">O acesso está disponível para contas previamente autorizadas.</p>
+            </div>
+          </section>
+        </div>
       </main>
     );
   }
