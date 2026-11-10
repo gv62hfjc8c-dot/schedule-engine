@@ -19,6 +19,7 @@ import PresencePanel from "./components/PresencePanel";
 import ScheduleGeneratorPanel from "./components/ScheduleGeneratorPanel";
 import ScheduleHome from "./components/ScheduleHome";
 import ApplicationNavigation,{areaFor,sectionLabel} from "./components/ApplicationNavigation";
+import AccountEntryDecision from "./components/AccountEntryDecision";
 import { supabaseAuthClient } from "./persistence/supabaseInstance";
 import { createSupabaseGeneratedScheduleRepository } from "./persistence/supabaseGeneratedScheduleRepository";
 import { authorizeLegacyImportForOwner, startFreshCloudAccountForOwner, LegacyImportConsentRequiredError } from "./persistence/supabaseStateRepository";
@@ -902,73 +903,60 @@ export default function App() {
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
+  // A consent decision is not a synchronization failure. The repository
+  // reaches this state only when cloud state is empty and unowned local
+  // configuration exists. Never enable editing or autosave before resolution.
+  if (persistenceProblem && needsLegacyConsent) {
+    return <AccountEntryDecision
+      onStartFresh={()=>{
+        const ownerId=supabaseAuthClient?.user?.id;
+        if(!ownerId)return;
+        startFreshCloudAccountForOwner(window.localStorage,ownerId);
+        window.location.reload();
+      }}
+      onImportConfirmed={()=>{
+        const ownerId=supabaseAuthClient?.user?.id;
+        if(!ownerId)return;
+        authorizeLegacyImportForOwner(window.localStorage,ownerId);
+        window.location.reload();
+      }}
+    />;
+  }
+
+  // Real network, conflict and incompatible-data failures remain fail-closed
+  // and are NEVER presented as onboarding choices.
   if (persistenceProblem) {
     return (
-      <main className="app-shell">
-        <header className="page-header">
-          <div>
-            <p className="eyebrow">Proteção dos dados</p>
-            <h1>Schedule Engine</h1>
+      <main className="entry-screen">
+        <section className="entry-card entry-error-card" role="alert" aria-labelledby="entry-error-title">
+          <div className="entry-brand">
+            <span className="entry-brand-symbol" aria-hidden="true">SE</span>
+            <strong>Schedule Engine</strong>
           </div>
-        </header>
-        <section className="panel" role="alert" style={{ padding: "24px" }}>
-          <h2>Não foi possível sincronizar a configuração</h2>
-          <p style={{ marginTop: "12px" }}>
-            {persistenceProblem}
-          </p>
-          {wasHydrated.current && <>
-            <p>As alterações locais ainda não confirmadas podem ser exportadas antes de voltares a carregar a aplicação. Esta cópia não é um horário aprovado.</p>
-            <button type="button" className="se-outline" onClick={exportPendingConfiguration}>
+          <div className="entry-error-icon" aria-hidden="true">!</div>
+          <span className="entry-eyebrow">SEGURANÇA DA CONFIGURAÇÃO</span>
+          <h1 id="entry-error-title">Não foi possível carregar a configuração</h1>
+          <p className="entry-error-lead">Para proteger os horários e as alterações existentes,
+            a edição e a gravação automática estão temporariamente bloqueadas.</p>
+          <div className="entry-error-message">{persistenceProblem}</div>
+          {wasHydrated.current && <div className="entry-error-actions">
+            <p>Existem alterações locais que podem ainda não ter sido confirmadas no servidor.
+              Guarda uma cópia antes de recarregar, se precisares dessas alterações.</p>
+            <button type="button" className="entry-outline-button" onClick={exportPendingConfiguration}>
               Descarregar cópia das alterações pendentes (JSON)
             </button>
-            <button type="button" className="se-outline" onClick={() => {
-              if (window.confirm("Descartar as alterações locais por guardar e recarregar a última configuração do servidor? Exporta primeiro uma cópia JSON se precisares das alterações.")) {
+            <button type="button" className="entry-outline-button" onClick={()=>{
+              if(window.confirm("Descartar as alterações locais por guardar e recarregar a última configuração do servidor? Exporta primeiro uma cópia JSON se precisares das alterações.")){
                 window.location.reload();
               }
             }}>
               Recarregar configuração remota (descartar edição local)
             </button>
-          </>}
-          {needsLegacyConsent && <>
-            <p>
-              A configuração antiga guardada neste navegador não identifica o seu proprietário.
-              Para impedir que os dados de outra pessoa sejam importados para a tua conta,
-              confirma expressamente que esses dados te pertencem.
-            </p>
-            <button type="button" className="primary-button" onClick={() => {
-              const ownerId = supabaseAuthClient?.user?.id;
-              if (!ownerId) return;
-              authorizeLegacyImportForOwner(window.localStorage, ownerId);
-              window.location.reload();
-            }}>
-              Confirmo que estes dados são meus — importar para a conta
-            </button>
-            <p style={{ marginTop: "16px" }}>
-              Se esta é uma conta nova ou de teste, podes começar sem
-              importar os dados antigos deste navegador. A configuração
-              antiga será mantida, sem ser associada a esta conta.
-            </p>
-            <button type="button" className="se-outline" onClick={() => {
-              const ownerId = supabaseAuthClient?.user?.id;
-              if (!ownerId) return;
-              if (!window.confirm(
-                "Começar uma conta nova sem importar os dados antigos? " +
-                "A configuração deste navegador será preservada e não " +
-                "será associada a esta conta. Confirma apenas se esta " +
-                "conta não deve herdar esses dados."
-              )) return;
-              startFreshCloudAccountForOwner(window.localStorage, ownerId);
-              window.location.reload();
-            }}>
-              Começar esta conta vazia — não importar dados antigos
-            </button>
-          </>}
-          <p>
-            Para evitar substituir dados existentes por um estado vazio,
-            a aplicação bloqueou a edição e a gravação automática.
-            Não limpes os dados do navegador. Confirma a versão da
-            aplicação antes de voltares a carregar esta página.
-          </p>
+          </div>}
+          {!wasHydrated.current && <button type="button" className="entry-outline-button"
+            onClick={()=>window.location.reload()}>Tentar carregar novamente</button>}
+          <p className="entry-error-footnote">Não apagues os dados do navegador enquanto esta situação
+            não estiver resolvida. Nenhum dado foi importado automaticamente.</p>
         </section>
       </main>
     );
