@@ -1,4 +1,8 @@
-import assert from "node:assert/strict";
+const assert={
+  match:(text:string,pattern:RegExp)=>{if(!pattern.test(text))throw Error("Expected "+pattern+" in "+text);},
+  equal:(actual:unknown,expected:unknown,message="Values differ")=>{if(actual!==expected)throw Error(message+": "+actual+" != "+expected);},
+  notEqual:(actual:unknown,expected:unknown)=>{if(actual===expected)throw Error("Values unexpectedly equal");},
+};
 import {renderToStaticMarkup} from "react-dom/server";
 import {createElement} from "react";
 import DailyShiftDetails from "./components/DailyShiftDetails";
