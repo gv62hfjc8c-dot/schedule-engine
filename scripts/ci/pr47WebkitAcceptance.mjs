@@ -101,6 +101,90 @@ try{
   assert.equal(await loginPage.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth),false,
     "Mobile login must never overflow horizontally.");
   await loginContext.close();
+  // PR59: first-use choice must not masquerade as a synchronization failure.
+  const onboarding=await browser.newContext({locale:"pt-PT",timezoneId:"Atlantic/Azores"});
+  const oldBrowserState={
+    version:1,weeklyOperatingHours:initialHours,exceptions:[],
+    people:[{id:personId,name:personName,active:true}],
+  };
+  const legacySession={
+    access_token:"synthetic-jwt-never-sent-to-supabase",
+    refresh_token:"synthetic-refresh",expires_at:4102444800,
+    user:{id:owner,email:"synthetic@example.invalid"},
+  };
+  await onboarding.addInitScript(({origin,session,legacy})=>{
+    if(window.location.origin===origin){
+      localStorage.setItem("schedule-engine:supabase:session:v1",JSON.stringify(session));
+      localStorage.setItem("schedule-engine:app-state",JSON.stringify(legacy));
+    }
+  },{origin,session:legacySession,legacy:oldBrowserState});
+  await onboarding.route(api+"/**",async route=>{
+    const request=route.request(),path=new URL(request.url()).pathname;
+    const cors={"access-control-allow-origin":"*",
+      "access-control-allow-headers":"authorization,apikey,content-type",
+      "access-control-allow-methods":"GET,POST,OPTIONS"};
+    if(request.method()==="OPTIONS")return route.fulfill({status:204,headers:cors});
+    if(path==="/auth/v1/user")return route.fulfill({
+      status:200,headers:cors,contentType:"application/json",
+      body:JSON.stringify({id:owner,email:legacySession.user.email,is_anonymous:false}),
+    });
+    if(path==="/rest/v1/schedule_engine_states")return route.fulfill({
+      status:200,headers:cors,contentType:"application/json",body:"[]",
+    });
+    if(request.method()==="GET")return route.fulfill({
+      status:200,headers:cors,contentType:"application/json",body:"[]",
+    });
+    return route.fulfill({status:503,headers:cors,contentType:"application/json",
+      body:'{"message":"Unexpected write during onboarding"}'});
+  });
+  const firstUse=await onboarding.newPage();
+  await firstUse.goto(origin);
+  await firstUse.getByRole("heading",{name:"Como queres começar?"}).waitFor();
+  assert.equal(await firstUse.getByRole("heading",{name:/sincronizar a configuração/i}).count(),0);
+  const importChoice=firstUse.getByRole("button",{name:"Importar a minha configuração"});
+  assert.equal(await importChoice.isDisabled(),true,
+    "Import must not be possible without ownership confirmation.");
+  await firstUse.getByRole("checkbox",{
+    name:/Confirmo que sou o proprietário dos dados antigos/
+  }).check();
+  assert.equal(await importChoice.isEnabled(),true,
+    "Explicit ownership confirmation unlocks only the import action.");
+  await firstUse.getByRole("button",{name:"Começar do zero"}).click();
+  await firstUse.getByRole("heading",{name:"Calendário mensal"}).waitFor();
+  assert.equal(await firstUse.evaluate(()=>localStorage.getItem(
+    "schedule-engine:app-state")!==null),true,
+    "Starting from scratch must never delete old browser data.");
+  assert.equal(await firstUse.evaluate(id=>localStorage.getItem(
+    "schedule-engine:legacy-import:skip-owner:"+id),owner),"skip",
+    "The fresh-account decision must be scoped to the authenticated owner.");
+  await onboarding.close();
+
+  // A true load failure must retain a separate fail-closed error screen.
+  const failedLoad=await browser.newContext({locale:"pt-PT",timezoneId:"Atlantic/Azores"});
+  await failedLoad.addInitScript(({origin,session})=>{
+    if(window.location.origin===origin)
+      localStorage.setItem("schedule-engine:supabase:session:v1",JSON.stringify(session));
+  },{origin,session:legacySession});
+  await failedLoad.route(api+"/**",async route=>{
+    const path=new URL(route.request().url()).pathname;
+    const headers={"access-control-allow-origin":"*",
+      "access-control-allow-headers":"authorization,apikey,content-type",
+      "access-control-allow-methods":"GET,POST,OPTIONS"};
+    if(route.request().method()==="OPTIONS")return route.fulfill({status:204,headers});
+    if(path==="/auth/v1/user")return route.fulfill({
+      status:200,headers,contentType:"application/json",
+      body:JSON.stringify({id:owner,email:legacySession.user.email,is_anonymous:false}),
+    });
+    return route.fulfill({status:503,headers,contentType:"application/json",
+      body:'{"message":"Service temporarily unavailable"}'});
+  });
+  const failedPage=await failedLoad.newPage();
+  await failedPage.goto(origin);
+  await failedPage.getByRole("heading",{name:"Não foi possível carregar a configuração"}).waitFor();
+  assert.equal(await failedPage.getByRole("button",{name:"Começar do zero"}).count(),0,
+    "A service outage must never authorize starting an empty account.");
+  await failedLoad.close();
+
   const context=await browser.newContext({locale:"pt-PT",timezoneId:"Atlantic/Azores"});
   const session={
     access_token:"synthetic-jwt-never-sent-to-supabase",
