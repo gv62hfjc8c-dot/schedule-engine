@@ -115,7 +115,7 @@ try{
   await onboarding.addInitScript(({origin,session,legacy})=>{
     if(window.location.origin===origin){
       localStorage.setItem("schedule-engine:supabase:session:v1",JSON.stringify(session));
-      localStorage.setItem("schedule-engine:app-state",JSON.stringify(legacy));
+      localStorage.setItem("schedule-engine:app-state:v1",JSON.stringify(legacy));
     }
   },{origin,session:legacySession,legacy:oldBrowserState});
   await onboarding.route(api+"/**",async route=>{
