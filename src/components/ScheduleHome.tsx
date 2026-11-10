@@ -311,6 +311,7 @@ export default function ScheduleHome({
     });
     setShowSelectedSummary(false);
   }
+  const filters: TeamFilter[] = ["all","assigned","available","unavailable","unplanned"];
   const currentMonth = month.slice(0, 7);
   const activeCount = people.filter(p => p.active).length;
   const personName=(id:string)=>people.find(p=>p.id===id)?.name ?? id;
