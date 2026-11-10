@@ -1,3 +1,13 @@
+## 2026-11-10 — PR59 · Primeira configuração e proteção de dados
+
+- Separado o ecrã de escolha sobre dados antigos de verdadeiras falhas de sincronização. A escolha de importação deixa de apresentar um falso erro técnico.
+- Quando a conta está vazia na cloud e existem dados antigos não associados no navegador, apresenta um ecrã centralizado: **Começar do zero** (ação em destaque) ou **Importar a minha configuração**, esta última bloqueada até confirmação explícita da propriedade.
+- Dados antigos permanecem no navegador quando se escolhe começar do zero. A opção é guardada apenas para o proprietário autenticado; nenhum dado é importado ou eliminado automaticamente.
+- A prioridade da configuração existente na cloud, a entrada direta quando não existem dados antigos e o bloqueio de gravação em erros reais continuam garantidos pelo repositório, sem alterar os mecanismos de persistência.
+- Falhas reais de leitura, dados incompatíveis e conflitos apresentam um ecrã de erro separado; após uma edição não sincronizada, preserva-se a possibilidade de exportar alterações antes de recarregar.
+- UI responsiva alinhada com o novo login. Testes automáticos e WebKit confirmam os caminhos de consentimento, conta vazia e erro de serviço.
+- Nenhuma alteração às tabelas Supabase, ao core do motor, a aprovações ou ao histórico factual.
+
 ## 2026-11-10 — PR58 · Página de autenticação responsiva
 
 - Reformulado o login do Schedule Engine com identidade visual própria, painel de apresentação em desktop e formulário adaptado a tablets e telemóveis.
