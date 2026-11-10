@@ -1,3 +1,13 @@
+## 2026-11-10 — PR57 · Gestão diária redesenhada após validação de ecrãs
+
+- O cabeçalho da gestão diária reúne data, estado da proposta, navegação e geração, com detalhe de leitura disponível numa secção expansível.
+- Os cinco indicadores ficam compactos e visíveis; nenhum estado desconhecido é convertido automaticamente numa folga ou ausência.
+- Pesquisa e seis filtros existentes preservados, com acesso rápido a equipa, escalados, disponíveis e indisponíveis; «Por planear / sem escala» e «Selecionados» ficam em «Mais filtros».
+- Lista mais compacta em computador e responsiva em tablet/telemóvel. Paginação aparece apenas quando é necessária (mais de 12 colaboradores no filtro).
+- Seleção múltipla ganha comparação contextual por colaborador: turno, refeição, horas efetivas e estado, sem repetir apenas nomes e sem alterar a proposta guardada.
+- Preservados seleção entre filtros/páginas, versões imutáveis, semântica de indisponibilidade, separação entre histórico factual e proposta, e bloqueio de alterações oficiais.
+- Adicionados testes WebKit sobre indicadores, filtros, seleção, comparação e ausência de paginação desnecessária.
+
 ## 2026-11-10 — PR56 · navegação real nas etapas do gerador
 
 - Corrigido o passo 3 «Consultar», que anteriormente parecia um botão mas era apenas um indicador visual; agora é um botão funcional que abre a visualização da proposta válida.

@@ -3600,3 +3600,133 @@ h2 {
     gap:6px;
   }
 }
+
+
+/* PR57 — Daily management is a focused, responsive read-only workspace. */
+.se-management[aria-label="Gestão diária"] {gap:14px;}
+.se-daily-management-header {
+  display:flex;align-items:flex-start;justify-content:space-between;
+  gap:16px;flex-wrap:wrap;
+}
+.se-daily-management-heading {display:grid;gap:12px;min-width:0;}
+.se-daily-management-heading > div {display:grid;gap:5px;}
+.se-daily-management-heading h2 {
+  margin:0;font-size:clamp(21px,2.4vw,29px);
+  letter-spacing:-.025em;text-transform:capitalize;
+}
+.se-daily-management-heading .section-kicker {margin:0;}
+.se-daily-status-line {margin:0;font-size:12px;font-weight:700;color:#257d64;}
+.se-daily-management-actions {
+  display:flex;align-items:center;justify-content:flex-end;
+  gap:10px;flex-wrap:wrap;
+}
+.se-daily-management-actions .primary-button {min-height:42px;}
+.se-daily-safety-note {
+  border:1px solid #dce7ef;
+  border-radius:10px;
+  padding:10px 13px;
+  background:#f5f8fb;
+  color:#516980;
+}
+.se-daily-safety-note summary {font-size:12px;font-weight:750;cursor:pointer;}
+.se-daily-safety-note .se-readonly-note {margin-top:10px;}
+.se-manage-stats.se-daily-compact-stats {
+  grid-template-columns:repeat(5,minmax(0,1fr));
+  gap:8px;
+}
+.se-daily-compact-stats > div {padding:12px 14px;gap:4px;min-width:0;}
+.se-daily-compact-stats strong {font-size:22px;font-variant-numeric:tabular-nums;}
+.se-daily-compact-stats span {font-size:10px;font-weight:650;line-height:1.35;}
+.se-daily-roster-heading {
+  display:flex;align-items:center;justify-content:space-between;
+  flex-wrap:wrap;gap:8px;margin-top:8px;
+}
+.se-daily-roster-heading h3 {margin:0 0 3px;font-size:17px;}
+.se-daily-roster-heading p {margin:0;color:#708298;font-size:11px;}
+.se-daily-roster-heading > strong {color:#687d92;font-size:12px;}
+.se-daily-filter-bar {
+  display:grid;grid-template-columns:minmax(0,1fr) auto;
+  gap:12px;align-items:end;
+}
+.se-daily-search {grid-column:1/-1;}
+.se-daily-search input[type=search] {
+  min-height:44px;padding:0 12px;
+  width:100%;border:1px solid #d8dee8;border-radius:9px;
+  background:#fff;color:#172033;
+}
+.se-daily-quick-filters {display:flex;gap:7px;flex-wrap:wrap;align-items:center;}
+.se-daily-filter-button {
+  min-height:40px;border:1px solid #cfdbe8;
+  border-radius:9px;padding:8px 12px;background:transparent;
+  color:#557087;font-size:12px;font-weight:750;
+}
+.se-daily-filter-button.active {
+  border-color:#44879c;background:#dff0f5;color:#205e73;
+}
+.se-daily-filter-button:focus-visible {outline:2px solid #5b91bf;outline-offset:2px;}
+.se-daily-more-filters {min-width:166px;}
+.se-daily-more-filters select {min-height:40px;font-size:12px;}
+.se-daily-list-bar {padding:0 2px;}
+.se-daily-list-bar > strong {font-size:11px;color:#78899e;}
+.se-daily-list-bar .se-outline {min-height:36px;font-size:12px;}
+.se-team-list.se-daily-roster {height:auto;max-height:none;overflow:visible;}
+.se-daily-roster .se-daily-roster-row {
+  min-height:68px;padding:11px 14px;gap:11px;align-items:center;
+}
+.se-daily-roster-row .se-person-identity {
+  display:grid;grid-template-columns:minmax(160px,1.1fr) minmax(0,2.1fr);
+  align-items:center;gap:10px;
+}
+.se-daily-roster-row .se-person-identity > strong {font-size:12px;}
+.se-daily-roster-row .daily-shift-details {gap:7px 12px;}
+.se-daily-roster-row .daily-shift-time {min-width:104px;}
+.se-daily-roster-row .daily-shift-time strong {font-size:12px;}
+.se-daily-roster-row .se-person-status {max-width:150px;white-space:normal;}
+.se-daily-selection-bar {position:sticky;bottom:12px;z-index:9;box-shadow:0 8px 22px #081d351c;}
+.se-daily-comparison {display:grid;gap:13px;}
+.se-daily-comparison-heading {
+  display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+}
+.se-daily-comparison-heading h3 {margin:0;font-size:16px;}
+.se-daily-comparison-heading p {margin:4px 0 0;color:#71849b;font-size:11px;}
+.se-daily-comparison-grid {
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,255px),1fr));gap:10px;
+}
+.se-daily-comparison-card {
+  display:grid;align-content:start;gap:10px;
+  border:1px solid #dbe5ef;border-radius:11px;padding:14px;min-width:0;
+  background:#f8fafc;
+}
+.se-daily-comparison-card > strong {font-size:13px;}
+.se-daily-comparison-card .se-person-status {justify-self:start;}
+.se-daily-comparison-card .daily-shift-details {gap:10px;}
+.se-daily-comparison > p {margin:0;color:#70839a;font-size:11px;}
+@media(max-width:1100px) {
+  .se-manage-stats.se-daily-compact-stats {grid-template-columns:repeat(3,minmax(0,1fr));}
+  .se-daily-roster-row .se-person-identity {grid-template-columns:1fr;gap:6px;}
+}
+@media(max-width:700px) {
+  .se-daily-management-actions {justify-content:space-between;width:100%;}
+  .se-daily-management-actions .primary-button {width:100%;}
+  .se-manage-stats.se-daily-compact-stats {grid-template-columns:repeat(2,minmax(0,1fr));}
+  .se-daily-filter-bar {grid-template-columns:minmax(0,1fr);}
+  .se-daily-search {grid-column:auto;}
+  .se-daily-more-filters {min-width:0;}
+  .se-daily-filter-button {font-size:11px;min-height:42px;padding:7px 10px;}
+  .se-daily-roster .se-daily-roster-row {padding:12px 10px;align-items:flex-start;}
+  .se-daily-roster-row .se-person-status {display:inline-flex;max-width:116px;font-size:9px;}
+  .se-daily-roster-row .se-person-identity {gap:8px;}
+  .se-daily-selection-bar {bottom:6px;}
+}
+@media(prefers-color-scheme:dark) {
+  .se-daily-status-line {color:#a7dfc6;}
+  .se-daily-safety-note,.se-daily-comparison-card {
+    background:#203147;color:#c9d9ed;border-color:#40566f;
+  }
+  .se-daily-roster-heading p,.se-daily-roster-heading > strong,
+  .se-daily-list-bar > strong,.se-daily-comparison-heading p,
+  .se-daily-comparison > p {color:#b0c2d5;}
+  .se-daily-search input[type=search] {background:#26364a;color:#f1f5fb;border-color:#486077;}
+  .se-daily-filter-button {background:#23364a;color:#c3d5e9;border-color:#465e78;}
+  .se-daily-filter-button.active {background:#245267;color:#e8f8ff;border-color:#6aa8bb;}
+}
