@@ -3908,3 +3908,97 @@ h2 {
 @media(prefers-reduced-motion:reduce) {
   .auth-submit {transition:none;}
 }
+
+
+/* PR59 — Initial account-data decision, visually aligned with PR58 login. */
+.entry-screen {
+  min-height:100dvh;
+  display:grid;place-items:center;
+  padding:clamp(18px,4vw,50px);
+  background:#0d1724;color:#eaf1fa;
+}
+.entry-card {
+  width:min(100%,700px);
+  border:1px solid #34485e;
+  border-radius:20px;
+  padding:clamp(20px,4vw,43px);
+  background:#172538;
+  box-shadow:0 25px 65px rgb(0 0 0 / 19%);
+}
+.entry-brand {display:flex;align-items:center;gap:12px;font-size:14px;}
+.entry-brand-symbol {
+  width:39px;height:39px;border-radius:11px;
+  display:grid;place-items:center;background:#328b96;
+  font-size:13px;color:#fff;font-weight:800;
+}
+.entry-hero {padding:27px 0 23px;}
+.entry-shield {
+  display:grid;place-items:center;
+  width:48px;height:48px;border-radius:12px;
+  color:#9ddbd5;background:#214a52;margin-bottom:14px;
+}
+.entry-eyebrow {
+  display:block;color:#90c6cf;
+  font-size:10px;font-weight:800;letter-spacing:.11em;
+}
+.entry-hero h1,.entry-error-card h1 {
+  font-size:clamp(26px,3vw,34px);line-height:1.2;
+  letter-spacing:-.035em;margin:10px 0;
+}
+.entry-hero p,.entry-option p,.entry-error-lead {
+  color:#b7c7d8;font-size:13px;line-height:1.65;margin:0;
+}
+.entry-options {display:grid;gap:13px;}
+.entry-option {
+  border:1px solid #40566d;border-radius:13px;
+  padding:20px;
+  background:#1b2c40;
+}
+.entry-option-primary {border-color:#5391a2;background:#1c3747;}
+.entry-option-heading {display:flex;gap:11px;align-items:center;margin-bottom:10px;}
+.entry-option-heading h2 {font-size:16px;margin:0;letter-spacing:-.015em;}
+.entry-option-icon {
+  width:28px;height:28px;
+  display:grid;place-items:center;
+  border-radius:8px;background:#2d5367;color:#bce6ea;
+  font-size:19px;font-weight:750;
+}
+.entry-option p {margin:0 0 16px;}
+.entry-primary-button,.entry-outline-button {
+  min-height:44px;padding:9px 17px;
+  border-radius:9px;
+  font-size:12px;font-weight:750;
+  font-family:inherit;
+}
+.entry-primary-button {background:#438e9c;color:white;border:1px solid #70b5c1;}
+.entry-primary-button:hover {background:#367e8a;}
+.entry-outline-button {background:transparent;color:#dceef4;border:1px solid #56768e;}
+.entry-outline-button:hover:not(:disabled) {background:#2d465c;}
+.entry-outline-button:disabled {opacity:.48;cursor:not-allowed;}
+.entry-primary-button:focus-visible,.entry-outline-button:focus-visible,
+.entry-details-toggle:focus-visible {outline:2px solid #8ad2dd;outline-offset:2px;}
+.entry-consent {
+  display:flex;align-items:flex-start;gap:10px;
+  padding:12px;margin-bottom:15px;
+  border:1px solid #4c657a;border-radius:9px;
+  color:#d5e4ee;font-size:12px;line-height:1.5;cursor:pointer;
+}
+.entry-consent input {width:18px;height:18px;flex-shrink:0;accent-color:#4eabb0;margin:0;}
+.entry-security {display:flex;align-items:center;gap:9px;margin-top:20px;color:#a8c5ca;font-size:11px;}
+.entry-security > span:first-child {font-size:9px;color:#6fd1bd;}
+.entry-details-toggle {background:none;border:0;color:#abd7e0;text-decoration:underline;cursor:pointer;padding:10px 0;font-size:11px;}
+.entry-details:not([hidden]) {display:block;border-left:2px solid #568da0;padding:3px 13px;}
+.entry-details p {margin:0;color:#b4c9d8;font-size:11px;line-height:1.6;}
+.entry-error-card {max-width:740px;}
+.entry-error-icon {display:grid;place-items:center;border:1px solid #9e6669;border-radius:50%;width:45px;height:45px;font-size:23px;color:#ffced0;margin:25px 0 16px;}
+.entry-error-message {padding:13px;margin:20px 0;border:1px solid #836568;border-radius:9px;background:#362c38;color:#ffe0de;font-size:12px;line-height:1.6;overflow-wrap:anywhere;}
+.entry-error-actions {display:grid;justify-items:start;gap:12px;}
+.entry-error-actions p,.entry-error-footnote {color:#b8c6d9;line-height:1.6;font-size:12px;}
+.entry-error-footnote {margin-top:22px;}
+@media(max-width:560px){
+  .entry-screen {padding:10px;place-items:start center;}
+  .entry-card {padding:23px 18px;margin:18px 0;border-radius:15px;}
+  .entry-hero {padding:22px 0 18px;}
+  .entry-option {padding:15px 13px;}
+  .entry-primary-button,.entry-outline-button {width:100%;}
+}
