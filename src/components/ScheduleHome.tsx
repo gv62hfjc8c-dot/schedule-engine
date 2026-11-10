@@ -478,7 +478,7 @@ export default function ScheduleHome({
       </button>
     </div>
     <div className="se-calendar-help">
-      <span>As propostas guardadas não são horários oficialmente aprovados.
+      <span>São propostas, não escalas oficialmente aprovadas.
         O histórico factual é apresentado em separado.</span>
       <button type="button" className="se-calendar-more"
         aria-expanded={showCalendarDetails} aria-controls="calendar-explanations"
