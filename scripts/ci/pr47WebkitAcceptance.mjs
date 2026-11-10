@@ -141,6 +141,19 @@ try{
   await page.goto(origin,{waitUntil:"domcontentloaded"});
   await page.getByRole("heading",{name:"Calendário mensal"}).waitFor();
   await page.locator(".save-status.saved").waitFor();
+  // Calendar v2: compact information is opt-in, never hide archive failures.
+  await page.getByRole("button",{name:"Informação do calendário"}).waitFor();
+  const explanation=page.locator("#calendar-explanations");
+  assert.equal(await explanation.isVisible(),false,
+    "Long explanations must not dominate the initial calendar.");
+  await page.getByRole("button",{name:"Informação do calendário"}).click();
+  await explanation.getByText(/não representa aprovação oficial/).waitFor();
+  await page.getByRole("button",{name:"Ocultar detalhes"}).click();
+  assert.equal(await explanation.isVisible(),false,
+    "Calendar context can be collapsed again.");
+  await page.getByRole("region",{name:"Calendário mensal de horários"})
+    .getByLabel("Resumo do mês").waitFor();
+
   // 21: all four real navigation areas and no retired interactive lab.
   const tabs=await page.locator(".app-nav-link").evaluateAll(
     elements=>elements.map(element=>element.getAttribute("aria-label")));
@@ -241,6 +254,11 @@ try{
 
   // App Shell: usable desktop navigation and mobile drawer, same workspaces.
   await page.setViewportSize({width:390,height:844});
+  await page.getByRole("region",{name:"Calendário mensal de horários"})
+    .getByLabel("Resumo do mês").waitFor();
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth),false,
+    "Mobile calendar must not force horizontal document scrolling.");
+
   const drawer=page.locator(".application-sidebar");
   assert.equal(await drawer.isVisible(),true,"Sidebar must stay mounted on mobile.");
   await page.getByRole("button",{name:"Abrir menu de navegação"}).click();
