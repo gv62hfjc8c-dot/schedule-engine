@@ -29,7 +29,7 @@ const unknown=renderToStaticMarkup(createElement(DailyShiftDetails,{
   shift:null,emptyLabel:"Sem horário",
 }));
 assert.match(unknown,/Sem horário/);
-assert(!unknown.includes("Folga"),"Um turno desconhecido não é folga.");
+assert.equal(unknown.includes("Folga"),false,"Um turno desconhecido não é folga.");
 assert.equal(addCivilDays("2026-01-31",1),"2026-02-01");
 assert.notEqual(monthStart(addCivilDays("2026-01-31",1)),monthStart("2026-01-31"));
 console.log("Daily workspace: meal-window breakdown, no invented days off, and civil-day boundary PASS.");
