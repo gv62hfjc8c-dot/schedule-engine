@@ -527,20 +527,36 @@ export default function ConstrainedPeriodGeneratorPanel({
           <p>Prepara o período, executa uma simulação e consulta a proposta sem a confundir com uma aprovação oficial.</p>
         </div>
         <ol className="generator-flow-steps" aria-label="Etapas do planeamento">
-          <li className={workflowStep===1?"current":workflowStep>1?"complete":""}
-            aria-current={workflowStep===1?"step":undefined}>
-            <span className="generator-step-number">1</span>
-            <span><strong>Preparar</strong><small>Datas e contexto</small></span>
+          <li className={workflowStep===1?"current":workflowStep>1?"complete":""}>
+            <button type="button" className="generator-step-action"
+              aria-current={workflowStep===1?"step":undefined}
+              aria-label="Etapa 1: Preparar"
+              onClick={()=>setWorkspaceView("settings")}>
+              <span className="generator-step-number">1</span>
+              <span><strong>Preparar</strong><small>Datas e contexto</small></span>
+            </button>
           </li>
-          <li className={workflowStep===2?"current":workflowStep>2?"complete":""}
-            aria-current={workflowStep===2?"step":undefined}>
-            <span className="generator-step-number">2</span>
-            <span><strong>Simular</strong><small>Regras e resultado</small></span>
+          <li className={workflowStep===2?"current":workflowStep>2?"complete":""}>
+            <button type="button" className="generator-step-action"
+              aria-current={workflowStep===2?"step":undefined}
+              aria-label="Etapa 2: Simular"
+              disabled={!result && !error}
+              title={!result&&!error?"Executa primeiro a simulação em Preparar":undefined}
+              onClick={()=>setWorkspaceView("settings")}>
+              <span className="generator-step-number">2</span>
+              <span><strong>Simular</strong><small>Regras e resultado</small></span>
+            </button>
           </li>
-          <li className={workflowStep===3?"current":""}
-            aria-current={workflowStep===3?"step":undefined}>
-            <span className="generator-step-number">3</span>
-            <span><strong>Consultar</strong><small>Proposta e versões</small></span>
+          <li className={workflowStep===3?"current":""}>
+            <button type="button" className="generator-step-action"
+              aria-current={workflowStep===3?"step":undefined}
+              aria-label="Etapa 3: Consultar"
+              disabled={result?.status!=="generated"}
+              title={result?.status!=="generated"?"Só é possível consultar uma proposta válida":undefined}
+              onClick={()=>setWorkspaceView("schedule")}>
+              <span className="generator-step-number">3</span>
+              <span><strong>Consultar</strong><small>Proposta e versões</small></span>
+            </button>
           </li>
         </ol>
       </header>
