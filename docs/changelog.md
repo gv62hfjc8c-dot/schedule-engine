@@ -1,3 +1,12 @@
+## 2026-11-10 — Calendário mensal: experiência visual v2
+
+- Reorganizado o ecrã do calendário para priorizar a grelha mensal: informações gerais resumidas com explicação detalhada opcional; avisos de erro e dados incompatíveis permanecem sempre visíveis.
+- Consolidado o aviso de panorama com propostas independentes e sobreposições, sem fingir que existe uma escala mensal aprovada.
+- Acrescentados indicadores mensais para dias com propostas, histórico factual, dias por planear, encerrados e por confirmar. Dados não carregados ou desconhecidos **não** são contabilizados como folgas ou ausência de planeamento.
+- Melhoradas tipografia, espaços, sinalizadores de estado, leitura do calendário e comportamento em tablets/telemóveis.
+- Mantida a distinção entre propostas, histórico factual e aprovações; sem alterações no scheduling core, nas regras ou nos registos do Supabase.
+- Testes de regressão em WebKit incluem informação recolhível, métricas do mês e largura móvel.
+
 ## 2026-11-09 — Application Shell responsiva
 
 - Substituídos os quatro separadores horizontais e o cabeçalho excessivamente alto por navegação lateral persistente, cabeçalho compacto e localização da área atual.
