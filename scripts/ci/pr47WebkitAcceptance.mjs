@@ -230,7 +230,11 @@ try{
   await page.getByRole("heading",{name:"Nova proposta de horário"}).waitFor();
   const workflow=page.getByRole("list",{name:"Etapas do planeamento"});
   assert.equal(await workflow.locator("li").count(),3);
-  assert.equal(await workflow.locator('li[aria-current="step"]').count(),1);
+  assert.equal(await workflow.locator('button[aria-current="step"]').count(),1);
+  assert.equal(await workflow.getByRole("button",{name:"Etapa 3: Consultar"}).isDisabled(),true,
+    "The third stage must not open a proposal before a valid simulation.");
+  await workflow.getByRole("button",{name:"Etapa 1: Preparar"}).click();
+  await page.getByRole("heading",{name:"Gerar horário",exact:true}).waitFor();
   const presets=page.getByRole("group",{name:"Duração do período"});
   await presets.getByRole("button",{name:"14 dias"}).click();
   assert.equal(await presets.getByRole("button",{name:"14 dias"}).getAttribute("aria-pressed"),"true");
