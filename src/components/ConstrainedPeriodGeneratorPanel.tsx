@@ -726,7 +726,20 @@ export default function ConstrainedPeriodGeneratorPanel({
           </div>
         ) : result ? (
           <div className="generator-result-body">
-            <h3>{titleForStatus(result.status)}</h3>
+            <div className="generator-result-overview">
+              <div>
+                <span className="generator-result-eyebrow">Estado do planeamento</span>
+                <h3>{titleForStatus(result.status)}</h3>
+              </div>
+              <span className={"generator-result-state "+(result.status==="generated"?"success":"attention")}>
+                {result.status==="generated"?"Solução encontrada":"Revisão necessária"}
+              </span>
+            </div>
+            <div className="generator-result-metrics" aria-label="Resumo da execução">
+              <div><strong>{result.days.length}</strong><span>Dias analisados</span></div>
+              <div><strong>{result.status==="generated"?result.assignments.length:"—"}</strong><span>Turnos validados</span></div>
+              <div><strong>{result.issues.length}</strong><span>Observações</span></div>
+            </div>
             {result.status === "generated" && (
               <p className="generator-hint">
                 Cobertura, refeições, descanso e limites diários/semanais
@@ -857,7 +870,19 @@ export default function ConstrainedPeriodGeneratorPanel({
         )}
       </section>
       </div>}
-      {workspaceView === "schedule" && result?.status === "generated" && <ScheduleViews assignments={result.assignments} people={people} startDate={startDate} endDate={endDate} storageState={saveState} />}
+      {workspaceView === "schedule" && result?.status === "generated" && <>
+        <div className="generator-review-intro">
+          <div>
+            <p className="section-kicker">Etapa 3 · consulta</p>
+            <h3>Proposta gerada</h3>
+            <p>Consulta o calendário e os turnos. A gravação e a aprovação oficial são estados diferentes.</p>
+          </div>
+          <button type="button" className="se-outline"
+            onClick={()=>setWorkspaceView("settings")}>← Rever parâmetros</button>
+        </div>
+        <ScheduleViews assignments={result.assignments} people={people}
+          startDate={startDate} endDate={endDate} storageState={saveState}/>
+      </>}
       {workspaceView === "schedule" && result?.status === "generated" && (
         <section className="panel generator-meal-editor" aria-label="Editar refeições da proposta">
           <h3>Editar hora de refeição</h3>
