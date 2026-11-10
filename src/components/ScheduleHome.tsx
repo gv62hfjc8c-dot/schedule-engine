@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { supabaseAuthClient } from "../persistence/supabaseInstance";
 import { accountingCycleForDate } from "../utils/accountingCycle28";
 import ScheduleViews from "./ScheduleViews";
+import DailyShiftDetails from "./DailyShiftDetails";
 import OfficialApprovalPanel from "./OfficialApprovalPanel";
 import { createSupabaseGeneratedScheduleRepository } from "../persistence/supabaseGeneratedScheduleRepository";
 import {
@@ -14,7 +15,7 @@ import type {
   OperatingCalendarConfiguration, Person, PersonAvailability,
 } from "../types";
 import {
-  dailyTeamRows, daySummary, effectiveShiftMinutes, filterDailyTeam,
+  addCivilDays, dailyTeamRows, daySummary, effectiveShiftMinutes, filterDailyTeam,
   monthCalendarDates, monthStart, moveCalendarMonth, todayInTimeZone,
   toggleFilteredSelection, type DayTeamRow, type TeamFilter,
 } from "../utils/monthlyScheduleView";
@@ -273,6 +274,32 @@ export default function ScheduleHome({
     setSelectedIds(new Set());
     setShowSelectedSummary(false);
   }
+  /** Stay on a known month so changing days never masquerades as loaded data. */
+  function navigateDaily(offset:number) {
+    if(!selectedDate)return;
+    const next=addCivilDays(selectedDate,offset);
+    if(monthStart(next)!==month)return;
+    setSelectedDate(next);
+    setSelectedProposalId(null);
+    setFilter("all");
+    setSearch("");
+    setPage(1);
+    setSelectedIds(new Set());
+    setShowSelectedSummary(false);
+  }
+  const dailyNavigator=(date:string)=>(
+    <nav className="se-daily-navigator" aria-label="Navegação entre dias">
+      <button type="button" className="se-outline" aria-label="Dia anterior"
+        disabled={monthStart(addCivilDays(date,-1))!==month}
+        onClick={()=>navigateDaily(-1)}>← Anterior</button>
+      <span className="se-daily-navigator-date">
+        {dateLabel(date,{weekday:"short",day:"numeric",month:"short"})}
+      </span>
+      <button type="button" className="se-outline" aria-label="Dia seguinte"
+        disabled={monthStart(addCivilDays(date,1))!==month}
+        onClick={()=>navigateDaily(1)}>Seguinte →</button>
+    </nav>
+  );
   function setTeamFilter(value: TeamFilter) {
     setFilter(value);
     setPage(1);
@@ -321,9 +348,12 @@ export default function ScheduleHome({
 
   if (screen === "manage" && selectedDate && historicalDateAvailable) {
     return <section className="se-home se-management" aria-label="Consulta do histórico factual">
-      <button type="button" className="se-outline" onClick={()=>setScreen("month")}>
-        ← Voltar ao calendário
-      </button>
+      <div className="se-daily-topbar">
+        <button type="button" className="se-outline" onClick={()=>setScreen("month")}>
+          ← Calendário mensal
+        </button>
+        {dailyNavigator(selectedDate)}
+      </div>
       <div className="se-heading">
         <div>
           <p className="section-kicker">Histórico factual importado</p>
@@ -338,16 +368,12 @@ export default function ScheduleHome({
         <div><strong>{historicalTotals?.holiday??0}</strong><span>Feriados</span></div>
       </div>
       <div className="se-team-list" aria-label="Ocorrências históricas">
-        {historicalDay.map(fact=> <div className="se-person-row"
+        {historicalDay.map(fact=> <div className="se-person-row se-daily-person-card"
           key={fact.sourceId+"|"+fact.personId}>
           <span className="se-person-identity">
             <strong>{personName(fact.personId)}</strong>
-            {fact.shifts.map(shift=><small key={shift.date}>
-              {shift.interval.start}–{shift.interval.end}
-              {shift.mealBreak ? " · Refeição "+shift.mealBreak.start+
-                "–"+shift.mealBreak.end : " · Sem refeição"}
-              {" · "}{effectiveHoursLabel(shift,operationTimeZone)}
-            </small>)}
+            {fact.shifts.map(shift=><DailyShiftDetails key={shift.date}
+              shift={shift} effectiveHours={effectiveHoursLabel(shift,operationTimeZone)}/>)}
             <small>Fonte: {fact.sourceLabel}</small>
           </span>
           <span className="se-person-status">{HISTORY_LABELS[fact.type]}</span>
@@ -363,12 +389,12 @@ export default function ScheduleHome({
   if (screen === "manage" && selectedDate && canInspectDay) {
     const selectedPeople = rows.filter(row => selectedIds.has(row.id));
     return <section className="se-home se-management" aria-label="Gestão diária">
-      <div className="se-management-top">
+      <div className="se-daily-topbar">
         <button type="button" className="se-outline" onClick={() => {
           setScreen("month");
           setShowSelectedSummary(false);
-        }}>← Voltar ao calendário</button>
-        <span className="se-context">Consulta e preparação · sem alteração oficial</span>
+        }}>← Calendário mensal</button>
+        {dailyNavigator(selectedDate)}
       </div>
       <div className="se-heading">
         <div>
@@ -379,6 +405,21 @@ export default function ScheduleHome({
         <button type="button" className="primary-button"
           onClick={() => onCreate(selectedDate)}>Gerar proposta para este dia</button>
       </div>
+      {proposals.length>1 && <div className="se-daily-versions">
+        <label className="se-control">
+          <span>Versão da proposta a consultar</span>
+          <select value={stored?.id??""} onChange={event=>{
+            setSelectedProposalId(event.target.value);
+            setSelectedIds(new Set());
+            setShowSelectedSummary(false);
+          }}>
+            {proposals.map((item,index)=><option key={item.id} value={item.id}>
+              {index===0?"Mais recente":"Anterior"} · {savedProposalLabel(item)}
+            </option>)}
+          </select>
+        </label>
+        <small>A troca de versão não altera nenhuma proposta arquivada.</small>
+      </div>}
       {loadState !== "ready" && <p className="generator-issue" role="alert">Os dados ainda não foram confirmados pelo servidor.</p>}
       <div className="se-readonly-note" role="note">
         {kind === "proposal"
@@ -418,18 +459,17 @@ export default function ScheduleHome({
             ? "Desmarcar filtrados" : "Selecionar filtrados"}
         </button>
       </div>
-      <div className="se-team-list" role="group" aria-label="Lista de colaboradores">
+      <div className="se-team-list se-daily-team-list" role="group" aria-label="Lista de colaboradores">
         {visible.length === 0 && <p className="se-empty-list">Nenhuma pessoa corresponde a este filtro.</p>}
-        {visible.map(row => <label className="se-person-row" key={row.id}>
+        {visible.map(row => <label className="se-person-row se-daily-person-card" key={row.id}>
           <input type="checkbox" checked={selectedIds.has(row.id)}
             onChange={() => togglePerson(row.id)} />
           <span className="se-person-identity">
             <strong>{row.name}</strong>
-            <small>{row.shift ? clockLabel(row.shift) +
-              (row.shift.mealBreak ? " · Refeição " +
-                row.shift.mealBreak.start + "–" + row.shift.mealBreak.end : " · Sem refeição") +
-              " · " + effectiveHoursLabel(row.shift,stored?.timeZone ?? operationTimeZone) :
-              ROW_LABELS[row.kind]}</small>
+            <DailyShiftDetails shift={row.shift}
+              effectiveHours={row.shift?
+                effectiveHoursLabel(row.shift,stored?.timeZone??operationTimeZone):undefined}
+              emptyLabel={ROW_LABELS[row.kind]}/>
           </span>
           <span className={"se-person-status " + row.kind}>{ROW_LABELS[row.kind]}</span>
         </label>)}
