@@ -67,6 +67,40 @@ try{
     try{return (await fetch(origin)).ok;}catch{return false;}
   },"isolated Vite");
   browser=await webkit.launch({headless:true});
+  // PR58: authenticate screen is real responsive UI, not a Supabase developer form.
+  const loginContext=await browser.newContext({locale:"pt-PT",timezoneId:"Atlantic/Azores",
+    viewport:{width:1440,height:900}});
+  await loginContext.route(api+"/**",async route=>{
+    const url=new URL(route.request().url());
+    const cors={"access-control-allow-origin":"*","access-control-allow-headers":"authorization,apikey,content-type"};
+    if(route.request().method()==="OPTIONS")
+      return route.fulfill({status:204,headers:cors});
+    if(url.pathname==="/auth/v1/token")return route.fulfill({
+      status:400,headers:cors,contentType:"application/json",
+      body:JSON.stringify({message:"Invalid login credentials"}),
+    });
+    return route.fulfill({status:401,headers:cors,contentType:"application/json",body:"{}"});
+  });
+  const loginPage=await loginContext.newPage();
+  await loginPage.goto(origin);
+  await loginPage.getByRole("heading",{name:"Bem-vindo de volta"}).waitFor();
+  assert.equal(await loginPage.getByText("Authentication → Users").count(),0,
+    "Developer configuration instructions must not appear to customers.");
+  await loginPage.getByRole("textbox",{name:"Email"}).fill("teste@example.com");
+  await loginPage.locator("#supabase-password").fill("wrong-pass");
+  await loginPage.getByRole("button",{name:"Mostrar palavra-passe"}).click();
+  assert.equal(await loginPage.locator("#supabase-password").getAttribute("type"),"text");
+  await loginPage.getByRole("button",{name:"Ocultar palavra-passe"}).click();
+  assert.equal(await loginPage.locator("#supabase-password").getAttribute("type"),"password");
+  await loginPage.getByRole("button",{name:"Entrar no Schedule Engine"}).click();
+  await loginPage.getByRole("alert").getByText(/Email ou palavra-passe incorretos/).waitFor();
+  assert.equal(await loginPage.getByRole("heading",{name:"Bem-vindo de volta"}).isVisible(),true,
+    "A failed login must remain on the sign-in screen.");
+  await loginPage.setViewportSize({width:390,height:844});
+  assert.equal(await loginPage.getByRole("heading",{name:"Bem-vindo de volta"}).isVisible(),true);
+  assert.equal(await loginPage.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth),false,
+    "Mobile login must never overflow horizontally.");
+  await loginContext.close();
   const context=await browser.newContext({locale:"pt-PT",timezoneId:"Atlantic/Azores"});
   const session={
     access_token:"synthetic-jwt-never-sent-to-supabase",
