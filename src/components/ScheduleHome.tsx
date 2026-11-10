@@ -49,9 +49,6 @@ function dateLabel(date: string, options: Intl.DateTimeFormatOptions): string {
   return new Intl.DateTimeFormat("pt-PT", {...options, timeZone: "UTC"})
     .format(new Date(date + "T12:00:00Z"));
 }
-function clockLabel(shift: NonNullable<DayTeamRow["shift"]>): string {
-  return shift.interval.start + "–" + shift.interval.end;
-}
 function effectiveHoursLabel(shift: NonNullable<DayTeamRow["shift"]>, timeZone: string): string {
   const minutes = effectiveShiftMinutes(shift,timeZone);
   return Number.isFinite(minutes)
@@ -314,8 +311,6 @@ export default function ScheduleHome({
     });
     setShowSelectedSummary(false);
   }
-  const filters: TeamFilter[] = ["all","assigned","available","unavailable","unplanned"];
-  const visibleFilters = selectedIds.size ? [...filters, "selected" as const] : filters;
   const currentMonth = month.slice(0, 7);
   const activeCount = people.filter(p => p.active).length;
   const personName=(id:string)=>people.find(p=>p.id===id)?.name ?? id;
@@ -468,7 +463,7 @@ export default function ScheduleHome({
             onChange={event=>{if(event.target.value)setTeamFilter(event.target.value as TeamFilter);}}>
             <option value="">Mais filtros</option>
             <option value="unplanned">{FILTER_LABELS.unplanned}</option>
-            {selectedIds.size>0&&<option value="selected">{FILTER_LABELS.selected}</option>}
+            <option value="selected">{FILTER_LABELS.selected}</option>
           </select>
         </label>
       </div>
