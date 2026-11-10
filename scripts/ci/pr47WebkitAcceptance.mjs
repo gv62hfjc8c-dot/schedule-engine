@@ -447,7 +447,7 @@ try{
   failNextSave=true;
   await page.getByLabel(/Início de um ciclo fixo de 28 dias/)
     .fill("2026-11-09");
-  await page.getByRole("heading",{name:"Não foi possível sincronizar a configuração"})
+  await page.getByRole("heading",{name:"Não foi possível carregar a configuração"})
     .waitFor({timeout:10000});
   await page.getByRole("button",{
     name:"Descarregar cópia das alterações pendentes (JSON)",
