@@ -389,22 +389,24 @@ export default function ScheduleHome({
   if (screen === "manage" && selectedDate && canInspectDay) {
     const selectedPeople = rows.filter(row => selectedIds.has(row.id));
     return <section className="se-home se-management" aria-label="Gestão diária">
-      <div className="se-daily-topbar">
-        <button type="button" className="se-outline" onClick={() => {
-          setScreen("month");
-          setShowSelectedSummary(false);
-        }}>← Calendário mensal</button>
-        {dailyNavigator(selectedDate)}
-      </div>
-      <div className="se-heading">
-        <div>
-          <p className="section-kicker">Gestão do dia</p>
-          <h2>{dateLabel(selectedDate, {weekday: "long", day: "numeric", month: "long", year: "numeric"})}</h2>
-          <p>Consulta toda a equipa e reúne pessoas para análise, mesmo que estejam em páginas ou filtros diferentes.</p>
+      <header className="se-daily-management-header">
+        <div className="se-daily-management-heading">
+          <button type="button" className="se-outline" onClick={() => {
+            setScreen("month");
+            setShowSelectedSummary(false);
+          }}>← Calendário mensal</button>
+          <div>
+            <p className="section-kicker">Horários / Gestão diária</p>
+            <h2>{dateLabel(selectedDate, {weekday: "long", day: "numeric", month: "long", year: "numeric"})}</h2>
+            <p className="se-daily-status-line">{statusLabel}</p>
+          </div>
         </div>
-        <button type="button" className="primary-button"
-          onClick={() => onCreate(selectedDate)}>Gerar proposta para este dia</button>
-      </div>
+        <div className="se-daily-management-actions">
+          {dailyNavigator(selectedDate)}
+          <button type="button" className="primary-button"
+            onClick={() => onCreate(selectedDate)}>Gerar proposta para este dia</button>
+        </div>
+      </header>
       {proposals.length>1 && <div className="se-daily-versions">
         <label className="se-control">
           <span>Versão da proposta a consultar</span>
@@ -421,37 +423,57 @@ export default function ScheduleHome({
         <small>A troca de versão não altera nenhuma proposta arquivada.</small>
       </div>}
       {loadState !== "ready" && <p className="generator-issue" role="alert">Os dados ainda não foram confirmados pelo servidor.</p>}
-      <div className="se-readonly-note" role="note">
+      <details className="se-daily-safety-note">
+        <summary>Informação sobre esta consulta</summary>
+        <div className="se-readonly-note" role="note">
         {kind === "proposal"
           ? "Estás a consultar o horário tal como foi guardado no Supabase. É uma proposta, não uma escala oficialmente aprovada."
           : kind === "closed"
             ? "A operação está encerrada neste dia. Não existem turnos para gerir."
             : "Não existe uma proposta guardada para este dia. Não é possível inferir folgas ou ausências a partir desta situação."}
         {" "}A edição e a aprovação oficiais ainda não estão disponíveis nesta interface.
-      </div>
-      <div className="se-manage-stats">
+        </div>
+      </details>
+      <div className="se-manage-stats se-daily-compact-stats" aria-label="Resumo da equipa neste dia">
         <div><strong>{summary.total}</strong><span>Equipa ativa</span></div>
         <div><strong>{kind==="proposal"?summary.assigned:"—"}</strong><span>Escalados (proposta)</span></div>
         <div><strong>{kind==="proposal"?summary.available:"—"}</strong><span>Disponíveis sem turno</span></div>
         <div><strong>{kind==="proposal"?summary.unavailable:"—"}</strong><span>Sem disponibilidade</span></div>
         <div><strong>{summary.unplanned}</strong><span>Por planear</span></div>
       </div>
-      <div className="se-controls">
-        <label className="se-control">
+      <div className="se-daily-roster-heading">
+        <div>
+          <h3>Colaboradores</h3>
+          <p>Consulta os turnos e compara pessoas sem modificar a proposta.</p>
+        </div>
+        <strong>{matching.length} de {summary.total} colaboradores</strong>
+      </div>
+      <div className="se-daily-filter-bar">
+        <label className="se-control se-daily-search">
           <span>Pesquisar colaborador</span>
-          <input type="search" value={search} placeholder="Nome do colaborador"
+          <input type="search" value={search} placeholder="Pesquisar pelo nome…"
             onChange={event => {setSearch(event.target.value);setPage(1);}} />
         </label>
-        <label className="se-control">
-          <span>Filtrar</span>
-          <select value={filter} onChange={event => setTeamFilter(event.target.value as TeamFilter)}>
-            {visibleFilters.map(option =>
-              <option key={option} value={option}>{FILTER_LABELS[option]}</option>)}
+        <div className="se-daily-quick-filters" role="group" aria-label="Filtros rápidos">
+          {(["all","assigned","available","unavailable"] as TeamFilter[]).map(option=>
+            <button key={option} type="button" className={"se-daily-filter-button"+(filter===option?" active":"")}
+              aria-pressed={filter===option} onClick={()=>setTeamFilter(option)}>
+              {option==="all"?"Toda a equipa":option==="assigned"?"Escalados":
+                option==="available"?"Disponíveis sem turno":"Indisponíveis"}
+            </button>)}
+        </div>
+        <label className="se-control se-daily-more-filters">
+          <span>Outros filtros</span>
+          <select aria-label="Mais filtros" value={filter==="unplanned"||filter==="selected"?filter:""}
+            onChange={event=>{if(event.target.value)setTeamFilter(event.target.value as TeamFilter);}}>
+            <option value="">Mais filtros</option>
+            <option value="unplanned">{FILTER_LABELS.unplanned}</option>
+            {selectedIds.size>0&&<option value="selected">{FILTER_LABELS.selected}</option>}
           </select>
         </label>
       </div>
-      <div className="se-list-bar">
-        <strong>{matching.length} de {summary.total} colaboradores</strong>
+      <div className="se-list-bar se-daily-list-bar">
+        <strong>Seleção da equipa</strong>
         <button type="button" className="se-outline" disabled={!matching.length}
           onClick={() => setSelectedIds(old =>
             toggleFilteredSelection(old, matching.map(row => row.id)))}>
@@ -459,9 +481,9 @@ export default function ScheduleHome({
             ? "Desmarcar filtrados" : "Selecionar filtrados"}
         </button>
       </div>
-      <div className="se-team-list se-daily-team-list" role="group" aria-label="Lista de colaboradores">
+      <div className="se-team-list se-daily-team-list se-daily-roster" role="group" aria-label="Lista de colaboradores">
         {visible.length === 0 && <p className="se-empty-list">Nenhuma pessoa corresponde a este filtro.</p>}
-        {visible.map(row => <label className="se-person-row se-daily-person-card" key={row.id}>
+        {visible.map(row => <label className="se-person-row se-daily-person-card se-daily-roster-row" key={row.id}>
           <input type="checkbox" checked={selectedIds.has(row.id)}
             onChange={() => togglePerson(row.id)} />
           <span className="se-person-identity">
@@ -474,17 +496,17 @@ export default function ScheduleHome({
           <span className={"se-person-status " + row.kind}>{ROW_LABELS[row.kind]}</span>
         </label>)}
       </div>
-      <div className="se-pagination">
+      {totalPages>1&&<div className="se-pagination">
         <button type="button" className="se-outline" disabled={currentPage <= 1}
           onClick={() => setPage(currentPage - 1)}>← Anterior</button>
         <span>Página {currentPage} de {totalPages}</span>
         <button type="button" className="se-outline" disabled={currentPage >= totalPages}
           onClick={() => setPage(currentPage + 1)}>Seguinte →</button>
-      </div>
-      <div className="se-selection-bar" aria-live="polite">
+      </div>}
+      {selectedIds.size>0&&<div className="se-selection-bar se-daily-selection-bar" aria-live="polite">
         <div>
           <strong>{selectedIds.size} selecionado(s)</strong>
-          <small>Seleção preservada ao mudar filtros e páginas.</small>
+          <small>Seleção preservada ao mudar filtros e páginas · apenas consulta.</small>
         </div>
         <div className="se-selection-actions">
           <button type="button" className="se-outline" disabled={!selectedIds.size}
@@ -493,15 +515,31 @@ export default function ScheduleHome({
           </button>
           <button type="button" className="primary-button" disabled={!selectedIds.size}
             onClick={() => setShowSelectedSummary(previous => !previous)}>
-            {showSelectedSummary ? "Ocultar seleção" : "Consultar seleção"}
+            {showSelectedSummary ? "Ocultar comparação" : "Comparar horários"}
           </button>
         </div>
-      </div>
-      {showSelectedSummary && <section className="se-selection-summary" aria-label="Resumo da seleção">
-        <h3>Colaboradores selecionados ({selectedPeople.length})</h3>
-        <div className="se-selected-names">{selectedPeople.map(row =>
-          <span key={row.id}>{row.name} · {row.shift ? clockLabel(row.shift) : ROW_LABELS[row.kind]}</span>)}</div>
-        <p>A seleção organiza a consulta. Não altera jornadas, disponibilidade nem registos oficiais.</p>
+      </div>}
+      {showSelectedSummary && selectedIds.size>0 && <section className="se-selection-summary se-daily-comparison" aria-label="Comparação de colaboradores">
+        <div className="se-daily-comparison-heading">
+          <div>
+            <h3>Comparação de colaboradores ({selectedPeople.length})</h3>
+            <p>Turnos e disponibilidade da versão selecionada, lado a lado.</p>
+          </div>
+          <button type="button" className="se-outline" onClick={()=>setShowSelectedSummary(false)}>
+            Fechar comparação
+          </button>
+        </div>
+        <div className="se-daily-comparison-grid">
+          {selectedPeople.map(row=><article className="se-daily-comparison-card" key={row.id}>
+            <strong>{row.name}</strong>
+            <span className={"se-person-status "+row.kind}>{ROW_LABELS[row.kind]}</span>
+            <DailyShiftDetails shift={row.shift}
+              effectiveHours={row.shift?
+                effectiveHoursLabel(row.shift,stored?.timeZone??operationTimeZone):undefined}
+              emptyLabel={ROW_LABELS[row.kind]}/>
+          </article>)}
+        </div>
+        <p>Comparação apenas de leitura. Não altera turnos, disponibilidades ou registos oficiais.</p>
       </section>}
     </section>;
   }
