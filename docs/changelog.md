@@ -1,3 +1,11 @@
+## 2026-11-10 — PR56 · navegação real nas etapas do gerador
+
+- Corrigido o passo 3 «Consultar», que anteriormente parecia um botão mas era apenas um indicador visual; agora é um botão funcional que abre a visualização da proposta válida.
+- Os passos 1 e 2 também são controlos com navegação, foco de teclado e estado desativado quando o respetivo resultado ainda não existe.
+- A etapa 3 só fica disponível para uma simulação com estado `generated`; mantém-se a diferença entre proposta gerada, gravação e aprovação oficial.
+- Sem alterações ao algoritmo, aos critérios de validação, à persistência ou a dados importados.
+- Testes WebKit verificam a acessibilidade das etapas e o bloqueio de consulta sem proposta.
+
 ## 2026-11-10 — PR55 · experiência de geração de horários
 
 - Introduzido percurso visual de três etapas: preparação das datas e contexto, simulação com diagnóstico, e consulta da proposta.
