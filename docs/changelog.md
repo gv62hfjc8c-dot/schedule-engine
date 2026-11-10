@@ -1,3 +1,12 @@
+## 2026-11-10 — PR55 · experiência de geração de horários
+
+- Introduzido percurso visual de três etapas: preparação das datas e contexto, simulação com diagnóstico, e consulta da proposta.
+- Seletores rápidos de 7, 14 ou 28 dias alteram apenas as datas e invalidam a declaração exterior anterior; não executam a geração automaticamente.
+- Apresentados estado de prontidão e resumo de resultados com métricas condicionais: turnos só se a solução estiver validada. Regras técnicas e notas detalhadas consultáveis sem dominarem o ecrã.
+- Preservadas as confirmações obrigatórias, os limites do motor, a proteção de períodos oficialmente aprovados, o outbox de recuperação, a gravação de propostas imutáveis e a revisão de refeições.
+- Componentes adaptados para portátil, tablet e telemóvel. Aceitação WebKit confirma que presets não contornam o bloqueio por contexto por confirmar.
+- Nenhuma alteração ao algoritmo de geração, regras, Supabase ou modelo de dados.
+
 ## 2026-11-10 — Gestão diária: consulta por pessoa e refeições
 
 - Redesenhada a consulta diária com cartões por colaborador e campos separados para presença, intervalo de refeição e horas efetivas.

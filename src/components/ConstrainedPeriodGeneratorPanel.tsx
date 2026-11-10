@@ -139,6 +139,7 @@ export default function ConstrainedPeriodGeneratorPanel({
   const [saveProblem, setSaveProblem] = useState<string | null>(null);
   const [mealEdit,setMealEdit]=useState<{date:string;personId:string;start:string}|null>(null);
   const [mealIssue,setMealIssue]=useState<string|null>(null);
+  const [showTechnicalDetails,setShowTechnicalDetails]=useState(false);
   const [retryPayload, setRetryPayload] = useState<{payload: GeneratedSchedulePayload; id: string} | null>(null);
   const saveAttempt = useRef(0);
 
@@ -210,6 +211,21 @@ export default function ConstrainedPeriodGeneratorPanel({
 
   const result = sameInputs ? snapshot.result : null;
   const stale = snapshot !== null && !sameInputs;
+  const periodDays=parseCivilDays(startDate,endDate);
+  const periodIsValid=periodDays!==null && periodDays>0 && periodDays<=UI_MAX_PERIOD_DAYS;
+  const workflowStep=workspaceView==="schedule"&&result?.status==="generated" ? 3 :
+    result || error ? 2 : 1;
+  const readinessLabel= !periodIsValid ? "Corrige o período" :
+    !confirmed ? "Confirma o contexto exterior" :
+    context.status!=="ready" ? "Verifica as condições" : "Pronto para simular";
+
+  function selectDuration(days:7|14|28) {
+    if(parseCivilDays(startDate,startDate)!==1)return;
+    const end=addCivilDays(startDate,days-1);
+    setEndDate(end);
+    saveGeneratorDate("constrained:end",end);
+    resetScenario();
+  }
 
   function resetScenario() {
     setWorkspaceView("settings");
@@ -504,6 +520,30 @@ export default function ConstrainedPeriodGeneratorPanel({
           </div>}
         </>}
       </div>}
+      <header className="generator-flow-header">
+        <div className="generator-flow-heading">
+          <p className="section-kicker">Planeamento inteligente</p>
+          <h2>Nova proposta de horário</h2>
+          <p>Prepara o período, executa uma simulação e consulta a proposta sem a confundir com uma aprovação oficial.</p>
+        </div>
+        <ol className="generator-flow-steps" aria-label="Etapas do planeamento">
+          <li className={workflowStep===1?"current":workflowStep>1?"complete":""}
+            aria-current={workflowStep===1?"step":undefined}>
+            <span className="generator-step-number">1</span>
+            <span><strong>Preparar</strong><small>Datas e contexto</small></span>
+          </li>
+          <li className={workflowStep===2?"current":workflowStep>2?"complete":""}
+            aria-current={workflowStep===2?"step":undefined}>
+            <span className="generator-step-number">2</span>
+            <span><strong>Simular</strong><small>Regras e resultado</small></span>
+          </li>
+          <li className={workflowStep===3?"current":""}
+            aria-current={workflowStep===3?"step":undefined}>
+            <span className="generator-step-number">3</span>
+            <span><strong>Consultar</strong><small>Proposta e versões</small></span>
+          </li>
+        </ol>
+      </header>
       <nav className="generator-workspace-tabs" aria-label="Secções de horários">
         <button type="button" className={workspaceView === "settings" ? "active" : ""} aria-pressed={workspaceView === "settings"} onClick={() => setWorkspaceView("settings")}>Gerar horário</button>
         <button type="button" className={workspaceView === "schedule" ? "active" : ""} aria-pressed={workspaceView === "schedule"} disabled={result?.status !== "generated"} onClick={() => setWorkspaceView("schedule")}>Visualizar horário</button>
@@ -524,6 +564,16 @@ export default function ConstrainedPeriodGeneratorPanel({
           Cada proposta válida é guardada no Supabase para consulta futura, sem aprovação automática.
         </p>
 
+        <div className="generator-period-presets" role="group" aria-label="Duração do período">
+          <span>Período rápido</span>
+          {[7,14,28].map(days=>
+            <button type="button" className="se-outline" key={days}
+              disabled={parseCivilDays(startDate,startDate)!==1}
+              aria-pressed={periodDays===days}
+              onClick={()=>selectDuration(days as 7|14|28)}>
+              {days} dias
+            </button>)}
+        </div>
         <div className="generator-controls period-generator-controls">
           <label className="select-field generator-date-field" htmlFor="p63-start-date">
             <span>Data inicial</span>
@@ -564,11 +614,24 @@ export default function ConstrainedPeriodGeneratorPanel({
           </label>
         </div>
 
-        <div className="generator-facts">
-          <div><span>Trabalho máximo</span><strong>{`${(effectiveConstraints.maximumDailyEffectiveMinutes / 60).toLocaleString("pt-PT")}h/dia · ${(effectiveConstraints.maximumWeeklyEffectiveMinutes / 60).toLocaleString("pt-PT")}h/semana`}</strong></div>
-          <div><span>Descanso mínimo</span><strong>11h entre jornadas</strong></div>
-          <div><span>Refeição obrigatória</span><strong>60min se mais de 6h</strong></div>
+        <div className="generator-readiness" role="status">
+          <div>
+            <strong>{readinessLabel}</strong>
+            <span>{periodIsValid
+              ? periodDays+" dia(s) · "+people.filter(person=>person.active).length+" colaborador(es) ativos · "+timeZone
+              : "Escolhe um intervalo válido até "+UI_MAX_PERIOD_DAYS+" dias."}</span>
+          </div>
+          <span className={"generator-readiness-dot "+(context.status==="ready"?"ready":"pending")} aria-hidden="true"/>
         </div>
+        <details className="generator-technical-details" open={showTechnicalDetails}
+          onToggle={event=>setShowTechnicalDetails(event.currentTarget.open)}>
+          <summary>Regras técnicas consideradas na simulação</summary>
+          <div className="generator-facts">
+            <div><span>Trabalho máximo</span><strong>{`${(effectiveConstraints.maximumDailyEffectiveMinutes / 60).toLocaleString("pt-PT")}h/dia · ${(effectiveConstraints.maximumWeeklyEffectiveMinutes / 60).toLocaleString("pt-PT")}h/semana`}</strong></div>
+            <div><span>Descanso mínimo</span><strong>11h entre jornadas</strong></div>
+            <div><span>Refeição obrigatória</span><strong>60min se mais de 6h</strong></div>
+          </div>
+        </details>
 
         <div className="period-generator-disclaimer p63-context-box" role="group" aria-label="Contexto exterior ao período">
           <strong>Contexto exterior — confirmação obrigatória</strong>
@@ -623,17 +686,23 @@ export default function ConstrainedPeriodGeneratorPanel({
             Simular período com regras
           </button>
           <p className="generator-hint">
-            Limite de {PREVIEW_MAX_NODES.toLocaleString("pt-PT")} nós de pesquisa.
-            Um limite atingido não prova inexistência de solução.
+            {context.status==="ready"
+              ? "A confirmação está completa. A simulação poderá guardar automaticamente uma nova proposta."
+              : "Indica datas válidas e confirma expressamente o contexto exterior para continuar."}
           </p>
         </div>
 
-        <p className="generator-footnote">
-          O resultado é válido apenas para o cenário exterior expressamente
-          declarado. Se existirem outros turnos conhecidos, não confirmes
-          ausência: o motor precisa desses turnos para os considerar.
-          As propostas válidas são guardadas automaticamente, mas não são aprovadas.
-        </p>
+        <details className="generator-technical-details generator-technical-note">
+          <summary>Limites da pesquisa e da validade</summary>
+          <p className="generator-footnote">
+            O resultado é válido apenas para o cenário exterior expressamente
+            declarado. Se existirem outros turnos conhecidos, não confirmes
+            ausência: o motor precisa desses turnos para os considerar.
+            As propostas válidas são guardadas automaticamente, mas não são aprovadas.
+            A pesquisa tem um limite de {PREVIEW_MAX_NODES.toLocaleString("pt-PT")} nós;
+            atingir esse limite não prova que não existe solução.
+          </p>
+        </details>
       </section>
 
       <section className="panel generator-results" aria-live="polite">
@@ -657,7 +726,20 @@ export default function ConstrainedPeriodGeneratorPanel({
           </div>
         ) : result ? (
           <div className="generator-result-body">
-            <h3>{titleForStatus(result.status)}</h3>
+            <div className="generator-result-overview">
+              <div>
+                <span className="generator-result-eyebrow">Estado do planeamento</span>
+                <h3>{titleForStatus(result.status)}</h3>
+              </div>
+              <span className={"generator-result-state "+(result.status==="generated"?"success":"attention")}>
+                {result.status==="generated"?"Solução encontrada":"Revisão necessária"}
+              </span>
+            </div>
+            <div className="generator-result-metrics" aria-label="Resumo da execução">
+              <div><strong>{result.days.length}</strong><span>Dias analisados</span></div>
+              <div><strong>{result.status==="generated"?result.assignments.length:"—"}</strong><span>Turnos validados</span></div>
+              <div><strong>{result.issues.length}</strong><span>Observações</span></div>
+            </div>
             {result.status === "generated" && (
               <p className="generator-hint">
                 Cobertura, refeições, descanso e limites diários/semanais
@@ -788,7 +870,19 @@ export default function ConstrainedPeriodGeneratorPanel({
         )}
       </section>
       </div>}
-      {workspaceView === "schedule" && result?.status === "generated" && <ScheduleViews assignments={result.assignments} people={people} startDate={startDate} endDate={endDate} storageState={saveState} />}
+      {workspaceView === "schedule" && result?.status === "generated" && <>
+        <div className="generator-review-intro">
+          <div>
+            <p className="section-kicker">Etapa 3 · consulta</p>
+            <h3>Proposta gerada</h3>
+            <p>Consulta o calendário e os turnos. A gravação e a aprovação oficial são estados diferentes.</p>
+          </div>
+          <button type="button" className="se-outline"
+            onClick={()=>setWorkspaceView("settings")}>← Rever parâmetros</button>
+        </div>
+        <ScheduleViews assignments={result.assignments} people={people}
+          startDate={startDate} endDate={endDate} storageState={saveState}/>
+      </>}
       {workspaceView === "schedule" && result?.status === "generated" && (
         <section className="panel generator-meal-editor" aria-label="Editar refeições da proposta">
           <h3>Editar hora de refeição</h3>

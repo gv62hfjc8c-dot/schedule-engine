@@ -227,6 +227,19 @@ try{
   await page.getByRole("button",{name:"+ Criar horário",exact:true}).click();
   await page.getByText(/Cada proposta válida é guardada no Supabase/).waitFor();
   await page.getByText(/Até 28 dias/).waitFor();
+  await page.getByRole("heading",{name:"Nova proposta de horário"}).waitFor();
+  const workflow=page.getByRole("list",{name:"Etapas do planeamento"});
+  assert.equal(await workflow.locator("li").count(),3);
+  assert.equal(await workflow.locator('li[aria-current="step"]').count(),1);
+  const presets=page.getByRole("group",{name:"Duração do período"});
+  await presets.getByRole("button",{name:"14 dias"}).click();
+  assert.equal(await presets.getByRole("button",{name:"14 dias"}).getAttribute("aria-pressed"),"true");
+  assert.equal(await page.getByRole("button",{name:"Simular período com regras"}).isDisabled(),true,
+    "Period presets must not bypass the explicit external-context confirmation.");
+  await page.getByText("Confirma o contexto exterior").waitFor();
+  const technical=page.locator(".generator-technical-details").first();
+  assert.equal(await technical.locator("summary").isVisible(),true);
+
   await page.getByRole("button",{name:"← Voltar ao calendário mensal"}).click();
   await page.getByRole("heading",{name:"Calendário mensal"}).waitFor();
   // Historical facts must be shown in the calendar itself, not as proposals.
