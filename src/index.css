@@ -3567,3 +3567,36 @@ h2 {
   .generator-result-metrics strong {color:#f0f5fb;}
   .generator-result-metrics span {color:#afc0d4;}
 }
+
+
+/* PR56: the workflow stages are real controls, not decorative labels. */
+.generator-flow-steps li {padding:0;overflow:hidden;}
+.generator-step-action {
+  width:100%;
+  min-height:64px;
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:10px 12px;
+  border:0;
+  border-radius:inherit;
+  text-align:left;
+  color:inherit;
+  background:transparent;
+  cursor:pointer;
+}
+.generator-step-action:hover:not(:disabled) {background:rgb(80 130 155 / 12%);}
+.generator-step-action:focus-visible {outline:2px solid #5096c5;outline-offset:-3px;}
+.generator-step-action:disabled {cursor:not-allowed;opacity:.52;}
+.generator-step-action > span:last-child {display:grid;gap:2px;min-width:0;}
+@media(max-width:700px) {
+  .generator-step-action {
+    min-height:79px;
+    padding:9px 3px;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    text-align:center;
+    gap:6px;
+  }
+}
