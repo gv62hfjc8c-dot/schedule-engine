@@ -196,6 +196,34 @@ try{
     .click();
   await page.getByText("2026-11-30 a 2026-12-27 · semana 1/4")
     .waitFor();
+  // Daily management v2: quick filters, six filter states, read-only comparison.
+  await page.getByRole("button",{name:/Gerir horário deste dia/}).click();
+  const management=page.getByRole("region",{name:"Gestão diária"});
+  await management.getByRole("heading",{name:"Colaboradores"}).waitFor();
+  assert.equal(await management.locator(".se-daily-compact-stats > div").count(),5,
+    "Five daily status metrics stay visible.");
+  assert.equal(await management.locator(".se-pagination").count(),0,
+    "No meaningless pagination for a single person.");
+  const quick=management.getByRole("group",{name:"Filtros rápidos"});
+  await quick.getByRole("button",{name:"Escalados"}).click();
+  await management.getByText("Nenhuma pessoa corresponde a este filtro.").waitFor();
+  await quick.getByRole("button",{name:"Toda a equipa"}).click();
+  assert.equal(await management.locator(".se-daily-roster-row").count(),1);
+  const extra=management.getByRole("combobox",{name:"Mais filtros"});
+  assert.deepEqual(await extra.locator("option").allTextContents(),
+    ["Mais filtros","Por planear / sem escala","Selecionados"]);
+  await extra.selectOption("unplanned");
+  assert.equal(await management.locator(".se-daily-roster-row").count(),1,
+    "Unplanned remains explicit, not automatically day off.");
+  await management.locator(".se-daily-roster-row input[type=checkbox]").check();
+  await management.getByRole("button",{name:"Comparar horários"}).click();
+  const comparison=management.getByRole("region",{name:"Comparação de colaboradores"});
+  await comparison.getByText("Colaborador de Ensaio").waitFor();
+  assert.equal(await comparison.locator(".se-daily-comparison-card").count(),1);
+  assert.match(await comparison.innerText(),/Não altera turnos, disponibilidades ou registos oficiais/);
+  await management.getByRole("button",{name:"Fechar comparação"}).click();
+  await management.getByRole("button",{name:"← Calendário mensal"}).click();
+  await page.getByRole("heading",{name:"Calendário mensal"}).waitFor();
   // 19: the exact contract 20h / goal 15h / mandatory date must persist.
   await page.getByRole("button",{name:"Regras",exact:true}).click();
   const hard=page.getByLabel("Máximo contratual (h/semana)");
