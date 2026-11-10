@@ -1,3 +1,13 @@
+## 2026-11-10 — PR58 · Página de autenticação responsiva
+
+- Reformulado o login do Schedule Engine com identidade visual própria, painel de apresentação em desktop e formulário adaptado a tablets e telemóveis.
+- Campos de email e palavra-passe com foco acessível, botão principal, estado de autenticação e controlo Mostrar/Ocultar palavra-passe.
+- Retiradas do ecrã do cliente as instruções internas «Authentication → Users» do Supabase.
+- Mensagens de credenciais incorretas em português compreensível, mantendo erros de infraestrutura visíveis sem os mascarar.
+- Nenhum formulário fictício para registo ou recuperação de palavra-passe: essas capacidades exigem implementação e validação próprias.
+- Mantida a autenticação Supabase existente e o isolamento de dados por conta; sem alterações ao modelo de utilizadores, regras, horários ou base de dados.
+- Aceitação WebKit valida login inválido, alternância da palavra-passe, ausência de instruções internas e ausência de scroll horizontal em ecrã móvel.
+
 ## 2026-11-10 — PR57 · Gestão diária redesenhada após validação de ecrãs
 
 - O cabeçalho da gestão diária reúne data, estado da proposta, navegação e geração, com detalhe de leitura disponível numa secção expansível.
