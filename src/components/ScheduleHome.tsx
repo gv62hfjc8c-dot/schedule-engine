@@ -86,6 +86,7 @@ export default function ScheduleHome({
   const [page, setPage] = useState(1);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [showSelectedSummary, setShowSelectedSummary] = useState(false);
+  const [showCalendarDetails,setShowCalendarDetails] = useState(false);
   const [savedRows, setSavedRows] = useState<StoredGeneratedSchedule[]>([]);
   const [unreadable, setUnreadable] = useState<UnreadableGeneratedSchedule[]>([]);
   const [historicalFacts,setHistoricalFacts]=useState<HistoricalDayOccurrence[]>([]);
@@ -178,6 +179,25 @@ export default function ScheduleHome({
 
   const coreMonthDates = dates.filter(date=>date.slice(0,7)===month.slice(0,7));
   const archiveOverview = calendarArchiveOverview(savedRows,coreMonthDates,focusedProposalId);
+  const calendarMetrics=useMemo(()=>{
+    let proposals=0,history=0,unplanned=0,closed=0,unknown=0;
+    for(const date of coreMonthDates){
+      const state=archiveDayState({
+        date,records:savedRows,unreadable,operation:operatingCalendar,
+        focusedProposalId,loadState,
+      });
+      // Never claim an unknown source is an empty or unplanned day.
+      if(state==="proposal"){proposals++;continue;}
+      if(state==="unknown"||state==="loading"||state==="failed"||
+        state==="outside-proposal"){unknown++;continue;}
+      if(!focusedProposalId&&historyLoadState==="ready"&&
+        historicalDayTotals(historicalFacts,date).total>0){history++;continue;}
+      if(historyLoadState!=="ready"){unknown++;continue;}
+      if(state==="closed")closed++;else unplanned++;
+    }
+    return {proposals,history,unplanned,closed,unknown};
+  },[coreMonthDates.join("|"),savedRows,unreadable,operatingCalendar,
+    focusedProposalId,loadState,historyLoadState,historicalFacts]);
   const focusedRecord = focusedProposalId ?
     savedRows.find(record=>record.id===focusedProposalId) ?? null : null;
   const proposals = selectedDate ? proposalsForDay(savedRows, selectedDate) : [];
@@ -457,21 +477,37 @@ export default function ScheduleHome({
         + Criar horário
       </button>
     </div>
-    <div className="se-readonly-note" role="note">
-      Os horários gerados e guardados são recuperados automaticamente do Supabase.
-      São propostas, não escalas oficialmente aprovadas.
-      O histórico factual importado é apresentado separadamente quando existe.
+    <div className="se-calendar-help">
+      <span>As propostas guardadas não são horários oficialmente aprovados.
+        O histórico factual é apresentado em separado.</span>
+      <button type="button" className="se-calendar-more"
+        aria-expanded={showCalendarDetails} aria-controls="calendar-explanations"
+        onClick={()=>setShowCalendarDetails(value=>!value)}>
+        {showCalendarDetails?"Ocultar detalhes":"Informação do calendário"}
+      </button>
     </div>
-    {loadState === "ready" && !focusedProposalId && archiveOverview.mixedSources &&
-      <div className="se-readonly-note" role="note">
-        Este panorama reúne dias de {archiveOverview.sourceIds.length} propostas independentes.
-        Não constitui um horário mensal validado em conjunto. Seleciona um dia e
-        fixa uma proposta para consultar apenas o respetivo período.
-      </div>}
-    {loadState === "ready" && !focusedProposalId && archiveOverview.overlappingDays>0 &&
-      <div className="se-readonly-note" role="note">
-        Existem {archiveOverview.overlappingDays} dia(s) com propostas sobrepostas no mês.
-        O panorama mostra a mais recente de cada dia, sem aprovar ou combinar os seus turnos.
+    <div id="calendar-explanations" className="se-calendar-explanations"
+      hidden={!showCalendarDetails}>
+      <p>Os dias podem apresentar propostas, histórico factual ou ausência de planeamento.
+        Uma proposta não representa aprovação oficial nem confirma que todo o mês foi validado.</p>
+      <p>As ocorrências históricas são apresentadas apenas quando existe evidência importada.
+        Um dia sem registo não prova uma folga.</p>
+    </div>
+    {loadState === "ready" && !focusedProposalId &&
+      (archiveOverview.mixedSources || archiveOverview.overlappingDays>0) &&
+      <div className="se-calendar-context" role="note">
+        <span className="se-calendar-context-icon" aria-hidden="true">i</span>
+        <div>
+          <strong>Panorama de propostas independentes</strong>
+          <p>
+            {archiveOverview.mixedSources &&
+              `${archiveOverview.sourceIds.length} propostas diferentes neste mês. `}
+            {archiveOverview.overlappingDays>0 &&
+              `${archiveOverview.overlappingDays} dia(s) com propostas sobrepostas. `}
+            O panorama não constitui um horário mensal validado em conjunto.
+            Seleciona uma data para consultar a origem e a versão apresentada.
+          </p>
+        </div>
       </div>}
     {loadState === "ready" && focusedProposalId && <div className="se-readonly-note" role="note">
       <strong>Vista de uma única proposta.</strong>{" "}
@@ -507,7 +543,10 @@ export default function ScheduleHome({
       <button type="button" className="se-outline" onClick={onConfigureTeam}>Configurar equipa</button>
     </div>}
     <div className="se-calendar-toolbar">
-      <h3>{dateLabel(month, {month: "long", year: "numeric"})}</h3>
+      <div className="se-calendar-period">
+        <span className="se-calendar-period-kicker">Vista mensal</span>
+        <h3>{dateLabel(month, {month: "long", year: "numeric"})}</h3>
+      </div>
       <div className="se-month-actions">
         <button type="button" className="se-outline" aria-label="Mês anterior"
           onClick={() => browseMonth(-1)}>‹</button>
@@ -515,6 +554,15 @@ export default function ScheduleHome({
         <button type="button" className="se-outline" aria-label="Mês seguinte"
           onClick={() => browseMonth(1)}>›</button>
       </div>
+    </div>
+    <div className="se-calendar-metrics" aria-label="Resumo do mês">
+      <div><strong>{calendarMetrics.proposals}</strong><span>Dias com proposta</span></div>
+      <div><strong>{calendarMetrics.history}</strong><span>Dias com histórico</span></div>
+      <div><strong>{calendarMetrics.unplanned}</strong><span>Por planear</span></div>
+      <div><strong>{calendarMetrics.closed}</strong><span>Encerrados</span></div>
+      {calendarMetrics.unknown>0&&<div className="se-calendar-unknown">
+        <strong>{calendarMetrics.unknown}</strong><span>Por confirmar</span>
+      </div>}
     </div>
     <div className={"se-calendar-layout " + (selectedDate ? "with-panel" : "")}>
       <div className="se-calendar-area">
@@ -550,7 +598,10 @@ export default function ScheduleHome({
                  state === "outside-proposal" ? "fora da proposta selecionada" : "por planear")}
               aria-pressed={active}
               onClick={() => selectDate(date)}>
-              <strong>{Number(date.slice(8,10))}</strong>
+              <span className="se-day-top"><strong>{Number(date.slice(8,10))}</strong>
+                {state==="proposal"&&<span className="se-day-indicator proposal" aria-hidden="true"/>}
+                {state==="history"&&<span className="se-day-indicator history" aria-hidden="true"/>}
+              </span>
               <small>{state === "history" ? "Histórico · "+historicalCount :
                 state === "proposal" ? proposalCount + " turno(s)" :
                 state === "closed" ? "Fechado" :
