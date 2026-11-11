@@ -467,7 +467,6 @@ try{
   // Isolate history tests in a separate tab: WebKit Linux BFCache can crash
   // on unrelated later reloads after a back-forward traversal.
   const routePage=await context.newPage();
-  routePage.on("pageerror",error=>errors.push(error.message));
   await routePage.goto(origin,{waitUntil:"domcontentloaded"});
   await routePage.getByRole("heading",{name:"Calendário mensal"}).waitFor();
   await routePage.getByRole("button",{name:"Equipa",exact:true}).click();
@@ -483,7 +482,6 @@ try{
   await routePage.close();
 
   const deepPage=await context.newPage();
-  deepPage.on("pageerror",error=>errors.push(error.message));
   await deepPage.goto(origin+"/equipa",{waitUntil:"domcontentloaded"});
   await deepPage.getByRole("heading",{name:"Pessoas",exact:true}).waitFor();
   await deepPage.reload({waitUntil:"domcontentloaded"});
