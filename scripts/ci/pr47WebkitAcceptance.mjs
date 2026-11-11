@@ -307,6 +307,43 @@ try{
     "Europe/Lisbon","Timezone must survive reload.");
   matches(await operation.getByLabel(/Início de um ciclo fixo de 28 dias/)
     .inputValue(),"2026-11-02","Cycle anchor must survive reload.");
+  // PR62: compact weekday rows show no advanced editor until explicitly opened.
+  const weekly=page.locator(".schedule-table");
+  assert.equal(await weekly.locator(".operation-schedule-row").count(),7,
+    "All seven weekdays must remain available in the compact weekly table.");
+  assert.equal(await weekly.locator(".operation-advanced-row").count(),0,
+    "No advanced editor should occupy space by default.");
+  assert.match(await page.locator(".operation-mode-hint").innerText(),
+    /Funcionamento semanal: contínuo/);
+  const monday=weekly.locator(".operation-schedule-row").filter({hasText:"Segunda"});
+  const intervalToggle=monday.getByRole("button",
+    {name:"Segunda: Adicionar outro intervalo de funcionamento"});
+  assert.equal(await intervalToggle.getAttribute("aria-expanded"),"false");
+  await intervalToggle.click();
+  const advanced=monday.locator(".operation-advanced-row");
+  await advanced.waitFor();
+  assert.equal(await monday.getByRole("button",
+    {name:"Segunda: Ocultar edição de intervalos"}).getAttribute("aria-expanded"),"true");
+  await advanced.getByRole("button",{name:/Adicionar outro intervalo/}).click();
+  await wait(()=>persisted.weeklyOperatingHours.monday.length===2,
+    "Adding a real second interval persists only after the user requests it");
+  assert.equal(await advanced.locator(".se-multi-interval-row").count(),2,
+    "Both intervals must be editable inside the on-demand editor.");
+  await advanced.getByRole("button",
+    {name:"Remover período 2 de funcionamento de Segunda"}).click();
+  await wait(()=>persisted.weeklyOperatingHours.monday.length===1,
+    "Removing experimental second interval restores original opening");
+  await advanced.getByRole("button",{name:"Fechar edição"}).click();
+  assert.equal(await weekly.locator(".operation-advanced-row").count(),0);
+  await page.locator(".save-status.saved").waitFor();
+  await page.goto(origin+"/operacao",{waitUntil:"domcontentloaded"});
+  await page.locator(".save-status.saved").waitFor();
+  assert.equal(await page.locator(".operation-advanced-row").count(),0,
+    "A reload must return to compact view without changing operating hours.");
+  assert.deepEqual(persisted.weeklyOperatingHours.monday,
+    [{start:"09:00",end:"13:00"}],
+    "The original Monday interval is preserved after add/remove and reload.");
+  
   // PR61: exception drafts must never autosave or create a fabricated closing.
   const special=page.locator(".exceptions-panel");
   await special.getByRole("heading",{name:"Exceções"}).waitFor();
@@ -314,9 +351,15 @@ try{
   const beforeDraftSaves=saves;
   await special.getByRole("button",{name:/Adicionar$/}).click();
   await special.getByRole("form",{name:"Nova exceção"}).waitFor();
+  await page.locator(".operation-draft-status").getByText("Exceção por guardar").waitFor();
+  await special.getByText(/Rascunho por confirmar/).waitFor();
+  assert.equal(await page.locator(".save-status.saved").count(),1,
+    "Persisted configuration status must remain separate from unsaved exception draft.");
   assert.equal(persisted.exceptions.length,0,
     "Opening a draft cannot create an operational exception.");
   await special.getByRole("button",{name:"Cancelar"}).click();
+  assert.equal(await page.locator(".operation-draft-status").count(),0,
+    "Cancel must remove the unsaved draft marker.");
   await delay(700);
   assert.equal(saves,beforeDraftSaves,
     "Canceling the exception draft cannot trigger any cloud save.");
