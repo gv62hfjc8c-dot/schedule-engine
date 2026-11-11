@@ -8,6 +8,7 @@ import {
   checkPresenceAvailabilityCapacity,
   createEmptyWeeklyPresenceRequirements,
   getPresencePhaseWindows,
+  defaultMinimumPresence,
   PRESENCE_EDGE_WINDOW_MINUTES,
   isPresenceRequirementValid,
   resolvePresenceForDate,
@@ -55,7 +56,13 @@ assert(!isPresenceRequirementValid({ ...requirements, minimumAtClosing: 2.5 }), 
 const monday = resolvePresenceForDate("2026-10-26", weekly, [], operating, []);
 assert(monday.status === "configured" && monday.requirements.minimumAtOpening === 3, "Segunda deve herdar padrão.");
 assert(resolvePresenceForDate("2026-10-29", weekly, [], operating, []).status === "closed", "Dia fechado não exige presença.");
-assert(resolvePresenceForDate("2026-10-30", weekly, [], { ...operating, friday: [{ start: "09:00", end: "17:00" }] }, []).status === "unconfigured", "Dia aberto sem regra é incompleto.");
+const missingDay=resolvePresenceForDate("2026-10-30",weekly,[],{
+  ...operating,friday:[{start:"09:00",end:"17:00"}]},[]);
+assert(missingDay.status==="configured" && missingDay.source==="default" &&
+  missingDay.requirements.minimumDuringOperation===1 &&
+  missingDay.requirements.minimumAtOpening===1 &&
+  missingDay.requirements.minimumAtClosing===1,
+  "Absent rule is a REAL hard minimum of one person while open.");
 
 const exceptions = [
   { date: "2026-10-26", requirements: { minimumAtOpening: 1, minimumDuringOperation: 1, minimumAtClosing: 1 } },
@@ -64,8 +71,11 @@ const override = resolvePresenceForDate("2026-10-26", weekly, exceptions, operat
 assert(override.status === "configured" && override.requirements.minimumAtOpening === 1, "Exceção deve substituir padrão.");
 
 assert(
-  resolvePresenceForDate("2026-10-26", weekly, [{ date: "2026-10-26", requirements: null }], operating, []).status === "unconfigured",
-  "Exceção nula não deve herdar o padrão."
+  (()=>{const result=resolvePresenceForDate("2026-10-26",weekly,
+    [{date:"2026-10-26",requirements:null}],operating,[]);
+    return result.status==="configured" && result.source==="default" &&
+      result.requirements.minimumAtOpening===1;})(),
+  "A null exception deliberately replaces a customized weekly rule with the hard default of one."
 );
 assert(
   resolvePresenceForDate("2026-10-26", weekly, [...exceptions, ...exceptions], operating, []).status === "invalid",
@@ -85,6 +95,22 @@ const people = (count: number, start: string, end: string): PresenceAssignment[]
     personId: `p${i}`,
     interval: { start, end },
   }));
+
+// A real hard constraint, including distinct uninterrupted periods.
+const fallback=defaultMinimumPresence();
+const splitDefault=operating.wednesday;
+assert(!checkPresenceForAssignments(splitDefault,fallback,[]).valid,
+  "No staff on an open day must fail default hard coverage.");
+assert(!checkPresenceForAssignments(splitDefault,fallback,
+  people(1,"08:00","12:00")).valid,
+  "The gap in staff during a second open interval must fail.");
+assert(checkPresenceForAssignments(splitDefault,fallback,[
+  ...people(1,"08:00","12:00"),
+  ...people(1,"14:00","20:00").map(x=>({...x,personId:"afternoon"})),
+]).valid,"Two staffed operating windows meet the inherited minimum.");
+const zero={minimumAtOpening:0,minimumDuringOperation:0,minimumAtClosing:0};
+assert(checkPresenceForAssignments(splitDefault,zero,[]).valid,
+  "Explicit zero is distinct from inherited default and does not demand staff.");
 
 const eightHours = [
   ...people(3, "08:00", "16:00"),
