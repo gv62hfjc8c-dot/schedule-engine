@@ -19,6 +19,8 @@ interface Props {
   onChange(next:TimeInterval[]):void;
   /** Keep the standard opening/closing fields as the only editor for one interval. */
   operationMode?:boolean;
+  /** Expanded section rendered without nested disclosure; parent owns toggle. */
+  inlineEditor?:boolean;
 }
 
 /**
@@ -27,7 +29,7 @@ interface Props {
  * Collapsed by default for a single interval to preserve the PR45 UI.
  */
 export default function IntervalListEditor({
-  label,intervals,allowed,onChange,operationMode=false,
+  label,intervals,allowed,onChange,operationMode=false,inlineEditor=false,
 }:Props){
   const [issue,setIssue]=useState("");
   const commit=(result:IntervalEditResult)=>{
@@ -36,13 +38,7 @@ export default function IntervalListEditor({
     onChange(result.intervals);
   };
   const advanced=operationMode && intervals.length<=1;
-  return <details className={"se-multi-interval-editor"+(operationMode?" se-operation-interval-editor":"")}
-    open={operationMode && intervals.length>1 ? true : undefined}>
-    <summary>{operationMode
-      ? intervals.length>1
-        ? `Editar ${intervals.length} intervalos de funcionamento`
-        : intervals.length===1 ? "Adicionar outro intervalo de funcionamento" : "Adicionar intervalo de funcionamento"
-      : `Gerir períodos (${intervals.length}) — ${label}`}</summary>
+  const content=(
     <div className="se-multi-interval-content">
       <p className="se-multi-interval-help">
         {operationMode
@@ -83,5 +79,18 @@ export default function IntervalListEditor({
       </button>
       {issue && <p className="presence-validation" role="alert">{issue}</p>}
     </div>
+  );
+  if(inlineEditor) return <section className="se-multi-interval-editor se-operation-interval-editor se-inline-editor"
+    aria-label={"Editar intervalos de "+label}>
+    {content}
+  </section>;
+  return <details className={"se-multi-interval-editor"+(operationMode?" se-operation-interval-editor":"")}
+    open={operationMode && intervals.length>1 ? true : undefined}>
+    <summary>{operationMode
+      ? intervals.length>1
+        ? `Editar ${intervals.length} intervalos de funcionamento`
+        : intervals.length===1 ? "Adicionar outro intervalo de funcionamento" : "Adicionar intervalo de funcionamento"
+      : `Gerir períodos (${intervals.length}) — ${label}`}</summary>
+    {content}
   </details>;
 }
