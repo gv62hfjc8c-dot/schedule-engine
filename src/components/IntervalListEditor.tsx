@@ -17,6 +17,8 @@ interface Props {
   intervals:TimeInterval[];
   allowed?:TimeInterval[];
   onChange(next:TimeInterval[]):void;
+  /** Keep the standard opening/closing fields as the only editor for one interval. */
+  operationMode?:boolean;
 }
 
 /**
@@ -25,7 +27,7 @@ interface Props {
  * Collapsed by default for a single interval to preserve the PR45 UI.
  */
 export default function IntervalListEditor({
-  label,intervals,allowed,onChange,
+  label,intervals,allowed,onChange,operationMode=false,
 }:Props){
   const [issue,setIssue]=useState("");
   const commit=(result:IntervalEditResult)=>{
@@ -33,17 +35,24 @@ export default function IntervalListEditor({
     setIssue("");
     onChange(result.intervals);
   };
-  return <details className="se-multi-interval-editor"
-    open={intervals.length>1 ? true : undefined}>
-    <summary>Gerir períodos ({intervals.length}) — {label}</summary>
+  const advanced=operationMode && intervals.length<=1;
+  return <details className={"se-multi-interval-editor"+(operationMode?" se-operation-interval-editor":"")}
+    open={operationMode && intervals.length>1 ? true : undefined}>
+    <summary>{operationMode
+      ? intervals.length>1
+        ? `Editar ${intervals.length} intervalos de funcionamento`
+        : intervals.length===1 ? "Adicionar outro intervalo de funcionamento" : "Adicionar intervalo de funcionamento"
+      : `Gerir períodos (${intervals.length}) — ${label}`}</summary>
     <div className="se-multi-interval-content">
       <p className="se-multi-interval-help">
-        Períodos independentes em passos de 15 minutos. Não podem sobrepor-se.
+        {operationMode
+          ? "Horários em passos de 15 minutos. Os intervalos não podem sobrepor-se."
+          : "Períodos independentes em passos de 15 minutos. Não podem sobrepor-se."}
         {allowed && " A disponibilidade tem de caber dentro do funcionamento."}
       </p>
       {intervals.length===0 &&
         <p className="se-multi-interval-help">Nenhum período configurado.</p>}
-      {intervals.map((interval,index)=><div className="se-multi-interval-row"
+      {!advanced && intervals.map((interval,index)=><div className="se-multi-interval-row"
         key={index}>
         <label>
           <span>Início {index+1}</span>
@@ -70,7 +79,7 @@ export default function IntervalListEditor({
       <button className="se-outline" type="button"
         disabled={allowed?.length===0}
         onClick={()=>commit(addInterval(intervals,allowed))}>
-        + Adicionar período
+        {operationMode ? "+ Adicionar outro intervalo" : "+ Adicionar período"}
       </button>
       {issue && <p className="presence-validation" role="alert">{issue}</p>}
     </div>

@@ -307,6 +307,59 @@ try{
     "Europe/Lisbon","Timezone must survive reload.");
   matches(await operation.getByLabel(/Início de um ciclo fixo de 28 dias/)
     .inputValue(),"2026-11-02","Cycle anchor must survive reload.");
+  // PR61: exception drafts must never autosave or create a fabricated closing.
+  const special=page.locator(".exceptions-panel");
+  await special.getByRole("heading",{name:"Exceções"}).waitFor();
+  await page.locator(".save-status.saved").waitFor();
+  const beforeDraftSaves=saves;
+  await special.getByRole("button",{name:/Adicionar$/}).click();
+  await special.getByRole("form",{name:"Nova exceção"}).waitFor();
+  assert.equal(persisted.exceptions.length,0,
+    "Opening a draft cannot create an operational exception.");
+  await special.getByRole("button",{name:"Cancelar"}).click();
+  await delay(700);
+  assert.equal(saves,beforeDraftSaves,
+    "Canceling the exception draft cannot trigger any cloud save.");
+  await special.getByRole("button",{name:/Adicionar$/}).click();
+  const draft=special.getByRole("form",{name:"Nova exceção"});
+  await draft.getByRole("button",{name:"Data da exceção"}).click();
+  await page.getByRole("dialog",{name:"Calendário"})
+    .getByRole("button",{name:"12",exact:true}).click();
+  await draft.getByLabel("Motivo").fill("Dia especial");
+  await draft.getByRole("radio",{name:"Aberto com horário especial"}).check();
+  await draft.getByLabel("Fecho").selectOption("17:00");
+  assert.equal(persisted.exceptions.length,0,
+    "Draft changes stay local until explicitly saved.");
+  await draft.getByRole("button",{name:"Guardar exceção"}).click();
+  await wait(()=>persisted.exceptions.length===1,
+    "Confirmed exception persisted through cloud save");
+  assert.equal(persisted.exceptions[0].date,"2026-11-12");
+  assert.equal(persisted.exceptions[0].reason,"Dia especial");
+  assert.deepEqual(persisted.exceptions[0].intervals,[{start:"09:00",end:"17:00"}]);
+  await special.getByRole("button",{name:/Adicionar$/}).click();
+  const duplicate=special.getByRole("form",{name:"Nova exceção"});
+  await duplicate.getByRole("button",{name:"Data da exceção"}).click();
+  await page.getByRole("dialog",{name:"Calendário"})
+    .getByRole("button",{name:"12",exact:true}).click();
+  await duplicate.getByLabel("Motivo").fill("Duplicado");
+  await duplicate.getByRole("button",{name:"Guardar exceção"}).click();
+  await duplicate.getByRole("alert").getByText(/Já existe uma exceção/).waitFor();
+  assert.equal(persisted.exceptions.length,1,"Duplicate rejected without writes.");
+  await duplicate.getByRole("button",{name:"Cancelar"}).click();
+  await special.getByRole("button",{name:"Editar"}).click();
+  const edited=special.getByRole("form",{name:"Editar exceção"});
+  await edited.getByLabel("Motivo").fill("Não publicar");
+  await edited.getByRole("button",{name:"Cancelar"}).click();
+  assert.equal(persisted.exceptions[0].reason,"Dia especial",
+    "Canceling an edit must preserve existing data.");
+  await special.getByRole("button",{name:"Remover"}).click();
+  await special.getByRole("button",{name:"Cancelar"}).click();
+  assert.equal(persisted.exceptions.length,1,
+    "Canceling removal must preserve original exception.");
+  await special.getByRole("button",{name:"Remover"}).click();
+  await special.getByRole("button",{name:"Confirmar remoção"}).click();
+  await wait(()=>persisted.exceptions.length===0,
+    "Explicit removal confirmation persists an empty exception set");
   await page.getByRole("button",{name:"Horários",exact:true}).click();
   await page.locator('button.se-day[aria-label^="29 de novembro"]')
     .click();

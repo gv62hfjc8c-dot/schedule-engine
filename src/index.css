@@ -4002,3 +4002,175 @@ h2 {
   .entry-option {padding:15px 13px;}
   .entry-primary-button,.entry-outline-button {width:100%;}
 }
+
+
+/* PR61 — onboarding-ready operational configuration, no new scheduling model. */
+.operation-mode-hint {
+  margin: 0;
+  padding: 10px 23px 14px;
+  font-size: 12px;
+  line-height: 1.55;
+  color: #526174;
+}
+.operation-mode-hint strong { color: #22364a; }
+.se-operation-interval-editor {
+  border-style: dashed;
+  border-color: #c5d2e2;
+  margin-top: 0;
+}
+.se-operation-interval-editor > summary {
+  color: #38628e;
+  font-size: 12px;
+}
+.operation-adjacent-hint {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border: 1px solid #c2d4e8;
+  border-radius: 9px;
+  background: #eff6fd;
+  color: #314b69;
+  font-size: 12px;
+}
+.operation-adjacent-hint .se-outline { min-height: 33px; }
+.operation-exception-draft {
+  display: grid;
+  gap: 16px;
+  margin: 10px 22px 18px;
+  padding: 16px;
+  background: #f8fbff;
+  border: 1px solid #d5dfeb;
+  border-radius: 12px;
+}
+.operation-exception-entry .operation-exception-draft {
+  margin: 0;
+}
+.operation-exception-fields {
+  display: grid;
+  gap: 12px;
+}
+.operation-exception-fields label,
+.operation-exception-time-grid label {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  color: #46576d;
+  font-size: 12px;
+  font-weight: 600;
+}
+.operation-exception-fields input[type="text"],
+.operation-exception-time-grid select {
+  width: 100%;
+  min-height: 42px;
+  color: #172033;
+  background: #fff;
+}
+.operation-exception-date .custom-date-field { width: 100%; }
+.operation-exception-mode {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  border: 1px solid #d5dfeb;
+  border-radius: 10px;
+  padding: 9px 12px 12px;
+  min-width: 0;
+}
+.operation-exception-mode legend {
+  padding-inline: 5px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.operation-exception-mode label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+}
+.operation-exception-open {
+  display: grid;
+  gap: 12px;
+}
+.operation-exception-hint {
+  font-size: 12px;
+  color: #496783;
+  margin: 0;
+}
+.operation-exception-time-grid {
+  display: grid;
+  grid-template-columns: repeat(2,minmax(0,1fr));
+  gap: 12px;
+}
+.operation-exception-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.operation-exception-actions .primary-button,
+.operation-exception-actions .se-outline {
+  min-height: 38px;
+  width: auto;
+}
+.operation-exception-entry {
+  border: 1px solid #d5dfeb;
+  border-radius: 12px;
+  padding: 14px;
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  background: #f8fbff;
+}
+.operation-exception-entry-info {
+  display: grid;
+  gap: 4px;
+}
+.operation-exception-entry-info span,
+.operation-exception-entry-info small {
+  color: #566b82;
+  font-size: 12px;
+}
+@media (max-width: 520px) {
+  .operation-exception-time-grid { grid-template-columns: 1fr; }
+  .operation-exception-draft { margin-inline: 12px; padding: 12px; }
+  .operation-mode-hint { padding-inline: 16px; }
+  .operation-exception-actions { justify-content: flex-start; }
+  .operation-exception-mode { flex-direction: column; gap: 8px; }
+}
+@media (prefers-color-scheme: dark) {
+  .operation-mode-hint { color: #b8cbe0; }
+  .operation-mode-hint strong { color: #e4efff; }
+  .se-operation-interval-editor { border-color: #57708c; }
+  .se-operation-interval-editor > summary { color: #b4d4ff; }
+  .se-multi-interval-row select {
+    background: #142030;
+    color: #f3f7fd;
+    border-color: #6b839d;
+  }
+  .operation-adjacent-hint {
+    color: #d2e4fc;
+    background: #233a53;
+    border-color: #57708c;
+  }
+  .operation-exception-entry,
+  .operation-exception-draft {
+    background: #1c2b3d;
+    border-color: #50657e;
+    color: #edf3fb;
+  }
+  .operation-exception-mode { border-color: #50657e; }
+  .operation-exception-fields label,
+  .operation-exception-time-grid label,
+  .operation-exception-entry-info span,
+  .operation-exception-entry-info small { color: #c4d5e8; }
+  .operation-exception-fields input[type="text"],
+  .operation-exception-time-grid select {
+    color: #f4f8fd;
+    background: #142030;
+    border-color: #647f9c;
+  }
+  .operation-exception-hint { color: #b5d5f5; }
+}
