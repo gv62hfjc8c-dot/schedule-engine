@@ -14,6 +14,8 @@ import type {
 import WorkRulesPanel from "./components/WorkRulesPanel";
 import TimeWheelSelect from "./components/TimeWheelSelect";
 import IntervalListEditor from "./components/IntervalListEditor";
+import OperationExceptionEditor from "./components/OperationExceptionEditor";
+import {hasAdjacentOperatingIntervals,mergeAdjacentOperatingIntervals,operatingPresentation} from "./utils/operationConfigurationDraft";
 import CalendarDateInput from "./components/CalendarDateInput";
 import PresencePanel from "./components/PresencePanel";
 import ScheduleGeneratorPanel from "./components/ScheduleGeneratorPanel";
@@ -205,7 +207,8 @@ export default function App() {
   const [employmentStartDraft,setEmploymentStartDraft] = useState("");
   const [employmentEndDraft,setEmploymentEndDraft] = useState("");
   const [personError, setPersonError] = useState("");
-  const [exceptionIssue, setExceptionIssue] = useState("");
+  const [editingExceptionIndex,setEditingExceptionIndex]=useState<number | "new" | null>(null);
+  const [removingExceptionIndex,setRemovingExceptionIndex]=useState<number|null>(null);
   const [availabilityExceptionIssue, setAvailabilityExceptionIssue] = useState("");
   const {route,navigate}=useWorkspaceRouting();
   const activeSection=route.section;
@@ -500,17 +503,6 @@ export default function App() {
 
   // The compact editor only changes the first interval; imported extra
   // intervals must remain intact until the full editor is available.
-  const nextUnusedExceptionDate = (items: {date: string}[]): string => {
-    const used = new Set(items.map(item => item.date));
-    const date = new Date(todayKey() + "T00:00:00Z");
-    for (let i = 0; i < 36525; i++) {
-      const candidate = date.toISOString().slice(0, 10);
-      if (!used.has(candidate)) return candidate;
-      date.setUTCDate(date.getUTCDate() + 1);
-    }
-    throw new Error("Não existe data livre para uma nova exceção.");
-  };
-
   const updateDayInterval = (
     weekday: Weekday,
     field: "start" | "end",
@@ -550,61 +542,19 @@ export default function App() {
     }));
   };
 
-  const addException = () => {
-    setExceptions(current => [
-      ...current,
-      { date: nextUnusedExceptionDate(current), intervals: [] },
-    ]);
-  };
-
-  const updateException = (
-    index: number,
-    next: OperatingHoursException
-  ) => {
-    if (exceptions.some((item, i) => i !== index && item.date === next.date)) {
-      setExceptionIssue("Já existe uma exceção operacional para essa data.");
-      return;
-    }
-    setExceptionIssue("");
-    setExceptions((current) =>
-      current.map((exception, currentIndex) =>
-        currentIndex === index ? next : exception
-      )
-    );
-  };
-
-  const updateExceptionInterval = (
-    index: number,
-    exception: OperatingHoursException,
-    field: "start" | "end",
-    value: string
-  ) => {
-    const existing = exception.intervals[0] ?? {
-      start: "09:00",
-      end: "18:00",
-    };
-
-    const nextInterval =
-      field === "start"
-        ? {
-            start: value,
-            end: normalizeEnd(value, existing.end),
-          }
-        : {
-            start: existing.start,
-            end: value,
-          };
-
-    updateException(index, {
-      ...exception,
-      intervals: [nextInterval, ...exception.intervals.slice(1)],
+  const saveException = (next: OperatingHoursException) => {
+    setExceptions(current=>{
+      if(editingExceptionIndex==="new") return [...current,next];
+      if(typeof editingExceptionIndex!=="number") return current;
+      return current.map((item,index)=>index===editingExceptionIndex?next:item);
     });
+    setEditingExceptionIndex(null);
+    setRemovingExceptionIndex(null);
   };
-
-  const removeException = (index: number) => {
-    setExceptions((current) =>
-      current.filter((_, currentIndex) => currentIndex !== index)
-    );
+  const confirmRemoveException = (index:number) => {
+    setExceptions(current=>current.filter((_,currentIndex)=>currentIndex!==index));
+    setEditingExceptionIndex(null);
+    setRemovingExceptionIndex(null);
   };
 
   const addPerson = () => {
@@ -1072,10 +1022,11 @@ export default function App() {
               <h2>Horário de funcionamento</h2>
             </div>
             <p className="panel-help">
-              Configuração recorrente de segunda a domingo.
+              Confirma os horários sugeridos antes da primeira geração. Abertura não é turno nem refeição.
             </p>
           </div>
 
+          <p className="operation-mode-hint">Modelo de funcionamento: <strong>{operatingPresentation(weeklyHours)==="continuous"?"Contínuo":operatingPresentation(weeklyHours)==="adjacent"?"Contínuo com intervalos contíguos":"Com interrupções"}</strong>. Podes configurar cada dia com um ou vários intervalos.</p>
           <div className="schedule-table">
             <div className="schedule-head" aria-hidden="true">
               <span>Dia</span>
@@ -1160,16 +1111,26 @@ export default function App() {
                   ) : (
                     <div className="closed-span">
                       {closed ? "Sem horário de funcionamento" :
-                        "Vários períodos: utiliza «Gerir períodos» abaixo"}
+                        `Intervalos configurados: ${formatIntervals(intervals)}`}
                     </div>
                   )}
                   <IntervalListEditor
                     label={"funcionamento de "+weekdayLabels[weekday]}
                     intervals={intervals}
+                    operationMode
                     onChange={next=>setWeeklyHours(current=>({
                       ...current,[weekday]:next,
                     }))}
                   />
+                  {hasAdjacentOperatingIntervals(intervals) &&
+                    <div className="operation-adjacent-hint">
+                      <span>Os intervalos são contíguos; podes apresentá-los como um único horário.</span>
+                      <button type="button" className="se-outline"
+                        onClick={()=>{
+                          const joined=mergeAdjacentOperatingIntervals(intervals);
+                          if(joined.valid) setWeeklyHours(current=>({...current,[weekday]:joined.intervals}));
+                        }}>Unir intervalos contíguos</button>
+                    </div>}
                 </div>
               );
             })}
@@ -1177,144 +1138,70 @@ export default function App() {
         </section>
 
         <aside className="panel exceptions-panel">
-          <div className="panel-header compact">
-            <div>
-              <p className="section-kicker">Datas especiais</p>
-              <h2>Exceções</h2>
-            </div>
-            <button
-              type="button"
-              className="primary-button"
-              onClick={addException}
-            >
-              <span>+</span>
-              Adicionar
-            </button>
-          </div>
-
-          <p className="section-description">
-            Feriados, encerramentos ou horários diferentes do padrão.
-          </p>
-          {exceptionIssue && <p className="presence-validation" role="alert">{exceptionIssue}</p>}
-          {exceptions.length !== new Set(exceptions.map(item => item.date)).size &&
-            <p className="presence-validation" role="alert">Existem exceções operacionais repetidas na configuração. Corrige as datas duplicadas.</p>}
-
-          {exceptions.length === 0 ? (
-            <div className="empty-state">
-              <div className="empty-icon">◎</div>
-              <strong>Nenhuma exceção definida</strong>
-              <p>O padrão semanal aplica-se a todas as datas.</p>
-            </div>
-          ) : (
-            <div className="exception-list">
-              {exceptions.map((exception, index) => {
-                const closed = exception.intervals.length === 0;
-                const interval = exception.intervals[0] ?? {
-                  start: "09:00",
-                  end: "18:00",
-                };
-
-                return (
-                  <article className="exception-card" key={index}>
-                    <div className="exception-topline">
-                      <CalendarDateInput
-                        className="date-input"
-                        value={exception.date}
-                        onChange={(event) =>
-                          updateException(index, {
-                            ...exception,
-                            date: event.target.value,
-                          })
-                        }
-                      />
-
-                      <button
-                        type="button"
-                        className="icon-button"
-                        onClick={() => removeException(index)}
-                        aria-label="Remover exceção"
-                        title="Remover exceção"
-                      >
-                        ×
-                      </button>
-                    </div>
-
-                    <div className="exception-controls">
-                      <button
-                        type="button"
-                        className={`state-button ${closed ? "closed" : "open"}`}
-                        onClick={() =>
-                          updateException(index, {
-                            ...exception,
-                            intervals: closed
-                              ? [{ start: "09:00", end: "18:00" }]
-                              : [],
-                          })
-                        }
-                      >
-                        <span className="state-dot" />
-                        {closed ? "Fechado" : "Aberto"}
-                      </button>
-
-                      {!closed && exception.intervals.length===1 && (
-                        <div className="exception-time-grid">
-                          <label className="select-field">
-                            <span>Abertura</span>
-                            <TimeWheelSelect
-                              value={interval.start}
-                              onChange={(event) =>
-                                updateExceptionInterval(
-                                  index,
-                                  exception,
-                                  "start",
-                                  event.target.value
-                                )
-                              }
-                            >
-                              {openingOptions.map((time) => (
-                                <option key={time} value={time}>
-                                  {time}
-                                </option>
-                              ))}
-                            </TimeWheelSelect>
-                          </label>
-
-                          <label className="select-field">
-                            <span>Fecho</span>
-                            <TimeWheelSelect
-                              value={interval.end}
-                              onChange={(event) =>
-                                updateExceptionInterval(
-                                  index,
-                                  exception,
-                                  "end",
-                                  event.target.value
-                                )
-                              }
-                            >
-                              {closingOptionsAfter(interval.start).map(
-                                (time) => (
-                                  <option key={time} value={time}>
-                                    {time}
-                                  </option>
-                                )
-                              )}
-                            </TimeWheelSelect>
-                          </label>
-                        </div>
-                      )}
-                    </div>
-                    <IntervalListEditor
-                      label={"funcionamento excecional de "+exception.date}
-                      intervals={exception.intervals}
-                      onChange={next=>updateException(index,{...exception,intervals:next})}
-                    />
-                  </article>
-                );
-              })}
-            </div>
-          )}
-        </aside>
+           <div className="panel-header compact">
+             <div>
+               <p className="section-kicker">Datas especiais</p>
+               <h2>Exceções</h2>
+             </div>
+             <button type="button" className="primary-button"
+               onClick={()=>{setEditingExceptionIndex("new");setRemovingExceptionIndex(null);}}>
+               <span>+</span> Adicionar
+             </button>
+           </div>
+           <p className="section-description">
+             Feriados, encerramentos ou horários diferentes do padrão.
+             A configuração só muda depois de Guardar exceção.
+           </p>
+           {editingExceptionIndex==="new" && <OperationExceptionEditor
+             key="new"
+             existing={exceptions}
+             editingIndex={null}
+             weeklyHours={weeklyHours}
+             onSave={saveException}
+             onCancel={()=>setEditingExceptionIndex(null)}
+           />}
+           {exceptions.length===0 && editingExceptionIndex!=="new"
+             ? <div className="empty-state"><div className="empty-icon">◎</div>
+                 <strong>Nenhuma exceção definida</strong>
+                 <p>O padrão semanal aplica-se a todas as datas.</p>
+               </div>
+             : <div className="exception-list">
+                 {exceptions.map((exception,index)=>
+                   <div className="operation-exception-entry" key={exception.date}>
+                     {editingExceptionIndex===index
+                       ? <OperationExceptionEditor
+                           key={exception.date}
+                           initial={exception}
+                           existing={exceptions}
+                           editingIndex={index}
+                           weeklyHours={weeklyHours}
+                           onSave={saveException}
+                           onCancel={()=>setEditingExceptionIndex(null)}
+                         />
+                       : <>
+                           <div className="operation-exception-entry-info">
+                             <strong>{exception.date}</strong>
+                             <span>{exception.reason||"Motivo não indicado (registo anterior)"}</span>
+                             <small>{formatIntervals(exception.intervals)}</small>
+                           </div>
+                           {removingExceptionIndex===index
+                             ? <div className="operation-exception-actions">
+                                 <span>Confirmas a remoção desta exceção?</span>
+                                 <button type="button" className="se-outline"
+                                   onClick={()=>setRemovingExceptionIndex(null)}>Cancelar</button>
+                                 <button type="button" className="se-outline"
+                                   onClick={()=>confirmRemoveException(index)}>Confirmar remoção</button>
+                               </div>
+                             : <div className="operation-exception-actions">
+                                 <button type="button" className="se-outline"
+                                   onClick={()=>{setEditingExceptionIndex(index);setRemovingExceptionIndex(null);}}>Editar</button>
+                                 <button type="button" className="se-outline"
+                                   onClick={()=>setRemovingExceptionIndex(index)}>Remover</button>
+                               </div>}
+                         </>}
+                   </div>)}
+               </div>}
+         </aside>
           </div>
         </>
       )}
