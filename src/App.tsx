@@ -1058,14 +1058,14 @@ export default function App() {
               return (
                 <div
                   key={weekday}
-                  className={`schedule-row ${closed ? "is-closed" : ""}`}
+                  className={`schedule-row operation-schedule-row ${closed ? "is-closed" : ""}`}
                 >
                   <div className="day-name">
                     <strong>{weekdayLabels[weekday]}</strong>
                     {intervals.length>1 && <span>{formatIntervals(intervals)}</span>}
                     {!closed && <button type="button" className="operation-inline-trigger"
                       aria-label={`${weekdayLabels[weekday]}: ${editingWeekday===weekday?"Ocultar edição de intervalos":intervals.length>1?"Editar intervalos de funcionamento":"Adicionar outro intervalo de funcionamento"}`}
-                      aria-controls={`operation-intervals-${weekday}`}
+                      aria-controls={editingWeekday===weekday?`operation-intervals-${weekday}`:undefined}
                       aria-expanded={editingWeekday===weekday}
                       onClick={()=>setEditingWeekday(current=>current===weekday?null:weekday)}>
                       {editingWeekday===weekday?"Fechar intervalos":intervals.length>1?"Editar intervalos":"+ Outro intervalo"}
