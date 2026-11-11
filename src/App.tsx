@@ -208,6 +208,7 @@ export default function App() {
   const [employmentEndDraft,setEmploymentEndDraft] = useState("");
   const [personError, setPersonError] = useState("");
   const [editingExceptionIndex,setEditingExceptionIndex]=useState<number | "new" | null>(null);
+  const [editingWeekday,setEditingWeekday]=useState<Weekday|null>(null);
   const [removingExceptionIndex,setRemovingExceptionIndex]=useState<number|null>(null);
   const [availabilityExceptionIssue, setAvailabilityExceptionIssue] = useState("");
   const {route,navigate}=useWorkspaceRouting();
@@ -545,6 +546,7 @@ export default function App() {
   };
 
   const toggleClosed = (weekday: Weekday) => {
+    setEditingWeekday(null);
     setWeeklyHours((current) => ({
       ...current,
       [weekday]:
@@ -955,6 +957,7 @@ export default function App() {
               {persistenceStatus === "saved" && "Guardado"}
               {persistenceStatus === "error" && "Erro ao guardar"}
             </div>
+            {editingExceptionIndex!==null && <span className="operation-draft-status" role="status">Exceção por guardar</span>}
           </div>
         </header>
         <div className="application-page">
@@ -1038,7 +1041,7 @@ export default function App() {
             </p>
           </div>
 
-          <p className="operation-mode-hint">Modelo de funcionamento: <strong>{operatingPresentation(weeklyHours)==="continuous"?"Contínuo":operatingPresentation(weeklyHours)==="adjacent"?"Contínuo com intervalos contíguos":"Com interrupções"}</strong>. Podes configurar cada dia com um ou vários intervalos.</p>
+          <p className="operation-mode-hint">Funcionamento semanal: <strong>{operatingPresentation(weeklyHours)==="interrupted"?"com interrupções":"contínuo"}</strong>. Se a operação fechar e voltar a abrir no mesmo dia, adiciona outro intervalo nesse dia.</p>
           <div className="schedule-table">
             <div className="schedule-head" aria-hidden="true">
               <span>Dia</span>
@@ -1055,11 +1058,18 @@ export default function App() {
               return (
                 <div
                   key={weekday}
-                  className={`schedule-row ${closed ? "is-closed" : ""}`}
+                  className={`schedule-row operation-schedule-row ${closed ? "is-closed" : ""}`}
                 >
                   <div className="day-name">
                     <strong>{weekdayLabels[weekday]}</strong>
-                    <span>{formatIntervals(intervals)}</span>
+                    {intervals.length>1 && <span>{formatIntervals(intervals)}</span>}
+                    {!closed && <button type="button" className="operation-inline-trigger"
+                      aria-label={`${weekdayLabels[weekday]}: ${editingWeekday===weekday?"Ocultar edição de intervalos":intervals.length>1?"Editar intervalos de funcionamento":"Adicionar outro intervalo de funcionamento"}`}
+                      aria-controls={editingWeekday===weekday?`operation-intervals-${weekday}`:undefined}
+                      aria-expanded={editingWeekday===weekday}
+                      onClick={()=>setEditingWeekday(current=>current===weekday?null:weekday)}>
+                      {editingWeekday===weekday?"Fechar intervalos":intervals.length>1?"Editar intervalos":"+ Outro intervalo"}
+                    </button>}
                   </div>
 
                   <button
@@ -1123,17 +1133,23 @@ export default function App() {
                   ) : (
                     <div className="closed-span">
                       {closed ? "Sem horário de funcionamento" :
-                        `Intervalos configurados: ${formatIntervals(intervals)}`}
+                        "Vários intervalos configurados"}
                     </div>
                   )}
-                  {!closed && <IntervalListEditor
-                    label={"funcionamento de "+weekdayLabels[weekday]}
-                    intervals={intervals}
-                    operationMode
-                    onChange={next=>setWeeklyHours(current=>({
-                      ...current,[weekday]:next,
-                    }))}
-                  />}
+                  {!closed && editingWeekday===weekday && <div
+                    className="operation-advanced-row" id={`operation-intervals-${weekday}`}>
+                    <IntervalListEditor
+                      label={"funcionamento de "+weekdayLabels[weekday]}
+                      intervals={intervals}
+                      operationMode
+                      inlineEditor
+                      onChange={next=>setWeeklyHours(current=>({
+                        ...current,[weekday]:next,
+                      }))}
+                    />
+                    <button type="button" className="operation-advanced-close"
+                      onClick={()=>setEditingWeekday(null)}>Fechar edição</button>
+                  </div>}
                   {hasAdjacentOperatingIntervals(intervals) &&
                     <div className="operation-adjacent-hint">
                       <span>Os intervalos são contíguos; podes apresentá-los como um único horário.</span>

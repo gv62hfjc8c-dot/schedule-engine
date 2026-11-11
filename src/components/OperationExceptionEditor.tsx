@@ -64,6 +64,7 @@ export default function OperationExceptionEditor({
 
   return <form className="operation-exception-draft" onSubmit={submit}
     aria-label={initial?"Editar exceção":"Nova exceção"}>
+    <p className="operation-exception-unsaved"><strong>Rascunho por confirmar.</strong> Só será guardado quando selecionares «Guardar exceção».</p>
     <div className="operation-exception-fields">
       <label className="operation-exception-date">
         <span>Data da exceção</span>
