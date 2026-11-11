@@ -334,7 +334,7 @@ export function isPersistedAppState(
             typeof settings.cycleDecisionConfirmed==="boolean") &&
            (settings.operationConfirmedFingerprint===undefined ||
             (typeof settings.operationConfirmedFingerprint==="string" &&
-             settings.operationConfirmedFingerprint.length<=2000));
+             settings.operationConfirmedFingerprint.length<=65536));
        })())) &&
     isWeeklyIntervals(state.weeklyOperatingHours) &&
     Array.isArray(state.exceptions) &&
