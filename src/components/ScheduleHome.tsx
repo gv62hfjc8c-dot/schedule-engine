@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabaseAuthClient } from "../persistence/supabaseInstance";
-import { accountingCycleForDate } from "../utils/accountingCycle28";
+import {workAccountingCycleForDate,selectedCycleLength,type AccountingCycleDays} from "../utils/accountingCycleConfiguration";
 import ScheduleViews from "./ScheduleViews";
 import DailyShiftDetails from "./DailyShiftDetails";
 import OfficialApprovalPanel from "./OfficialApprovalPanel";
@@ -26,6 +26,7 @@ interface Props {
   operatingCalendar: OperatingCalendarConfiguration;
   operationTimeZone: string;
   cycleAnchorDate?: string;
+  accountingCycleDays?:AccountingCycleDays;
   savedRevision: number;
   initialMonth?: string;
   /** A canonical /horarios/YYYY-MM-DD route, or null for the monthly view. */
@@ -75,7 +76,7 @@ const historicalArchive = supabaseAuthClient
  * and revisions are out of scope; never present simulated shifts as official.
  */
 export default function ScheduleHome({
-  people, availabilities, operatingCalendar, operationTimeZone, cycleAnchorDate, savedRevision, initialMonth,
+  people, availabilities, operatingCalendar, operationTimeZone, cycleAnchorDate, accountingCycleDays, savedRevision, initialMonth,
   initialDailyDate=null, onNavigateDay, onCreate, onConfigureTeam,
 }: Props) {
   const today = todayInTimeZone(operationTimeZone);
@@ -258,7 +259,10 @@ export default function ScheduleHome({
   }) : null;
   const kind = selectedDayState === "closed" || selectedDayState === "proposal"
     ? selectedDayState : "unplanned";
-  const activeCycle = selectedDate && cycleAnchorDate ? accountingCycleForDate(selectedDate,cycleAnchorDate) : null;
+  const activeCycle = selectedDate && cycleAnchorDate
+    ? workAccountingCycleForDate(selectedDate,cycleAnchorDate,
+        selectedCycleLength(cycleAnchorDate,accountingCycleDays)??28)
+    : null;
   const unknownArchive = selectedDate ?
     unreadableArchiveAffectsDate(unreadable,selectedDate) : unreadable.length>0;
   const canInspectDay = selectedDayState === "proposal" ||
@@ -732,9 +736,9 @@ export default function ScheduleHome({
         </div>
         <div className={"se-panel-status " + (selectedDayState ?? "unplanned")}>{statusLabel}</div>
         {activeCycle && <div className="se-readonly-note">
-          <strong>Ciclo de 28 dias</strong>
-          <p>{activeCycle.startDate} a {activeCycle.endDate} · semana {activeCycle.week}/4</p>
-          <small>Referência contabilística; não representa aprovação nem geração automática de 28 dias.</small>
+          <strong>Ciclo de {activeCycle.days} dias</strong>
+          <p>{activeCycle.startDate} a {activeCycle.endDate} · semana {activeCycle.week}/{activeCycle.totalWeeks}</p>
+          <small>Referência contabilística opcional; não representa aprovação nem limita a duração da geração.</small>
         </div>}
         {historicalDateAvailable && <div className="se-history-summary">
           <h4>Registos históricos importados</h4>
