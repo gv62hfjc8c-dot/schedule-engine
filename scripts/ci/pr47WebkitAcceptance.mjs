@@ -578,8 +578,10 @@ try{
   // 14: rejected network write cannot claim success, must offer JSON export.
   await page.getByRole("button",{name:"Operação",exact:true}).click();
   failNextSave=true;
-  await page.getByLabel(/Início de um ciclo fixo de 28 dias/)
-    .fill("2026-11-09");
+  await page.getByRole("button",{name:"Alterar ciclo"}).click();
+  const refused=page.getByRole("group",{name:"Escolher ciclo de trabalho"});
+  await refused.getByLabel("Data de início do ciclo").fill("2026-11-09");
+  await refused.getByRole("button",{name:"Guardar escolha do ciclo"}).click();
   await page.getByRole("heading",{name:"Não foi possível carregar a configuração"})
     .waitFor({timeout:10000});
   await page.getByRole("button",{
