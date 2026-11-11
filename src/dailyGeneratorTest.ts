@@ -162,13 +162,13 @@ const zero = generateDaySchedule(inputFor(
 assert(zero.status === "generated" && zero.assignments.length === 0,
   "Mínimos zero permitem solução vazia.");
 
-const unconfigured = generateDaySchedule({
+const inherited = generateDaySchedule({
   ...short, presence: {
     ...short.presence, presenceExceptions: [{ date, requirements: null }],
   },
 });
-assert(unconfigured.status === "invalid_input",
-  "Sem mínimos configurados deve dar erro de entrada.");
+assert(inherited.status === "generated" && inherited.assignments.length > 0,
+  "Uma exceção nula deve herdar mínimo obrigatório de uma pessoa, não erro de entrada.");
 
 const badDuration = generateDaySchedule({
   ...short, workRules: { standardShiftDurationMinutes: null },
