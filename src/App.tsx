@@ -503,6 +503,18 @@ export default function App() {
 
   // The compact editor only changes the first interval; imported extra
   // intervals must remain intact until the full editor is available.
+  // Availability exceptions still use the existing legacy date allocation workflow.
+  const nextUnusedExceptionDate = (items: {date: string}[]): string => {
+    const used = new Set(items.map(item => item.date));
+    const date = new Date(todayKey() + "T00:00:00Z");
+    for (let i = 0; i < 36525; i++) {
+      const candidate = date.toISOString().slice(0, 10);
+      if (!used.has(candidate)) return candidate;
+      date.setUTCDate(date.getUTCDate() + 1);
+    }
+    throw new Error("Não existe data livre para uma nova exceção.");
+  };
+
   const updateDayInterval = (
     weekday: Weekday,
     field: "start" | "end",
@@ -1114,14 +1126,14 @@ export default function App() {
                         `Intervalos configurados: ${formatIntervals(intervals)}`}
                     </div>
                   )}
-                  <IntervalListEditor
+                  {!closed && <IntervalListEditor
                     label={"funcionamento de "+weekdayLabels[weekday]}
                     intervals={intervals}
                     operationMode
                     onChange={next=>setWeeklyHours(current=>({
                       ...current,[weekday]:next,
                     }))}
-                  />
+                  />}
                   {hasAdjacentOperatingIntervals(intervals) &&
                     <div className="operation-adjacent-hint">
                       <span>Os intervalos são contíguos; podes apresentá-los como um único horário.</span>
