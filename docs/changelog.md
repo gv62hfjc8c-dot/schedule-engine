@@ -1,3 +1,12 @@
+## 2026-11-11 — PR60 · rotas próprias da aplicação
+
+- Cada uma das sete áreas de trabalho passou a ter URL canónico, mantendo a SPA em React e o backend de dados independentes.
+- Gestão diária identificada por `/horarios/AAAA-MM-DD`, com navegação entre dias e restauro de contexto em reload e Anterior/Seguinte do navegador.
+- Rota inicial `/` e URLs desconhecidos resolvem de forma segura para `/horarios`. Datas inválidas não são interpretadas como dias válidos.
+- Autenticação Supabase continua a proteger as áreas; um URL não permite contornar a sessão nem alterar dados.
+- Testes de contratos de rotas e de UI WebKit verificam deep links, reload e navegação no histórico. Para deploy externo, exigir fallback de SPA no servidor.
+- Sem mudanças no algoritmo, constraints, na informação histórica, nas propostas guardadas ou no Supabase.
+
 ## 2026-11-10 — PR59 · Primeira configuração e proteção de dados
 
 - Separado o ecrã de escolha sobre dados antigos de verdadeiras falhas de sincronização. A escolha de importação deixa de apresentar um falso erro técnico.

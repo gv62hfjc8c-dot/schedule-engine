@@ -20,6 +20,7 @@ import ScheduleGeneratorPanel from "./components/ScheduleGeneratorPanel";
 import ScheduleHome from "./components/ScheduleHome";
 import ApplicationNavigation,{areaFor,sectionLabel} from "./components/ApplicationNavigation";
 import AccountEntryDecision from "./components/AccountEntryDecision";
+import {useWorkspaceRouting} from "./utils/useWorkspaceRouting";
 import { supabaseAuthClient } from "./persistence/supabaseInstance";
 import { createSupabaseGeneratedScheduleRepository } from "./persistence/supabaseGeneratedScheduleRepository";
 import { authorizeLegacyImportForOwner, startFreshCloudAccountForOwner, LegacyImportConsentRequiredError } from "./persistence/supabaseStateRepository";
@@ -206,9 +207,8 @@ export default function App() {
   const [personError, setPersonError] = useState("");
   const [exceptionIssue, setExceptionIssue] = useState("");
   const [availabilityExceptionIssue, setAvailabilityExceptionIssue] = useState("");
-  const [activeSection, setActiveSection] = useState<
-    "schedules" | "calendar" | "people" | "availability" | "workRules" | "presence" | "generator"
-  >("schedules");
+  const {route,navigate}=useWorkspaceRouting();
+  const activeSection=route.section;
   const [
     selectedAvailabilityPersonId,
     setSelectedAvailabilityPersonId,
@@ -228,7 +228,7 @@ export default function App() {
 
   function openGenerator(date?: string) {
     setGeneratorInitialDate(date);
-    setActiveSection("generator");
+    navigate("generator");
   }
 
   async function saveGenerated(payload: GeneratedSchedulePayload, proposalId: string): Promise<StoredGeneratedSchedule> {
@@ -965,7 +965,7 @@ export default function App() {
   return (
     <main className="app-shell application-layout">
       <ApplicationNavigation activeSection={activeSection}
-        navigate={setActiveSection}
+        navigate={navigate}
         mobileOpen={mobileNavigationOpen}
         closeMobile={()=>setMobileNavigationOpen(false)}/>
       <div className="application-workspace">
@@ -980,7 +980,7 @@ export default function App() {
             <div className="app-breadcrumb" aria-label="Localização atual">
               <span>{({schedules:"Horários",operation:"Operação",team:"Equipa",rules:"Regras"} as const)[areaFor(activeSection)]}</span>
               <span className="app-breadcrumb-divider" aria-hidden="true">/</span>
-              <strong>{sectionLabel(activeSection)}</strong>
+              <strong>{route.dayDate?"Gestão diária · "+route.dayDate:sectionLabel(activeSection)}</strong>
             </div>
           </div>
           <div className="header-statuses">
@@ -1006,7 +1006,9 @@ export default function App() {
           savedRevision={savedRevision}
           initialMonth={lastSavedStart}
           onCreate={openGenerator}
-          onConfigureTeam={() => setActiveSection("people")}
+          onConfigureTeam={() => navigate("people")}
+          initialDailyDate={route.dayDate}
+          onNavigateDay={date=>navigate("schedules",date)}
         />
       )}
 
@@ -2021,7 +2023,7 @@ export default function App() {
           ownerId={supabaseAuthClient?.user?.id}
           initialDate={generatorInitialDate}
           onSaveGenerated={saveGenerated}
-          onBackToCalendar={() => setActiveSection("schedules")}
+          onBackToCalendar={() => navigate("schedules")}
         />
       )}
         </div>

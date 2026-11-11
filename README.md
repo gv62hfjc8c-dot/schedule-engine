@@ -52,6 +52,32 @@ explicitamente declarados e verificados.
 O editor de refeições cria uma **nova proposta imutável** após revalidar
 cobertura, descanso e limites, sem alterar a versão anteriormente arquivada.
 
+## Navegação por URLs
+
+A interface continua a ser uma **Single Page Application (SPA)**, mas cada área
+tem agora uma rota própria. O URL é a referência de navegação, inclusive ao
+recarregar uma página ou usar Anterior/Seguinte no navegador:
+
+- `/horarios` — calendário mensal
+- `/horarios/gerar` — gerar propostas
+- `/horarios/AAAA-MM-DD` — gestão diária da data indicada
+- `/operacao` — funcionamento e calendário operacional
+- `/operacao/cobertura` — necessidades de presença
+- `/equipa` — colaboradores
+- `/equipa/disponibilidades` — disponibilidades
+- `/regras` — regras de trabalho
+
+O URL `/` encaminha para `/horarios` depois da autenticação. Um endereço
+desconhecido não carrega dados arbitrários e regressa à rota segura
+`/horarios`.
+
+**Deploy:** o servidor de alojamento de produção tem de responder com
+`index.html` aos caminhos da SPA não correspondentes a ficheiros estáticos,
+sem reencaminhar os endpoints de API. O servidor Vite de desenvolvimento
+suporta esse fallback; configurar o fallback no alojamento escolhido
+antes de divulgar links profundos externos. Esta navegação não modifica
+o motor de scheduling nem a persistência.
+
 ## Instalação e execução
 
 Requer **Node.js 22** (também utilizado pelo GitHub Actions) e um projeto

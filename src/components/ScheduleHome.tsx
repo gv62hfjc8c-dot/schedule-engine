@@ -28,6 +28,9 @@ interface Props {
   cycleAnchorDate?: string;
   savedRevision: number;
   initialMonth?: string;
+  /** A canonical /horarios/YYYY-MM-DD route, or null for the monthly view. */
+  initialDailyDate?: string | null;
+  onNavigateDay?(date: string | null):void;
   onCreate(date?: string): void;
   onConfigureTeam(): void;
 }
@@ -73,7 +76,7 @@ const historicalArchive = supabaseAuthClient
  */
 export default function ScheduleHome({
   people, availabilities, operatingCalendar, operationTimeZone, cycleAnchorDate, savedRevision, initialMonth,
-  onCreate, onConfigureTeam,
+  initialDailyDate=null, onNavigateDay, onCreate, onConfigureTeam,
 }: Props) {
   const today = todayInTimeZone(operationTimeZone);
   const [month, setMonth] = useState(() => monthStart(initialMonth ?? today));
@@ -100,6 +103,29 @@ export default function ScheduleHome({
   const initialLookupDone = useRef(false);
   const manuallyNavigated = useRef(false);
   const dates = useMemo(() => monthCalendarDates(month), [month]);
+
+  // The browser URL wins over component state on a deep link, reload,
+  // Back/Forward or a newly selected daily date. Do not infer day facts
+  // before the archive has completed loading.
+  useEffect(()=>{
+    if(initialDailyDate){
+      manuallyNavigated.current=true;
+      setMonth(monthStart(initialDailyDate));
+      setSelectedDate(initialDailyDate);
+      setSelectedProposalId(null);
+      setFilter("all");
+      setSearch("");
+      setPage(1);
+      setSelectedIds(new Set());
+      setShowSelectedSummary(false);
+      setScreen("manage");
+    } else {
+      setScreen("month");
+      setSelectedDate(null);
+      setSelectedProposalId(null);
+      setShowSelectedSummary(false);
+    }
+  },[initialDailyDate]);
 
   useEffect(() => {
     let current = true;
@@ -277,6 +303,7 @@ export default function ScheduleHome({
     const next=addCivilDays(selectedDate,offset);
     if(monthStart(next)!==month)return;
     setSelectedDate(next);
+    onNavigateDay?.(next);
     setSelectedProposalId(null);
     setFilter("all");
     setSearch("");
@@ -319,7 +346,7 @@ export default function ScheduleHome({
   if (screen === "saved" && stored) {
     return <section className="se-home" aria-label="Horário guardado">
       <div className="se-management-top">
-        <button type="button" className="se-outline" onClick={() => setScreen("month")}>
+        <button type="button" className="se-outline" onClick={() => {setScreen("month");onNavigateDay?.(null);}}>
           ← Voltar ao calendário
         </button>
         <span className="se-context">{import.meta.env.VITE_OFFICIAL_APPROVAL_READY==="true"
@@ -345,7 +372,7 @@ export default function ScheduleHome({
   if (screen === "manage" && selectedDate && historicalDateAvailable) {
     return <section className="se-home se-management" aria-label="Consulta do histórico factual">
       <div className="se-daily-topbar">
-        <button type="button" className="se-outline" onClick={()=>setScreen("month")}>
+        <button type="button" className="se-outline" onClick={()=>{setScreen("month");onNavigateDay?.(null);}}>
           ← Calendário mensal
         </button>
         {dailyNavigator(selectedDate)}
@@ -389,6 +416,7 @@ export default function ScheduleHome({
         <div className="se-daily-management-heading">
           <button type="button" className="se-outline" onClick={() => {
             setScreen("month");
+            onNavigateDay?.(null);
             setShowSelectedSummary(false);
           }}>← Calendário mensal</button>
           <div>
@@ -722,7 +750,7 @@ export default function ScheduleHome({
             As pessoas ausentes desta lista não são consideradas de folga.
           </p>
           <button type="button" className="se-outline"
-            onClick={()=>setScreen("manage")}>Consultar registos deste dia</button>
+            onClick={()=>{setScreen("manage");onNavigateDay?.(selectedDate);}}>Consultar registos deste dia</button>
         </div>}
         {stored && <div className="se-archive-meta">
           <span>Guardada em {savedProposalLabel(stored)} · {stored.startDate} a {stored.endDate}</span>
@@ -785,7 +813,8 @@ export default function ScheduleHome({
         <button type="button" className="primary-button se-manage-action"
           disabled={!canInspectDay && !historicalDateAvailable}
           onClick={() => {
-            setScreen("manage");setSearch("");setPage(1);
+            setScreen("manage");onNavigateDay?.(selectedDate);
+            setSearch("");setPage(1);
             setSelectedIds(new Set());setShowSelectedSummary(false);
           }}>{historicalDateAvailable?"Consultar histórico deste dia →":"Gerir horário deste dia →"}</button>
       </aside>}
