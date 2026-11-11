@@ -437,6 +437,79 @@ try{
   await special.getByRole("button",{name:"Confirmar remoção"}).click();
   await wait(()=>persisted.exceptions.length===0,
     "Explicit removal confirmation persists an empty exception set");
+  // PR64: coverage absent in legacy state inherits one-person HARD policy.
+  // Confirm the operational checkpoint after changing the accounting cycle.
+  await guide.getByRole("button",{name:"Ver etapas"}).click();
+  await guide.getByRole("button",{name:"Confirmar funcionamento"}).click();
+  await wait(()=>Boolean(persisted.onboarding?.operationConfirmedFingerprint),
+    "Operational configuration re-confirmed after cycle change");
+  await page.locator(".save-status.saved").waitFor();
+  await page.getByRole("button",{name:"Presença mínima",exact:true}).click();
+  const presenceUI=page.getByRole("region",{name:"Confirmação de cobertura"});
+  await page.getByText("Regra padrão: 1 pessoa durante todo o funcionamento").waitFor();
+  const mondayCoverage=page.locator(".presence-compact-day").filter({hasText:"Segunda"});
+  assert.equal(await mondayCoverage.getByText("Personalizada").count(),1,
+    "Existing customized day must not be silently replaced with default.");
+  const coverageSaves=saves;
+  await page.getByRole("button",{name:"Configurar vários dias"}).click();
+  await page.getByText("Cobertura por guardar").waitFor();
+  const bulk=page.getByRole("group",{name:"Configurar cobertura de vários dias"});
+  await bulk.getByLabel("Mínimo uniforme de colaboradores").fill("3");
+  await bulk.getByRole("button",{name:"Cancelar"}).click();
+  await delay(700);
+  assert.equal(saves,coverageSaves,
+    "Cancelled bulk-coverage draft must trigger no cloud write.");
+  assert.equal(persisted.weeklyPresenceRequirements.monday.minimumDuringOperation,1,
+    "Cancelled draft cannot overwrite an existing day.");
+  await mondayCoverage.getByRole("button",{name:"Editar mínimos"}).click();
+  await mondayCoverage.getByLabel("Segunda: Período central").fill("3");
+  assert.equal(persisted.weeklyPresenceRequirements.monday.minimumDuringOperation,1,
+    "Editing a day must stay in a draft until Save.");
+  await mondayCoverage.getByRole("button",{name:"Cancelar"}).click();
+  await page.locator(".save-status.saved").waitFor();
+  await mondayCoverage.getByRole("button",{name:"Repor padrão"}).click();
+  await mondayCoverage.getByRole("button",{name:"Confirmar padrão"}).click();
+  await wait(()=>persisted.weeklyPresenceRequirements.monday===null,
+    "Explicit reset inherits default rather than saving fake zeros");
+  await mondayCoverage.getByText("Mínimo de 1 pessoa em todo o horário").waitFor();
+  await page.locator(".save-status.saved").waitFor();
+  await presenceUI.getByRole("button",{name:"Confirmar cobertura"}).click();
+  await wait(()=>Boolean(persisted.onboarding?.coverageConfirmedFingerprint),
+    "Default one-person coverage is explicitly confirmed and persisted");
+  await presenceUI.getByText("Etapa 2 confirmada").waitFor();
+  await page.goto(origin+"/operacao/cobertura",{waitUntil:"domcontentloaded"});
+  await page.locator(".save-status.saved").waitFor();
+  await page.getByText("Etapa 2 confirmada").waitFor();
+  await mondayCoverage.getByRole("button",{name:"Personalizar"}).click();
+  await mondayCoverage.getByLabel("Segunda: Período central").fill("0");
+  await mondayCoverage.getByLabel("Segunda: Na abertura").fill("0");
+  await mondayCoverage.getByLabel("Segunda: No fecho").fill("0");
+  await mondayCoverage.getByRole("button",{name:"Guardar mínimos"}).click();
+  await wait(()=>persisted.weeklyPresenceRequirements.monday?.minimumDuringOperation===0,
+    "Explicit zero is a conscious saved override of inherited one.");
+  await presenceUI.getByRole("button",{name:"Confirmar cobertura"}).waitFor();
+  // Restore the synthetic test's original 1 / 1 / 1 rules for other checks.
+  await mondayCoverage.getByRole("button",{name:"Editar mínimos"}).click();
+  await mondayCoverage.getByLabel("Segunda: Período central").fill("1");
+  await mondayCoverage.getByLabel("Segunda: Na abertura").fill("1");
+  await mondayCoverage.getByLabel("Segunda: No fecho").fill("1");
+  await mondayCoverage.getByRole("button",{name:"Guardar mínimos"}).click();
+  await wait(()=>persisted.weeklyPresenceRequirements.monday?.minimumDuringOperation===1,
+    "Synthetic weekly coverage restored after explicit-zero test");
+  await page.locator(".save-status.saved").waitFor();
+  const beforeExceptionDraft=saves;
+  await page.getByRole("button",{name:/Adicionar$/}).click();
+  await page.getByRole("group",{name:"Editar exceção de cobertura"}).waitFor();
+  await page.getByRole("group",{name:"Editar exceção de cobertura"})
+    .getByLabel("Data da exceção de cobertura").fill("2026-11-12");
+  assert.equal(persisted.presenceExceptions.length,0,
+    "A new presence exception draft must not auto-save.");
+  await page.getByRole("group",{name:"Editar exceção de cobertura"})
+    .getByRole("button",{name:"Cancelar"}).click();
+  await delay(700);
+  assert.equal(saves,beforeExceptionDraft,
+    "Canceling a presence exception must not issue a persistence write");
+  assert.equal(persisted.presenceExceptions.length,0);
   await page.getByRole("button",{name:"Horários",exact:true}).click();
   await page.locator('button.se-day[aria-label^="29 de novembro"]')
     .click();

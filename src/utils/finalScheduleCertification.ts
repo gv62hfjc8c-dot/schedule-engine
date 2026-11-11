@@ -77,7 +77,15 @@ export function certifyFinalGeneratedSchedule(
       continue;
     }
     const coverage = checkPresenceForWorkShifts(date, operating, presence.requirements, shifts, input.people);
-    if (!coverage.valid) issues.push(date + ": " + coverage.issues.join(" "));
+    if (!coverage.valid) {
+      const details=[
+        ...coverage.issues,
+        ...coverage.shortages.map(gap=>
+          `Cobertura insuficiente de ${gap.interval.start} a ${gap.interval.end}: ${gap.actual} de ${gap.required} pessoas necessárias.`),
+      ];
+      issues.push(date + ": " +
+        (details.length?details.join(" "):"Cobertura operacional inválida."));
+    }
     for (const person of input.people.filter(p => p.active && employedOn(p,date))) {
       const availability = input.availabilities.find(a => a.personId === person.id);
       const allowed = availability && !isPersonUnavailableOnDate(person,date)

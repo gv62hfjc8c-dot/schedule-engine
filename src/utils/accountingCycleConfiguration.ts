@@ -10,6 +10,8 @@ export interface OnboardingConfiguration {
   cycleDecisionConfirmed?:boolean;
   /** Deterministic snapshot of explicitly confirmed operational settings. */
   operationConfirmedFingerprint?:string;
+  /** Explicit acceptance of effective coverage (including inherited default). */
+  coverageConfirmedFingerprint?:string;
 }
 
 export function isAccountingCycleDays(value:unknown):value is AccountingCycleDays {
