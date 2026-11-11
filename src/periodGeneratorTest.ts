@@ -192,13 +192,13 @@ assert(duplicateResult.status === "incomplete" &&
   duplicateResult.days[1].status === "invalid_input",
   "Exceções duplicadas devem aparecer no diagnóstico da data.");
 
-const unconfigured = makeInput("2026-10-26", "2026-10-27");
-unconfigured.presence.weeklyPresenceRequirements.tuesday = null;
-const missing = generatePeriodSchedule(unconfigured);
-assert(missing.status === "incomplete" &&
-  missing.days[1].status === "invalid_input" &&
-  missing.assignments.length === 0,
-  "Presença não configurada impede publicar o período.");
+const inherited = makeInput("2026-10-26", "2026-10-27");
+inherited.presence.weeklyPresenceRequirements.tuesday = null;
+const inheritedPeriod = generatePeriodSchedule(inherited);
+assert(inheritedPeriod.status === "daily_complete" &&
+  inheritedPeriod.days[1].status === "generated" &&
+  inheritedPeriod.assignments.some(a=>a.date==="2026-10-27"),
+  "Dia sem regra personalizada herda mínimo obrigatório de uma pessoa e permanece escalável.");
 
 const crossed = makeInput("2026-12-31", "2027-01-02");
 const crossedResult = generatePeriodSchedule(crossed);
