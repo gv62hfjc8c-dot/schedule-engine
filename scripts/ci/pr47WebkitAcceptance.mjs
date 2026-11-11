@@ -341,6 +341,10 @@ try{
     .fill("2026-11-02");
   await wait(()=>persisted.cycleAnchorDate==="2026-11-02",
     "28-day anchor persisted");
+  // Full reload-persistence check from canonical calendar; nested deep-link
+  // reload is covered in an isolated tab to avoid Linux WebKit crashes.
+  await page.getByRole("button",{name:"Horários",exact:true}).click();
+  await page.getByRole("heading",{name:"Calendário mensal"}).waitFor();
   await page.reload({waitUntil:"domcontentloaded"});
   await page.locator(".save-status.saved").waitFor();
   await page.getByRole("button",{name:"Operação",exact:true}).click();
@@ -400,6 +404,10 @@ try{
   await page.getByRole("button",{name:"Adicionar",exact:true}).click();
   await wait(()=>persisted.people[0].requiredWorkDates?.includes("2026-11-16"),
     "mandatory day saved");
+  // Full reload-persistence check from canonical calendar; nested deep-link
+  // reload is covered in an isolated tab to avoid Linux WebKit crashes.
+  await page.getByRole("button",{name:"Horários",exact:true}).click();
+  await page.getByRole("heading",{name:"Calendário mensal"}).waitFor();
   await page.reload({waitUntil:"domcontentloaded"});
   await page.locator(".save-status.saved").waitFor();
   await page.getByRole("button",{name:"Regras",exact:true}).click();
