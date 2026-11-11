@@ -7,6 +7,7 @@ interface Props {
   canConfirmOperation:boolean;
   saving:boolean;
   hasCoverage:boolean;
+  coverageConfirmed:boolean;
   hasTeam:boolean;
   hasAvailabilityAndRules:boolean;
   onConfirmOperation():void;
@@ -20,10 +21,10 @@ interface Props {
  */
 export default function GuidedSetup({
   operationConfirmed,cycleDecisionConfirmed,canConfirmOperation,saving,
-  hasCoverage,hasTeam,hasAvailabilityAndRules,onConfirmOperation,onNavigate,
+  hasCoverage,coverageConfirmed,hasTeam,hasAvailabilityAndRules,onConfirmOperation,onNavigate,
 }:Props){
   const [expanded,setExpanded]=useState(false);
-  const completed=operationConfirmed?1:0;
+  const completed=Number(operationConfirmed)+Number(coverageConfirmed);
   return <section className="panel guided-setup" aria-label="Configuração inicial guiada">
     <div className="guided-setup-heading">
       <div>
@@ -61,10 +62,12 @@ export default function GuidedSetup({
       </li>
       <li>
         <div><strong>2. Cobertura necessária</strong>
-          <p>{hasCoverage?"Existem mínimos configurados. Ainda não confirmados no onboarding."
-            :"Define quantas pessoas devem estar presentes ao longo do dia."}</p></div>
-        <button type="button" className="se-outline"
-          onClick={()=>onNavigate("presence")}>Configurar cobertura</button>
+          <p>{coverageConfirmed?"Cobertura confirmada. Alterações posteriores exigem nova confirmação."
+            :hasCoverage?"Regra padrão de 1 pessoa ativa. Confirma-a ou personaliza por dia."
+            :"Corrige as regras de cobertura antes de confirmar."}</p></div>
+        {coverageConfirmed?<span className="guided-status done">Confirmado</span>
+          :<button type="button" className="se-outline"
+            onClick={()=>onNavigate("presence")}>Confirmar cobertura</button>}
       </li>
       <li>
         <div><strong>3. Equipa e vínculos</strong>
