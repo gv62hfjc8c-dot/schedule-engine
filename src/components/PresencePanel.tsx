@@ -8,7 +8,6 @@ import {
   checkPresenceAvailabilityCapacity,defaultMinimumPresence,
   getPresencePhaseWindows,isPresenceRequirementValid,
 } from "../utils/presence";
-import {getAvailabilityIntervalsForDate} from "../utils/availability";
 import {
   isCoverageConfirmed,validCoverageConfiguration,
   validatePresenceDraft,validatePresenceExceptionDraft,
