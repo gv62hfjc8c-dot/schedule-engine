@@ -48,11 +48,25 @@ export function isPresenceRequirementValid(
   return true;
 }
 
+/**
+ * When no customer-specific minimum exists, coverage is still a hard
+ * requirement: at least one working person at every open instant. Do not
+ * serialize this default as a 1/1/1 record: null means inherited policy.
+ */
+export const DEFAULT_MINIMUM_PRESENCE:Readonly<PresenceRequirement>=Object.freeze({
+  minimumDuringOperation:1,
+  minimumAtOpening:1,
+  minimumAtClosing:1,
+});
+export function defaultMinimumPresence():PresenceRequirement {
+  return {...DEFAULT_MINIMUM_PRESENCE};
+}
+
 export type PresenceResolution =
   | { status: "closed"; requirements: null; issues: string[] }
-  | { status: "unconfigured"; requirements: null; issues: string[] }
   | { status: "invalid"; requirements: null; issues: string[] }
-  | { status: "configured"; requirements: PresenceRequirement; issues: [] };
+  | { status: "configured"; source:"default"|"weekly"|"exception";
+      requirements: PresenceRequirement; issues: [] };
 
 export function resolvePresenceForDate(
   date: string,
@@ -81,12 +95,14 @@ export function resolvePresenceForDate(
     };
   }
 
-  const requirements = matchingExceptions.length === 1
+  const exception=matchingExceptions.length===1;
+  const requirements=exception
     ? matchingExceptions[0].requirements
     : weeklyPresenceRequirements[getWeekday(date)];
 
   if (requirements === null || requirements === undefined) {
-    return { status: "unconfigured", requirements: null, issues: [] };
+    return {status:"configured",source:"default",
+      requirements:defaultMinimumPresence(),issues:[]};
   }
 
   if (!isPresenceRequirementValid(requirements)) {
@@ -99,7 +115,7 @@ export function resolvePresenceForDate(
     };
   }
 
-  return { status: "configured", requirements, issues: [] };
+  return { status: "configured",source:exception?"exception":"weekly", requirements, issues: [] };
 }
 
 type PresencePhase = "opening" | "operation" | "closing";
