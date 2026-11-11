@@ -95,7 +95,7 @@ export interface PresenceRequirement {
   qualifiedCoverage?: Record<string,number>;
 }
 
-/** null means explicitly unconfigured, unlike an all-zero requirement. */
+/** null inherits the hard default minimum of 1 person while open; an explicit all-zero rule disables the minimum. */
 export type WeeklyPresenceRequirements = Record<
   Weekday,
   PresenceRequirement | null
