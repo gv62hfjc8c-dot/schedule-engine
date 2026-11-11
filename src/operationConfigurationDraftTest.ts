@@ -1,4 +1,12 @@
-import assert from "node:assert/strict";
+function assert(check:unknown,message="PR61 assertion failed"):asserts check {
+  if(!check)throw Error(message);
+}
+function equal(a:unknown,b:unknown,message="values must match"):void {
+  assert(a===b,message);
+}
+function deepEqual(a:unknown,b:unknown,message="objects must match"):void {
+  assert(JSON.stringify(a)===JSON.stringify(b),message);
+}
 import type {OperatingHoursException, WeeklyOperatingHours} from "./types";
 import {
   createOperationExceptionDraft,
@@ -10,9 +18,9 @@ import {
 } from "./utils/operationConfigurationDraft";
 
 const closed=createOperationExceptionDraft();
-assert.equal(closed.date,"");
-assert.equal(closed.mode,"closed");
-assert.deepEqual(closed.intervals,[]);
+equal(closed.date,"");
+equal(closed.mode,"closed");
+deepEqual(closed.intervals,[]);
 assert(!isValidCivilDate("2026-02-30"));
 assert(!isValidCivilDate("2026-2-9"));
 assert(isValidCivilDate("2028-02-29"));
@@ -42,18 +50,20 @@ const sourceCopy=structuredClone(source);
 assert(hasAdjacentOperatingIntervals(source));
 const normalized=mergeAdjacentOperatingIntervals(source);
 assert(normalized.valid);
-assert.deepEqual(normalized.intervals,[{start:"09:00",end:"19:00"}]);
-assert.deepEqual(source,sourceCopy,"normalization never mutates persisted input");
+deepEqual(normalized.intervals,[{start:"09:00",end:"19:00"}]);
+deepEqual(source,sourceCopy,"normalization never mutates persisted input");
 const interrupted=[{start:"09:00",end:"13:00"},{start:"15:00",end:"19:00"}];
 assert(!hasAdjacentOperatingIntervals(interrupted));
 const separate=mergeAdjacentOperatingIntervals(interrupted);
 assert(separate.valid && separate.intervals.length===2);
-const week=Object.fromEntries(["monday","tuesday","wednesday","thursday","friday","saturday","sunday"]
- .map(day=>[day,[]])) as WeeklyOperatingHours;
+const week:WeeklyOperatingHours={
+  monday:[],tuesday:[],wednesday:[],thursday:[],
+  friday:[],saturday:[],sunday:[],
+};
 week.monday=[{start:"09:00",end:"19:00"}];
-assert.equal(operatingPresentation(week),"continuous");
+equal(operatingPresentation(week),"continuous");
 week.monday=source;
-assert.equal(operatingPresentation(week),"adjacent");
+equal(operatingPresentation(week),"adjacent");
 week.monday=interrupted;
-assert.equal(operatingPresentation(week),"interrupted");
+equal(operatingPresentation(week),"interrupted");
 console.log("PR61: operation draft validation, explicit exceptions, intervals and legacy compatibility passed.");
