@@ -13,6 +13,7 @@ import type {
   WorkRulesConfiguration,
 } from "../types";
 import { createEmptyWeeklyPresenceRequirements, isPresenceRequirementValid } from "../utils/presence";
+import {isAccountingCycleDays} from "../utils/accountingCycleConfiguration";
 import {
   APP_STATE_VERSION,
   type PersistedAppState,
@@ -320,6 +321,21 @@ export function isPersistedAppState(
       Number.isFinite(Date.parse(state.cycleAnchorDate + "T00:00:00Z")) &&
       new Date(state.cycleAnchorDate + "T00:00:00Z").toISOString().slice(0,10) === state.cycleAnchorDate
     )) &&
+    (state.accountingCycleDays===undefined ||
+      (isAccountingCycleDays(state.accountingCycleDays) &&
+       typeof state.cycleAnchorDate==="string")) &&
+    (state.onboarding===undefined ||
+      (state.onboarding!==null &&
+       typeof state.onboarding==="object" &&
+       !Array.isArray(state.onboarding) &&
+       (() => {
+         const settings=state.onboarding as Record<string,unknown>;
+         return (settings.cycleDecisionConfirmed===undefined ||
+            typeof settings.cycleDecisionConfirmed==="boolean") &&
+           (settings.operationConfirmedFingerprint===undefined ||
+            (typeof settings.operationConfirmedFingerprint==="string" &&
+             settings.operationConfirmedFingerprint.length<=65536));
+       })())) &&
     isWeeklyIntervals(state.weeklyOperatingHours) &&
     Array.isArray(state.exceptions) &&
     state.exceptions.every(isOperatingException) &&

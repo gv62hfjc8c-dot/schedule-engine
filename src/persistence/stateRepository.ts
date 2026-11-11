@@ -7,6 +7,7 @@ import type {
   WeeklyOperatingHours,
   WorkRulesConfiguration,
 } from "../types";
+import type {AccountingCycleDays,OnboardingConfiguration} from "../utils/accountingCycleConfiguration";
 
 export const APP_STATE_VERSION = 4 as const;
 
@@ -16,6 +17,10 @@ export interface PersistedAppState {
   operationTimeZone?: string;
   /** Optional fixed anchor for accounting cycles of 28 civil days. */
   cycleAnchorDate?: string;
+  /** Optional cycle duration; legacy records with only an anchor imply 28 days. */
+  accountingCycleDays?: AccountingCycleDays;
+  /** Explicit confirmations, optional in historical v4 snapshots. */
+  onboarding?: OnboardingConfiguration;
   weeklyOperatingHours: WeeklyOperatingHours;
   exceptions: OperatingHoursException[];
   people: Person[];
