@@ -259,6 +259,37 @@ try{
   await page.goto(origin,{waitUntil:"domcontentloaded"});
   await page.getByRole("heading",{name:"Calendário mensal"}).waitFor();
   await page.locator(".save-status.saved").waitFor();
+  // PR60: browser-addressable application pages, including deep-linked days.
+  await page.waitForURL("**/horarios");
+  await page.getByRole("button",{name:"Equipa",exact:true}).click();
+  await page.getByRole("heading",{name:"Pessoas",exact:true}).waitFor();
+  assert.equal(new URL(page.url()).pathname,"/equipa",
+    "A workspace navigation action must update the browser URL.");
+  await page.goBack();
+  await page.getByRole("heading",{name:"Calendário mensal"}).waitFor();
+  assert.equal(new URL(page.url()).pathname,"/horarios",
+    "Browser Back must restore the calendar.");
+  await page.goForward();
+  await page.getByRole("heading",{name:"Pessoas",exact:true}).waitFor();
+  await page.reload({waitUntil:"domcontentloaded"});
+  await page.getByRole("heading",{name:"Pessoas",exact:true}).waitFor();
+  assert.equal(new URL(page.url()).pathname,"/equipa",
+    "Reloading a nested workspace URL must preserve the same view.");
+  await page.goto(origin+"/horarios/2026-11-09");
+  const deepDay=page.getByRole("region",{name:"Gestão diária"});
+  await deepDay.waitFor();
+  assert.equal(new URL(page.url()).pathname,"/horarios/2026-11-09");
+  await page.reload({waitUntil:"domcontentloaded"});
+  await page.getByRole("region",{name:"Gestão diária"}).waitFor();
+  await page.getByRole("button",{name:"← Calendário mensal"}).click();
+  await page.getByRole("heading",{name:"Calendário mensal"}).waitFor();
+  assert.equal(new URL(page.url()).pathname,"/horarios",
+    "Returning from the dated page must produce the canonical calendar URL.");
+  await page.goBack();
+  await page.getByRole("region",{name:"Gestão diária"}).waitFor();
+  await page.goForward();
+  await page.getByRole("heading",{name:"Calendário mensal"}).waitFor();
+
   // Calendar v2: compact information is opt-in, never hide archive failures.
   await page.getByRole("button",{name:"Informação do calendário"}).waitFor();
   const explanation=page.locator("#calendar-explanations");
