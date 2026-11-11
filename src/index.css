@@ -4314,3 +4314,312 @@ h2 {
     border-color: #94784e;
   }
 }
+
+
+/* PR63 — optional accounting cycle and the first genuinely confirmed onboarding step. */
+.operation-context-compact {
+  padding: 16px 20px;
+  display: grid;
+  gap: 12px;
+}
+.operation-context-heading {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 20px;
+}
+.operation-context-heading h2 {
+  margin: 3px 0 0;
+  font-size: 17px;
+  line-height: 1.4;
+}
+.operation-context-heading p:not(.section-kicker) {
+  max-width: 410px;
+  margin: 0;
+  color: #66758b;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.operation-context-controls {
+  display: grid;
+  grid-template-columns: minmax(0,1fr) minmax(0,1fr);
+  gap: 14px;
+  align-items: start;
+}
+.operation-timezone {
+  display: flex;
+  align-items: end;
+  gap: 9px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.operation-timezone .se-control {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+.operation-timezone input {
+  width: 100%;
+}
+.operation-timezone > .se-outline {
+  min-height: 39px;
+  max-width: 100%;
+}
+.operation-context-footnote {
+  margin: 0;
+  color: #66758b;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.operation-cycle-choice {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+.operation-cycle-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 46px;
+}
+.operation-cycle-summary-copy {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+.operation-cycle-summary-copy span,
+.operation-cycle-fields label span {
+  color: #69788e;
+  font-size: 11px;
+  font-weight: 650;
+}
+.operation-cycle-summary-copy strong {
+  font-size: 13px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.operation-cycle-summary .se-outline {
+  flex-shrink: 0;
+  min-height: 36px;
+}
+.operation-cycle-editor {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 13px;
+  border: 1px solid #d3dfec;
+  border-radius: 11px;
+  background: #f8fbfe;
+}
+.operation-cycle-editor p {
+  margin: 0;
+  color: #62738a;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.operation-cycle-editor fieldset {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  border: 1px solid #ced9e6;
+  border-radius: 9px;
+  padding: 10px;
+}
+.operation-cycle-editor legend {
+  padding: 0 5px;
+  font-size: 12px;
+  font-weight: 750;
+}
+.operation-cycle-editor fieldset label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+.operation-cycle-fields {
+  display: grid;
+  gap: 10px;
+}
+.operation-cycle-fields label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.operation-cycle-fields select,
+.operation-cycle-fields input {
+  width: 100%;
+  min-height: 41px;
+}
+.operation-cycle-fields small {
+  color: #7b5a21;
+  line-height: 1.5;
+}
+.operation-cycle-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.operation-cycle-actions .primary-button,
+.operation-cycle-actions .se-outline {
+  min-height: 39px;
+  width: auto;
+}
+.guided-setup {
+  padding: 15px 20px;
+  display: grid;
+  gap: 13px;
+}
+.guided-setup-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+.guided-setup-heading h2 {
+  margin: 3px 0 5px;
+  font-size: 17px;
+}
+.guided-setup-heading p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #69798f;
+}
+.guided-setup-progress {
+  flex-shrink: 0;
+  display: grid;
+  grid-template-columns: auto auto;
+  align-items: center;
+  column-gap: 9px;
+  row-gap: 6px;
+}
+.guided-setup-progress strong {
+  font-size: 15px;
+}
+.guided-setup-progress small {
+  color: #72819a;
+  font-size: 10px;
+}
+.guided-setup-progress button {
+  grid-column: 1 / -1;
+  justify-self: end;
+  min-height: 34px;
+}
+.guided-setup-steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 7px;
+}
+.guided-setup-steps li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 12px;
+  border-radius: 9px;
+  border: 1px solid #dce5ef;
+  min-width: 0;
+}
+.guided-setup-steps li:first-child {
+  background: #f4f9fe;
+}
+.guided-setup-steps strong {
+  font-size: 12px;
+}
+.guided-setup-steps p {
+  margin: 4px 0 0;
+  color: #66788e;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.guided-setup-steps button {
+  flex-shrink: 0;
+  min-height: 37px;
+  max-width: 180px;
+  width: auto;
+}
+.guided-status.done {
+  color: #25754a;
+  font-size: 12px;
+  font-weight: 750;
+}
+.guided-setup-note {
+  padding: 7px 11px;
+  margin: 0;
+  background: #fff7e5;
+  border: 1px solid #e6d3ab;
+  color: #7a5819;
+  font-size: 11px;
+  line-height: 1.5;
+  border-radius: 8px;
+}
+@media (max-width: 860px) {
+  .operation-context-heading {
+    flex-direction: column;
+    gap: 6px;
+  }
+  .operation-context-controls {
+    grid-template-columns: 1fr;
+  }
+  .guided-setup-steps li {
+    flex-wrap: wrap;
+  }
+  .guided-setup-steps button {
+    max-width: 100%;
+  }
+}
+@media (max-width: 520px) {
+  .operation-context-compact,
+  .guided-setup {
+    padding: 14px;
+  }
+  .guided-setup-heading {
+    align-items: start;
+  }
+  .guided-setup-progress {
+    min-width: 105px;
+  }
+  .operation-cycle-summary {
+    flex-wrap: wrap;
+  }
+}
+@media (prefers-color-scheme: dark) {
+  .operation-context-heading p:not(.section-kicker),
+  .operation-context-footnote,
+  .operation-cycle-summary-copy span,
+  .operation-cycle-fields label span,
+  .guided-setup-heading p,
+  .guided-setup-steps p {
+    color: #b7c9dd;
+  }
+  .operation-cycle-editor {
+    background: #1c2c41;
+    border-color: #506682;
+  }
+  .operation-cycle-editor p,
+  .guided-setup-progress small {
+    color: #bad0e7;
+  }
+  .operation-cycle-editor fieldset,
+  .guided-setup-steps li {
+    border-color: #4b627d;
+  }
+  .operation-cycle-fields small {
+    color: #ffdea4;
+  }
+  .guided-setup-steps li:first-child {
+    background: #213852;
+  }
+  .guided-status.done {
+    color: #a5e3bf;
+  }
+  .guided-setup-note {
+    background: #342b20;
+    border-color: #8e7144;
+    color: #ffda9b;
+  }
+}
