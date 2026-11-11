@@ -312,7 +312,7 @@ try{
   await special.getByRole("heading",{name:"Exceções"}).waitFor();
   await page.locator(".save-status.saved").waitFor();
   const beforeDraftSaves=saves;
-  await special.getByRole("button",{name:"Adicionar",exact:true}).click();
+  await special.getByRole("button",{name:/Adicionar$/}).click();
   await special.getByRole("form",{name:"Nova exceção"}).waitFor();
   assert.equal(persisted.exceptions.length,0,
     "Opening a draft cannot create an operational exception.");
@@ -320,7 +320,7 @@ try{
   await delay(700);
   assert.equal(saves,beforeDraftSaves,
     "Canceling the exception draft cannot trigger any cloud save.");
-  await special.getByRole("button",{name:"Adicionar",exact:true}).click();
+  await special.getByRole("button",{name:/Adicionar$/}).click();
   const draft=special.getByRole("form",{name:"Nova exceção"});
   await draft.getByRole("button",{name:"Data da exceção"}).click();
   await page.getByRole("dialog",{name:"Calendário"})
@@ -336,7 +336,7 @@ try{
   assert.equal(persisted.exceptions[0].date,"2026-11-12");
   assert.equal(persisted.exceptions[0].reason,"Dia especial");
   assert.deepEqual(persisted.exceptions[0].intervals,[{start:"09:00",end:"17:00"}]);
-  await special.getByRole("button",{name:"Adicionar",exact:true}).click();
+  await special.getByRole("button",{name:/Adicionar$/}).click();
   const duplicate=special.getByRole("form",{name:"Nova exceção"});
   await duplicate.getByRole("button",{name:"Data da exceção"}).click();
   await page.getByRole("dialog",{name:"Calendário"})
