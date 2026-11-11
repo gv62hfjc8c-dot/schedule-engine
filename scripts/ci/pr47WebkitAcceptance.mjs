@@ -298,11 +298,11 @@ try{
     .fill("2026-11-02");
   await wait(()=>persisted.cycleAnchorDate==="2026-11-02",
     "28-day anchor persisted");
-  // Full reload-persistence check from canonical calendar; nested deep-link
-  // reload is covered in an isolated tab to avoid Linux WebKit crashes.
+  // Full document re-entry from canonical calendar checks persisted state.
+  // Native reload on nested deep links is verified in separate WebKit tabs.
   await page.getByRole("button",{name:"Horários",exact:true}).click();
   await page.getByRole("heading",{name:"Calendário mensal"}).waitFor();
-  await page.reload({waitUntil:"domcontentloaded"});
+  await page.goto(origin+"/horarios",{waitUntil:"domcontentloaded"});
   await page.locator(".save-status.saved").waitFor();
   await page.getByRole("button",{name:"Operação",exact:true}).click();
   matches(await operation.getByLabel("Fuso horário IANA").inputValue(),
@@ -365,7 +365,7 @@ try{
   // reload is covered in an isolated tab to avoid Linux WebKit crashes.
   await page.getByRole("button",{name:"Horários",exact:true}).click();
   await page.getByRole("heading",{name:"Calendário mensal"}).waitFor();
-  await page.reload({waitUntil:"domcontentloaded"});
+  await page.goto(origin+"/horarios",{waitUntil:"domcontentloaded"});
   await page.locator(".save-status.saved").waitFor();
   await page.getByRole("button",{name:"Regras",exact:true}).click();
   matches(await page.getByLabel("Máximo contratual (h/semana)").inputValue(),
