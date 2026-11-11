@@ -293,20 +293,54 @@ try{
   await operation.getByRole("button",{name:"Aplicar fuso horário"}).click();
   await wait(()=>persisted.operationTimeZone==="Europe/Lisbon",
     "time zone persisted by cloud RPC");
-  // 18: a 28-day accounting anchor must cross Nov/Dec in the real calendar.
-  await operation.getByLabel(/Início de um ciclo fixo de 28 dias/)
-    .fill("2026-11-02");
-  await wait(()=>persisted.cycleAnchorDate==="2026-11-02",
-    "28-day anchor persisted");
-  // Reload the actual operation URL as a fresh document; never mount and
-  // immediately abort a calendar archive request just for this test.
+  // PR63: selecting no cycle is an explicit action, not an empty date input.
+  const cycle=operation.getByRole("group",{name:"Escolher ciclo de trabalho"});
+  const guide=page.getByRole("region",{name:"Configuração inicial guiada"});
+  await operation.getByText("Por decidir no onboarding").waitFor();
+  await operation.getByRole("button",{name:"Escolher ciclo"}).click();
+  await page.getByText("Escolha do ciclo por guardar").waitFor();
+  assert.equal(persisted.onboarding?.cycleDecisionConfirmed,undefined,
+    "Opening the draft must not persist an unconfirmed cycle.");
+  await cycle.getByRole("button",{name:"Cancelar"}).click();
+  assert.equal(await page.getByText("Escolha do ciclo por guardar").count(),0);
+  await operation.getByRole("button",{name:"Escolher ciclo"}).click();
+  await cycle.getByRole("radio",{name:"Não, sem ciclo fixo"}).check();
+  await cycle.getByRole("button",{name:"Guardar escolha do ciclo"}).click();
+  await wait(()=>persisted.onboarding?.cycleDecisionConfirmed===true,
+    "Explicitly declining a cycle persists in the cloud");
+  assert.equal(persisted.cycleAnchorDate,undefined,"No artificial anchor when no cycle.");
+  assert.equal(persisted.accountingCycleDays,undefined,"No duration when no cycle.");
+  await operation.getByText("Sem ciclo fixo",{exact:true}).waitFor();
+  await page.locator(".save-status.saved").waitFor();
+  await guide.getByRole("button",{name:"Ver etapas"}).click();
+  await guide.getByRole("button",{name:"Confirmar funcionamento"}).click();
+  await wait(()=>Boolean(persisted.onboarding?.operationConfirmedFingerprint),
+    "Operation onboarding confirmation persisted");
+  await guide.getByText("1 de 5").waitFor();
+  await page.locator(".save-status.saved").waitFor();
+  // 14-day cycle: explicit selection and anchor, invalidating prior confirmation.
+  await operation.getByRole("button",{name:"Alterar ciclo"}).click();
+  await cycle.getByRole("radio",{name:"Sim, utiliza um ciclo"}).check();
+  await cycle.getByRole("combobox",{name:"Duração do ciclo de trabalho"}).selectOption("14");
+  await cycle.getByLabel("Data de início do ciclo").fill("2026-11-02");
+  await cycle.getByRole("button",{name:"Guardar escolha do ciclo"}).click();
+  await wait(()=>persisted.accountingCycleDays===14 &&
+    persisted.cycleAnchorDate==="2026-11-02","14-day cycle persisted");
+  await guide.getByText("0 de 5").waitFor();
+  // 28-day choice retains the PR47 accounting boundaries.
+  await operation.getByRole("button",{name:"Alterar ciclo"}).click();
+  await cycle.getByRole("combobox",{name:"Duração do ciclo de trabalho"}).selectOption("28");
+  await cycle.getByRole("button",{name:"Guardar escolha do ciclo"}).click();
+  await wait(()=>persisted.accountingCycleDays===28 &&
+    persisted.cycleAnchorDate==="2026-11-02","28-day anchor persisted");
+  // A fresh document must load exactly the confirmed choice and not create a default.
   await page.goto(origin+"/operacao",{waitUntil:"domcontentloaded"});
   await page.locator(".save-status.saved").waitFor();
   await page.getByRole("button",{name:"Operação",exact:true}).click();
   matches(await operation.getByLabel("Fuso horário IANA").inputValue(),
     "Europe/Lisbon","Timezone must survive reload.");
-  matches(await operation.getByLabel(/Início de um ciclo fixo de 28 dias/)
-    .inputValue(),"2026-11-02","Cycle anchor must survive reload.");
+  await operation.getByText("Ciclo de 28 dias · início 2026-11-02").waitFor();
+  assert.equal(persisted.accountingCycleDays,28,"Cycle duration must survive reload.");
   // PR62: compact weekday rows show no advanced editor until explicitly opened.
   const weekly=page.locator(".schedule-table");
   assert.equal(await weekly.locator(".operation-schedule-row").count(),7,
