@@ -22,6 +22,8 @@ export type WeeklyOperatingHours = Record<
 export interface OperatingHoursException {
   date: string;
   intervals: TimeInterval[];
+  /** Optional for historical records saved before PR61; required in new UI entries. */
+  reason?: string;
 }
 
 export interface OperatingCalendarConfiguration {
