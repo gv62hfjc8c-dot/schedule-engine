@@ -15,6 +15,8 @@ import WorkRulesPanel from "./components/WorkRulesPanel";
 import TimeWheelSelect from "./components/TimeWheelSelect";
 import IntervalListEditor from "./components/IntervalListEditor";
 import OperationExceptionEditor from "./components/OperationExceptionEditor";
+import OperationCycleSettings from "./components/OperationCycleSettings";
+import GuidedSetup from "./components/GuidedSetup";
 import {hasAdjacentOperatingIntervals,mergeAdjacentOperatingIntervals,operatingPresentation} from "./utils/operationConfigurationDraft";
 import CalendarDateInput from "./components/CalendarDateInput";
 import PresencePanel from "./components/PresencePanel";
@@ -30,6 +32,9 @@ import type { GeneratedSchedulePayload, StoredGeneratedSchedule } from "./persis
 import { createEmptyWeeklyPresenceRequirements } from "./utils/presence";
 import { appStateRepository } from "./persistence/appStateRepository";
 import { APP_STATE_VERSION } from "./persistence/stateRepository";
+import {isOperationConfirmed,operationFingerprint,type AccountingCycleDays,type OnboardingConfiguration} from "./utils/accountingCycleConfiguration";
+import {validateEditedIntervals} from "./utils/intervalEditing";
+import {isPresenceRequirementValid} from "./utils/presence";
 import {
   notifyOtherTabsOfStateCommit,
   isOtherTabStateCommit,
@@ -187,6 +192,9 @@ export default function App() {
   const [operationTimeZone, setOperationTimeZone] = useState(DEFAULT_OPERATION_TIME_ZONE);
   const [timeZoneDraft, setTimeZoneDraft] = useState(DEFAULT_OPERATION_TIME_ZONE);
   const [cycleAnchorDate, setCycleAnchorDate] = useState("");
+  const [accountingCycleDays,setAccountingCycleDays]=useState<AccountingCycleDays|undefined>();
+  const [onboarding,setOnboarding]=useState<OnboardingConfiguration>({});
+  const [cycleDraftOpen,setCycleDraftOpen]=useState(false);
   const [availabilities, setAvailabilities] = useState<
     PersonAvailability[]
   >([]);
@@ -261,6 +269,8 @@ export default function App() {
           setOperationTimeZone(resolvedZone);
           setTimeZoneDraft(resolvedZone);
           setCycleAnchorDate(persisted.cycleAnchorDate ?? "");
+          setAccountingCycleDays(persisted.accountingCycleDays);
+          setOnboarding(persisted.onboarding??{});
           setAvailabilities(persisted.availabilities);
           setWorkRules(persisted.workRules);
           setWeeklyPresenceRequirements(persisted.weeklyPresenceRequirements);
@@ -339,6 +349,8 @@ export default function App() {
           version: APP_STATE_VERSION,
           operationTimeZone,
           ...(cycleAnchorDate ? {cycleAnchorDate} : {}),
+          ...(cycleAnchorDate && accountingCycleDays ? {accountingCycleDays} : {}),
+          onboarding,
           weeklyOperatingHours: weeklyHours,
           exceptions,
           people,
@@ -390,6 +402,8 @@ export default function App() {
             setOperationTimeZone(zone);
             setTimeZoneDraft(zone);
             setCycleAnchorDate(reconciled.cycleAnchorDate??"");
+            setAccountingCycleDays(reconciled.accountingCycleDays);
+            setOnboarding(reconciled.onboarding??{});
           }
           setPersistenceStatus("saved");
         })
@@ -417,7 +431,7 @@ export default function App() {
     };
   }, [
     persistenceReady,
-    operationTimeZone,cycleAnchorDate,
+    operationTimeZone,cycleAnchorDate,accountingCycleDays,onboarding,
     weeklyHours,
     exceptions,
     people,
@@ -854,6 +868,7 @@ export default function App() {
     const pending = {
       version: APP_STATE_VERSION,
       operationTimeZone,...(cycleAnchorDate ? {cycleAnchorDate} : {}),
+      ...(cycleAnchorDate && accountingCycleDays ? {accountingCycleDays} : {}),onboarding,
       weeklyOperatingHours: weeklyHours, exceptions, people,
       availabilities, workRules,
       weeklyPresenceRequirements, presenceExceptions,
@@ -968,6 +983,7 @@ export default function App() {
           operatingCalendar={generatorOperatingCalendar}
           operationTimeZone={operationTimeZone}
           cycleAnchorDate={cycleAnchorDate || undefined}
+          accountingCycleDays={accountingCycleDays}
           savedRevision={savedRevision}
           initialMonth={lastSavedStart}
           onCreate={openGenerator}
