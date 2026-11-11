@@ -477,7 +477,7 @@ try{
   await wait(()=>Boolean(persisted.onboarding?.coverageConfirmedFingerprint),
     "Default one-person coverage is explicitly confirmed and persisted");
   await presenceUI.getByText("Etapa 2 confirmada").waitFor();
-  await page.goto(origin+"/operacao/presenca",{waitUntil:"domcontentloaded"});
+  await page.goto(origin+"/operacao/cobertura",{waitUntil:"domcontentloaded"});
   await page.locator(".save-status.saved").waitFor();
   await page.getByText("Etapa 2 confirmada").waitFor();
   await mondayCoverage.getByRole("button",{name:"Personalizar"}).click();
