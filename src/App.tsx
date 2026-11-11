@@ -973,6 +973,7 @@ export default function App() {
               {persistenceStatus === "error" && "Erro ao guardar"}
             </div>
             {editingExceptionIndex!==null && <span className="operation-draft-status" role="status">Exceção por guardar</span>}
+            {cycleDraftOpen && <span className="operation-draft-status" role="status">Escolha do ciclo por guardar</span>}
           </div>
         </header>
         <div className="application-page">
@@ -1010,41 +1011,49 @@ export default function App() {
             </div>
           </section>
 
-          <section className="panel" aria-label="Configuração temporal da operação">
-            <div className="panel-header"><div>
-              <p className="section-kicker">Contexto da operação</p>
-              <h2>Fuso horário e ciclo contabilístico</h2>
-            </div></div>
-            <div className="se-controls">
-              <label className="se-control">
-                <span>Fuso horário IANA</span>
-                <input type="text" value={timeZoneDraft} autoComplete="off"
-                  placeholder="Atlantic/Azores"
-                  onChange={event=>setTimeZoneDraft(event.target.value)} />
-              </label>
-              <label className="se-control">
-                <span>Início de um ciclo fixo de 28 dias (opcional)</span>
-                <input type="date" value={cycleAnchorDate}
-                  onChange={event=>setCycleAnchorDate(event.target.value)} />
-              </label>
-            </div>
-            <div className="p63-action-row">
-              <button type="button" className="se-outline"
-                disabled={!isIanaOperationTimeZone(timeZoneDraft) ||
-                  timeZoneDraft === operationTimeZone}
-                onClick={()=>setOperationTimeZone(timeZoneDraft)}>
-                Aplicar fuso horário
-              </button>
-              {!isIanaOperationTimeZone(timeZoneDraft) &&
-                <span role="alert">Indica um fuso horário IANA válido antes de guardar.</span>}
-            </div>
-            <p className="section-description">
-              O fuso aplicado é utilizado no calendário e na geração; os horários já
-              arquivados mantêm o fuso original. O ciclo tem sempre 28 dias e não
-              corresponde necessariamente ao início ou fim de um mês.
-              A geração certificada suporta períodos de até 28 dias por proposta.
-            </p>
-          </section>
+          <section className="panel operation-context-compact" aria-label="Configuração temporal da operação">
+             <div className="operation-context-heading">
+               <div>
+                 <p className="section-kicker">Contexto da operação</p>
+                 <h2>Fuso horário e ciclos de trabalho</h2>
+               </div>
+               <p>A empresa pode funcionar sem ciclo fixo. A escolha não limita a geração mensal.</p>
+             </div>
+             <div className="operation-context-controls">
+               <div className="operation-timezone">
+                 <label className="se-control">
+                   <span>Fuso horário IANA</span>
+                   <input type="text" value={timeZoneDraft} autoComplete="off"
+                     placeholder="Atlantic/Azores"
+                     onChange={event=>setTimeZoneDraft(event.target.value)} />
+                 </label>
+                 <button type="button" className="se-outline"
+                   disabled={!isIanaOperationTimeZone(timeZoneDraft) ||
+                     timeZoneDraft===operationTimeZone}
+                   onClick={()=>setOperationTimeZone(timeZoneDraft)}>
+                   Aplicar fuso horário
+                 </button>
+                 {!isIanaOperationTimeZone(timeZoneDraft) &&
+                   <span role="alert">Indica um fuso horário IANA válido antes de guardar.</span>}
+               </div>
+               <OperationCycleSettings
+                 anchorDate={cycleAnchorDate}
+                 days={accountingCycleDays}
+                 decisionConfirmed={onboarding.cycleDecisionConfirmed===true}
+                 onDraftOpenChange={setCycleDraftOpen}
+                 onSave={(anchor,days)=>{
+                   setCycleAnchorDate(anchor);
+                   setAccountingCycleDays(days);
+                   setOnboarding(previous=>({...previous,cycleDecisionConfirmed:true}));
+                 }}
+               />
+             </div>
+             <p className="operation-context-footnote">
+               O fuso aplicado rege o calendário e a geração; os horários arquivados mantêm
+               o original. A geração certificada suporta períodos de até 28 dias por proposta,
+               independentemente do ciclo de trabalho escolhido.
+             </p>
+           </section>
           <div className="dashboard-grid">
         <section className="panel schedule-panel">
           <div className="panel-header">
@@ -1539,7 +1548,28 @@ export default function App() {
               </div>
 
               {selectedAvailability && (
-                <div className="dashboard-grid">
+                <GuidedSetup
+             operationConfirmed={isOperationConfirmed(
+               onboarding,weeklyHours,operationTimeZone,cycleAnchorDate,accountingCycleDays)}
+             cycleDecisionConfirmed={onboarding.cycleDecisionConfirmed===true}
+             canConfirmOperation={onboarding.cycleDecisionConfirmed===true &&
+               summary.openDays>0 && isIanaOperationTimeZone(operationTimeZone) &&
+               WEEKDAYS.every(day=>validateEditedIntervals(weeklyHours[day]).valid)}
+             saving={persistenceStatus!=="saved"}
+             hasCoverage={WEEKDAYS.filter(day=>weeklyHours[day].length>0)
+               .every(day=>weeklyPresenceRequirements[day]!==null &&
+                 isPresenceRequirementValid(weeklyPresenceRequirements[day]!))}
+             hasTeam={people.some(person=>person.active)}
+             hasAvailabilityAndRules={workRules.standardShiftDurationMinutes!==null &&
+               people.some(person=>person.active) && availabilities.length>0}
+             onConfirmOperation={()=>setOnboarding(previous=>({
+               ...previous,
+               operationConfirmedFingerprint:operationFingerprint(
+                 weeklyHours,operationTimeZone,cycleAnchorDate,accountingCycleDays),
+             }))}
+             onNavigate={navigate}
+           />
+           <div className="dashboard-grid">
                   <section className="panel schedule-panel">
                     <div className="panel-header">
                       <div>
