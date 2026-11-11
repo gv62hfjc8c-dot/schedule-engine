@@ -1011,7 +1011,28 @@ export default function App() {
             </div>
           </section>
 
-          <section className="panel operation-context-compact" aria-label="Configuração temporal da operação">
+          <GuidedSetup
+             operationConfirmed={isOperationConfirmed(
+               onboarding,weeklyHours,operationTimeZone,cycleAnchorDate,accountingCycleDays)}
+             cycleDecisionConfirmed={onboarding.cycleDecisionConfirmed===true}
+             canConfirmOperation={onboarding.cycleDecisionConfirmed===true &&
+               summary.openDays>0 && isIanaOperationTimeZone(operationTimeZone) &&
+               WEEKDAYS.every(day=>validateEditedIntervals(weeklyHours[day]).valid)}
+             saving={persistenceStatus!=="saved"}
+             hasCoverage={WEEKDAYS.filter(day=>weeklyHours[day].length>0)
+               .every(day=>weeklyPresenceRequirements[day]!==null &&
+                 isPresenceRequirementValid(weeklyPresenceRequirements[day]!))}
+             hasTeam={people.some(person=>person.active)}
+             hasAvailabilityAndRules={workRules.standardShiftDurationMinutes!==null &&
+               people.some(person=>person.active) && availabilities.length>0}
+             onConfirmOperation={()=>setOnboarding(previous=>({
+               ...previous,
+               operationConfirmedFingerprint:operationFingerprint(
+                 weeklyHours,operationTimeZone,cycleAnchorDate,accountingCycleDays),
+             }))}
+             onNavigate={navigate}
+           />
+           <section className="panel operation-context-compact" aria-label="Configuração temporal da operação">
              <div className="operation-context-heading">
                <div>
                  <p className="section-kicker">Contexto da operação</p>
@@ -1548,28 +1569,7 @@ export default function App() {
               </div>
 
               {selectedAvailability && (
-                <GuidedSetup
-             operationConfirmed={isOperationConfirmed(
-               onboarding,weeklyHours,operationTimeZone,cycleAnchorDate,accountingCycleDays)}
-             cycleDecisionConfirmed={onboarding.cycleDecisionConfirmed===true}
-             canConfirmOperation={onboarding.cycleDecisionConfirmed===true &&
-               summary.openDays>0 && isIanaOperationTimeZone(operationTimeZone) &&
-               WEEKDAYS.every(day=>validateEditedIntervals(weeklyHours[day]).valid)}
-             saving={persistenceStatus!=="saved"}
-             hasCoverage={WEEKDAYS.filter(day=>weeklyHours[day].length>0)
-               .every(day=>weeklyPresenceRequirements[day]!==null &&
-                 isPresenceRequirementValid(weeklyPresenceRequirements[day]!))}
-             hasTeam={people.some(person=>person.active)}
-             hasAvailabilityAndRules={workRules.standardShiftDurationMinutes!==null &&
-               people.some(person=>person.active) && availabilities.length>0}
-             onConfirmOperation={()=>setOnboarding(previous=>({
-               ...previous,
-               operationConfirmedFingerprint:operationFingerprint(
-                 weeklyHours,operationTimeZone,cycleAnchorDate,accountingCycleDays),
-             }))}
-             onNavigate={navigate}
-           />
-           <div className="dashboard-grid">
+                <div className="dashboard-grid">
                   <section className="panel schedule-panel">
                     <div className="panel-header">
                       <div>
