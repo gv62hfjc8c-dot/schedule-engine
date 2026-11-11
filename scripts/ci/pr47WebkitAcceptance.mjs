@@ -260,19 +260,25 @@ try{
   await page.getByRole("heading",{name:"Calendário mensal"}).waitFor();
   await page.locator(".save-status.saved").waitFor();
   // PR60: browser-addressable application pages, including deep-linked days.
+  // Isolate history tests in a separate tab: WebKit Linux BFCache can crash
+  // on unrelated later reloads after a back-forward traversal.
   await page.waitForURL("**/horarios");
-  await page.getByRole("button",{name:"Equipa",exact:true}).click();
-  await page.getByRole("heading",{name:"Pessoas",exact:true}).waitFor();
-  assert.equal(new URL(page.url()).pathname,"/equipa",
+  const routePage=await context.newPage();
+  routePage.on("pageerror",error=>errors.push(error.message));
+  await routePage.goto(origin,{waitUntil:"domcontentloaded"});
+  await routePage.getByRole("heading",{name:"Calendário mensal"}).waitFor();
+  await routePage.getByRole("button",{name:"Equipa",exact:true}).click();
+  await routePage.getByRole("heading",{name:"Pessoas",exact:true}).waitFor();
+  assert.equal(new URL(routePage.url()).pathname,"/equipa",
     "A workspace navigation action must update the browser URL.");
-  await page.goBack();
-  await page.getByRole("heading",{name:"Calendário mensal"}).waitFor();
-  assert.equal(new URL(page.url()).pathname,"/horarios",
+  await routePage.goBack();
+  await routePage.getByRole("heading",{name:"Calendário mensal"}).waitFor();
+  assert.equal(new URL(routePage.url()).pathname,"/horarios",
     "Browser Back must restore the calendar.");
-  await page.goForward();
-  await page.getByRole("heading",{name:"Pessoas",exact:true}).waitFor();
-  // Direct-entry and reload checks use a separate tab to avoid reloading an
-  // in-place browser history traversal (WebKit BFCache can crash on Linux CI).
+  await routePage.goForward();
+  await routePage.getByRole("heading",{name:"Pessoas",exact:true}).waitFor();
+  await routePage.close();
+
   const deepPage=await context.newPage();
   deepPage.on("pageerror",error=>errors.push(error.message));
   await deepPage.goto(origin+"/equipa",{waitUntil:"domcontentloaded"});
@@ -282,22 +288,19 @@ try{
   assert.equal(new URL(deepPage.url()).pathname,"/equipa",
     "Reloading a nested workspace URL must preserve the same view.");
   await deepPage.goto(origin+"/horarios/2026-11-09",{waitUntil:"domcontentloaded"});
-  const deepDay=deepPage.getByRole("region",{name:"Gestão diária"});
-  await deepDay.waitFor();
+  await deepPage.getByRole("region",{name:"Gestão diária"}).waitFor();
   assert.equal(new URL(deepPage.url()).pathname,"/horarios/2026-11-09");
   await deepPage.reload({waitUntil:"domcontentloaded"});
   await deepPage.getByRole("region",{name:"Gestão diária"}).waitFor();
   await deepPage.getByRole("button",{name:"← Calendário mensal"}).click();
   await deepPage.getByRole("heading",{name:"Calendário mensal"}).waitFor();
   assert.equal(new URL(deepPage.url()).pathname,"/horarios",
-    "Returning from the dated page must produce the canonical calendar URL.");
+    "Returning from a dated page must produce the canonical calendar URL.");
   await deepPage.goBack();
   await deepPage.getByRole("region",{name:"Gestão diária"}).waitFor();
   await deepPage.goForward();
   await deepPage.getByRole("heading",{name:"Calendário mensal"}).waitFor();
   await deepPage.close();
-  await page.getByRole("button",{name:"Horários",exact:true}).click();
-  await page.getByRole("heading",{name:"Calendário mensal"}).waitFor();
 
   // Calendar v2: compact information is opt-in, never hide archive failures.
   await page.getByRole("button",{name:"Informação do calendário"}).waitFor();
