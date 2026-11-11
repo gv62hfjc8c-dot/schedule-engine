@@ -1228,7 +1228,7 @@ export function stabilizeWeeklyMealPatterns(
  * Company-specific hard policy: when a day is short enough, any assigned
  * person must cover its complete single operating interval. A day with no
  * assigned shifts remains valid when presence requirements allow it.
- * Unconfigured / multi-interval days are not implicitly constrained.
+ * Multi-interval days are not implicitly constrained by the short-day rule.\n  * An inherited presence minimum still applies independently to every open interval.
  */
 function satisfiesFullShortDayPolicy(
   input: GenerateConstrainedPeriodInput,
