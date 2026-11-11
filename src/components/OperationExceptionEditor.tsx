@@ -1,4 +1,4 @@
-import {useState} from "react";
+import {useState, type FormEvent} from "react";
 import type {OperatingHoursException, WeeklyOperatingHours} from "../types";
 import {getWeekday} from "../utils/operatingCalendar";
 import {
@@ -7,6 +7,7 @@ import {
   type OperationExceptionDraft,
 } from "../utils/operationConfigurationDraft";
 import IntervalListEditor from "./IntervalListEditor";
+import {editInterval} from "../utils/intervalEditing";
 import CalendarDateInput from "./CalendarDateInput";
 
 interface Props {
@@ -17,6 +18,11 @@ interface Props {
   onSave(next: OperatingHoursException): void;
   onCancel(): void;
 }
+
+const clock=(value:string)=>Number(value.split(":")[0])*60+Number(value.split(":")[1]);
+const format=(minute:number)=>String(Math.floor(minute/60)).padStart(2,"0")+":"+String(minute%60).padStart(2,"0");
+const starts=Array.from({length:96},(_,i)=>format(i*15));
+const ends=[...starts.slice(1),"24:00"];
 
 export default function OperationExceptionEditor({
   initial,existing,editingIndex,weeklyHours,onSave,onCancel,
@@ -46,7 +52,7 @@ export default function OperationExceptionEditor({
     setSuggested(true);
   }
 
-  function submit(event:React.FormEvent<HTMLFormElement>) {
+  function submit(event:FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const validation=validateOperationExceptionDraft(draft,existing,editingIndex);
     if(!validation.valid) {
@@ -91,6 +97,24 @@ export default function OperationExceptionEditor({
       {suggested && <p className="operation-exception-hint">
         Horário sugerido — confirma ou altera antes de guardar.
       </p>}
+      {draft.intervals.length===1 && <div className="operation-exception-time-grid">
+        <label><span>Abertura</span><select value={draft.intervals[0].start}
+          onChange={event=>{
+            const start=event.target.value;
+            const end=clock(draft.intervals[0].end)>clock(start)
+              ? draft.intervals[0].end : format(clock(start)+15);
+            const result=editInterval(draft.intervals,0,{start,end});
+            if(result.valid) update({intervals:result.intervals});
+            else setIssue(result.issue);
+          }}>{starts.map(time=><option key={time} value={time}>{time}</option>)}</select></label>
+        <label><span>Fecho</span><select value={draft.intervals[0].end}
+          onChange={event=>{
+            const result=editInterval(draft.intervals,0,{...draft.intervals[0],end:event.target.value});
+            if(result.valid) update({intervals:result.intervals});
+            else setIssue(result.issue);
+          }}>{ends.filter(time=>clock(time)>clock(draft.intervals[0].start))
+            .map(time=><option key={time} value={time}>{time}</option>)}</select></label>
+      </div>}
       <IntervalListEditor
         label="horário especial"
         intervals={draft.intervals}
