@@ -34,7 +34,7 @@ import { appStateRepository } from "./persistence/appStateRepository";
 import { APP_STATE_VERSION } from "./persistence/stateRepository";
 import {isOperationConfirmed,operationFingerprint,type AccountingCycleDays,type OnboardingConfiguration} from "./utils/accountingCycleConfiguration";
 import {validateEditedIntervals} from "./utils/intervalEditing";
-import {isPresenceRequirementValid} from "./utils/presence";
+import {coverageFingerprint,isCoverageConfirmed,validCoverageConfiguration} from "./utils/presenceConfiguration";
 import {
   notifyOtherTabsOfStateCommit,
   isOtherTabStateCommit,
@@ -195,6 +195,7 @@ export default function App() {
   const [accountingCycleDays,setAccountingCycleDays]=useState<AccountingCycleDays|undefined>();
   const [onboarding,setOnboarding]=useState<OnboardingConfiguration>({});
   const [cycleDraftOpen,setCycleDraftOpen]=useState(false);
+  const [presenceDraftOpen,setPresenceDraftOpen]=useState(false);
   const [availabilities, setAvailabilities] = useState<
     PersonAvailability[]
   >([]);
@@ -974,6 +975,7 @@ export default function App() {
             </div>
             {editingExceptionIndex!==null && <span className="operation-draft-status" role="status">Exceção por guardar</span>}
             {cycleDraftOpen && <span className="operation-draft-status" role="status">Escolha do ciclo por guardar</span>}
+            {activeSection==="presence" && presenceDraftOpen && <span className="operation-draft-status" role="status">Cobertura por guardar</span>}
           </div>
         </header>
         <div className="application-page">
@@ -1019,9 +1021,11 @@ export default function App() {
                summary.openDays>0 && isIanaOperationTimeZone(operationTimeZone) &&
                WEEKDAYS.every(day=>validateEditedIntervals(weeklyHours[day]).valid)}
              saving={persistenceStatus!=="saved"}
-             hasCoverage={WEEKDAYS.filter(day=>weeklyHours[day].length>0)
-               .every(day=>weeklyPresenceRequirements[day]!==null &&
-                 isPresenceRequirementValid(weeklyPresenceRequirements[day]!))}
+             coverageConfirmed={isCoverageConfirmed(onboarding,
+               isOperationConfirmed(onboarding,weeklyHours,operationTimeZone,cycleAnchorDate,accountingCycleDays),
+               weeklyHours,exceptions,weeklyPresenceRequirements,presenceExceptions)}
+             hasCoverage={validCoverageConfiguration(
+               weeklyHours,weeklyPresenceRequirements,presenceExceptions)}
              hasTeam={people.some(person=>person.active)}
              hasAvailabilityAndRules={workRules.standardShiftDurationMinutes!==null &&
                people.some(person=>person.active) && availabilities.length>0}
@@ -1970,6 +1974,15 @@ export default function App() {
           exceptions={presenceExceptions}
           onWeeklyChange={setWeeklyPresenceRequirements}
           onExceptionsChange={setPresenceExceptions}
+          onboarding={onboarding}
+          operationConfirmed={isOperationConfirmed(
+            onboarding,weeklyHours,operationTimeZone,cycleAnchorDate,accountingCycleDays)}
+          persistenceStatus={persistenceStatus}
+          onConfirmCoverage={()=>setOnboarding(previous=>({
+            ...previous,coverageConfirmedFingerprint:coverageFingerprint(
+              weeklyHours,exceptions,weeklyPresenceRequirements,presenceExceptions),
+          }))}
+          onDraftOpenChange={setPresenceDraftOpen}
         />
       )}
 
