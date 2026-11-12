@@ -4950,3 +4950,143 @@ h2 {
   .team-draft-warning {background:#382f20;border-color:#8d724b;color:#ffe1ad;}
   .team-legacy-note,.team-status-warning,.team-confirm-hint {color:#f1d19a!important;}
 }
+
+
+/* PR67: accessible civil-date calendar, independent of Safari native popups. */
+.civil-date-field {min-width:0;width:100%;font-weight:normal;}
+.civil-date-control {
+  display:flex;align-items:stretch;gap:7px;width:100%;
+}
+.civil-date-control > input {
+  flex:1 1 auto;min-width:0;width:100%;
+  font-variant-numeric:tabular-nums;letter-spacing:.01em;
+}
+.civil-date-control .civil-date-open {
+  display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  flex:0 0 auto;padding:8px 11px;border:1px solid #b6cce0;
+  border-radius:8px;background:#edf5fc;color:#214767;
+  cursor:pointer;font-size:12px;font-weight:750;
+}
+.civil-date-control .civil-date-open:hover {
+  background:#dbeefd;border-color:#75a0c4;
+}
+.civil-date-control .civil-date-open:focus-visible {
+  outline:2px solid #4b86bc;outline-offset:2px;
+}
+.civil-date-error {display:block;margin-top:5px;color:#a23b37;font-size:11px;}
+.civil-calendar-dialog {
+  position:fixed;
+  inset:0;
+  margin:auto;
+  padding:0;
+  width:min(420px,calc(100vw - 26px));
+  max-width:calc(100vw - 26px);
+  max-height:min(640px,calc(100dvh - 30px));
+  overflow:auto;
+  border:1px solid #b6ccdf;
+  border-radius:16px;
+  color:#1a3148;
+  background:#fff;
+  box-shadow:0 22px 64px rgba(10,25,45,.35);
+  z-index:4000;
+  text-align:left;
+}
+.civil-calendar-dialog::backdrop {background:rgba(9,22,39,.56);backdrop-filter:blur(3px);}
+.civil-calendar-header {
+  display:flex;justify-content:space-between;align-items:center;gap:10px;
+  padding:16px 19px 12px;border-bottom:1px solid #e0e8ef;
+}
+.civil-calendar-header > div {display:grid;gap:3px;}
+.civil-calendar-header strong {font-size:17px;font-weight:750;}
+.civil-calendar-header span {color:#526f89;font-size:12px;}
+.civil-calendar-close {
+  border:1px solid #d2dfe9;border-radius:8px;
+  background:#f5f8fb;color:#39536b;font-size:22px;
+  min-width:36px;min-height:36px;cursor:pointer;
+}
+.civil-calendar-nav {
+  display:grid;grid-template-columns:40px minmax(0,1fr) 86px 40px;
+  gap:8px;align-items:center;padding:14px 17px;
+}
+.civil-calendar-nav button {
+  min-height:40px;min-width:40px;
+  border:1px solid #cddbe9;border-radius:9px;
+  background:#f3f8fc;color:#315773;font-size:26px;cursor:pointer;
+}
+.civil-calendar-nav select,
+.civil-calendar-nav input {
+  box-sizing:border-box;min-width:0;width:100%;min-height:40px;
+  padding:8px 9px;border:1px solid #cddbe9;border-radius:9px;
+  color:#213f5c;background:#fff;font-size:14px;font-weight:650;
+}
+.civil-calendar-nav button:disabled {opacity:.35;cursor:not-allowed;}
+.civil-calendar-weekdays,
+.civil-calendar-days {
+  display:grid;grid-template-columns:repeat(7,minmax(0,1fr));
+  column-gap:4px;row-gap:4px;
+  margin-inline:17px;
+}
+.civil-calendar-weekdays {margin-bottom:7px;}
+.civil-calendar-weekdays span {
+  font-size:12px;font-weight:750;text-align:center;color:#64798f;
+}
+.civil-calendar-days button,
+.civil-calendar-days > span {
+  min-height:42px;aspect-ratio:1;
+}
+.civil-calendar-days button {
+  display:flex;justify-content:center;align-items:center;
+  border:1px solid transparent;border-radius:9px;
+  background:#f6f9fc;color:#243e55;
+  font-size:15px;font-weight:650;cursor:pointer;
+  font-variant-numeric:tabular-nums;
+}
+.civil-calendar-days button:hover {background:#d9eafa;border-color:#a2c9ea;}
+.civil-calendar-days button.is-selected {
+  color:#fff;background:#285e92;border-color:#285e92;
+}
+.civil-calendar-days button:focus-visible {
+  outline:2px solid #3b83c8;outline-offset:2px;
+}
+.civil-calendar-footer {
+  display:flex;justify-content:space-between;gap:10px;
+  padding:14px 17px 18px;margin-top:8px;
+  border-top:1px solid #e0e8ef;
+}
+.civil-calendar-footer button {
+  padding:9px 14px;min-height:39px;
+  border:1px solid #c8d6e3;border-radius:9px;
+  background:#f5f8fb;color:#254661;font-size:13px;
+  font-weight:750;cursor:pointer;
+}
+.civil-calendar-footer button:hover {background:#dcecf9;}
+@media (max-width:540px) {
+  .civil-date-control {flex-wrap:wrap;}
+  .civil-date-control > input {flex-basis:100%;}
+  .civil-date-control .civil-date-open {width:100%;min-height:40px;}
+  .civil-calendar-nav {grid-template-columns:38px minmax(0,1fr) 70px 38px;padding-inline:11px;gap:5px;}
+  .civil-calendar-weekdays,.civil-calendar-days {margin-inline:10px;}
+  .civil-calendar-days button,.civil-calendar-days > span {min-height:38px;}
+}
+@media (prefers-color-scheme:dark) {
+  .civil-date-control .civil-date-open {
+    background:#2a415a;border-color:#647e9a;color:#e7f4ff;
+  }
+  .civil-date-control .civil-date-open:hover {background:#365675;}
+  .civil-date-error {color:#ffb5aa;}
+  .civil-calendar-dialog {
+    background:#1c2d40;color:#f1f6fd;border-color:#526d8a;
+    box-shadow:0 22px 64px rgba(0,0,0,.66);
+  }
+  .civil-calendar-header,.civil-calendar-footer {border-color:#415a74;}
+  .civil-calendar-header span,.civil-calendar-weekdays span {color:#bacde1;}
+  .civil-calendar-nav button,.civil-calendar-close,.civil-calendar-footer button {
+    background:#263f58;border-color:#607b97;color:#e6f2ff;
+  }
+  .civil-calendar-nav select,.civil-calendar-nav input {
+    background:#13263a;color:#f4f9ff;border-color:#607b97;
+  }
+  .civil-calendar-days button {background:#263c53;color:#f5f9ff;}
+  .civil-calendar-days button:hover {background:#345f84;border-color:#79a7d0;}
+  .civil-calendar-days button.is-selected {background:#3979b8;border-color:#8ab9ee;}
+}

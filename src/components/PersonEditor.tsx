@@ -1,4 +1,5 @@
 import {useState,type FormEvent} from "react";
+import CivilDateField from "./CivilDateField";
 import type {Person} from "../types";
 import {validateEmploymentPeriods,type EmploymentPeriod} from "../utils/employmentPeriods";
 import {validatePersonDraft,type EligibilityChoice} from "../utils/teamConfiguration";
@@ -121,16 +122,16 @@ export default function PersonEditor({initial,onSave,onCancel}:Props){
           </li>)}
         </ul>}
         <div className="team-draft-grid">
-          <label className="team-draft-field">
+          <div className="team-draft-field">
             <span>Data de início</span>
-            <input type="date" aria-label="Data de início do vínculo" value={start}
-              onChange={e=>{setStart(e.target.value);setIssue("");}}/>
-          </label>
-          <label className="team-draft-field">
+            <CivilDateField label="Data de início do vínculo" value={start}
+              onChange={value=>{setStart(value);setIssue("");}}/>
+          </div>
+          <div className="team-draft-field">
             <span>Data de fim (opcional)</span>
-            <input type="date" aria-label="Data de fim do vínculo" value={end}
-              onChange={e=>{setEnd(e.target.value);setIssue("");}}/>
-          </label>
+            <CivilDateField label="Data de fim do vínculo" value={end}
+              onChange={value=>{setEnd(value);setIssue("");}}/>
+          </div>
         </div>
         <button type="button" className="se-outline" onClick={addPeriod}>
           Adicionar período ao rascunho

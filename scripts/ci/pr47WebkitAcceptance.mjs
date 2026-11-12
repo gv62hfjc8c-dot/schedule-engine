@@ -597,6 +597,25 @@ try{
   await newStaff.getByRole("button",{name:"Guardar colaborador"}).click();
   await newStaff.getByRole("alert").getByText(/Escolhe como este colaborador/).waitFor();
   await newStaff.getByRole("radio",{name:"Apenas em períodos definidos"}).check();
+  // PR67: Safari date selection must use a readable dialog, not tiny native picker.
+  assert.equal(await newStaff.locator('input[type="date"]').count(),0,
+    "The employment editor no longer exposes browser-native date widgets.");
+  await newStaff.getByRole("button",{name:"Abrir calendário inicial"}).click();
+  const readableCalendar=page.getByRole("dialog",
+    {name:"Calendário inicial"});
+  await readableCalendar.waitFor();
+  await readableCalendar.getByRole("combobox",{name:"Mês do calendário"}).selectOption("11");
+  await readableCalendar.getByRole("spinbutton",{name:"Ano do calendário"}).fill("2026");
+  await readableCalendar.getByRole("button",
+    {name:"12 de novembro de 2026"}).click();
+  assert.equal(await newStaff.getByLabel("Data de início do vínculo").inputValue(),
+    "12/11/2026","The chosen ISO date displays in pt-PT format.");
+  assert.equal(await readableCalendar.isVisible(),false,
+    "Calendar must close after selecting a date.");
+  await newStaff.getByLabel("Data de início do vínculo").fill("31/02/2026");
+  assert.equal(await newStaff.getByLabel("Data de início do vínculo")
+    .evaluate(input=>input.checkValidity()),false,
+    "Invalid typed civil date cannot be submitted.");
   await newStaff.getByLabel("Data de início do vínculo").fill("2026-11-01");
   await newStaff.getByLabel("Data de fim do vínculo").fill("2026-11-30");
   await newStaff.getByRole("button",{name:"Adicionar período ao rascunho"}).click();
@@ -634,8 +653,12 @@ try{
   await created.getByLabel("Nome do colaborador").fill("Pessoa de Ensaio Dois");
   await created.getByRole("radio",{name:"Apenas em períodos definidos"}).check();
   await created.getByLabel("Data de início do vínculo").fill("2026-11-01");
-  await created.getByLabel("Data de fim do vínculo").fill("2026-11-30");
+  await created.getByLabel("Data de fim do vínculo").fill("30/11/2026");
   await created.getByRole("button",{name:"Adicionar período ao rascunho"}).click();
+  await created.getByText("2026-11-01 até 2026-11-30").waitFor();
+  assert.equal(await created.getByLabel("Data de início do vínculo")
+    .getAttribute("required"),null,
+    "After adding a valid period, an empty next-period field must not block saving the collaborator.");
   await created.getByLabel("Máximo contratual da pessoa").fill("20");
   await created.getByLabel("Objetivo semanal da pessoa").fill("15");
   await created.getByLabel("Qualificações da pessoa").fill("Receção, Caixa");
