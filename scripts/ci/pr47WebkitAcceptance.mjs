@@ -600,9 +600,9 @@ try{
   // PR67: Safari date selection must use a readable dialog, not tiny native picker.
   assert.equal(await newStaff.locator('input[type="date"]').count(),0,
     "The employment editor no longer exposes browser-native date widgets.");
-  await newStaff.getByRole("button",{name:"Escolher data de início do vínculo"}).click();
+  await newStaff.getByRole("button",{name:"Abrir calendário inicial"}).click();
   const readableCalendar=page.getByRole("dialog",
-    {name:"Calendário: Data de início do vínculo"});
+    {name:"Calendário inicial"});
   await readableCalendar.waitFor();
   await readableCalendar.getByRole("combobox",{name:"Mês do calendário"}).selectOption("11");
   await readableCalendar.getByRole("spinbutton",{name:"Ano do calendário"}).fill("2026");
