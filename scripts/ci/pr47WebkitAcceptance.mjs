@@ -694,9 +694,12 @@ try{
   await wait(()=>persisted.people[1].active===false,
     "Archive was confirmed and saved.");
   await page.locator(".save-status.saved").waitFor();
+  const teamFingerprintBeforeReconfirmation=persisted.onboarding?.teamConfirmedFingerprint;
   await teamStep.getByRole("button",{name:"Confirmar equipa"}).click();
-  await wait(()=>Boolean(persisted.onboarding?.teamConfirmedFingerprint),
-    "Reconfirmation of archived team persisted.");
+  await wait(()=>Boolean(persisted.onboarding?.teamConfirmedFingerprint) &&
+    persisted.onboarding.teamConfirmedFingerprint!==teamFingerprintBeforeReconfirmation,
+    "Reconfirmation of the archived team actually persisted (not stale confirmation).");
+  await page.locator(".save-status.saved").waitFor();
   await page.getByRole("button",{name:"Operação",exact:true}).click();
   const guided=page.getByRole("region",{name:"Configuração inicial guiada"});
   await guided.getByText("3 de 5").waitFor();
@@ -706,6 +709,7 @@ try{
   await page.getByRole("heading",{name:"Disponibilidade semanal"}).waitFor();
   const pr68Monday=page.locator(".availability-week-card").filter({hasText:"Segunda"});
   await pr68Monday.getByText("Disponível",{exact:true}).waitFor();
+  await page.locator(".save-status.saved").waitFor();
   const pr68OriginalMonday=JSON.stringify(persisted.availabilities[0].weeklyAvailability.monday);
   const pr68BeforeMondayDraft=saves;
   await pr68Monday.getByRole("button",{name:"Editar disponibilidade"}).click();
