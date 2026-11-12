@@ -655,6 +655,10 @@ try{
   await created.getByLabel("Data de início do vínculo").fill("2026-11-01");
   await created.getByLabel("Data de fim do vínculo").fill("30/11/2026");
   await created.getByRole("button",{name:"Adicionar período ao rascunho"}).click();
+  await created.getByText("2026-11-01 até 2026-11-30").waitFor();
+  assert.equal(await created.getByLabel("Data de início do vínculo")
+    .getAttribute("required"),null,
+    "After adding a valid period, an empty next-period field must not block saving the collaborator.");
   await created.getByLabel("Máximo contratual da pessoa").fill("20");
   await created.getByLabel("Objetivo semanal da pessoa").fill("15");
   await created.getByLabel("Qualificações da pessoa").fill("Receção, Caixa");
