@@ -1206,446 +1206,66 @@ export default function App() {
 
       {activeSection === "availability" && (
         <>
-          {activePeople.length === 0 ? (
-            <section className="panel availability-empty-panel">
-              <div className="people-empty">
-                <div className="empty-icon">◎</div>
-                <strong>Não existem pessoas ativas</strong>
-                <p>
-                  Adiciona ou reativa uma pessoa antes de configurar
-                  disponibilidade.
-                </p>
-              </div>
-            </section>
-          ) : (
-            <>
-              <section
-                className="overview-bar"
-                aria-label="Resumo de disponibilidade"
-              >
-                <div className="overview-item">
-                  <span>Pessoa</span>
-                  <strong>
-                    {selectedAvailabilityPerson?.name ?? "—"}
-                  </strong>
-                </div>
-                <div className="overview-item">
-                  <span>Dias disponíveis</span>
-                  <strong>
-                    {availabilitySummary.availableDays} / 7
-                  </strong>
-                </div>
-                <div className="overview-item">
-                  <span>Exceções</span>
-                  <strong>{availabilitySummary.exceptions}</strong>
-                </div>
-              </section>
-
-              <div className="availability-person-picker">
-                <label className="select-field">
-                  <span>Pessoa</span>
-                  <select
-                    value={
-                      selectedAvailabilityPerson?.id ?? ""
-                    }
-                    onChange={(event) =>
-                      setSelectedAvailabilityPersonId(
-                        event.target.value
-                      )
-                    }
-                  >
-                    {activePeople.map((person) => (
-                      <option
-                        key={person.id}
-                        value={person.id}
-                      >
-                        {person.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-
-              {selectedAvailability && (
-                <div className="dashboard-grid">
-                  <section className="panel schedule-panel">
-                    <div className="panel-header">
-                      <div>
-                        
-                        <h2>Disponibilidade semanal</h2>
-                      </div>
-                      <p className="panel-help">
-                        Quando esta pessoa pode ser escalada.
-                      </p>
-                    </div>
-
-                    <div className="schedule-table">
-                      <div
-                        className="schedule-head"
-                        aria-hidden="true"
-                      >
-                        <span>Dia</span>
-                        <span>Estado</span>
-                        <span>Início</span>
-                        <span>Fim</span>
-                      </div>
-
-                      {WEEKDAYS.map((weekday) => {
-                        const configuredIntervals =
-                          selectedAvailability.weeklyAvailability[weekday];
-                        const operatingIntervals = weeklyHours[weekday];
-                        const operatingInterval = operatingIntervals[0];
-                        const operationClosed =
-                          operatingIntervals.length === 0;
-                        const effectiveIntervals = intersectIntervals(
-                          configuredIntervals,
-                          operatingIntervals
-                        );
-                        const unavailable =
-                          effectiveIntervals.length === 0;
-                        const interval = effectiveIntervals[0];
-
-                        return (
-                          <div
-                            key={weekday}
-                            className={`schedule-row ${unavailable ? "is-closed" : ""}`}
-                          >
-                            <div className="day-name">
-                              <strong>{weekdayLabels[weekday]}</strong>
-                              <span>
-                                {operationClosed
-                                  ? "Empresa fechada"
-                                  : formatAvailabilityIntervals(
-                                      effectiveIntervals
-                                    )}
-                              </span>
-                            </div>
-
-                            <button
-                              type="button"
-                              className={`state-button ${unavailable ? "closed" : "open"}`}
-                              onClick={() =>
-                                toggleAvailabilityDay(weekday)
-                              }
-                              disabled={operationClosed}
-                              title={
-                                operationClosed
-                                  ? "O calendário operacional está fechado neste dia."
-                                  : undefined
-                              }
-                            >
-                              <span className="state-dot" />
-                              {operationClosed
-                                ? "Empresa fechada"
-                                : unavailable
-                                  ? "Indisponível"
-                                  : "Disponível"}
-                            </button>
-
-                            {!operationClosed &&
-                            !unavailable &&
-                            interval &&
-                            operatingInterval &&
-                            configuredIntervals.length===1 ? (
-                              <>
-                                <label className="select-field">
-                                  <span className="sr-only">
-                                    Início de {weekdayLabels[weekday]}
-                                  </span>
-                                  <TimeWheelSelect
-                                    value={interval.start}
-                                    onChange={(event) =>
-                                      updateAvailabilityInterval(
-                                        weekday,
-                                        "start",
-                                        event.target.value
-                                      )
-                                    }
-                                  >
-                                    {openingOptionsWithin(
-                                      operatingInterval
-                                    ).map((time) => (
-                                      <option key={time} value={time}>
-                                        {time}
-                                      </option>
-                                    ))}
-                                  </TimeWheelSelect>
-                                </label>
-
-                                <label className="select-field">
-                                  <span className="sr-only">
-                                    Fim de {weekdayLabels[weekday]}
-                                  </span>
-                                  <TimeWheelSelect
-                                    value={interval.end}
-                                    onChange={(event) =>
-                                      updateAvailabilityInterval(
-                                        weekday,
-                                        "end",
-                                        event.target.value
-                                      )
-                                    }
-                                  >
-                                    {closingOptionsWithin(
-                                      interval.start,
-                                      operatingInterval
-                                    ).map((time) => (
-                                      <option key={time} value={time}>
-                                        {time}
-                                      </option>
-                                    ))}
-                                  </TimeWheelSelect>
-                                </label>
-                              </>
-                            ) : (
-                              <div className="closed-span">
-                                {operationClosed
-                                  ? "Sem funcionamento nesse dia"
-                                  : "Não pode ser escalada"}
-                              </div>
-                            )}
-                            <IntervalListEditor
-                              label={"disponibilidade de "+weekdayLabels[weekday]}
-                              intervals={configuredIntervals}
-                              allowed={operatingIntervals}
-                              onChange={next=>upsertAvailability({
-                                ...selectedAvailability,
-                                weeklyAvailability:{
-                                  ...selectedAvailability.weeklyAvailability,
-                                  [weekday]:next,
-                                },
-                              })}
-                            />
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </section>
-
-                  <aside className="panel exceptions-panel">
-                    <div className="panel-header compact">
-                      <div>
-                        <p className="section-kicker">
-                          Datas específicas
-                        </p>
-                        <h2>Exceções</h2>
-                      </div>
-                      <button
-                        type="button"
-                        className="primary-button"
-                        onClick={addAvailabilityException}
-                      >
-                        <span>+</span>
-                        Adicionar
-                      </button>
-                    </div>
-
-                    <p className="section-description">
-                      Altera a disponibilidade apenas numa data.
-                    </p>
-                    {availabilityExceptionIssue && <p className="presence-validation" role="alert">{availabilityExceptionIssue}</p>}
-                    {selectedAvailability && selectedAvailability.exceptions.length !== new Set(selectedAvailability.exceptions.map(item => item.date)).size &&
-                      <p className="presence-validation" role="alert">Existem exceções de disponibilidade repetidas. Corrige as datas duplicadas.</p>}
-
-                    {selectedAvailability.exceptions
-                      .length === 0 ? (
-                      <div className="empty-state">
-                        <div className="empty-icon">◎</div>
-                        <strong>
-                          Nenhuma exceção definida
-                        </strong>
-                        <p>
-                          Aplica-se a disponibilidade
-                          semanal.
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="exception-list">
-                        {selectedAvailability.exceptions.map(
-                          (exception, index) => {
-                            const operatingIntervals =
-                              getOperatingIntervalsForDate(
-                                exception.date,
-                                weeklyHours,
-                                exceptions
-                              );
-                            const operatingInterval =
-                              operatingIntervals[0];
-                            const operationClosed =
-                              operatingIntervals.length === 0;
-                            const effectiveIntervals =
-                              intersectIntervals(
-                                exception.intervals,
-                                operatingIntervals
-                              );
-                            const unavailable =
-                              effectiveIntervals.length === 0;
-                            const interval =
-                              effectiveIntervals[0];
-
-                            return (
-                              <article
-                                className="exception-card"
-                                key={index}
-                              >
-                                <div className="exception-topline">
-                                  <CalendarDateInput
-                                    className="date-input"
-                                    value={exception.date}
-                                    onChange={(event) =>
-                                      updateAvailabilityException(
-                                        index,
-                                        {
-                                          ...exception,
-                                          date: event.target
-                                            .value,
-                                        }
-                                      )
-                                    }
-                                  />
-
-                                  <button
-                                    type="button"
-                                    className="icon-button"
-                                    onClick={() =>
-                                      removeAvailabilityException(
-                                        index
-                                      )
-                                    }
-                                    aria-label="Remover exceção de disponibilidade"
-                                  >
-                                    ×
-                                  </button>
-                                </div>
-
-                                <div className="exception-controls">
-                                  <button
-                                    type="button"
-                                    className={`state-button ${unavailable ? "closed" : "open"}`}
-                                    disabled={operationClosed}
-                                    title={
-                                      operationClosed
-                                        ? "A operação está fechada nesta data."
-                                        : undefined
-                                    }
-                                    onClick={() =>
-                                      updateAvailabilityException(
-                                        index,
-                                        {
-                                          ...exception,
-                                          intervals:
-                                            unavailable &&
-                                            operatingInterval
-                                              ? [
-                                                  {
-                                                    ...operatingInterval,
-                                                  },
-                                                ]
-                                              : [],
-                                        }
-                                      )
-                                    }
-                                  >
-                                    <span className="state-dot" />
-                                    {operationClosed
-                                      ? "Empresa fechada"
-                                      : unavailable
-                                        ? "Indisponível"
-                                        : "Disponível"}
-                                  </button>
-
-                                  {operationClosed && (
-                                    <p className="operation-closed-note">
-                                      O calendário operacional não permite
-                                      trabalho nesta data.
-                                    </p>
-                                  )}
-
-                                  {!operationClosed &&
-                                    !unavailable &&
-                                    interval &&
-                                    operatingInterval &&
-                                    exception.intervals.length===1 && (
-                                    <div className="exception-time-grid">
-                                      <label className="select-field">
-                                        <span>Início</span>
-                                        <TimeWheelSelect
-                                          value={
-                                            interval.start
-                                          }
-                                          onChange={(event) =>
-                                            updateAvailabilityExceptionInterval(
-                                              index,
-                                              exception,
-                                              "start",
-                                              event.target
-                                                .value
-                                            )
-                                          }
-                                        >
-                                          {openingOptionsWithin(
-                                            operatingInterval
-                                          ).map(
-                                            (time) => (
-                                              <option
-                                                key={time}
-                                                value={time}
-                                              >
-                                                {time}
-                                              </option>
-                                            )
-                                          )}
-                                        </TimeWheelSelect>
-                                      </label>
-
-                                      <label className="select-field">
-                                        <span>Fim</span>
-                                        <TimeWheelSelect
-                                          value={interval.end}
-                                          onChange={(event) =>
-                                            updateAvailabilityExceptionInterval(
-                                              index,
-                                              exception,
-                                              "end",
-                                              event.target
-                                                .value
-                                            )
-                                          }
-                                        >
-                                          {closingOptionsWithin(
-                                            interval.start,
-                                            operatingInterval
-                                          ).map((time) => (
-                                            <option
-                                              key={time}
-                                              value={time}
-                                            >
-                                              {time}
-                                            </option>
-                                          ))}
-                                        </TimeWheelSelect>
-                                      </label>
-                                    </div>
-                                  )}
-                                </div>
-                                <IntervalListEditor
-                                  label={"disponibilidade excecional de "+exception.date}
-                                  intervals={exception.intervals}
-                                  allowed={operatingIntervals}
-                                  onChange={next=>updateAvailabilityException(
-                                    index,{...exception,intervals:next})}
-                                />
-                              </article>
-                            );
-                          }
-                        )}
-                      </div>
-                    )}
-                  </aside>
-                </div>
-              )}
-            </>
-          )}
+          <div className="availability-person-picker">
+            <label className="select-field">
+              <span>Pessoa</span>
+              <select value={selectedAvailabilityPerson?.id??""}
+                disabled={availabilityDraftOpen}
+                onChange={event=>setSelectedAvailabilityPersonId(event.target.value)}>
+                {activePeople.map(person=><option key={person.id} value={person.id}>
+                  {person.name}
+                </option>)}
+              </select>
+            </label>
+          </div>
+          {selectedAvailability
+            ?<AvailabilityPanel key={selectedAvailability.personId}
+              availability={selectedAvailability} weeklyHours={weeklyHours}
+              operatingExceptions={exceptions}
+              onChange={upsertAvailability}
+              onDraftOpenChange={setAvailabilityDraftOpen}/>
+            :<section className="panel"><p>Adiciona uma pessoa ativa antes de configurar disponibilidades.</p></section>}
+          <section className="panel availability-confirm-panel"
+            aria-label="Confirmação das disponibilidades e regras">
+            <div>
+              <p className="section-kicker">Configuração inicial · Etapa 4</p>
+              <h2>{isAvailabilityAndRulesConfirmed(onboarding,
+                isTeamConfirmed(onboarding,
+                  isCoverageConfirmed(onboarding,
+                    isOperationConfirmed(onboarding,weeklyHours,operationTimeZone,cycleAnchorDate,accountingCycleDays),
+                    weeklyHours,exceptions,weeklyPresenceRequirements,presenceExceptions),people),
+                people,availabilities,weeklyHours,exceptions,workRules)
+                ?"Disponibilidades e regras confirmadas"
+                :"Confirmar disponibilidades e regras"}</h2>
+              <p>Confirma os dias disponíveis ou indisponíveis de cada colaborador ativo
+                e as regras de geração. Esta validação não garante um horário viável.</p>
+              {!validateAvailabilityConfiguration(people,availabilities,weeklyHours,exceptions,workRules).valid
+                &&<p className="availability-confirm-issues">
+                  {validateAvailabilityConfiguration(people,availabilities,weeklyHours,exceptions,workRules)
+                    .issues.slice(0,4).join(" ")}
+                </p>}
+              <button type="button" className="se-outline"
+                onClick={()=>navigate("workRules")}>Ver regras de trabalho</button>
+            </div>
+            {isAvailabilityAndRulesConfirmed(onboarding,
+              isTeamConfirmed(onboarding,
+                isCoverageConfirmed(onboarding,
+                  isOperationConfirmed(onboarding,weeklyHours,operationTimeZone,cycleAnchorDate,accountingCycleDays),
+                  weeklyHours,exceptions,weeklyPresenceRequirements,presenceExceptions),people),
+              people,availabilities,weeklyHours,exceptions,workRules)
+              ?<strong className="guided-status done">Etapa 4 confirmada</strong>
+              :<button type="button" className="primary-button"
+                disabled={!isTeamConfirmed(onboarding,
+                  isCoverageConfirmed(onboarding,
+                    isOperationConfirmed(onboarding,weeklyHours,operationTimeZone,cycleAnchorDate,accountingCycleDays),
+                    weeklyHours,exceptions,weeklyPresenceRequirements,presenceExceptions),people) ||
+                  !validateAvailabilityConfiguration(people,availabilities,weeklyHours,exceptions,workRules).valid ||
+                  persistenceStatus!=="saved"||availabilityDraftOpen}
+                onClick={()=>setOnboarding(previous=>({
+                  ...previous,availabilityRulesConfirmedFingerprint:
+                    availabilityAndRulesFingerprint(availabilities,workRules),
+                }))}>Confirmar disponibilidades e regras</button>}
+          </section>
         </>
       )}
 
