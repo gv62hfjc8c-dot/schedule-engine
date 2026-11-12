@@ -9,6 +9,7 @@ interface Props {
   hasCoverage:boolean;
   coverageConfirmed:boolean;
   hasTeam:boolean;
+  teamConfirmed:boolean;
   hasAvailabilityAndRules:boolean;
   onConfirmOperation():void;
   onNavigate(section:WorkspaceSection):void;
@@ -21,10 +22,10 @@ interface Props {
  */
 export default function GuidedSetup({
   operationConfirmed,cycleDecisionConfirmed,canConfirmOperation,saving,
-  hasCoverage,coverageConfirmed,hasTeam,hasAvailabilityAndRules,onConfirmOperation,onNavigate,
+  hasCoverage,coverageConfirmed,hasTeam,teamConfirmed,hasAvailabilityAndRules,onConfirmOperation,onNavigate,
 }:Props){
   const [expanded,setExpanded]=useState(false);
-  const completed=Number(operationConfirmed)+Number(coverageConfirmed);
+  const completed=Number(operationConfirmed)+Number(coverageConfirmed)+Number(teamConfirmed);
   return <section className="panel guided-setup" aria-label="Configuração inicial guiada">
     <div className="guided-setup-heading">
       <div>
@@ -71,10 +72,12 @@ export default function GuidedSetup({
       </li>
       <li>
         <div><strong>3. Equipa e vínculos</strong>
-          <p>{hasTeam?"Existem colaboradores. Falta confirmar os vínculos."
-            :"Adiciona colaboradores e os respetivos vínculos de trabalho."}</p></div>
-        <button type="button" className="se-outline"
-          onClick={()=>onNavigate("people")}>Configurar equipa</button>
+          <p>{teamConfirmed?"Equipa confirmada. Alterações posteriores exigem nova confirmação."
+            :hasTeam?"Existem colaboradores ativos. Revê os dados e confirma a equipa."
+            :"Adiciona pelo menos um colaborador ativo e confirma a elegibilidade temporal."}</p></div>
+        {teamConfirmed?<span className="guided-status done">Confirmado</span>
+          :<button type="button" className="se-outline"
+            onClick={()=>onNavigate("people")}>Confirmar equipa</button>}
       </li>
       <li>
         <div><strong>4. Disponibilidades e regras</strong>
