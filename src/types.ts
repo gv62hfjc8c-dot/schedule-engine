@@ -66,6 +66,8 @@ export interface PersonAvailability {
   personId: string;
   weeklyAvailability: WeeklyAvailability;
   exceptions: AvailabilityException[];
+  /** Explicit no-availability decision; missing key + [] means NOT CONFIGURED (legacy). */
+  unavailableWeekdays?: Weekday[];
 }
 
 export interface WorkRulesConfiguration {

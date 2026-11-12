@@ -5090,3 +5090,125 @@ h2 {
   .civil-calendar-days button:hover {background:#345f84;border-color:#79a7d0;}
   .civil-calendar-days button.is-selected {background:#3979b8;border-color:#8ab9ee;}
 }
+
+
+/* PR68 — explicit availability decisions and atomic weekly/date drafts */
+.availability-draft-panel,
+.availability-exceptions-panel {min-width:0}
+.availability-default-explanation {
+  display:flex;align-items:center;justify-content:space-between;gap:18px;
+  margin:0 24px 17px;padding:14px 16px;
+  background:#eef6ff;border:1px solid #c7ddec;border-radius:11px;
+}
+.availability-default-explanation strong {font-size:14px;color:#244a6b}
+.availability-default-explanation p {font-size:12px;color:#55728a;line-height:1.5;margin:5px 0 0}
+.availability-default-explanation button {flex-shrink:0;min-height:39px}
+.availability-week-grid {
+  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:12px;margin:0 24px 16px;
+}
+.availability-week-card {
+  min-width:0;border:1px solid #d4dfeb;border-radius:12px;
+  padding:13px 15px;background:#fbfdff;
+}
+.availability-week-header {display:flex;justify-content:space-between;gap:9px;align-items:flex-start}
+.availability-week-header > div {display:grid;gap:5px;min-width:0}
+.availability-week-header strong {font-size:14px;color:#243f57}
+.availability-week-header span {font-size:12px;color:#6e8498;overflow-wrap:anywhere}
+.availability-status {
+  font-size:11px!important;font-weight:750;padding:5px 9px;border-radius:999px;
+  white-space:nowrap;
+}
+.availability-status.status-unconfigured {background:#fff3dd;color:#8a6528}
+.availability-status.status-unavailable {background:#ebedf1;color:#54657b}
+.availability-status.status-available {background:#e1f4e8;color:#26724c}
+.availability-status.status-invalid {background:#ffebea;color:#a63c38}
+.availability-status.status-closed {background:#e9eff6;color:#65798b}
+.availability-muted,.availability-hint {
+  margin:10px 0;color:#71849a;font-size:12px;line-height:1.5;
+}
+.availability-week-card > .se-outline {min-height:34px;width:auto;padding:6px 11px}
+.availability-draft-panel > .availability-hint {margin:0 24px 20px}
+.availability-bulk-draft,.availability-exception-draft {
+  margin:0 24px 17px;padding:15px;
+  border:1px solid #cadbed;background:#f8fbff;border-radius:12px;
+  display:grid;gap:12px;
+}
+.availability-day-draft {display:grid;gap:11px;margin-top:12px}
+.availability-bulk-draft > p,.availability-day-draft > p,.availability-exception-draft > p {
+  color:#60768c;font-size:12px;margin:0;line-height:1.5;
+}
+.availability-choices {
+  min-width:0;display:grid;gap:10px;margin:0;
+  border:1px solid #d4e0eb;border-radius:10px;padding:10px 12px;
+}
+.availability-choices legend {padding:0 5px;font-size:12px;font-weight:750}
+.availability-choices label {
+  display:flex;align-items:flex-start;gap:9px;
+  font-size:12px;line-height:1.5;color:#4a6175;
+}
+.availability-choices input[type="checkbox"],
+.availability-choices input[type="radio"] {flex-shrink:0;margin-top:2px}
+.availability-weekdays-checks {display:flex;gap:10px 18px;flex-wrap:wrap}
+.availability-draft-actions {
+  display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:8px;
+}
+.availability-draft-actions button {width:auto;min-height:35px}
+.availability-date-row {display:grid;gap:5px;max-width:410px}
+.availability-date-row > label {font-size:12px;font-weight:700;color:#50637a}
+.availability-date-row input {width:100%}
+.availability-exception-list {display:grid;gap:10px;margin:0 24px 21px}
+.availability-exception-card {
+  display:flex;justify-content:space-between;align-items:center;gap:10px;
+  border:1px solid #d4e0ec;padding:12px 13px;border-radius:9px;
+}
+.availability-exception-card strong {font-size:13px}
+.availability-exception-card p {margin:5px 0 0;font-size:12px;color:#667b90}
+.availability-confirm-panel {
+  display:flex;align-items:center;justify-content:space-between;gap:20px;
+  padding:17px 22px;
+}
+.availability-confirm-panel h2 {margin:4px 0 7px;font-size:18px}
+.availability-confirm-panel p {color:#61758b;font-size:12px;line-height:1.5;max-width:760px}
+.availability-confirm-panel .availability-confirm-issues {
+  color:#955c2c;background:#fff6e7;border-radius:8px;padding:9px 11px;
+}
+.availability-confirm-panel .se-outline {min-height:34px;margin-top:7px}
+.availability-confirm-panel .primary-button {flex-shrink:0;width:auto;min-height:42px}
+@media (max-width:950px) {
+  .availability-week-grid {grid-template-columns:1fr}
+  .availability-confirm-panel {flex-direction:column;align-items:stretch}
+  .availability-confirm-panel .primary-button {width:100%}
+}
+@media (max-width:600px) {
+  .availability-default-explanation {flex-direction:column;align-items:stretch}
+  .availability-default-explanation,.availability-week-grid,
+  .availability-bulk-draft,.availability-exception-draft,.availability-exception-list {
+    margin-left:14px;margin-right:14px;
+  }
+  .availability-exception-card {flex-direction:column;align-items:stretch}
+}
+@media (prefers-color-scheme:dark) {
+  .availability-default-explanation,.availability-bulk-draft,.availability-exception-draft {
+    background:#20374d;border-color:#526f89;
+  }
+  .availability-default-explanation strong,.availability-week-header strong {color:#ecf6ff}
+  .availability-default-explanation p,.availability-hint,.availability-muted,
+  .availability-bulk-draft > p,.availability-day-draft > p,
+  .availability-exception-draft > p,.availability-confirm-panel p {
+    color:#bacce0;
+  }
+  .availability-week-card {background:#202f40;border-color:#52697f}
+  .availability-week-header span {color:#b2c3d8}
+  .availability-status.status-unconfigured {background:#59472b;color:#ffe0a8}
+  .availability-status.status-unavailable {background:#324256;color:#ccd8e7}
+  .availability-status.status-available {background:#244d3c;color:#b0ebd0}
+  .availability-status.status-invalid {background:#5f2e33;color:#ffd2ca}
+  .availability-status.status-closed {background:#334357;color:#c5d6e8}
+  .availability-choices,.availability-exception-card {border-color:#526f89}
+  .availability-choices label,.availability-date-row > label {color:#dceaf7}
+  .availability-exception-card p {color:#b9cce0}
+  .availability-confirm-panel .availability-confirm-issues {
+    color:#ffda9f;background:#4a3a29;
+  }
+}

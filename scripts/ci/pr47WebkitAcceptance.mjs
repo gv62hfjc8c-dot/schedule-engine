@@ -694,12 +694,113 @@ try{
   await wait(()=>persisted.people[1].active===false,
     "Archive was confirmed and saved.");
   await page.locator(".save-status.saved").waitFor();
+  const teamFingerprintBeforeReconfirmation=persisted.onboarding?.teamConfirmedFingerprint;
   await teamStep.getByRole("button",{name:"Confirmar equipa"}).click();
-  await wait(()=>Boolean(persisted.onboarding?.teamConfirmedFingerprint),
-    "Reconfirmation of archived team persisted.");
+  await wait(()=>Boolean(persisted.onboarding?.teamConfirmedFingerprint) &&
+    persisted.onboarding.teamConfirmedFingerprint!==teamFingerprintBeforeReconfirmation,
+    "Reconfirmation of the archived team actually persisted (not stale confirmation).");
+  await page.locator(".save-status.saved").waitFor();
   await page.getByRole("button",{name:"Operação",exact:true}).click();
   const guided=page.getByRole("region",{name:"Configuração inicial guiada"});
   await guided.getByText("3 de 5").waitFor();
+  // PR68: availability configuration is explicit and all drafts are atomic.
+  await page.getByRole("button",{name:"Equipa",exact:true}).click();
+  await page.getByRole("button",{name:"Disponibilidades",exact:true}).click();
+  await page.getByRole("heading",{name:"Disponibilidade semanal"}).waitFor();
+  const pr68Monday=page.locator(".availability-week-card").filter({hasText:"Segunda"});
+  await pr68Monday.getByText("Disponível",{exact:true}).waitFor();
+  await page.locator(".save-status.saved").waitFor();
+  const pr68OriginalMonday=JSON.stringify(persisted.availabilities[0].weeklyAvailability.monday);
+  const pr68BeforeMondayDraft=saves;
+  await pr68Monday.getByRole("button",{name:"Editar disponibilidade"}).click();
+  await page.getByText("Disponibilidade por guardar").waitFor();
+  await pr68Monday.getByRole("radio",{name:"Repor por configurar"}).check();
+  await pr68Monday.getByRole("button",{name:"Cancelar"}).click();
+  await delay(700);
+  assert.equal(saves,pr68BeforeMondayDraft,
+    "Canceling availability day draft must never trigger cloud writes.");
+  assert.equal(JSON.stringify(persisted.availabilities[0].weeklyAvailability.monday),pr68OriginalMonday,
+    "Canceling daily availability must preserve previous intervals.");
+
+  await pr68Monday.getByRole("button",{name:"Editar disponibilidade"}).click();
+  await pr68Monday.getByRole("radio",{name:"Indisponível por decisão explícita"}).check();
+  await pr68Monday.getByRole("button",{name:"Guardar disponibilidade"}).click();
+  await wait(()=>persisted.availabilities[0].unavailableWeekdays?.includes("monday"),
+    "Explicit unavailable marker must be persisted, not confused with [] legacy.");
+  assert.equal(persisted.availabilities[0].weeklyAvailability.monday.length,0);
+  await page.locator(".save-status.saved").waitFor();
+  await pr68Monday.getByText("Indisponível",{exact:true}).waitFor();
+  await pr68Monday.getByRole("button",{name:"Editar disponibilidade"}).click();
+  await pr68Monday.getByRole("radio",{name:"Repor por configurar"}).check();
+  await pr68Monday.getByRole("button",{name:"Guardar disponibilidade"}).click();
+  await wait(()=>persisted.availabilities[0].unavailableWeekdays?.includes("monday")!==true,
+    "Reset must remove explicit unavailability without inventing availability.");
+  assert.equal(persisted.availabilities[0].weeklyAvailability.monday.length,0,
+    "Unconfigured and unavailable both remain unschedulable by engine.");
+  await pr68Monday.getByText("Por configurar",{exact:true}).waitFor();
+  await page.locator(".save-status.saved").waitFor();
+
+  const pr68BeforeBulk=saves;
+  await page.getByRole("button",{name:"Aplicar a vários dias"}).click();
+  const pr68Bulk=page.getByRole("region",{name:"Configurar vários dias"});
+  await pr68Bulk.getByRole("radio",{name:"Indisponível nesses dias"}).check();
+  await pr68Bulk.getByRole("button",{name:"Cancelar"}).click();
+  await delay(700);
+  assert.equal(saves,pr68BeforeBulk,"Bulk cancel must not save");
+  assert.equal(persisted.availabilities[0].weeklyAvailability.monday.length,0);
+  await page.getByRole("button",{name:"Aplicar a vários dias"}).click();
+  await pr68Bulk.getByRole("radio",{name:"Disponível durante todo o funcionamento de cada dia"}).check();
+  await pr68Bulk.getByRole("button",{name:"Guardar dias selecionados"}).click();
+  await wait(()=>persisted.availabilities[0].weeklyAvailability.monday.length===1,
+    "Bulk setup must save explicit open-hour availability only on user confirmation.");
+  assert.equal(persisted.availabilities[0].weeklyAvailability.monday[0].start,"09:00");
+  await page.locator(".save-status.saved").waitFor();
+
+  const pr68BeforeException=saves;
+  const pr68ExceptionsUI=page.locator(".availability-exceptions-panel");
+  await pr68ExceptionsUI.getByRole("button",{name:"+ Adicionar"}).click();
+  const pr68DateDraft=pr68ExceptionsUI.getByRole("region",
+    {name:"Rascunho de exceção de disponibilidade"});
+  await pr68DateDraft.waitFor();
+  await pr68DateDraft.getByLabel("Data da exceção de disponibilidade").fill("2026-11-12");
+  await pr68DateDraft.getByRole("radio",{name:"Indisponível nesta data"}).check();
+  assert.equal(persisted.availabilities[0].exceptions.length,0,
+    "Typing a date exception must not persist until Save.");
+  await pr68DateDraft.getByRole("button",{name:"Cancelar"}).click();
+  await delay(700);
+  assert.equal(saves,pr68BeforeException,"Canceling a date draft triggers no write.");
+  await pr68ExceptionsUI.getByRole("button",{name:"+ Adicionar"}).click();
+  await pr68DateDraft.getByLabel("Data da exceção de disponibilidade").fill("2026-11-12");
+  await pr68DateDraft.getByRole("radio",{name:"Indisponível nesta data"}).check();
+  await pr68DateDraft.getByRole("button",{name:"Guardar exceção"}).click();
+  await wait(()=>persisted.availabilities[0].exceptions.length===1,
+    "Explicit date exception Save persists one record.");
+  assert.equal(persisted.availabilities[0].exceptions[0].date,"2026-11-12");
+  assert.deepEqual(persisted.availabilities[0].exceptions[0].intervals,[]);
+  await page.locator(".save-status.saved").waitFor();
+  const pr68ExceptionCard=pr68ExceptionsUI.locator(".availability-exception-card").first();
+  await pr68ExceptionCard.getByRole("button",{name:"Remover"}).click();
+  await pr68ExceptionCard.getByRole("button",{name:"Cancelar"}).click();
+  assert.equal(persisted.availabilities[0].exceptions.length,1);
+  await pr68ExceptionCard.getByRole("button",{name:"Remover"}).click();
+  await pr68ExceptionCard.getByRole("button",{name:"Confirmar remoção"}).click();
+  await wait(()=>persisted.availabilities[0].exceptions.length===0,
+    "Date exception removal is explicitly confirmed");
+  await page.locator(".save-status.saved").waitFor();
+
+  const pr68AvailabilityConfirmation=page.getByRole("region",
+    {name:"Confirmação das disponibilidades e regras"});
+  await pr68AvailabilityConfirmation.getByRole("button",
+    {name:"Confirmar disponibilidades e regras"}).click();
+  await wait(()=>Boolean(persisted.onboarding?.availabilityRulesConfirmedFingerprint),
+    "Step 4 confirmation saved after explicit setup");
+  await pr68AvailabilityConfirmation.getByText("Etapa 4 confirmada").waitFor();
+  await page.goto(origin+"/equipa/disponibilidades",{waitUntil:"domcontentloaded"});
+  await page.locator(".save-status.saved").waitFor();
+  await pr68AvailabilityConfirmation.getByText("Etapa 4 confirmada").waitFor();
+  await page.getByRole("button",{name:"Operação",exact:true}).click();
+  await page.getByRole("region",{name:"Configuração inicial guiada"})
+    .getByText("4 de 5").waitFor();
   await page.getByRole("button",{name:"Horários",exact:true}).click();
   await page.getByRole("button",{name:"+ Criar horário",exact:true}).click();
   await page.getByText(/Cada proposta válida é guardada no Supabase/).waitFor();

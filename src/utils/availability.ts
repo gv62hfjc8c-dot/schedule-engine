@@ -45,7 +45,11 @@ export function getAvailabilityIntervalsForDate(
     return exception.intervals;
   }
 
-  return availability.weeklyAvailability[getWeekday(date)];
+  const weekday=getWeekday(date);
+  // Explicit unavailability remains a hard exclusion even if an imported
+  // or inconsistent payload still contains intervals for that weekday.
+  if(availability.unavailableWeekdays?.includes(weekday))return [];
+  return availability.weeklyAvailability[weekday];
 }
 
 function timeToMinutes(time: string): number {
