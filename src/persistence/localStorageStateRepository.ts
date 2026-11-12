@@ -184,7 +184,11 @@ function isPersonAvailability(
     typeof availability.personId === "string" &&
     isWeeklyIntervals(availability.weeklyAvailability) &&
     Array.isArray(availability.exceptions) &&
-    availability.exceptions.every(isAvailabilityException)
+    availability.exceptions.every(isAvailabilityException) &&
+    (availability.unavailableWeekdays===undefined ||
+      (Array.isArray(availability.unavailableWeekdays) &&
+       new Set(availability.unavailableWeekdays).size===availability.unavailableWeekdays.length &&
+       availability.unavailableWeekdays.every((day:unknown)=>WEEKDAYS.includes(day as Weekday))))
   );
 }
 
@@ -340,7 +344,10 @@ export function isPersistedAppState(
               settings.coverageConfirmedFingerprint.length<=65536)) &&
             (settings.teamConfirmedFingerprint===undefined ||
              (typeof settings.teamConfirmedFingerprint==="string" &&
-              settings.teamConfirmedFingerprint.length<=65536));
+              settings.teamConfirmedFingerprint.length<=65536)) &&
+             (settings.availabilityRulesConfirmedFingerprint===undefined ||
+              (typeof settings.availabilityRulesConfirmedFingerprint==="string" &&
+               settings.availabilityRulesConfirmedFingerprint.length<=65536));
        })())) &&
     isWeeklyIntervals(state.weeklyOperatingHours) &&
     Array.isArray(state.exceptions) &&
