@@ -14,6 +14,8 @@ export interface OnboardingConfiguration {
   coverageConfirmedFingerprint?:string;
   /** Team reviewed explicitly; invalidated when staff or eligibility changes. */
   teamConfirmedFingerprint?:string;
+  /** Explicit step-4 acceptance of availability decisions and work rules. */
+  availabilityRulesConfirmedFingerprint?:string;
 }
 
 export function isAccountingCycleDays(value:unknown):value is AccountingCycleDays {
