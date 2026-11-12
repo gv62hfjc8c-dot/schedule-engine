@@ -656,7 +656,7 @@ try{
   await teamStep.getByRole("button",{name:"Confirmar equipa"}).click();
   await wait(()=>Boolean(persisted.onboarding?.teamConfirmedFingerprint),
     "Reconfirmation of archived team persisted.");
-  await page.getByRole("button",{name:"Calendário operacional"}).click();
+  await page.getByRole("button",{name:"Operação",exact:true}).click();
   const guided=page.getByRole("region",{name:"Configuração inicial guiada"});
   await guided.getByText("3 de 5").waitFor();
   await page.getByRole("button",{name:"Horários",exact:true}).click();
