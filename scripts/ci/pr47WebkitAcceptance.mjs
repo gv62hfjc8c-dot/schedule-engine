@@ -573,6 +573,16 @@ try{
   await page.getByTitle("Remover a obrigação de 2026-11-16").waitFor();
   // 22/01: revisit primary areas and check displayed content reflects the
   // README's proposal-vs-approval boundary, not just domain helper output.
+  // PR64's explicit-zero test changed coverage after its confirmation;
+  // re-confirm it before testing the strict Step-3 dependency.
+  await page.getByRole("button",{name:"Operação",exact:true}).click();
+  await page.getByRole("button",{name:"Presença mínima",exact:true}).click();
+  await page.locator(".save-status.saved").waitFor();
+  await page.getByRole("region",{name:"Confirmação de cobertura"})
+    .getByRole("button",{name:"Confirmar cobertura"}).click();
+  await page.getByRole("region",{name:"Confirmação de cobertura"})
+    .getByText("Etapa 2 confirmada").waitFor();
+  await page.locator(".save-status.saved").waitFor();
   await page.getByRole("button",{name:"Equipa",exact:true}).click();
   await page.getByRole("heading",{name:"Pessoas",exact:true}).waitFor();
   // PR65: new collaborators must not enter cloud state until an explicit Save.
