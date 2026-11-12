@@ -12,6 +12,8 @@ export interface OnboardingConfiguration {
   operationConfirmedFingerprint?:string;
   /** Explicit acceptance of effective coverage (including inherited default). */
   coverageConfirmedFingerprint?:string;
+  /** Team reviewed explicitly; invalidated when staff or eligibility changes. */
+  teamConfirmedFingerprint?:string;
 }
 
 export function isAccountingCycleDays(value:unknown):value is AccountingCycleDays {
