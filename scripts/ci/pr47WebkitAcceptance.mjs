@@ -589,6 +589,10 @@ try{
   const beforePeopleWrites=saves;
   await page.getByRole("button",{name:"+ Adicionar colaborador"}).click();
   const newStaff=page.getByRole("form",{name:"Novo colaborador"});
+  assert.equal(await newStaff.locator(".team-legacy-note").count(),0,
+    "PR66: new people cannot display historical-data compatibility notices.");
+  assert.equal(await newStaff.locator('input[name="team-eligibility"]:checked').count(),0,
+    "PR66: no eligibility choice is selected without user consent.");
   await newStaff.getByLabel("Nome do colaborador").fill("Pessoa Experimental");
   await newStaff.getByRole("button",{name:"Guardar colaborador"}).click();
   await newStaff.getByRole("alert").getByText(/Escolhe como este colaborador/).waitFor();
@@ -608,6 +612,10 @@ try{
   const firstPerson=page.locator(".team-person-record").filter({hasText:personName});
   await firstPerson.getByRole("button",{name:"Editar"}).click();
   const editing=page.getByRole("form",{name:"Editar colaborador "+personName});
+  await editing.locator(".team-legacy-note").getByText(
+    /Os dados existentes não têm datas de vínculo/).waitFor();
+  assert.equal(await editing.locator('input[name="team-eligibility"]:checked').count(),1,
+    "Existing unrestricted eligibility is preserved while editing.");
   await editing.getByLabel("Nome do colaborador").fill("Nome temporário");
   await editing.getByRole("radio",{name:"Apenas em períodos definidos"}).check();
   await editing.getByLabel("Data de início do vínculo").fill("2026-11-01");
