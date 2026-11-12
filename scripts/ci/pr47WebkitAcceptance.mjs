@@ -705,8 +705,8 @@ try{
   await page.getByRole("button",{name:"Disponibilidades",exact:true}).click();
   await page.getByRole("heading",{name:"Disponibilidade semanal"}).waitFor();
   const pr68Monday=page.locator(".availability-week-card").filter({hasText:"Segunda"});
-  await pr68Monday.getByText("Disponível",exact:true).waitFor();
-  const pr68OriginalMonday=JSON.stringify(persisted.availabilities[0].weeklyAvailability.pr68Monday);
+  await pr68Monday.getByText("Disponível",{exact:true}).waitFor();
+  const pr68OriginalMonday=JSON.stringify(persisted.availabilities[0].weeklyAvailability.monday);
   const pr68BeforeMondayDraft=saves;
   await pr68Monday.getByRole("button",{name:"Editar disponibilidade"}).click();
   await page.getByText("Disponibilidade por guardar").waitFor();
@@ -715,25 +715,25 @@ try{
   await delay(700);
   assert.equal(saves,pr68BeforeMondayDraft,
     "Canceling availability day draft must never trigger cloud writes.");
-  assert.equal(JSON.stringify(persisted.availabilities[0].weeklyAvailability.pr68Monday),pr68OriginalMonday,
+  assert.equal(JSON.stringify(persisted.availabilities[0].weeklyAvailability.monday),pr68OriginalMonday,
     "Canceling daily availability must preserve previous intervals.");
 
   await pr68Monday.getByRole("button",{name:"Editar disponibilidade"}).click();
   await pr68Monday.getByRole("radio",{name:"Indisponível por decisão explícita"}).check();
   await pr68Monday.getByRole("button",{name:"Guardar disponibilidade"}).click();
-  await wait(()=>persisted.availabilities[0].unavailableWeekdays?.includes("pr68Monday"),
+  await wait(()=>persisted.availabilities[0].unavailableWeekdays?.includes("monday"),
     "Explicit unavailable marker must be persisted, not confused with [] legacy.");
-  assert.equal(persisted.availabilities[0].weeklyAvailability.pr68Monday.length,0);
+  assert.equal(persisted.availabilities[0].weeklyAvailability.monday.length,0);
   await page.locator(".save-status.saved").waitFor();
-  await pr68Monday.getByText("Indisponível",exact:true).waitFor();
+  await pr68Monday.getByText("Indisponível",{exact:true}).waitFor();
   await pr68Monday.getByRole("button",{name:"Editar disponibilidade"}).click();
   await pr68Monday.getByRole("radio",{name:"Repor por configurar"}).check();
   await pr68Monday.getByRole("button",{name:"Guardar disponibilidade"}).click();
-  await wait(()=>persisted.availabilities[0].unavailableWeekdays?.includes("pr68Monday")!==true,
+  await wait(()=>persisted.availabilities[0].unavailableWeekdays?.includes("monday")!==true,
     "Reset must remove explicit unavailability without inventing availability.");
-  assert.equal(persisted.availabilities[0].weeklyAvailability.pr68Monday.length,0,
+  assert.equal(persisted.availabilities[0].weeklyAvailability.monday.length,0,
     "Unconfigured and unavailable both remain unschedulable by engine.");
-  await pr68Monday.getByText("Por configurar",exact:true).waitFor();
+  await pr68Monday.getByText("Por configurar",{exact:true}).waitFor();
   await page.locator(".save-status.saved").waitFor();
 
   const pr68BeforeBulk=saves;
@@ -743,13 +743,13 @@ try{
   await pr68Bulk.getByRole("button",{name:"Cancelar"}).click();
   await delay(700);
   assert.equal(saves,pr68BeforeBulk,"Bulk cancel must not save");
-  assert.equal(persisted.availabilities[0].weeklyAvailability.pr68Monday.length,0);
+  assert.equal(persisted.availabilities[0].weeklyAvailability.monday.length,0);
   await page.getByRole("button",{name:"Aplicar a vários dias"}).click();
   await pr68Bulk.getByRole("radio",{name:"Disponível durante todo o funcionamento de cada dia"}).check();
   await pr68Bulk.getByRole("button",{name:"Guardar dias selecionados"}).click();
-  await wait(()=>persisted.availabilities[0].weeklyAvailability.pr68Monday.length===1,
+  await wait(()=>persisted.availabilities[0].weeklyAvailability.monday.length===1,
     "Bulk setup must save explicit open-hour availability only on user confirmation.");
-  assert.equal(persisted.availabilities[0].weeklyAvailability.pr68Monday[0].start,"09:00");
+  assert.equal(persisted.availabilities[0].weeklyAvailability.monday[0].start,"09:00");
   await page.locator(".save-status.saved").waitFor();
 
   const pr68BeforeException=saves;
