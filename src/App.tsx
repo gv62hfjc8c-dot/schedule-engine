@@ -18,6 +18,8 @@ import OperationExceptionEditor from "./components/OperationExceptionEditor";
 import OperationCycleSettings from "./components/OperationCycleSettings";
 import GuidedSetup from "./components/GuidedSetup";
 import PersonEditor from "./components/PersonEditor";
+import AvailabilityPanel from "./components/AvailabilityPanel";
+import {availabilityAndRulesFingerprint,isAvailabilityAndRulesConfirmed,validateAvailabilityConfiguration} from "./utils/availabilityConfiguration";
 import {isTeamConfirmed,teamFingerprint,validateTeamConfiguration} from "./utils/teamConfiguration";
 import {hasAdjacentOperatingIntervals,mergeAdjacentOperatingIntervals,operatingPresentation} from "./utils/operationConfigurationDraft";
 import CalendarDateInput from "./components/CalendarDateInput";
@@ -195,6 +197,7 @@ export default function App() {
   const [onboarding,setOnboarding]=useState<OnboardingConfiguration>({});
   const [cycleDraftOpen,setCycleDraftOpen]=useState(false);
   const [presenceDraftOpen,setPresenceDraftOpen]=useState(false);
+  const [availabilityDraftOpen,setAvailabilityDraftOpen]=useState(false);
   const [availabilities, setAvailabilities] = useState<
     PersonAvailability[]
   >([]);
@@ -629,169 +632,6 @@ export default function App() {
     });
   };
 
-  const toggleAvailabilityDay = (weekday: Weekday) => {
-    if (!selectedAvailability) return;
-
-    const operatingIntervals = weeklyHours[weekday];
-    const defaultInterval = operatingIntervals[0];
-
-    if (!defaultInterval) return;
-
-    const currentIntervals =
-      selectedAvailability.weeklyAvailability[weekday];
-
-    const currentlyAvailable =
-      intersectIntervals(
-        currentIntervals,
-        operatingIntervals
-      ).length > 0;
-
-    upsertAvailability({
-      ...selectedAvailability,
-      weeklyAvailability: {
-        ...selectedAvailability.weeklyAvailability,
-        [weekday]: currentlyAvailable
-          ? []
-          : [{ ...defaultInterval }],
-      },
-    });
-  };
-
-  const updateAvailabilityInterval = (
-    weekday: Weekday,
-    field: "start" | "end",
-    value: string
-  ) => {
-    if (!selectedAvailability) return;
-
-    const operatingInterval = weeklyHours[weekday][0];
-
-    if (!operatingInterval) return;
-
-    const effectiveExisting =
-      intersectIntervals(
-        selectedAvailability.weeklyAvailability[weekday],
-        [operatingInterval]
-      )[0] ?? operatingInterval;
-
-    const next =
-      field === "start"
-        ? {
-            start: value,
-            end:
-              timeToMinutes(effectiveExisting.end) >
-              timeToMinutes(value)
-                ? effectiveExisting.end
-                : closingOptionsWithin(
-                    value,
-                    operatingInterval
-                  )[0] ?? operatingInterval.end,
-          }
-        : {
-            start: effectiveExisting.start,
-            end: value,
-          };
-
-    upsertAvailability({
-      ...selectedAvailability,
-      weeklyAvailability: {
-        ...selectedAvailability.weeklyAvailability,
-        [weekday]: [next, ...selectedAvailability.weeklyAvailability[weekday].slice(1)],
-      },
-    });
-  };
-
-  const addAvailabilityException = () => {
-    if (!selectedAvailability) return;
-
-    upsertAvailability({
-      ...selectedAvailability,
-      exceptions: [
-        ...selectedAvailability.exceptions,
-        {
-          date: nextUnusedExceptionDate(selectedAvailability.exceptions),
-          intervals: [],
-        },
-      ],
-    });
-  };
-
-  const updateAvailabilityException = (
-    index: number,
-    next: AvailabilityException
-  ) => {
-    if (!selectedAvailability) return;
-    if (selectedAvailability.exceptions.some((item, i) => i !== index && item.date === next.date)) {
-      setAvailabilityExceptionIssue("Já existe uma exceção de disponibilidade para essa data.");
-      return;
-    }
-    setAvailabilityExceptionIssue("");
-
-    upsertAvailability({
-      ...selectedAvailability,
-      exceptions: selectedAvailability.exceptions.map(
-        (exception, currentIndex) =>
-          currentIndex === index ? next : exception
-      ),
-    });
-  };
-
-  const updateAvailabilityExceptionInterval = (
-    index: number,
-    exception: AvailabilityException,
-    field: "start" | "end",
-    value: string
-  ) => {
-    const operatingInterval =
-      getOperatingIntervalsForDate(
-        exception.date,
-        weeklyHours,
-        exceptions
-      )[0];
-
-    if (!operatingInterval) return;
-
-    const effectiveExisting =
-      intersectIntervals(
-        exception.intervals,
-        [operatingInterval]
-      )[0] ?? operatingInterval;
-
-    const nextInterval =
-      field === "start"
-        ? {
-            start: value,
-            end:
-              timeToMinutes(effectiveExisting.end) >
-              timeToMinutes(value)
-                ? effectiveExisting.end
-                : closingOptionsWithin(
-                    value,
-                    operatingInterval
-                  )[0] ?? operatingInterval.end,
-          }
-        : {
-            start: effectiveExisting.start,
-            end: value,
-          };
-
-    updateAvailabilityException(index, {
-      ...exception,
-      intervals: [nextInterval, ...exception.intervals.slice(1)],
-    });
-  };
-
-  const removeAvailabilityException = (index: number) => {
-    if (!selectedAvailability) return;
-
-    upsertAvailability({
-      ...selectedAvailability,
-      exceptions: selectedAvailability.exceptions.filter(
-        (_, currentIndex) => currentIndex !== index
-      ),
-    });
-  };
-
   function exportPendingConfiguration(): void {
     if (!wasHydrated.current) return;
     const pending = {
@@ -905,6 +745,7 @@ export default function App() {
             {cycleDraftOpen && <span className="operation-draft-status" role="status">Escolha do ciclo por guardar</span>}
             {activeSection==="presence" && presenceDraftOpen && <span className="operation-draft-status" role="status">Cobertura por guardar</span>}
             {activeSection==="people" && (newPersonOpen||editingPersonId!==null) && <span className="operation-draft-status" role="status">Colaborador por guardar</span>}
+            {activeSection==="availability" && availabilityDraftOpen && <span className="operation-draft-status" role="status">Disponibilidade por guardar</span>}
           </div>
         </header>
         <div className="application-page">
@@ -961,8 +802,14 @@ export default function App() {
                  isOperationConfirmed(onboarding,weeklyHours,operationTimeZone,cycleAnchorDate,accountingCycleDays),
                  weeklyHours,exceptions,weeklyPresenceRequirements,presenceExceptions),
                people)}
-             hasAvailabilityAndRules={workRules.standardShiftDurationMinutes!==null &&
-               people.some(person=>person.active) && availabilities.length>0}
+             hasAvailabilityAndRules={validateAvailabilityConfiguration(
+               people,availabilities,weeklyHours,exceptions,workRules).valid}
+             availabilityRulesConfirmed={isAvailabilityAndRulesConfirmed(onboarding,
+               isTeamConfirmed(onboarding,
+                 isCoverageConfirmed(onboarding,
+                   isOperationConfirmed(onboarding,weeklyHours,operationTimeZone,cycleAnchorDate,accountingCycleDays),
+                   weeklyHours,exceptions,weeklyPresenceRequirements,presenceExceptions),people),
+               people,availabilities,weeklyHours,exceptions,workRules)}
              onConfirmOperation={()=>setOnboarding(previous=>({
                ...previous,
                operationConfirmedFingerprint:operationFingerprint(
