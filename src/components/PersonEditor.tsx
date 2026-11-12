@@ -124,7 +124,7 @@ export default function PersonEditor({initial,onSave,onCancel}:Props){
         <div className="team-draft-grid">
           <div className="team-draft-field">
             <span>Data de início</span>
-            <CivilDateField label="Data de início do vínculo" value={start} required
+            <CivilDateField label="Data de início do vínculo" value={start}
               onChange={value=>{setStart(value);setIssue("");}}/>
           </div>
           <div className="team-draft-field">
