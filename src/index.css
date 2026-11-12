@@ -4861,3 +4861,92 @@ h2 {
   }
   .presence-exception-top p {color:#b6c9df;}
 }
+
+
+/* PR65: team onboarding with explicit eligibility and atomic person drafts. */
+.team-person-record {min-width:0;border-top:1px solid #e5eaf1;}
+.team-person-record > .person-row {border-top:0;}
+.team-person-identity {display:grid;gap:4px;min-width:0;}
+.team-person-identity small {display:block;color:#69798b;font-size:11px;line-height:1.4;overflow-wrap:anywhere;}
+.team-person-draft {
+  margin:12px 24px 20px;
+  padding:18px;
+  display:grid;
+  gap:15px;
+  border:1px solid #ceddeb;
+  border-radius:12px;
+  background:#f8fbff;
+}
+.team-person-record > .team-person-draft {margin-top:2px;}
+.team-draft-warning {
+  margin:0;
+  padding:8px 10px;
+  font-size:12px;
+  line-height:1.45;
+  background:#fff6e5;
+  color:#76551b;
+  border:1px solid #e7d5b1;
+  border-radius:8px;
+}
+.team-draft-section {
+  display:grid;
+  gap:10px;
+  margin:0;
+  padding:13px 15px;
+  min-width:0;
+  border:1px solid #d3deec;
+  border-radius:10px;
+}
+.team-draft-section legend {padding:0 7px;font-size:13px;font-weight:750;}
+.team-draft-section p {margin:0;color:#61768c;font-size:12px;line-height:1.45;}
+.team-draft-field {display:grid;gap:5px;min-width:0;color:#53667b;font-size:12px;font-weight:650;}
+.team-draft-field input {
+  width:100%;min-height:41px;border:1px solid #ccd9e8;border-radius:8px;
+  background:#fff;color:#1d3046;padding:8px 11px;font-size:14px;
+}
+.team-draft-grid {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;}
+.team-draft-radio {display:flex;gap:9px;align-items:center;font-size:12px;line-height:1.5;color:#283f55;}
+.team-periods {display:grid;gap:11px;margin:3px 0;}
+.team-periods ul {padding:0;margin:0;list-style:none;display:grid;gap:7px;}
+.team-periods li {
+  display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px;
+  border:1px solid #d4deeb;border-radius:8px;padding:8px 10px;font-size:12px;
+}
+.team-periods .se-outline {min-height:33px;width:auto;}
+.team-legacy-note {color:#7a5c24!important;}
+.team-draft-actions {display:flex;justify-content:flex-end;gap:9px;flex-wrap:wrap;}
+.team-draft-actions .se-outline,.team-draft-actions .primary-button {min-height:40px;width:auto;}
+.team-person-draft .form-error {margin:0;color:#a63b3b;}
+.team-confirmation-panel {
+  display:flex;align-items:center;justify-content:space-between;gap:18px;
+  padding:17px 23px;
+}
+.team-confirmation-panel h2 {margin:3px 0 7px;font-size:18px;}
+.team-confirmation-panel p {margin:5px 0 0;font-size:12px;line-height:1.5;color:#69798c;max-width:720px;}
+.team-confirmation-panel .form-error {color:#ae4848;}
+.team-confirmation-panel .primary-button {flex-shrink:0;min-height:42px;width:auto;}
+.team-confirm-hint {color:#8f682c!important;}
+.team-status-warning {font-size:11px;color:#865f2a;}
+@media (max-width:800px){
+  .team-person-draft {margin-inline:15px;padding:12px;}
+  .team-confirmation-panel {flex-direction:column;align-items:stretch;}
+  .team-confirmation-panel .primary-button {width:100%;}
+  .person-actions {flex-wrap:wrap;}
+}
+@media (max-width:540px){
+  .team-draft-grid {grid-template-columns:1fr;}
+  .team-draft-section {padding:11px;}
+  .team-draft-actions {justify-content:stretch;}
+  .team-draft-actions button {flex:1;}
+}
+@media (prefers-color-scheme:dark){
+  .team-person-record {border-color:#4b627b;}
+  .team-person-identity small,.team-draft-field,
+  .team-draft-section p,.team-confirmation-panel p {color:#c0d1e4;}
+  .team-person-draft {background:#1e3147;border-color:#58718c;}
+  .team-draft-section,.team-periods li {border-color:#58718c;}
+  .team-draft-radio {color:#e0ecfa;}
+  .team-draft-field input {color:#f2f7ff;background:#142437;border-color:#65809a;}
+  .team-draft-warning {background:#382f20;border-color:#8d724b;color:#ffe1ad;}
+  .team-legacy-note,.team-status-warning,.team-confirm-hint {color:#f1d19a!important;}
+}
