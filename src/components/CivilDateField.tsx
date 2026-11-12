@@ -34,6 +34,7 @@ export default function CivilDateField({label,value,onChange,required=false}:Pro
   const [touched,setTouched]=useState(false);
 
   const text=draftText??formatCivilDate(value);
+  const calendarName=label.toLowerCase().includes("início")?"inicial":"final";
   const invalid=text.trim()!==""&&parseCivilDateInput(text)===null;
   const displayMonth=calendarMonth(month.year,month.month);
 
@@ -95,7 +96,7 @@ export default function CivilDateField({label,value,onChange,required=false}:Pro
         }}
       />
       <button ref={triggerRef} type="button" className="civil-date-open"
-        aria-label={"Escolher "+label.toLowerCase()}
+        aria-label={"Abrir calendário "+calendarName}
         aria-haspopup="dialog" aria-expanded={open}
         onClick={openCalendar}>
         <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24"
@@ -112,7 +113,7 @@ export default function CivilDateField({label,value,onChange,required=false}:Pro
     </span>}
 
     <dialog ref={dialogRef} className="civil-calendar-dialog"
-      aria-label={"Calendário: "+label}
+      aria-label={"Calendário "+calendarName}
       onClose={()=>setOpen(false)}
       onCancel={()=>setOpen(false)}>
       <div className="civil-calendar-header">
