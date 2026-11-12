@@ -337,7 +337,10 @@ export function isPersistedAppState(
              settings.operationConfirmedFingerprint.length<=65536)) &&
             (settings.coverageConfirmedFingerprint===undefined ||
              (typeof settings.coverageConfirmedFingerprint==="string" &&
-              settings.coverageConfirmedFingerprint.length<=65536));
+              settings.coverageConfirmedFingerprint.length<=65536)) &&
+            (settings.teamConfirmedFingerprint===undefined ||
+             (typeof settings.teamConfirmedFingerprint==="string" &&
+              settings.teamConfirmedFingerprint.length<=65536));
        })())) &&
     isWeeklyIntervals(state.weeklyOperatingHours) &&
     Array.isArray(state.exceptions) &&
