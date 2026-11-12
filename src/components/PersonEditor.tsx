@@ -136,14 +136,14 @@ export default function PersonEditor({initial,onSave,onCancel}:Props){
           Adicionar período ao rascunho
         </button>
       </div>}
-      {initial?.employmentPeriods===undefined && <p className="team-legacy-note">
+      {initial !== undefined && initial.employmentPeriods === undefined && <p className="team-legacy-note">
         Os dados existentes não têm datas de vínculo; o motor preserva esta elegibilidade sem limite por compatibilidade.
       </p>}
     </fieldset>
 
     <fieldset className="team-draft-section">
       <legend>Condições de trabalho (opcionais)</legend>
-      <p>O limite contratual é obrigatório quando definido; o objetivo semanal é uma preferência de otimização, não uma obrigação.</p>
+      <p>O máximo contratual estabelece um limite obrigatório para o motor. O objetivo semanal é uma preferência utilizada para otimizar a distribuição das horas.</p>
       <div className="team-draft-grid">
         <label className="team-draft-field">
           <span>Máximo contratual (horas por semana)</span>
