@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type {
-  AvailabilityException,
   OperatingHoursException,
   OperatingInterval,
   Person,
@@ -22,7 +21,6 @@ import AvailabilityPanel from "./components/AvailabilityPanel";
 import {availabilityAndRulesFingerprint,isAvailabilityAndRulesConfirmed,validateAvailabilityConfiguration} from "./utils/availabilityConfiguration";
 import {isTeamConfirmed,teamFingerprint,validateTeamConfiguration} from "./utils/teamConfiguration";
 import {hasAdjacentOperatingIntervals,mergeAdjacentOperatingIntervals,operatingPresentation} from "./utils/operationConfigurationDraft";
-import CalendarDateInput from "./components/CalendarDateInput";
 import PresencePanel from "./components/PresencePanel";
 import ScheduleGeneratorPanel from "./components/ScheduleGeneratorPanel";
 import ScheduleHome from "./components/ScheduleHome";
@@ -46,10 +44,8 @@ import {
 import { DEFAULT_OPERATION_TIME_ZONE, isIanaOperationTimeZone, resolveOperationTimeZone } from "./utils/operationTimeZone";
 import {
   createPersonAvailability,
-  intersectIntervals,
 } from "./utils/availability";
 import {
-  getOperatingIntervalsForDate,
   WEEKDAYS,
 } from "./utils/operatingCalendar";
 import {
@@ -107,36 +103,6 @@ function closingOptionsAfter(start: string): string[] {
   );
 }
 
-function openingOptionsWithin(
-  interval: OperatingInterval
-): string[] {
-  const start = timeToMinutes(interval.start);
-  const end = timeToMinutes(interval.end);
-
-  return openingOptions.filter((time) => {
-    const minutes = timeToMinutes(time);
-
-    return minutes >= start && minutes < end;
-  });
-}
-
-function closingOptionsWithin(
-  start: string,
-  interval: OperatingInterval
-): string[] {
-  const startMinutes = timeToMinutes(start);
-  const operationEnd = timeToMinutes(interval.end);
-
-  return closingOptions.filter((time) => {
-    const minutes = timeToMinutes(time);
-
-    return (
-      minutes > startMinutes &&
-      minutes <= operationEnd
-    );
-  });
-}
-
 function normalizeEnd(start: string, end: string): string {
   if (timeToMinutes(end) > timeToMinutes(start)) {
     return end;
@@ -153,25 +119,6 @@ function formatIntervals(intervals: OperatingInterval[]): string {
   return intervals
     .map((interval) => `${interval.start}–${interval.end}`)
     .join(" · ");
-}
-
-function formatAvailabilityIntervals(
-  intervals: OperatingInterval[]
-): string {
-  if (intervals.length === 0) return "Indisponível";
-
-  return intervals
-    .map((interval) => `${interval.start}–${interval.end}`)
-    .join(" · ");
-}
-
-function todayKey(): string {
-  const now = new Date();
-  const local = new Date(
-    now.getTime() - now.getTimezoneOffset() * 60_000
-  );
-
-  return local.toISOString().slice(0, 10);
 }
 
 function getInitials(name: string): string {
@@ -216,7 +163,6 @@ export default function App() {
   const [editingExceptionIndex,setEditingExceptionIndex]=useState<number | "new" | null>(null);
   const [editingWeekday,setEditingWeekday]=useState<Weekday|null>(null);
   const [removingExceptionIndex,setRemovingExceptionIndex]=useState<number|null>(null);
-  const [availabilityExceptionIssue, setAvailabilityExceptionIssue] = useState("");
   const {route,navigate}=useWorkspaceRouting();
   const activeSection=route.section;
   const [
@@ -493,40 +439,6 @@ export default function App() {
           availability.personId === selectedAvailabilityPerson.id
       ) ?? createPersonAvailability(selectedAvailabilityPerson.id)
     : null;
-
-  const availabilitySummary = useMemo(() => {
-    if (!selectedAvailability) {
-      return {
-        availableDays: 0,
-        exceptions: 0,
-      };
-    }
-
-    return {
-      availableDays: WEEKDAYS.filter(
-        (weekday) =>
-          intersectIntervals(
-            selectedAvailability.weeklyAvailability[weekday],
-            weeklyHours[weekday]
-          ).length > 0
-      ).length,
-      exceptions: selectedAvailability.exceptions.length,
-    };
-  }, [selectedAvailability, weeklyHours]);
-
-  // The compact editor only changes the first interval; imported extra
-  // intervals must remain intact until the full editor is available.
-  // Availability exceptions still use the existing legacy date allocation workflow.
-  const nextUnusedExceptionDate = (items: {date: string}[]): string => {
-    const used = new Set(items.map(item => item.date));
-    const date = new Date(todayKey() + "T00:00:00Z");
-    for (let i = 0; i < 36525; i++) {
-      const candidate = date.toISOString().slice(0, 10);
-      if (!used.has(candidate)) return candidate;
-      date.setUTCDate(date.getUTCDate() + 1);
-    }
-    throw new Error("Não existe data livre para uma nova exceção.");
-  };
 
   const updateDayInterval = (
     weekday: Weekday,
