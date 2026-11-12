@@ -1221,225 +1221,138 @@ export default function App() {
       {activeSection === "people" && (
         <>
           <section className="overview-bar" aria-label="Resumo de pessoas">
-            <div className="overview-item">
-              <span>Total</span>
-              <strong>{people.length}</strong>
-            </div>
-            <div className="overview-item">
-              <span>Ativas</span>
-              <strong>{activePeople.length}</strong>
-            </div>
-            <div className="overview-item">
-              <span>Arquivadas</span>
-              <strong>{people.length - activePeople.length}</strong>
-            </div>
+            <div className="overview-item"><span>Total</span><strong>{people.length}</strong></div>
+            <div className="overview-item"><span>Ativas</span><strong>{activePeople.length}</strong></div>
+            <div className="overview-item"><span>Arquivadas</span>
+              <strong>{people.length-activePeople.length}</strong></div>
           </section>
-
           <section className="panel people-panel">
-        <div className="panel-header people-header">
-          <div>
-            
-            <h2>Pessoas</h2>
-            <p className="people-description">
-              Pessoas ativas podem participar em horários futuros.
-              Arquivar mantém a pessoa no sistema sem a considerar para
-              novas escalas.
-            </p>
-          </div>
-
-          <div className="people-count">
-            <strong>{activePeople.length}</strong>
-            <span>ativas</span>
-          </div>
-        </div>
-
-        <form
-          className="person-form"
-          onSubmit={(event) => {
-            event.preventDefault();
-            addPerson();
-          }}
-        >
-          <label className="text-field">
-            <span>Nome</span>
-            <input
-              type="text"
-              value={newPersonName}
-              onChange={(event) => {
-                setNewPersonName(event.target.value);
-                setPersonError("");
-              }}
-              placeholder="Nome da pessoa"
-            />
-          </label>
-
-          <button className="primary-button add-person-button" type="submit">
-            <span>+</span>
-            Adicionar pessoa
-          </button>
-        </form>
-
-        {personError && (
-          <p className="form-error" role="alert">
-            {personError}
-          </p>
-        )}
-
-        {people.length === 0 ? (
-          <div className="people-empty">
-            <div className="empty-icon">◎</div>
-            <strong>Ainda não existem pessoas</strong>
-            <p>
-              Adiciona a primeira pessoa que poderá ser usada pelo motor.
-            </p>
-          </div>
-        ) : (
-          <div className="people-table">
-            <div className="people-head" aria-hidden="true">
-              <span>Pessoa</span>
-              <span>Estado</span>
-              <span>Ações</span>
+            <div className="panel-header people-header">
+              <div>
+                <p className="section-kicker">Configuração inicial · Etapa 3</p>
+                <h2>Pessoas</h2>
+                <p className="people-description">
+                  Adiciona colaboradores e define quando podem ser escalados.
+                  Arquivar mantém os registos e os horários históricos.
+                </p>
+              </div>
+              <button type="button" className="primary-button"
+                onClick={()=>{
+                  setNewPersonOpen(true);
+                  setEditingPersonId(null);
+                  setPersonStatusPendingId(null);
+                }}>+ Adicionar colaborador</button>
             </div>
-
-            {[...people]
-              .sort(
-                (a, b) =>
-                  Number(b.active) - Number(a.active) ||
-                  a.name.localeCompare(b.name)
-              )
-              .map((person) => {
-                const editing = editingPersonId === person.id;
-
-                return (
-                  <div
-                    className={`person-row ${person.active ? "" : "is-archived"}`}
-                    key={person.id}
-                  >
-                    <div className="person-identity">
-                      <div className="person-avatar" aria-hidden="true">
-                        {getInitials(person.name)}
-                      </div>
-
-                      {editing ? (
-                        <input
-                          className="inline-name-input"
-                          type="text"
-                          value={editingPersonName}
-                          onChange={(event) => {
-                            setEditingPersonName(event.target.value);
-                            setPersonError("");
-                          }}
-                          autoFocus
-                        />
-                      ) : (
-                        <div>
+            {newPersonOpen && <PersonEditor
+              key="new-person" onSave={savePersonDraft}
+              onCancel={()=>setNewPersonOpen(false)}
+            />}
+            {people.length===0 && !newPersonOpen
+              ?<div className="people-empty">
+                <div className="empty-icon">◎</div>
+                <strong>Ainda não existem pessoas</strong>
+                <p>Adiciona o primeiro colaborador para configurar a equipa.</p>
+              </div>
+              :people.length>0 && <div className="people-table">
+                <div className="people-head" aria-hidden="true">
+                  <span>Pessoa</span><span>Estado</span><span>Ações</span>
+                </div>
+                {[...people].sort((a,b)=>
+                  Number(b.active)-Number(a.active)||a.name.localeCompare(b.name))
+                  .map(person=><div className="team-person-record" key={person.id}>
+                    <div className={"person-row"+(person.active?"":" is-archived")}>
+                      <div className="person-identity">
+                        <div className="person-avatar" aria-hidden="true">
+                          {getInitials(person.name)}
+                        </div>
+                        <div className="team-person-identity">
                           <strong>{person.name}</strong>
-                          <span>ID {person.id.slice(0, 8)}</span>
-                          {person.employmentPeriods!==undefined && !editing && (
-                            <small>Vínculos: {person.employmentPeriods.length
-                              ? person.employmentPeriods.map(p=>p.startDate+" a "+(p.endDate??"presente")).join("; ")
-                              : "nenhum período configurado"}</small>
-                          )}
+                          <span>ID {person.id.slice(0,8)}</span>
+                          <small>{person.employmentPeriods===undefined
+                            ?"Elegibilidade sem restrição de datas"
+                            :person.employmentPeriods.length
+                              ?"Períodos: "+person.employmentPeriods.map(p=>
+                                p.startDate+" a "+(p.endDate??"presente")).join("; ")
+                              :"Sem períodos elegíveis"}</small>
+                          {person.weeklyContractMinutes!==undefined &&
+                            <small>Máximo: {person.weeklyContractMinutes/60}h/semana</small>}
+                          {person.qualificationTags?.length
+                            ?<small>Qualificações: {person.qualificationTags.join(", ")}</small>
+                            :null}
                         </div>
-                      )}
-                      {editing && (
-                        <div className="person-employment-editor">
-                          <p>Vínculos laborais (datas inclusivas)</p>
-                          {(person.employmentPeriods??[]).map((period,index)=>(
-                            <div key={index}>
-                              <span>{period.startDate} a {period.endDate??"presente"}</span>{" "}
-                              <button type="button" className="secondary-button"
-                                onClick={()=>removePersonEmploymentPeriod(person,index)}>
-                                Remover vínculo
-                              </button>
-                            </div>
-                          ))}
-                          <label>Entrada
-                            <input aria-label={"Entrada de "+person.name} type="date"
-                              value={employmentStartDraft}
-                              onChange={event=>setEmploymentStartDraft(event.target.value)}/>
-                          </label>
-                          <label>Saída (opcional)
-                            <input aria-label={"Saída de "+person.name} type="date"
-                              value={employmentEndDraft}
-                              onChange={event=>setEmploymentEndDraft(event.target.value)}/>
-                          </label>
-                          <button type="button" className="secondary-button"
-                            disabled={!employmentStartDraft}
-                            onClick={()=>addPersonEmploymentPeriod(person)}>
-                            Adicionar vínculo
-                          </button>
-                          <small>Os vínculos não alteram horários históricos ou propostas já arquivadas.</small>
-                        </div>
-                      )}
-                    </div>
-
-                    <div>
-                      <span
-                        className={`person-status ${person.active ? "active" : "archived"}`}
-                      >
-                        <span />
-                        {person.active ? "Ativa" : "Arquivada"}
-                      </span>
-                    </div>
-
-                    <div className="person-actions">
-                      {editing ? (
-                        <>
-                          <button
-                            type="button"
-                            className="secondary-button"
-                            onClick={cancelEditingPerson}
-                          >
-                            Cancelar
-                          </button>
-                          <button
-                            type="button"
-                            className="primary-button"
-                            onClick={() => savePersonName(person)}
-                          >
-                            Guardar
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <button
-                            type="button"
-                            className="secondary-button"
-                            onClick={() => startEditingPerson(person)}
-                          >
-                            Editar
-                          </button>
-
-                          {person.active ? (
-                            <button
-                              type="button"
-                              className="secondary-button"
-                              onClick={() =>
-                                changePersonActive(person, false)
-                              }
-                            >
-                              Arquivar
+                      </div>
+                      <div><span className={"person-status "+(person.active?"active":"archived")}>
+                        <span/>{person.active?"Ativa":"Arquivada"}</span></div>
+                      <div className="person-actions">
+                        {personStatusPendingId===person.id
+                          ?<>
+                            <span className="team-status-warning">
+                              {person.active?"Confirmas o arquivo?":"Confirmas a reativação?"}
+                            </span>
+                            <button type="button" className="secondary-button"
+                              onClick={()=>setPersonStatusPendingId(null)}>Cancelar</button>
+                            <button type="button" className="secondary-button"
+                              onClick={()=>changePersonActive(person,!person.active)}>
+                              Confirmar
                             </button>
-                          ) : (
-                            <button
-                              type="button"
-                              className="secondary-button"
-                              onClick={() =>
-                                changePersonActive(person, true)
-                              }
-                            >
-                              Reativar
-                            </button>
-                          )}
-                        </>
-                      )}
+                          </>
+                          :<>
+                            <button type="button" className="secondary-button"
+                              onClick={()=>startEditingPerson(person)}>Editar</button>
+                            <button type="button" className="secondary-button"
+                              onClick={()=>{
+                                setPersonStatusPendingId(person.id);
+                                setEditingPersonId(null);
+                                setNewPersonOpen(false);
+                              }}>{person.active?"Arquivar":"Reativar"}</button>
+                          </>}
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
-          </div>
-        )}
+                    {editingPersonId===person.id && <PersonEditor
+                      key={person.id} initial={person} onSave={savePersonDraft}
+                      onCancel={cancelEditingPerson}
+                    />}
+                  </div>)}
+              </div>}
+          </section>
+          <section className="panel team-confirmation-panel"
+            aria-label="Confirmação da equipa">
+            <div>
+              <p className="section-kicker">Configuração inicial · Etapa 3</p>
+              <h2>{isTeamConfirmed(onboarding,
+                isCoverageConfirmed(onboarding,
+                  isOperationConfirmed(onboarding,weeklyHours,operationTimeZone,cycleAnchorDate,accountingCycleDays),
+                  weeklyHours,exceptions,weeklyPresenceRequirements,presenceExceptions),
+                people)?"Equipa confirmada":"Confirmar equipa e vínculos"}</h2>
+              <p>Confirma os colaboradores ativos, períodos de elegibilidade e condições
+                individuais. Não comprova disponibilidade suficiente para gerar horários.</p>
+              {people.some(p=>p.active) &&
+                !validateTeamConfiguration(people).valid &&
+                <p className="form-error" role="alert">
+                  {validateTeamConfiguration(people).issues.join(" ")}
+                </p>}
+              {!isCoverageConfirmed(onboarding,
+                isOperationConfirmed(onboarding,weeklyHours,operationTimeZone,cycleAnchorDate,accountingCycleDays),
+                weeklyHours,exceptions,weeklyPresenceRequirements,presenceExceptions) &&
+                <p className="team-confirm-hint">
+                  Confirma primeiro o funcionamento e a cobertura nas Etapas 1 e 2.
+                </p>}
+            </div>
+            {isTeamConfirmed(onboarding,
+              isCoverageConfirmed(onboarding,
+                isOperationConfirmed(onboarding,weeklyHours,operationTimeZone,cycleAnchorDate,accountingCycleDays),
+                weeklyHours,exceptions,weeklyPresenceRequirements,presenceExceptions),
+              people)
+              ?<strong className="guided-status done">Etapa 3 confirmada</strong>
+              :<button type="button" className="primary-button"
+                disabled={!validateTeamConfiguration(people).valid||
+                  !isCoverageConfirmed(onboarding,
+                    isOperationConfirmed(onboarding,weeklyHours,operationTimeZone,cycleAnchorDate,accountingCycleDays),
+                    weeklyHours,exceptions,weeklyPresenceRequirements,presenceExceptions)||
+                  persistenceStatus!=="saved"||newPersonOpen||editingPersonId!==null}
+                onClick={()=>setOnboarding(previous=>({
+                  ...previous,teamConfirmedFingerprint:teamFingerprint(people),
+                }))}>Confirmar equipa</button>}
           </section>
         </>
       )}
