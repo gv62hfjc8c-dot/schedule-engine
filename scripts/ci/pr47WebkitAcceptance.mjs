@@ -575,6 +575,90 @@ try{
   // README's proposal-vs-approval boundary, not just domain helper output.
   await page.getByRole("button",{name:"Equipa",exact:true}).click();
   await page.getByRole("heading",{name:"Pessoas",exact:true}).waitFor();
+  // PR65: new collaborators must not enter cloud state until an explicit Save.
+  const beforePeopleWrites=saves;
+  await page.getByRole("button",{name:"+ Adicionar colaborador"}).click();
+  const newStaff=page.getByRole("form",{name:"Novo colaborador"});
+  await newStaff.getByLabel("Nome do colaborador").fill("Pessoa Experimental");
+  await newStaff.getByRole("button",{name:"Guardar colaborador"}).click();
+  await newStaff.getByRole("alert").getByText(/Escolhe como este colaborador/).waitFor();
+  await newStaff.getByRole("radio",{name:"Apenas em períodos definidos"}).check();
+  await newStaff.getByLabel("Data de início do vínculo").fill("2026-11-01");
+  await newStaff.getByLabel("Data de fim do vínculo").fill("2026-11-30");
+  await newStaff.getByRole("button",{name:"Adicionar período ao rascunho"}).click();
+  assert.equal(persisted.people.length,1,
+    "Creating a dated person must remain local until Save.");
+  await newStaff.getByRole("button",{name:"Cancelar"}).click();
+  await delay(700);
+  assert.equal(saves,beforePeopleWrites,
+    "Canceling new person with multiple draft edits must not write to cloud.");
+  assert.equal(persisted.people.length,1,
+    "Canceled person never creates a default availability record.");
+
+  const firstPerson=page.locator(".team-person-record").filter({hasText:personName});
+  await firstPerson.getByRole("button",{name:"Editar"}).click();
+  const editing=page.getByRole("form",{name:"Editar colaborador "+personName});
+  await editing.getByLabel("Nome do colaborador").fill("Nome temporário");
+  await editing.getByRole("radio",{name:"Apenas em períodos definidos"}).check();
+  await editing.getByLabel("Data de início do vínculo").fill("2026-11-01");
+  await editing.getByRole("button",{name:"Adicionar período ao rascunho"}).click();
+  assert.equal(persisted.people[0].employmentPeriods,undefined,
+    "Draft employment periods must not update stored legacy eligibility.");
+  await editing.getByRole("button",{name:"Cancelar"}).click();
+  await delay(700);
+  assert.equal(saves,beforePeopleWrites,
+    "Canceling existing person edits must not write anything.");
+  assert.equal(persisted.people[0].name,personName,
+    "Cancel must preserve the original name and employment periods.");
+
+  await page.getByRole("button",{name:"+ Adicionar colaborador"}).click();
+  const created=page.getByRole("form",{name:"Novo colaborador"});
+  await created.getByLabel("Nome do colaborador").fill("Pessoa de Ensaio Dois");
+  await created.getByRole("radio",{name:"Apenas em períodos definidos"}).check();
+  await created.getByLabel("Data de início do vínculo").fill("2026-11-01");
+  await created.getByLabel("Data de fim do vínculo").fill("2026-11-30");
+  await created.getByRole("button",{name:"Adicionar período ao rascunho"}).click();
+  await created.getByLabel("Máximo contratual da pessoa").fill("20");
+  await created.getByLabel("Objetivo semanal da pessoa").fill("15");
+  await created.getByLabel("Qualificações da pessoa").fill("Receção, Caixa");
+  await created.getByRole("button",{name:"Guardar colaborador"}).click();
+  await wait(()=>persisted.people.length===2,
+    "One explicit save creates the person and persistent availability.");
+  assert.equal(persisted.people[1].weeklyContractMinutes,1200);
+  assert.equal(persisted.people[1].weeklyTargetMinutes,900);
+  assert.deepEqual(persisted.people[1].qualificationTags,["Receção","Caixa"]);
+  await page.locator(".save-status.saved").waitFor();
+  const teamStep=page.getByRole("region",{name:"Confirmação da equipa"});
+  await teamStep.getByRole("button",{name:"Confirmar equipa"}).click();
+  await wait(()=>Boolean(persisted.onboarding?.teamConfirmedFingerprint),
+    "Team confirmation fingerprint was persisted.");
+  await teamStep.getByText("Etapa 3 confirmada").waitFor();
+  await page.goto(origin+"/equipa",{waitUntil:"domcontentloaded"});
+  await page.locator(".save-status.saved").waitFor();
+  await teamStep.getByText("Etapa 3 confirmada").waitFor();
+  const second=page.locator(".team-person-record").filter({hasText:"Pessoa de Ensaio Dois"});
+  await second.getByRole("button",{name:"Editar"}).click();
+  const secondDraft=page.getByRole("form",{name:"Editar colaborador Pessoa de Ensaio Dois"});
+  await secondDraft.getByLabel("Nome do colaborador").fill("Pessoa de Ensaio Atualizada");
+  await secondDraft.getByRole("button",{name:"Guardar colaborador"}).click();
+  await wait(()=>persisted.people[1].name==="Pessoa de Ensaio Atualizada",
+    "Saving a change to the team persists it.");
+  await teamStep.getByRole("button",{name:"Confirmar equipa"}).waitFor();
+  await page.locator(".save-status.saved").waitFor();
+  const updated=page.locator(".team-person-record").filter({hasText:"Pessoa de Ensaio Atualizada"});
+  await updated.getByRole("button",{name:"Arquivar"}).click();
+  assert.equal(persisted.people[1].active,true,
+    "Archiving must require explicit confirmation.");
+  await updated.getByRole("button",{name:"Confirmar",exact:true}).click();
+  await wait(()=>persisted.people[1].active===false,
+    "Archive was confirmed and saved.");
+  await page.locator(".save-status.saved").waitFor();
+  await teamStep.getByRole("button",{name:"Confirmar equipa"}).click();
+  await wait(()=>Boolean(persisted.onboarding?.teamConfirmedFingerprint),
+    "Reconfirmation of archived team persisted.");
+  await page.getByRole("button",{name:"Calendário operacional"}).click();
+  const guided=page.getByRole("region",{name:"Configuração inicial guiada"});
+  await guided.getByText("3 de 5").waitFor();
   await page.getByRole("button",{name:"Horários",exact:true}).click();
   await page.getByRole("button",{name:"+ Criar horário",exact:true}).click();
   await page.getByText(/Cada proposta válida é guardada no Supabase/).waitFor();
