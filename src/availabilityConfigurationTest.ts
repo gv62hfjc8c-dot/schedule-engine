@@ -43,6 +43,8 @@ const contradictory:PersonAvailability={
 };
 assert(availabilityDayStatus(contradictory,"monday",hours.monday)==="invalid",
   "A marked unavailable day cannot also be available.");
+assert(getAvailabilityIntervalsForDate("2026-11-09",contradictory).length===0,
+  "An explicit unavailable marker MUST be enforced by the resolver, even against inconsistent imported intervals.");
 const outside=withAvailabilityDecision(legacy,"monday","available",[
   {start:"08:00",end:"13:00"},
 ]);
