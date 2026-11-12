@@ -11,6 +11,7 @@ interface Props {
   hasTeam:boolean;
   teamConfirmed:boolean;
   hasAvailabilityAndRules:boolean;
+  availabilityRulesConfirmed:boolean;
   onConfirmOperation():void;
   onNavigate(section:WorkspaceSection):void;
 }
@@ -22,10 +23,10 @@ interface Props {
  */
 export default function GuidedSetup({
   operationConfirmed,cycleDecisionConfirmed,canConfirmOperation,saving,
-  hasCoverage,coverageConfirmed,hasTeam,teamConfirmed,hasAvailabilityAndRules,onConfirmOperation,onNavigate,
+  hasCoverage,coverageConfirmed,hasTeam,teamConfirmed,hasAvailabilityAndRules,availabilityRulesConfirmed,onConfirmOperation,onNavigate,
 }:Props){
   const [expanded,setExpanded]=useState(false);
-  const completed=Number(operationConfirmed)+Number(coverageConfirmed)+Number(teamConfirmed);
+  const completed=Number(operationConfirmed)+Number(coverageConfirmed)+Number(teamConfirmed)+Number(availabilityRulesConfirmed);
   return <section className="panel guided-setup" aria-label="Configuração inicial guiada">
     <div className="guided-setup-heading">
       <div>
@@ -81,10 +82,12 @@ export default function GuidedSetup({
       </li>
       <li>
         <div><strong>4. Disponibilidades e regras</strong>
-          <p>{hasAvailabilityAndRules?"Existem dados preenchidos, ainda não confirmados."
-            :"Reúne as disponibilidades e as regras de geração."}</p></div>
-        <button type="button" className="se-outline"
-          onClick={()=>onNavigate("availability")}>Ver disponibilidades</button>
+          <p>{availabilityRulesConfirmed?"Disponibilidades e regras confirmadas. Alterações exigem nova confirmação."
+            :hasAvailabilityAndRules?"Dados estruturalmente válidos; revê e confirma as disponibilidades e regras."
+            :"Define os dias disponíveis ou indisponíveis e a duração padrão do turno."}</p></div>
+        {availabilityRulesConfirmed?<span className="guided-status done">Confirmado</span>
+          :<button type="button" className="se-outline"
+            onClick={()=>onNavigate("availability")}>Ver disponibilidades</button>}
       </li>
       <li>
         <div><strong>5. Primeira proposta</strong>
