@@ -17,6 +17,8 @@ import IntervalListEditor from "./components/IntervalListEditor";
 import OperationExceptionEditor from "./components/OperationExceptionEditor";
 import OperationCycleSettings from "./components/OperationCycleSettings";
 import GuidedSetup from "./components/GuidedSetup";
+import PersonEditor from "./components/PersonEditor";
+import {isTeamConfirmed,teamFingerprint,validateTeamConfiguration} from "./utils/teamConfiguration";
 import {hasAdjacentOperatingIntervals,mergeAdjacentOperatingIntervals,operatingPresentation} from "./utils/operationConfigurationDraft";
 import CalendarDateInput from "./components/CalendarDateInput";
 import PresencePanel from "./components/PresencePanel";
@@ -48,11 +50,8 @@ import {
   getOperatingIntervalsForDate,
   WEEKDAYS,
 } from "./utils/operatingCalendar";
-import {validateEmploymentPeriods} from "./utils/employmentPeriods";
 import {
-  createPerson,
   getActivePeople,
-  renamePerson,
   setPersonActive,
 } from "./utils/people";
 
@@ -207,15 +206,10 @@ export default function App() {
     useState<WeeklyPresenceRequirements>(createEmptyWeeklyPresenceRequirements);
   const [presenceExceptions, setPresenceExceptions] =
     useState<PresenceException[]>([]);
-  const [newPersonName, setNewPersonName] = useState("");
-  const [editingPersonId, setEditingPersonId] = useState<string | null>(
-    null
-  );
+  const [newPersonOpen,setNewPersonOpen]=useState(false);
+  const [editingPersonId,setEditingPersonId]=useState<string|null>(null);
+  const [personStatusPendingId,setPersonStatusPendingId]=useState<string|null>(null);
   const [mobileNavigationOpen,setMobileNavigationOpen]=useState(false);
-  const [editingPersonName, setEditingPersonName] = useState("");
-  const [employmentStartDraft,setEmploymentStartDraft] = useState("");
-  const [employmentEndDraft,setEmploymentEndDraft] = useState("");
-  const [personError, setPersonError] = useState("");
   const [editingExceptionIndex,setEditingExceptionIndex]=useState<number | "new" | null>(null);
   const [editingWeekday,setEditingWeekday]=useState<Weekday|null>(null);
   const [removingExceptionIndex,setRemovingExceptionIndex]=useState<number|null>(null);
@@ -586,98 +580,32 @@ export default function App() {
     setRemovingExceptionIndex(null);
   };
 
-  const addPerson = () => {
-    try {
-      const person = createPerson(
-        crypto.randomUUID(),
-        newPersonName
-      );
-
-      setPeople((current) => [...current, person]);
-      setAvailabilities((current) => [
-        ...current,
-        createPersonAvailability(person.id),
+  const savePersonDraft=(next:Person)=>{
+    if(editingPersonId!==null){
+      setPeople(current=>current.map(person=>
+        person.id===editingPersonId?next:person));
+    }else{
+      const newPerson={...next,id:crypto.randomUUID()};
+      setPeople(current=>[...current,newPerson]);
+      setAvailabilities(current=>[
+        ...current,createPersonAvailability(newPerson.id),
       ]);
-      setNewPersonName("");
-      setPersonError("");
-    } catch (error) {
-      setPersonError(
-        error instanceof Error ? error.message : "Nome inválido."
-      );
     }
-  };
-
-  const startEditingPerson = (person: Person) => {
-    setEditingPersonId(person.id);
-    setEditingPersonName(person.name);
-    setEmploymentStartDraft("");
-    setEmploymentEndDraft("");
-    setPersonError("");
-  };
-
-  const cancelEditingPerson = () => {
+    setNewPersonOpen(false);
     setEditingPersonId(null);
-    setEditingPersonName("");
-    setEmploymentStartDraft("");
-    setEmploymentEndDraft("");
-    setPersonError("");
+    setPersonStatusPendingId(null);
   };
 
-  const savePersonName = (person: Person) => {
-    try {
-      const renamed = renamePerson(person, editingPersonName);
-
-      setPeople((current) =>
-        current.map((candidate) =>
-          candidate.id === person.id ? renamed : candidate
-        )
-      );
-
-      cancelEditingPerson();
-    } catch (error) {
-      setPersonError(
-        error instanceof Error ? error.message : "Nome inválido."
-      );
-    }
+  const startEditingPerson=(person:Person)=>{
+    setEditingPersonId(person.id);
+    setNewPersonOpen(false);
+    setPersonStatusPendingId(null);
   };
-
-  const addPersonEmploymentPeriod = (person:Person) => {
-    const periods=[...(person.employmentPeriods??[]),
-      {startDate:employmentStartDraft,endDate:employmentEndDraft || null}];
-    const problems=validateEmploymentPeriods(periods);
-    if(problems.length){
-      setPersonError(problems.join(" "));
-      return;
-    }
-    setPeople(current=>current.map(p=>p.id===person.id
-      ? {...p,employmentPeriods:periods} : p));
-    setEmploymentStartDraft("");
-    setEmploymentEndDraft("");
-    setPersonError("");
-  };
-
-  const removePersonEmploymentPeriod = (person:Person,index:number) => {
-    setPeople(current=>current.map(p=>p.id===person.id
-      ? {...p,employmentPeriods:person.employmentPeriods?.filter((_,i)=>i!==index)??[]}
-      : p));
-    setPersonError("");
-  };
-
-  const changePersonActive = (
-    person: Person,
-    active: boolean
-  ) => {
-    setPeople((current) =>
-      current.map((candidate) =>
-        candidate.id === person.id
-          ? setPersonActive(candidate, active)
-          : candidate
-      )
-    );
-
-    if (editingPersonId === person.id) {
-      cancelEditingPerson();
-    }
+  const cancelEditingPerson=()=>setEditingPersonId(null);
+  const changePersonActive=(person:Person,active:boolean)=>{
+    setPeople(current=>current.map(candidate=>
+      candidate.id===person.id?setPersonActive(candidate,active):candidate));
+    setPersonStatusPendingId(null);
   };
 
   const upsertAvailability = (
@@ -976,6 +904,7 @@ export default function App() {
             {editingExceptionIndex!==null && <span className="operation-draft-status" role="status">Exceção por guardar</span>}
             {cycleDraftOpen && <span className="operation-draft-status" role="status">Escolha do ciclo por guardar</span>}
             {activeSection==="presence" && presenceDraftOpen && <span className="operation-draft-status" role="status">Cobertura por guardar</span>}
+            {activeSection==="people" && (newPersonOpen||editingPersonId!==null) && <span className="operation-draft-status" role="status">Colaborador por guardar</span>}
           </div>
         </header>
         <div className="application-page">
@@ -1027,6 +956,11 @@ export default function App() {
              hasCoverage={validCoverageConfiguration(
                weeklyHours,weeklyPresenceRequirements,presenceExceptions)}
              hasTeam={people.some(person=>person.active)}
+             teamConfirmed={isTeamConfirmed(onboarding,
+               isCoverageConfirmed(onboarding,
+                 isOperationConfirmed(onboarding,weeklyHours,operationTimeZone,cycleAnchorDate,accountingCycleDays),
+                 weeklyHours,exceptions,weeklyPresenceRequirements,presenceExceptions),
+               people)}
              hasAvailabilityAndRules={workRules.standardShiftDurationMinutes!==null &&
                people.some(person=>person.active) && availabilities.length>0}
              onConfirmOperation={()=>setOnboarding(previous=>({
