@@ -19,8 +19,11 @@ const norm=(p)=>path.posix.normalize(p);
 const resolve=(from,spec)=>{
   if(!spec.startsWith("."))return null;
   const raw=norm(path.posix.join(path.posix.dirname(from),spec));
-  return [raw,raw+".ts",raw+".tsx",raw+".css",raw+"/index.ts",raw+"/index.tsx"]
-    .find(item=>existing.has(item))??null;
+  const candidates=[raw,raw+".ts",raw+".tsx",raw+".css",raw+".d.ts",
+    raw+".js",raw+".mjs",raw+"/index.ts",raw+"/index.tsx"];
+  const target=candidates.find(item=>fs.existsSync(path.join(root,item)));
+  if(!target)throw new Error("Broken relative import: "+from+" -> "+spec);
+  return existing.has(target)?target:null;
 };
 const graph=new Map(all.map(p=>[p,new Set()]));
 for(const file of all){
