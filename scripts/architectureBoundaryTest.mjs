@@ -79,7 +79,7 @@ for(const name of [
   "src/utils/workCoverage.ts",
   "src/utils/availability.ts",
   "src/utils/personSchedulingPolicies.ts",
-  "src/utils/accountingCycle28.ts",
+  "src/utils/accountingCycleConfiguration.ts",
   "src/utils/mealAwareDayGenerator.ts",
 ]){
   const file=resolve(root,name);
