@@ -1,153 +1,98 @@
-# Schedule Engine
+# Schedule Engine — V1
 
-Motor de geração e validação de horários, concebido como núcleo de scheduling
-**independente de qualquer empresa, interface ou base de dados**.
+Motor independente de geração e validação de horários. A interface React e o
+Supabase existem para configurar, executar e guardar o trabalho do motor — não
+definem o algoritmo.
 
-## Estado da aplicação
+## O caminho principal (ler por esta ordem)
 
-A `main` contém os PR #48 e #49 integrados. A classificação histórica e a
-verificação de vínculos foram aplicadas à base operacional em 09/11/2026,
-sem qualquer importação de horários reais.
+| Função | Ficheiro |
+| --- | --- |
+| Entrada da aplicação e configuração | `src/App.tsx` |
+| Ecrã de geração | `src/components/ConstrainedPeriodGeneratorPanel.tsx` |
+| Pesquisa de horários | `src/utils/constrainedPeriodGenerator.ts` |
+| Pesquisa de turnos e refeições de cada dia | `src/utils/mealAwareDayGenerator.ts` |
+| Certificação independente | `src/utils/finalScheduleCertification.ts` |
+| Limites de trabalho e descanso | `src/utils/workConstraints.ts` |
+| Cobertura mínima em cada intervalo | `src/utils/workCoverage.ts` |
+| Disponibilidade dos colaboradores | `src/utils/availability.ts` |
+| Propostas imutáveis | `src/persistence/supabaseGeneratedScheduleRepository.ts` |
+| Calendário e consulta do arquivo | `src/components/ScheduleHome.tsx` |
 
-O fluxo operacional ativo inclui:
+O fluxo é: **configurar → gerar → certificar → guardar proposta → consultar**.
+Uma proposta guardada não é automaticamente um horário oficialmente aprovado.
 
-- **Calendário mensal** com resumo por dia, indicadores e acesso à gestão
-  diária (equipa, pesquisa, filtros, seleção persistente entre páginas).
-- **Gerador condicionado** com validação independente de hard constraints.
-  O núcleo e a interface do PR #47 suportam até **28 dias**; a migração
-  de arquivo correspondente já foi aplicada no Supabase do projeto.
-- **Disponibilidade e operação** por padrão semanal, exceções e mínimos de
-  cobertura de abertura, período central e fecho.
-- **Regras de trabalho**: limites diários/semanais, descanso e refeições,
-  incluindo contabilização de horas efetivas.
-- **Arquivo de propostas** persistidas no Supabase, consultáveis após
-  encerrar e reabrir a aplicação, sem regeneração.
+## Regras essenciais
 
-No PR #47, foram acrescentados contratos semanais individuais (limites
-**hard**), objetivos semanais (**soft**), datas de trabalho obrigatórias,
-fuso horário IANA por operação, ciclos contabilísticos fixos de 28 dias,
-**geração de 28 dias testada no núcleo** e disponibilidade por pessoa.
-As qualificações podem ser exigidas na cobertura e são validadas também
-nas pausas. A interface aceita 28 dias; a geração e recuperação da proposta de 02–29/11/2026 foram confirmadas no Safari em 09/11/2026 e numa consulta read-only ao Supabase. A transição contabilística para 30/11 também passou numa execução automatizada WebKit.
+- **Hard constraints**: cobertura mínima durante o funcionamento, disponibilidades,
+  vínculos, máximo diário e semanal, refeições e descanso entre turnos.
+- **Soft constraints**: preferências de distribuição e objetivo semanal, quando a
+  empresa não os definiu como obrigatórios.
+- **Sem turno não significa folga**: um dia ainda não planeado não pode ser
+  apresentado como folga atribuída.
+- Abertura contínua da empresa não elimina a refeição individual dos colaboradores;
+  a cobertura tem de se manter enquanto alguém está em pausa.
+- Alterações a propostas criam versões novas; o arquivo anterior permanece consultável.
 
-### Não confundir proposta com aprovação
+## Limitações conhecidas nesta transição V1
 
-Uma proposta válida e guardada **não constitui um horário oficialmente
-aprovado**. O calendário pode apresentar propostas distintas em dias
-consecutivos; o panorama indica essa proveniência e permite selecionar
-uma única proposta para consulta, sem a tratar como escala combinada
-certificada.
+1. A geração certificada suporta, atualmente, até **28 dias** por proposta.
+   Um mês de 31 dias exige nova capacidade com validação de semanas e descansos
+   que atravessam as fronteiras do mês.
+2. O contrato semanal é um **máximo obrigatório**, mas o objetivo semanal é
+   **soft**. A V1 ainda tem de suportar a exigência expressa de 40h efetivas
+   semanais para cada colaborador e validá-la independentemente.
+3. A aprovação oficial depende de **histórico verificado** e não deve ser
+   inferida de propostas guardadas. A respetiva segurança, migrações e
+   rastreabilidade são preservadas durante a simplificação.
 
-O serviço de aprovação oficial v2 está publicado, e a interface consulta a prontidão através de sessão autenticada. A aprovação permanece bloqueada quando falta histórico verificado por pessoa/dia. Os laboratórios antigos não estão ligados à interface; as regras e testes de domínio permanecem. O serviço antigo
-`official-schedules` no Supabase foi substituído pela versão inerte
-v6 (HTTP 410), com fonte v5 preservada para recuperação.
+A auditoria de dezembro de 2026 usa oito colaboradores, segunda a sexta das
+09:00 às 19:00, folga ao fim de semana e mínimo de uma pessoa em cada intervalo.
+Não considerar o resultado mensal certificado enquanto os pontos 1 e 2 não estiverem resolvidos.
 
+## Utilizar o projeto
 
-Os vínculos temporais serão guardados por pessoa no estado de configuração.
-Para pessoas com vínculos explícitos, o gerador não pode atribuir turnos fora
-das respetivas datas. Uma conta antiga sem datas mantém compatibilidade na
-simulação, mas **não pode certificar o histórico oficial** até ter vínculos
-explicitamente declarados e verificados.
-
-O editor de refeições cria uma **nova proposta imutável** após revalidar
-cobertura, descanso e limites, sem alterar a versão anteriormente arquivada.
-
-## Navegação por URLs
-
-A interface continua a ser uma **Single Page Application (SPA)**, mas cada área
-tem agora uma rota própria. O URL é a referência de navegação, inclusive ao
-recarregar uma página ou usar Anterior/Seguinte no navegador:
-
-- `/horarios` — calendário mensal
-- `/horarios/gerar` — gerar propostas
-- `/horarios/AAAA-MM-DD` — gestão diária da data indicada
-- `/operacao` — funcionamento e calendário operacional
-- `/operacao/cobertura` — necessidades de presença
-- `/equipa` — colaboradores
-- `/equipa/disponibilidades` — disponibilidades
-- `/regras` — regras de trabalho
-
-O URL `/` encaminha para `/horarios` depois da autenticação. Um endereço
-desconhecido não carrega dados arbitrários e regressa à rota segura
-`/horarios`.
-
-**Deploy:** o servidor de alojamento de produção tem de responder com
-`index.html` aos caminhos da SPA não correspondentes a ficheiros estáticos,
-sem reencaminhar os endpoints de API. O servidor Vite de desenvolvimento
-suporta esse fallback; configurar o fallback no alojamento escolhido
-antes de divulgar links profundos externos. Esta navegação não modifica
-o motor de scheduling nem a persistência.
-
-## Instalação e execução
-
-Requer **Node.js 22** (também utilizado pelo GitHub Actions) e um projeto
-Supabase dedicado, com autenticação.
-
-1. Consultar [configuração e migrações do Supabase](docs/supabase-setup.md).
-2. Copiar `.env.example` para `.env.local` e preencher apenas URL e
-   **publishable key**. Não colocar credenciais privilegiadas no frontend.
-3. Instalar o lockfile e iniciar o servidor de desenvolvimento:
-
-   ```bash
-   npm ci
-   npm run dev
-   ```
-
-A configuração é guardada com controlo de revisão no Supabase.
-Duas abas conseguem conciliar alterações independentes por comparação
-de três versões; edições concorrentes incompatíveis são bloqueadas,
-permitindo exportar uma cópia e recuperar o estado remoto. Propostas
-válidas são arquivadas como snapshots imutáveis. A primeira importação
-de dados antigos do navegador requer confirmação explícita de titularidade.
-
-## Verificações
+Requer Node.js 22 e Supabase com autenticação configurada.
 
 ```bash
-npm test
+npm ci
+cp .env.example .env.local
+# Preencher VITE_SUPABASE_URL e a chave pública no .env.local.
+npm run dev
+```
+
+Nunca colocar service_role nem chaves secretas no frontend.
+
+As rotas principais são `/horarios` (calendário), `/horarios/gerar`
+(geração), `/operacao` (funcionamento), `/operacao/cobertura` (presença),
+`/equipa` (pessoas), `/equipa/disponibilidades` (disponibilidade) e
+`/regras` (limites). `/horarios/AAAA-MM-DD` abre a vista diária.
+
+## Verificar antes de integrar alterações
+
+```bash
+npm run audit:v1          # mapa do que é usado na aplicação e apenas em testes
+npm test                  # contratos, segurança e regressões do motor
 npm run typecheck
 npm run build
 npm run audit:dependencies
 ```
 
-O `npm test` inclui testes do algoritmo, certificação final, regras,
-contratos, calendário, arquivo, concorrência, persistência e segurança.
-O teste de arquitetura impede a reintrodução acidental de laboratórios de
-aprovação na interface. A auditoria npm verifica dependências de produção
-e apresenta os avisos do ambiente de desenvolvimento separadamente.
+O GitHub Actions também executa verificações WebKit e testes das migrações
+num ambiente descartável. Os testes automáticos não substituem uma validação
+final na conta de ensaio.
 
-A revisão manual de cenários reais e os testes funcionais no Safari
-continuam indispensáveis antes de qualquer merge importante.
-O [protocolo de aceitação PR #47](docs/pr47-acceptance.md) descreve
-os testes reproduzíveis, incluindo a edição completa de períodos de
-operação/disponibilidade, o arquivo e o ensaio read-only de isolamento RLS
-com duas contas num projeto de staging. O ensaio RLS com contas reais de teste foi executado diretamente no Supabase,
-sem modificar dados, e os testes SQL de isolamento estão na CI. Os testes
-interativos WebKit utilizam um backend sintético e não substituem uma sessão Safari real.
+## Estado dos dados e documentação antiga
 
-## Arquitetura e controlo de alterações
+O esquema ativo utiliza doze ficheiros versionados de migração: **quatro
+identificadores históricos reconstruídos e seis migrações PR47**, mais duas
+migrações posteriores de classificação e vínculo temporal. O histórico de
+alterações e de propostas é preservado; não apagar migrações antigas só porque
+o modelo de interface V1 é mais simples. Consultar
+[setup do Supabase](docs/supabase-setup.md) antes de qualquer atualização
+da base.
 
-- `src/utils/`: domínio, geração, validação, regras e cálculos.
-- `src/components/`: interface React de consulta e geração.
-- `src/persistence/`: adaptadores de estado e arquivo (Supabase).
-- `src/application/`: contratos e serviços confiáveis de aprovação oficial,
-  com execução no serviço Edge, sem dar ao cliente acesso privilegiado.
-- `supabase/migrations/`: quatro identificadores históricos reconstruídos
-  e seis migrações PR47 **aplicadas** (dez versões no Supabase), mais uma
-  migração PR48 para classificar `worked`, `day_off`, `vacation` e
-  `holiday`, e uma migração PR49 de verificação histórica por vínculo
-  (doze ficheiros versionados; doze aplicados). A cadeia completa
-  é reconstruída num PostgreSQL 17 descartável na CI. **Não executar `db push` na produção** sem
-  verificar histórico, backup/restauro e operações de rollout.
-- `supabase/audit/` e `supabase/rollback/`: inventário read-only e
-  fontes preservadas para recuperar a função antiga.
+Os relatórios e decisões das fases anteriores continuam arquivados em
+[docs/](docs/). Não são o percurso recomendado para começar a desenvolver a V1.
 
-A versão estável do PR #46 mantém-se preservada em
-`safety/pr46-baseline`. O PR #47 foi integrado na `main`; o PR #48
-não importa nem altera horários históricos reais.
-
-Documentação de referência: [arquitetura](docs/architecture.md),
-[matriz das 23 observações](docs/audit-pr47.md) e
-[baseline técnica Supabase](docs/supabase-deployment-baseline-pr47.md).
-
-**Princípio de desenvolvimento:** decisão → implementação → teste →
-validação → próxima decisão.
+**Método:** decisão → implementação → teste → validação → próxima decisão.
