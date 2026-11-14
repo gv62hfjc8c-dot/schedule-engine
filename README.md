@@ -84,8 +84,9 @@ final na conta de ensaio.
 
 ## Estado dos dados e documentação antiga
 
-O esquema ativo utiliza doze ficheiros versionados de migração: **quatro
-identificadores históricos reconstruídos e seis migrações PR47**, mais duas
+O esquema ativo utiliza doze ficheiros versionados de migração:
+**quatro identificadores históricos reconstruídos e seis migrações PR47**,
+mais duas
 migrações posteriores de classificação e vínculo temporal. O histórico de
 alterações e de propostas é preservado; não apagar migrações antigas só porque
 o modelo de interface V1 é mais simples. Consultar
