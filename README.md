@@ -11,6 +11,7 @@ definem o algoritmo.
 | Entrada da aplicação e configuração | `src/App.tsx` |
 | Ecrã de geração | `src/components/ConstrainedPeriodGeneratorPanel.tsx` |
 | Pesquisa de horários | `src/utils/constrainedPeriodGenerator.ts` |
+| Pré-verificação de capacidade semanal | `src/utils/weeklyCapacityPrecheck.ts` |
 | Pesquisa de turnos e refeições de cada dia | `src/utils/mealAwareDayGenerator.ts` |
 | Certificação independente | `src/utils/finalScheduleCertification.ts` |
 | Limites de trabalho e descanso | `src/utils/workConstraints.ts` |
@@ -19,7 +20,9 @@ definem o algoritmo.
 | Propostas imutáveis | `src/persistence/supabaseGeneratedScheduleRepository.ts` |
 | Calendário e consulta do arquivo | `src/components/ScheduleHome.tsx` |
 
-O fluxo é: **configurar → gerar → certificar → guardar proposta → consultar**.
+O fluxo é: **configurar → pré-verificar → procurar turnos → certificar → guardar proposta → consultar**.
+A pré-verificação pode **provar capacidade insuficiente** antes da pesquisa;
+capacidade teórica suficiente **não prova** que exista um horário válido.
 Uma proposta guardada não é automaticamente um horário oficialmente aprovado.
 
 ## Regras essenciais
