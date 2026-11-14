@@ -7,7 +7,7 @@ import {
   personWeeklyHardMax, personWeeklyTarget, validatePeopleSchedulingPolicies,
   validatePersonWeeklyContractCaps, isExplicitRequiredWorkday,
 } from "./utils/personSchedulingPolicies";
-import { accountingCycleForDate, cyclesIntersectingRange } from "./utils/accountingCycle28";
+import { workAccountingCycleForDate } from "./utils/accountingCycleConfiguration";
 import { DEFAULT_OPERATION_TIME_ZONE, isIanaOperationTimeZone, resolveOperationTimeZone } from "./utils/operationTimeZone";
 import { APP_STATE_VERSION } from "./persistence/stateRepository";
 import { isPersistedAppState } from "./persistence/localStorageStateRepository";
@@ -62,6 +62,7 @@ assert(getEffectiveWorkMinutesInTimeZone(shift("2026-10-25","a","01:30","03:30")
   "Europe/Lisbon")===null,
   "DST backward: ambiguous local hour cannot be certified without explicit disambiguation.");
 
+const accountingCycleForDate=(day:string,anchor:string)=>workAccountingCycleForDate(day,anchor,28);
 const cycle=accountingCycleForDate("2026-11-29","2026-11-02");
 assert(cycle.startDate==="2026-11-02"&&cycle.endDate==="2026-11-29"&&
   cycle.week===4&&cycle.weeks.length===4,"Fixed 28-day period, four accounting weeks.");
@@ -71,7 +72,8 @@ assert(next.startDate==="2026-11-30"&&next.endDate==="2026-12-27"&&next.week===1
 const prior=accountingCycleForDate("2026-11-01","2026-11-02");
 assert(prior.startDate==="2026-10-05"&&prior.endDate==="2026-11-01",
   "Negative cycle index works before the anchor.");
-assert(cyclesIntersectingRange("2026-11-01","2026-11-30","2026-11-02").length===3,
+assert(new Set(["2026-11-01","2026-11-02","2026-11-30"]
+  .map(day=>accountingCycleForDate(day,"2026-11-02").startDate)).size===3,
   "A five-week calendar month can intersect three independent cycles.");
 assert(accountingCycleForDate("2028-02-29","2028-02-01").startDate==="2028-02-29" &&
   accountingCycleForDate("2028-02-29","2028-02-01").endDate==="2028-03-27",

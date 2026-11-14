@@ -438,11 +438,14 @@ try{
   await wait(()=>persisted.exceptions.length===0,
     "Explicit removal confirmation persists an empty exception set");
   // PR64: coverage absent in legacy state inherits one-person HARD policy.
-  // Confirm the operational checkpoint after changing the accounting cycle.
+  // Wait for a *new* persisted fingerprint, not a previous confirmation.
+  // Otherwise a delayed save can be misattributed to a cancelled draft.
   await guide.getByRole("button",{name:"Ver etapas"}).click();
+  const beforeReconfirm = persisted.onboarding?.operationConfirmedFingerprint ?? null;
   await guide.getByRole("button",{name:"Confirmar funcionamento"}).click();
-  await wait(()=>Boolean(persisted.onboarding?.operationConfirmedFingerprint),
-    "Operational configuration re-confirmed after cycle change");
+  await wait(()=>Boolean(persisted.onboarding?.operationConfirmedFingerprint) &&
+    persisted.onboarding.operationConfirmedFingerprint!==beforeReconfirm,
+    "New operational configuration confirmation persisted after cycle change");
   await page.locator(".save-status.saved").waitFor();
   await page.getByRole("button",{name:"Presença mínima",exact:true}).click();
   const presenceUI=page.getByRole("region",{name:"Confirmação de cobertura"});

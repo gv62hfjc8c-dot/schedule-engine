@@ -22,7 +22,7 @@ import {availabilityAndRulesFingerprint,isAvailabilityAndRulesConfirmed,validate
 import {isTeamConfirmed,teamFingerprint,validateTeamConfiguration} from "./utils/teamConfiguration";
 import {hasAdjacentOperatingIntervals,mergeAdjacentOperatingIntervals,operatingPresentation} from "./utils/operationConfigurationDraft";
 import PresencePanel from "./components/PresencePanel";
-import ScheduleGeneratorPanel from "./components/ScheduleGeneratorPanel";
+import ConstrainedPeriodGeneratorPanel from "./components/ConstrainedPeriodGeneratorPanel";
 import ScheduleHome from "./components/ScheduleHome";
 import ApplicationNavigation,{areaFor,sectionLabel} from "./components/ApplicationNavigation";
 import AccountEntryDecision from "./components/AccountEntryDecision";
@@ -1213,7 +1213,7 @@ export default function App() {
       )}
 
       {activeSection === "generator" && (
-        <ScheduleGeneratorPanel
+        <ConstrainedPeriodGeneratorPanel
           people={people}
           availabilities={availabilities}
           operatingCalendar={generatorOperatingCalendar}

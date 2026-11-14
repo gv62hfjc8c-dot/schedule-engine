@@ -186,7 +186,7 @@ contains(assertions,/search_path=""'/,
 const entrypoints=[
   "src/App.tsx",
   "src/components/ScheduleHome.tsx",
-  "src/components/ScheduleGeneratorPanel.tsx",
+  "src/components/ConstrainedPeriodGeneratorPanel.tsx",
   "src/persistence/supabaseInstance.ts",
 ];
 for(const path of entrypoints){

@@ -22,6 +22,7 @@ import {
 import { checkPresenceForWorkShifts } from "./utils/workCoverage";
 import {reviseMealStart} from "./utils/mealBreakRevision";
 import {certifyFinalGeneratedSchedule} from "./utils/finalScheduleCertification";
+import { provenWeeklyCapacityShortage } from "./utils/weeklyCapacityPrecheck";
 
 function assert(value: boolean, label: string): void {
   if (!value) throw new Error(label);
@@ -421,15 +422,20 @@ const twoRequired = Object.fromEntries(fullWeekDays.map(date =>
     minimumAtClosing: 2 }]));
 const tooMuchWeeklyDemand = inputs(mon, "2026-10-30", ["a", "b"],
   longOperation, bothAvailable, twoRequired);
+assert(provenWeeklyCapacityShortage(tooMuchWeeklyDemand,fullWeekDays)?.includes("Inviabilidade comprovada")===true,
+  "A prova de capacidade V1 isolada identifica 90h exigidas contra 80h disponíveis.");
 const proof = generateConstrainedPeriodSchedule(tooMuchWeeklyDemand);
 assert(proof.status === "incomplete" && proof.exploredNodes === 0 &&
   proof.issues.some(issue => issue.includes("Inviabilidade comprovada")),
   "Cobertura semanal de 90h não cabe nas 80h máximas de duas pessoas.");
 const singleRequired = Object.fromEntries(fullWeekDays.map(date =>
   [date, one]));
+const stillPossible = inputs(mon, "2026-10-30", ["a", "b"],
+  longOperation, bothAvailable, singleRequired);
+assert(provenWeeklyCapacityShortage(stillPossible,fullWeekDays)===null,
+  "O pré-check não pode declarar inviável uma semana com capacidade suficiente.");
 const notProven = generateConstrainedPeriodSchedule({
-  ...inputs(mon, "2026-10-30", ["a", "b"],
-    longOperation, bothAvailable, singleRequired),
+  ...stillPossible,
   maxSearchNodes: 500,
 });
 assert(!(notProven.status === "incomplete" && notProven.exploredNodes === 0 &&

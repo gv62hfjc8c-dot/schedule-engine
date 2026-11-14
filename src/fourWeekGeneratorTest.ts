@@ -8,7 +8,7 @@ import { certifyFinalGeneratedSchedule } from "./utils/finalScheduleCertificatio
 import { createEmptyWeeklyAvailability } from "./utils/availability";
 import { createEmptyWeeklyPresenceRequirements } from "./utils/presence";
 import { INITIAL_WORK_CONSTRAINTS } from "./utils/workConstraints";
-import { accountingCycleForDate } from "./utils/accountingCycle28";
+import { workAccountingCycleForDate } from "./utils/accountingCycleConfiguration";
 
 function assert(value:unknown,message:string):asserts value{
   if(!value)throw Error("PR47-18: "+message);
@@ -63,7 +63,7 @@ const certified=certifyFinalGeneratedSchedule(input,result.assignments);
 assert(certified.valid,
   "Independent certification must cover all 28 days: "+
     certified.issues.join(" "));
-const cycle=accountingCycleForDate("2026-11-29","2026-11-02");
+const cycle=workAccountingCycleForDate("2026-11-29","2026-11-02",28);
 assert(cycle.startDate===input.startDate && cycle.endDate===input.endDate,
   "Generation window must align to the chosen accounting anchor.");
 const beyond=generateConstrainedPeriodSchedule({
