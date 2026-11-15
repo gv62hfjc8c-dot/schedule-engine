@@ -819,6 +819,20 @@ try{
   const presets=page.getByRole("group",{name:"Duração do período"});
   await presets.getByRole("button",{name:"14 dias"}).click();
   assert.equal(await presets.getByRole("button",{name:"14 dias"}).getAttribute("aria-pressed"),"true");
+  const beforeFullMonth=await page.locator("#p63-start-date").inputValue();
+  await presets.getByRole("button",{name:"Mês completo"}).click();
+  const expectedFirst=beforeFullMonth.slice(0,7)+"-01";
+  const expectedLast=String(new Date(Date.UTC(
+    Number(beforeFullMonth.slice(0,4)),Number(beforeFullMonth.slice(5,7)),0)
+  ).getUTCDate()).padStart(2,"0");
+  assert.equal(await page.locator("#p63-start-date").inputValue(),expectedFirst,
+    "V1 full-month preset starts on civil day one.");
+  assert.equal(await page.locator("#p63-end-date").inputValue(),
+    beforeFullMonth.slice(0,7)+"-"+expectedLast,
+    "V1 full-month preset ends on the actual final civil day.");
+  assert.equal(await presets.getByRole("button",{name:"Mês completo"})
+    .getAttribute("aria-pressed"),"true",
+    "Full-month preset stays visibly selected.");
   assert.equal(await page.getByRole("button",{name:"Simular período com regras"}).isDisabled(),true,
     "Period presets must not bypass the explicit external-context confirmation.");
   await page.getByText("Confirma o contexto exterior").waitFor();
