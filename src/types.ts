@@ -78,6 +78,10 @@ export interface WorkRulesConfiguration {
   fullShortDayMaximumMinutes?: number;
   /** Opt-in: a person must have a shift on every open date with schedulable availability. Omitted means optional availability. */
   requireShiftsOnAvailableDays?: boolean;
+  /** Opt-in HARD floor: each fully eligible Monday–Sunday week must meet
+   * the person's weeklyTargetMinutes (or contract/company default).
+   * Undefined/false preserves legacy SOFT targets. */
+  requireWeeklyTargetsAsMinimum?: boolean;
 }
 
 /**
