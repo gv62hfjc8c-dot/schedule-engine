@@ -24,7 +24,7 @@ import {
 } from "./personSchedulingPolicies";
 import { resolvePresenceForDate } from "./presence";
 import { provenWeeklyCapacityShortage } from "./weeklyCapacityPrecheck";
-import {provenRequiredWeeklyTargetShortage} from "./requiredWeeklyTargets";
+import {provenRequiredWeeklyTargetShortage,invalidRequiredWeeklyTargetPolicies} from "./requiredWeeklyTargets";
 import {certifiedRegularWeekdaySeed} from "./certifiedRegularWeekdaySeed";
 
 /**
@@ -1636,6 +1636,9 @@ export function generateConstrainedPeriodSchedule(
     policyIssues.push(...validateEmploymentPeriods(person.employmentPeriods)
       .map(issue=>person.name+": "+issue));
   }
+  policyIssues.push(...invalidRequiredWeeklyTargetPolicies(input.people??[],
+    input.workConstraints?.maximumWeeklyEffectiveMinutes,
+    input.workRules?.requireWeeklyTargetsAsMinimum));
   if (policyIssues.length) return resultWith("invalid_input",policyIssues);
   const maxNodes = input.maxSearchNodes ?? DEFAULT_GLOBAL_MAX_NODES;
   if (!Number.isSafeInteger(maxNodes) || maxNodes < 1) {
