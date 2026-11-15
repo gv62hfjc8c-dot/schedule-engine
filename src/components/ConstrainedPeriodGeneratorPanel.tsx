@@ -219,6 +219,19 @@ export default function ConstrainedPeriodGeneratorPanel({
     !confirmed ? "Confirma o contexto exterior" :
     context.status!=="ready" ? "Verifica as condições" : "Pronto para simular";
 
+  function selectFullMonth() {
+    if(parseCivilDays(startDate,startDate)!==1)return;
+    const first=startDate.slice(0,7)+"-01";
+    const last=new Date(Date.parse(first+"T00:00:00Z"));
+    last.setUTCMonth(last.getUTCMonth()+1);
+    const end=new Date(last.getTime()-86_400_000).toISOString().slice(0,10);
+    setStartDate(first);
+    setEndDate(end);
+    saveGeneratorDate("constrained:start",first);
+    saveGeneratorDate("constrained:end",end);
+    resetScenario();
+  }
+
   function selectDuration(days:7|14|28) {
     if(parseCivilDays(startDate,startDate)!==1)return;
     const end=addCivilDays(startDate,days-1);
@@ -589,6 +602,16 @@ export default function ConstrainedPeriodGeneratorPanel({
               onClick={()=>selectDuration(days as 7|14|28)}>
               {days} dias
             </button>)}
+          <button type="button" className="se-outline"
+            disabled={parseCivilDays(startDate,startDate)!==1}
+            aria-pressed={periodDays!==null && startDate.endsWith("-01") &&
+              endDate===new Date(Date.parse(startDate+"T00:00:00Z")+
+                (new Date(Date.UTC(Number(startDate.slice(0,4)),
+                  Number(startDate.slice(5,7)),0)).getUTCDate()-1)*86_400_000)
+                .toISOString().slice(0,10)}
+            onClick={selectFullMonth}>
+            Mês completo
+          </button>
         </div>
         <div className="generator-controls period-generator-controls">
           <label className="select-field generator-date-field" htmlFor="p63-start-date">
