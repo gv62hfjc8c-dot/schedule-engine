@@ -3,7 +3,7 @@ import type {GenerateConstrainedPeriodInput} from "./constrainedPeriodGenerator"
 import {employedOn} from "./employmentPeriods";
 import {getSchedulableIntervalsForDate} from "./availability";
 import {getEffectiveWorkMinutesInTimeZone} from "./workConstraints";
-import {isPersonUnavailableOnDate,personWeeklyTarget,validSchedulingDate} from "./personSchedulingPolicies";
+import {isPersonUnavailableOnDate,personWeeklyHardMax,personWeeklyTarget,validSchedulingDate} from "./personSchedulingPolicies";
 
 const DAY=86_400_000;
 const civil=(ms:number)=>new Date(ms).toISOString().slice(0,10);
@@ -27,6 +27,17 @@ function fullyEligible(person:Person,week:number):boolean {
   }
   return true;
 }
+/** A HARD minimum must never be silently lowered to the company ceiling. */
+export function invalidRequiredWeeklyTargetPolicies(
+  people:Person[],companyMaximum:number,enabled:boolean|undefined
+):string[] {
+  if(!enabled)return [];
+  return people.filter(p=>p.active && p.weeklyTargetMinutes!==undefined &&
+      p.weeklyTargetMinutes>personWeeklyHardMax(p,companyMaximum))
+    .map(p=>"Objetivo semanal obrigatório de "+p.name+
+      " excede o limite máximo de trabalho permitido.");
+}
+
 export interface WeeklyTargetDeficit {
   personId:string;
   weekStart:string;
@@ -48,8 +59,10 @@ export function validateRequiredWeeklyTargets(
 ):RequiredWeeklyTargetResult {
   if(!input.workRules.requireWeeklyTargetsAsMinimum)
     return {valid:true,issues:[],deficits:[]};
-  const issues:string[]=[];
+  const issues=invalidRequiredWeeklyTargetPolicies(input.people,
+    input.workConstraints.maximumWeeklyEffectiveMinutes,true);
   const deficits:WeeklyTargetDeficit[]=[];
+  if(issues.length)return {valid:false,issues,deficits};
   const context=input.externalContext;
   const shifts=[...context.shifts,...assignments];
   for(const week of targetWeeks(input.startDate,input.endDate)){
