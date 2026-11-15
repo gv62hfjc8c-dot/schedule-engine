@@ -26,7 +26,7 @@ transportes HTTP ou a empresa consumidora. Os adaptadores continuam a ser
 responsabilidade da aplicação.
 
 A interface ativa contém calendário mensal, painel lateral resumido e página
-de gestão diária; o núcleo de geração condicionada cobre **1–28 dias**
+de gestão diária; o núcleo de geração condicionada cobre **1–31 dias**
 na branch PR47, com a interface desbloqueada após aplicação e confirmação
 do CHECK de 28 dias na base de dados. A geração de um horário
 válido e o seu arquivo **não equivalem à aprovação oficial**.
@@ -239,3 +239,14 @@ Autenticação, permissões e persistência continuam fora do núcleo. A fonte p
 ## Regra arquitetural
 
 Introduzir um conceito de cada vez e validar o seu contrato antes de construir o seguinte.
+
+
+## V1 — proposta mensal e obrigações semanais
+
+A V1 permite 1–31 dias na pesquisa e inclui a migração aditiva
+20261115223920 (CHECK até 31 dias), aplicada ao Supabase em 15/11/2026. A regra `requireWeeklyTargetsAsMinimum` é
+opcional: quando ativa, o objetivo semanal passa a mínimo de horas efetivas
+verificado pelo certificador independente. A certificação inclui semanas civis
+completas e turnos confirmados fora do mês (por exemplo 30/11 e 01/01),
+sem deduzir turnos inexistentes. Sem contexto suficiente ou horas obrigatórias,
+a proposta não pode ser guardada como válida.

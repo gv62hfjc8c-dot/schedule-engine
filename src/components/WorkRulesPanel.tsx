@@ -244,6 +244,26 @@ export default function WorkRulesPanel({
             </div>
             <div className="work-rule-card">
               <div>
+                <strong>Cumprimento obrigatório das horas semanais</strong>
+                <p>
+                  Se ativo, o objetivo semanal de cada colaborador deixa de ser uma
+                  preferência e passa a ser um mínimo obrigatório nas semanas completas
+                  de vínculo. O motor conta horas efetivas, incluindo turnos conhecidos
+                  fora do período, e não aceita uma proposta com horas em falta.
+                  Sem esta opção, os objetivos continuam a ser preferências.
+                </p>
+              </div>
+              <label className="work-duration-field">
+                <span>Obrigatório</span>
+                <input type="checkbox"
+                  aria-label="Exigir objetivo semanal como mínimo obrigatório"
+                  checked={workRules.requireWeeklyTargetsAsMinimum??false}
+                  onChange={event=>onChange({...workRules,
+                    requireWeeklyTargetsAsMinimum:event.target.checked})}/>
+              </label>
+            </div>
+            <div className="work-rule-card">
+              <div>
                 <strong>Dias disponíveis são dias de trabalho</strong>
                 <p>
                   Quando ativado, cada dia aberto com disponibilidade escalável

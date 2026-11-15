@@ -14,14 +14,14 @@ const generator=read("src/components/ConstrainedPeriodGeneratorPanel.tsx");
 const approvals=read("src/components/OfficialApprovalPanel.tsx");
 const migrationFiles=readdirSync("supabase/migrations")
   .filter(x=>x.endsWith(".sql"));
-assert.equal(migrationFiles.length,12,"Expected twelve deployed migrations, including the two history upgrades.");
+assert.equal(migrationFiles.length,13,"Expected thirteen migrations, including the V1 monthly upgrade.");
 assert.match(docs,/quatro identificadores históricos reconstruídos\s+e seis migrações PR47/,
   "Documented migration lineage must match the deployed version count.");
-assert.match(docs,/doze ficheiros versionados/,
-  "README must distinguish the twelve applied migrations and Git alignment.");
-assert.match(docs,/28 dias/);
-assert.match(architecture,/1–28 dias/);
-assert.match(app,/A geração certificada suporta períodos de até 28 dias por proposta/);
+assert.match(docs,/treze ficheiros de migração/,
+  "README must document thirteen versioned migrations, with the latest V1 pending deployment.");
+assert.match(docs,/31 dias/);
+assert.match(architecture,/1–31 dias/);
+assert.match(app,/A geração certificada suporta períodos de até 31 dias por proposta/);
 assert.doesNotMatch(app,/limite de geração continua a ser de 14 dias/);
 assert.match(generator,/Até \{UI_MAX_PERIOD_DAYS\} dias/);
 assert.match(schedule,/Proposta guardada · não aprovada/);
@@ -33,4 +33,4 @@ assert.match(docs,/hist[oó]rico verificado/i);
 assert.match(architecture,/histórico externo verificado/i);
 assert.doesNotMatch(docs,/falta confirmação funcional\s+no Safari do arquivo/);
 assert.doesNotMatch(architecture,/A validação no Safari permanece pendente/);
-console.log("PR47-01 documentation contract: 28-day capability, archive semantics, trusted official approval, Safari evidence and staged classification migration lineage PASS.");
+console.log("PR47-01 documentation contract: 31-day capability, archive semantics, trusted official approval, Safari evidence and staged classification migration lineage PASS.");

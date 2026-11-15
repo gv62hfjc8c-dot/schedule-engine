@@ -286,7 +286,7 @@ try{
   // 01: the operational documentation must claim 28, NOT 14 days.
   await page.getByRole("button",{name:"Operação",exact:true}).click();
   const operation=page.getByRole("region",{name:"Configuração temporal da operação"});
-  await operation.getByText(/até 28 dias por proposta/).waitFor();
+  await operation.getByText(/até 31 dias por proposta/).waitFor();
   assert(!/14 dias por proposta/.test(await operation.innerText()));
   // 15: Europe/Lisbon must persist through a real WebKit reload.
   await operation.getByLabel("Fuso horário IANA").fill("Europe/Lisbon");
@@ -438,11 +438,14 @@ try{
   await wait(()=>persisted.exceptions.length===0,
     "Explicit removal confirmation persists an empty exception set");
   // PR64: coverage absent in legacy state inherits one-person HARD policy.
-  // Confirm the operational checkpoint after changing the accounting cycle.
+  // Wait for a *new* persisted fingerprint, not a previous confirmation.
+  // Otherwise a delayed save can be misattributed to a cancelled draft.
   await guide.getByRole("button",{name:"Ver etapas"}).click();
+  const beforeReconfirm = persisted.onboarding?.operationConfirmedFingerprint ?? null;
   await guide.getByRole("button",{name:"Confirmar funcionamento"}).click();
-  await wait(()=>Boolean(persisted.onboarding?.operationConfirmedFingerprint),
-    "Operational configuration re-confirmed after cycle change");
+  await wait(()=>Boolean(persisted.onboarding?.operationConfirmedFingerprint) &&
+    persisted.onboarding.operationConfirmedFingerprint!==beforeReconfirm,
+    "New operational configuration confirmation persisted after cycle change");
   await page.locator(".save-status.saved").waitFor();
   await page.getByRole("button",{name:"Presença mínima",exact:true}).click();
   const presenceUI=page.getByRole("region",{name:"Confirmação de cobertura"});
@@ -804,7 +807,7 @@ try{
   await page.getByRole("button",{name:"Horários",exact:true}).click();
   await page.getByRole("button",{name:"+ Criar horário",exact:true}).click();
   await page.getByText(/Cada proposta válida é guardada no Supabase/).waitFor();
-  await page.getByText(/Até 28 dias/).waitFor();
+  await page.getByText(/Até 31 dias/).waitFor();
   await page.getByRole("heading",{name:"Nova proposta de horário"}).waitFor();
   const workflow=page.getByRole("list",{name:"Etapas do planeamento"});
   assert.equal(await workflow.locator("li").count(),3);
@@ -816,6 +819,20 @@ try{
   const presets=page.getByRole("group",{name:"Duração do período"});
   await presets.getByRole("button",{name:"14 dias"}).click();
   assert.equal(await presets.getByRole("button",{name:"14 dias"}).getAttribute("aria-pressed"),"true");
+  const beforeFullMonth=await page.locator("#p63-start-date").innerText();
+  const [_,month,year]=beforeFullMonth.trim().split("/");
+  await presets.getByRole("button",{name:"Mês completo"}).click();
+  const expectedLast=String(new Date(Date.UTC(Number(year),Number(month),0))
+    .getUTCDate()).padStart(2,"0");
+  assert.equal((await page.locator("#p63-start-date").innerText()).trim(),
+    "01/"+month+"/"+year,
+    "V1 full-month preset starts on civil day one.");
+  assert.equal((await page.locator("#p63-end-date").innerText()).trim(),
+    expectedLast+"/"+month+"/"+year,
+    "V1 full-month preset ends on the actual final civil day.");
+  assert.equal(await presets.getByRole("button",{name:"Mês completo"})
+    .getAttribute("aria-pressed"),"true",
+    "Full-month preset stays visibly selected.");
   assert.equal(await page.getByRole("button",{name:"Simular período com regras"}).isDisabled(),true,
     "Period presets must not bypass the explicit external-context confirmation.");
   await page.getByText("Confirma o contexto exterior").waitFor();

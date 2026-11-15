@@ -64,6 +64,13 @@ function addCivilDays(date: string, amount: number): string {
   return utc.toISOString().slice(0, 10);
 }
 
+function fullCalendarMonth(startDate:string):{start:string;end:string} {
+  const start=startDate.slice(0,7)+"-01";
+  const year=Number(start.slice(0,4)),month=Number(start.slice(5,7));
+  const lastDay=new Date(Date.UTC(year,month,0)).getUTCDate();
+  return {start,end:start.slice(0,7)+"-"+String(lastDay).padStart(2,"0")};
+}
+
 function weekMonday(date: string): string {
   const value = new Date(date + "T00:00:00Z");
   value.setUTCDate(value.getUTCDate() - (value.getUTCDay() + 6) % 7);
@@ -218,6 +225,16 @@ export default function ConstrainedPeriodGeneratorPanel({
   const readinessLabel= !periodIsValid ? "Corrige o período" :
     !confirmed ? "Confirma o contexto exterior" :
     context.status!=="ready" ? "Verifica as condições" : "Pronto para simular";
+
+  function selectFullMonth() {
+    if(parseCivilDays(startDate,startDate)!==1)return;
+    const month=fullCalendarMonth(startDate);
+    setStartDate(month.start);
+    setEndDate(month.end);
+    saveGeneratorDate("constrained:start",month.start);
+    saveGeneratorDate("constrained:end",month.end);
+    resetScenario();
+  }
 
   function selectDuration(days:7|14|28) {
     if(parseCivilDays(startDate,startDate)!==1)return;
@@ -589,6 +606,14 @@ export default function ConstrainedPeriodGeneratorPanel({
               onClick={()=>selectDuration(days as 7|14|28)}>
               {days} dias
             </button>)}
+          <button type="button" className="se-outline"
+            disabled={parseCivilDays(startDate,startDate)!==1}
+            aria-pressed={periodDays!==null &&
+              startDate===fullCalendarMonth(startDate).start &&
+              endDate===fullCalendarMonth(startDate).end}
+            onClick={selectFullMonth}>
+            Mês completo
+          </button>
         </div>
         <div className="generator-controls period-generator-controls">
           <label className="select-field generator-date-field" htmlFor="p63-start-date">
@@ -644,6 +669,10 @@ export default function ConstrainedPeriodGeneratorPanel({
           <summary>Regras técnicas consideradas na simulação</summary>
           <div className="generator-facts">
             <div><span>Trabalho máximo</span><strong>{`${(effectiveConstraints.maximumDailyEffectiveMinutes / 60).toLocaleString("pt-PT")}h/dia · ${(effectiveConstraints.maximumWeeklyEffectiveMinutes / 60).toLocaleString("pt-PT")}h/semana`}</strong></div>
+            {workRules.requireWeeklyTargetsAsMinimum && <div>
+              <span>Objetivos semanais</span>
+              <strong>Obrigatórios, incluindo semanas nas fronteiras do período</strong>
+            </div>}
             <div><span>Descanso mínimo</span><strong>11h entre jornadas</strong></div>
             <div><span>Refeição obrigatória</span><strong>60min se mais de 6h</strong></div>
           </div>
@@ -651,6 +680,12 @@ export default function ConstrainedPeriodGeneratorPanel({
 
         <div className="period-generator-disclaimer p63-context-box" role="group" aria-label="Contexto exterior ao período">
           <strong>Contexto exterior — confirmação obrigatória</strong>
+          {workRules.requireWeeklyTargetsAsMinimum && <p>
+            Com as horas semanais obrigatórias, os turnos já realizados ou
+            previstos na semana anterior e seguinte contam para a certificação.
+            Declarar que não existem turnos exteriores pode tornar um mês
+            inviável se começar ou terminar a meio de uma semana.
+          </p>}
           {context.requiredContext ? (
             <>
               <p>

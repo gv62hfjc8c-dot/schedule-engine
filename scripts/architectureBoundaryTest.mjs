@@ -79,7 +79,7 @@ for(const name of [
   "src/utils/workCoverage.ts",
   "src/utils/availability.ts",
   "src/utils/personSchedulingPolicies.ts",
-  "src/utils/accountingCycle28.ts",
+  "src/utils/accountingCycleConfiguration.ts",
   "src/utils/mealAwareDayGenerator.ts",
 ]){
   const file=resolve(root,name);
@@ -96,6 +96,18 @@ assert.ok(liveNames.includes("src/components/ConstrainedPeriodGeneratorPanel.tsx
   "The real constrained generator must be available.");
 assert.ok(liveNames.includes("src/components/ScheduleHome.tsx"),
   "The monthly archive and daily UI must remain available.");
+// V1 keeps exactly one application-facing generator and one accounting model.
+for(const retired of [
+  "src/components/ScheduleGeneratorPanel.tsx",
+  "src/utils/periodGenerator.ts",
+  "src/utils/accountingCycle28.ts",
+]){
+  assert.ok(!existsSync(resolve(root,retired)),
+    "V1 retired duplicate must remain out of runtime source: "+retired);
+}
+assert.match(source(resolve(src,"App.tsx")),
+  /import ConstrainedPeriodGeneratorPanel from "\.\/components\/ConstrainedPeriodGeneratorPanel"/,
+  "Application entry must import the real certified generator directly.");
 const dormant=forbidden.slice(0,3).filter(name=>existsSync(resolve(root,name)));
 console.log("PR47-E: live dependency graph valid",JSON.stringify({
   filesScanned:paths.length,liveModules:live.size,

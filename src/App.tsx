@@ -22,7 +22,7 @@ import {availabilityAndRulesFingerprint,isAvailabilityAndRulesConfirmed,validate
 import {isTeamConfirmed,teamFingerprint,validateTeamConfiguration} from "./utils/teamConfiguration";
 import {hasAdjacentOperatingIntervals,mergeAdjacentOperatingIntervals,operatingPresentation} from "./utils/operationConfigurationDraft";
 import PresencePanel from "./components/PresencePanel";
-import ScheduleGeneratorPanel from "./components/ScheduleGeneratorPanel";
+import ConstrainedPeriodGeneratorPanel from "./components/ConstrainedPeriodGeneratorPanel";
 import ScheduleHome from "./components/ScheduleHome";
 import ApplicationNavigation,{areaFor,sectionLabel} from "./components/ApplicationNavigation";
 import AccountEntryDecision from "./components/AccountEntryDecision";
@@ -768,7 +768,7 @@ export default function App() {
              </div>
              <p className="operation-context-footnote">
                O fuso aplicado rege o calendário e a geração; os horários arquivados mantêm
-               o original. A geração certificada suporta períodos de até 28 dias por proposta,
+               o original. A geração certificada suporta períodos de até 31 dias por proposta,
                independentemente do ciclo de trabalho escolhido.
              </p>
            </section>
@@ -1213,7 +1213,7 @@ export default function App() {
       )}
 
       {activeSection === "generator" && (
-        <ScheduleGeneratorPanel
+        <ConstrainedPeriodGeneratorPanel
           people={people}
           availabilities={availabilities}
           operatingCalendar={generatorOperatingCalendar}
