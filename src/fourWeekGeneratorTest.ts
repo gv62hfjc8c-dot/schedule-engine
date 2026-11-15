@@ -46,7 +46,7 @@ const input:GenerateConstrainedPeriodInput={
   },
   maxSearchNodes:5000,
 };
-assert(MAX_CONSTRAINED_PERIOD_DAYS===28,
+assert(MAX_CONSTRAINED_PERIOD_DAYS===31,
   "Constrained scheduling must permit a complete four-week cycle.");
 const result=generateConstrainedPeriodSchedule(input);
 assert(result.status==="generated",
@@ -67,11 +67,11 @@ const cycle=workAccountingCycleForDate("2026-11-29","2026-11-02",28);
 assert(cycle.startDate===input.startDate && cycle.endDate===input.endDate,
   "Generation window must align to the chosen accounting anchor.");
 const beyond=generateConstrainedPeriodSchedule({
-  ...input,endDate:"2026-11-30",
+  ...input,endDate:"2026-12-03",
 });
 assert(beyond.status==="invalid_input" &&
   beyond.assignments.length===0,
-  "29 days remain explicitly rejected instead of silently truncated.");
+  "32 days remain explicitly rejected instead of silently truncated.");
 const deterministic=generateConstrainedPeriodSchedule(input);
 assert(deterministic.status===result.status &&
   JSON.stringify(deterministic.assignments)===JSON.stringify(result.assignments),
@@ -110,4 +110,4 @@ for(const [anchor,zone] of [
     "Independent 28-day certification failed at "+anchor+".");
 }
 
-console.log("PR47-18: 28-day certified generation, four weekly obligations, deterministic repeat, 29-day rejection plus 4 month/DST/leap-year stress cases passed.");
+console.log("PR47-18: 28-day certified generation, four weekly obligations, deterministic repeat, 32-day rejection plus 4 month/DST/leap-year stress cases passed.");
