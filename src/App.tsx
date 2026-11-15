@@ -1,1233 +1,196 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import type {
-  OperatingHoursException,
-  OperatingInterval,
-  Person,
-  PersonAvailability,
-  PresenceException,
-  WeeklyPresenceRequirements,
-  Weekday,
-  WeeklyOperatingHours,
-  WorkRulesConfiguration,
-} from "./types";
-import WorkRulesPanel from "./components/WorkRulesPanel";
-import TimeWheelSelect from "./components/TimeWheelSelect";
-import IntervalListEditor from "./components/IntervalListEditor";
-import OperationExceptionEditor from "./components/OperationExceptionEditor";
-import OperationCycleSettings from "./components/OperationCycleSettings";
-import GuidedSetup from "./components/GuidedSetup";
-import PersonEditor from "./components/PersonEditor";
-import AvailabilityPanel from "./components/AvailabilityPanel";
-import {availabilityAndRulesFingerprint,isAvailabilityAndRulesConfirmed,validateAvailabilityConfiguration} from "./utils/availabilityConfiguration";
-import {isTeamConfirmed,teamFingerprint,validateTeamConfiguration} from "./utils/teamConfiguration";
-import {hasAdjacentOperatingIntervals,mergeAdjacentOperatingIntervals,operatingPresentation} from "./utils/operationConfigurationDraft";
-import PresencePanel from "./components/PresencePanel";
-import ScheduleGeneratorPanel from "./components/ScheduleGeneratorPanel";
-import ScheduleHome from "./components/ScheduleHome";
-import ApplicationNavigation,{areaFor,sectionLabel} from "./components/ApplicationNavigation";
-import AccountEntryDecision from "./components/AccountEntryDecision";
-import {useWorkspaceRouting} from "./utils/useWorkspaceRouting";
-import { supabaseAuthClient } from "./persistence/supabaseInstance";
-import { createSupabaseGeneratedScheduleRepository } from "./persistence/supabaseGeneratedScheduleRepository";
-import { authorizeLegacyImportForOwner, startFreshCloudAccountForOwner, LegacyImportConsentRequiredError } from "./persistence/supabaseStateRepository";
-import type { GeneratedSchedulePayload, StoredGeneratedSchedule } from "./persistence/generatedScheduleRepository";
-import { createEmptyWeeklyPresenceRequirements } from "./utils/presence";
-import { appStateRepository } from "./persistence/appStateRepository";
-import { APP_STATE_VERSION } from "./persistence/stateRepository";
-import {isOperationConfirmed,operationFingerprint,type AccountingCycleDays,type OnboardingConfiguration} from "./utils/accountingCycleConfiguration";
-import {validateEditedIntervals} from "./utils/intervalEditing";
-import {coverageFingerprint,isCoverageConfirmed,validCoverageConfiguration} from "./utils/presenceConfiguration";
-import {
-  notifyOtherTabsOfStateCommit,
-  isOtherTabStateCommit,
-} from "./utils/crossTabStateSignal";
-import { DEFAULT_OPERATION_TIME_ZONE, isIanaOperationTimeZone, resolveOperationTimeZone } from "./utils/operationTimeZone";
-import {
-  createPersonAvailability,
-} from "./utils/availability";
-import {
-  WEEKDAYS,
-} from "./utils/operatingCalendar";
-import {
-  getActivePeople,
-  setPersonActive,
-} from "./utils/people";
+import { useEffect, useMemo, useState } from "react";
+import { monthCells, monthLabel, selectedDayLabel } from "./calendar";
+import { knownFoundationPath, pageForPath } from "./routes";
 
-const weekdayLabels: Record<Weekday, string> = {
-  monday: "Segunda",
-  tuesday: "Terça",
-  wednesday: "Quarta",
-  thursday: "Quinta",
-  friday: "Sexta",
-  saturday: "Sábado",
-  sunday: "Domingo",
-};
-
-const initialWeeklyOperatingHours: WeeklyOperatingHours = {
-  monday: [{ start: "09:00", end: "18:00" }],
-  tuesday: [{ start: "09:00", end: "18:00" }],
-  wednesday: [{ start: "09:00", end: "18:00" }],
-  thursday: [{ start: "09:00", end: "18:00" }],
-  friday: [{ start: "09:00", end: "18:00" }],
-  saturday: [{ start: "09:00", end: "13:00" }],
-  sunday: [],
-};
-
-function minutesToTime(minutes: number): string {
-  const hours = Math.floor(minutes / 60);
-  const mins = minutes % 60;
-
-  return `${String(hours).padStart(2, "0")}:${String(mins).padStart(2, "0")}`;
-}
-
-function timeToMinutes(time: string): number {
-  const [hours, minutes] = time.split(":").map(Number);
-  return hours * 60 + minutes;
-}
-
-const openingOptions = Array.from(
-  { length: 96 },
-  (_, index) => minutesToTime(index * 15)
-);
-
-const closingOptions = Array.from(
-  { length: 96 },
-  (_, index) => minutesToTime((index + 1) * 15)
-);
-
-function closingOptionsAfter(start: string): string[] {
-  const startMinutes = timeToMinutes(start);
-
-  return closingOptions.filter(
-    (time) => timeToMinutes(time) > startMinutes
+function Brand({ compact = false }: { compact?: boolean }) {
+  return (
+    <div className={compact ? "brand brand-compact" : "brand"}>
+      <span className="brand-mark" aria-hidden="true">SE</span>
+      <span>Schedule Engine</span>
+    </div>
   );
 }
 
-function normalizeEnd(start: string, end: string): string {
-  if (timeToMinutes(end) > timeToMinutes(start)) {
-    return end;
-  }
-
-  return minutesToTime(
-    Math.min(timeToMinutes(start) + 15, 24 * 60)
-  );
-}
-
-function formatIntervals(intervals: OperatingInterval[]): string {
-  if (intervals.length === 0) return "Fechado";
-
-  return intervals
-    .map((interval) => `${interval.start}–${interval.end}`)
-    .join(" · ");
-}
-
-function getInitials(name: string): string {
-  return name
-    .split(" ")
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join("");
-}
-
-export default function App() {
-  const [weeklyHours, setWeeklyHours] =
-    useState<WeeklyOperatingHours>(initialWeeklyOperatingHours);
-  const [exceptions, setExceptions] = useState<
-    OperatingHoursException[]
-  >([]);
-  const [people, setPeople] = useState<Person[]>([]);
-  const [operationTimeZone, setOperationTimeZone] = useState(DEFAULT_OPERATION_TIME_ZONE);
-  const [timeZoneDraft, setTimeZoneDraft] = useState(DEFAULT_OPERATION_TIME_ZONE);
-  const [cycleAnchorDate, setCycleAnchorDate] = useState("");
-  const [accountingCycleDays,setAccountingCycleDays]=useState<AccountingCycleDays|undefined>();
-  const [onboarding,setOnboarding]=useState<OnboardingConfiguration>({});
-  const [cycleDraftOpen,setCycleDraftOpen]=useState(false);
-  const [presenceDraftOpen,setPresenceDraftOpen]=useState(false);
-  const [availabilityDraftOpen,setAvailabilityDraftOpen]=useState(false);
-  const [availabilities, setAvailabilities] = useState<
-    PersonAvailability[]
-  >([]);
-  const [workRules, setWorkRules] =
-    useState<WorkRulesConfiguration>({
-      standardShiftDurationMinutes: null,
-    });
-  const [weeklyPresenceRequirements, setWeeklyPresenceRequirements] =
-    useState<WeeklyPresenceRequirements>(createEmptyWeeklyPresenceRequirements);
-  const [presenceExceptions, setPresenceExceptions] =
-    useState<PresenceException[]>([]);
-  const [newPersonOpen,setNewPersonOpen]=useState(false);
-  const [editingPersonId,setEditingPersonId]=useState<string|null>(null);
-  const [personStatusPendingId,setPersonStatusPendingId]=useState<string|null>(null);
-  const [mobileNavigationOpen,setMobileNavigationOpen]=useState(false);
-  const [editingExceptionIndex,setEditingExceptionIndex]=useState<number | "new" | null>(null);
-  const [editingWeekday,setEditingWeekday]=useState<Weekday|null>(null);
-  const [removingExceptionIndex,setRemovingExceptionIndex]=useState<number|null>(null);
-  const {route,navigate}=useWorkspaceRouting();
-  const activeSection=route.section;
-  const [
-    selectedAvailabilityPersonId,
-    setSelectedAvailabilityPersonId,
-  ] = useState<string | null>(null);
-  const [persistenceReady, setPersistenceReady] = useState(false);
-  const [persistenceProblem, setPersistenceProblem] = useState<string | null>(null);
-  const [needsLegacyConsent, setNeedsLegacyConsent] = useState(false);
-  const skipInitialSave = useRef(true);
-  const wasHydrated = useRef(false);
-  const [persistenceStatus, setPersistenceStatus] = useState<
-    "loading" | "saving" | "saved" | "error"
-  >("loading");
-  const saveRequestId = useRef(0);
-  const [lastSavedStart, setLastSavedStart] = useState<string | undefined>();
-  const [savedRevision, setSavedRevision] = useState(0);
-  const [generatorInitialDate, setGeneratorInitialDate] = useState<string | undefined>();
-
-  function openGenerator(date?: string) {
-    setGeneratorInitialDate(date);
-    navigate("generator");
-  }
-
-  async function saveGenerated(payload: GeneratedSchedulePayload, proposalId: string): Promise<StoredGeneratedSchedule> {
-    if (!supabaseAuthClient) throw new Error("A ligação Supabase não está configurada.");
-    const repository = createSupabaseGeneratedScheduleRepository(supabaseAuthClient);
-    const stored = await repository.save(payload, proposalId);
-    setLastSavedStart(stored.startDate);
-    setSavedRevision(value => value + 1);
-    return stored;
-  }
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadPersistedState() {
-      try {
-        const persisted = await appStateRepository.load();
-
-        if (cancelled) return;
-
-        if (persisted) {
-          setWeeklyHours(persisted.weeklyOperatingHours);
-          setExceptions(persisted.exceptions);
-          setPeople(persisted.people);
-          const resolvedZone=resolveOperationTimeZone(persisted.operationTimeZone);
-          setOperationTimeZone(resolvedZone);
-          setTimeZoneDraft(resolvedZone);
-          setCycleAnchorDate(persisted.cycleAnchorDate ?? "");
-          setAccountingCycleDays(persisted.accountingCycleDays);
-          setOnboarding(persisted.onboarding??{});
-          setAvailabilities(persisted.availabilities);
-          setWorkRules(persisted.workRules);
-          setWeeklyPresenceRequirements(persisted.weeklyPresenceRequirements);
-          setPresenceExceptions(persisted.presenceExceptions);
-        }
-
-        wasHydrated.current = true;
-        setPersistenceReady(true);
-        setPersistenceStatus("saved");
-      } catch (error) {
-        if (cancelled) return;
-
-        // Never enable autosave when hydration fails.
-        setPersistenceReady(false);
-        setNeedsLegacyConsent(error instanceof LegacyImportConsentRequiredError);
-        setPersistenceProblem(
-          error instanceof Error
-            ? error.message
-            : "Não foi possível carregar os dados guardados."
-        );
-        setPersistenceStatus("error");
-      }
-    }
-
-    void loadPersistedState();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  // A successful write in another Safari tab makes this tab's baseline
-  // obsolete. Block autosave immediately instead of leaving an optimistic
-  // "A guardar" or silently overwriting the first tab.
-  useEffect(() => {
-    if (!persistenceReady) return;
-    const onOtherTabSave = (event: StorageEvent) => {
-      const ownerId=supabaseAuthClient?.user?.id;
-      if (!ownerId ||
-          !isOtherTabStateCommit(event.key,event.newValue,ownerId))
-        return;
-      // Invalidate in-flight UI acknowledgements. The database remains the
-      // authority; CAS still rejects a genuine concurrent write.
-      saveRequestId.current++;
-      setPersistenceReady(false);
-      setPersistenceStatus("error");
-      setPersistenceProblem(
-        "Outra aba desta conta guardou alterações à configuração. " +
-        "Para impedir que edições simultâneas substituam dados, " +
-        "esta aba foi bloqueada. Se editaste algo aqui, descarrega " +
-        "primeiro uma cópia JSON; depois recarrega os dados do servidor."
-      );
-    };
-    window.addEventListener("storage",onOtherTabSave);
-    return () => window.removeEventListener("storage",onOtherTabSave);
-  }, [persistenceReady]);
-
-  useEffect(() => {
-    if (!persistenceReady) return;
-
-    // Loading existing data is not a user change.
-    if (skipInitialSave.current) {
-      skipInitialSave.current = false;
-      return;
-    }
-
-    const requestId = ++saveRequestId.current;
-    setPersistenceStatus("saving");
-
-    // A lost HTTP response may otherwise leave "A guardar" on screen
-    // indefinitely. A timeout means UNKNOWN commit state, not a failed write:
-    // preserve the local snapshot for export and require an explicit reload.
-    let confirmationTimeoutId: number | null = null;
-    const timeoutId = window.setTimeout(() => {
-      const requested: Parameters<typeof appStateRepository.save>[0] = {
-          version: APP_STATE_VERSION,
-          operationTimeZone,
-          ...(cycleAnchorDate ? {cycleAnchorDate} : {}),
-          ...(cycleAnchorDate && accountingCycleDays ? {accountingCycleDays} : {}),
-          onboarding,
-          weeklyOperatingHours: weeklyHours,
-          exceptions,
-          people,
-          availabilities,
-          workRules,
-          weeklyPresenceRequirements,
-          presenceExceptions,
-        };
-      confirmationTimeoutId = window.setTimeout(() => {
-        if (requestId !== saveRequestId.current) return;
-        ++saveRequestId.current; // Ignore a late success or error for this UI.
-        setPersistenceReady(false);
-        setPersistenceProblem(
-          "A base de dados não confirmou a gravação dentro do prazo. " +
-          "O resultado pode ser incerto: não assumes que ficou guardado. " +
-          "Descarrega uma cópia JSON antes de recarregar e verificar " +
-          "a última configuração do servidor."
-        );
-        setPersistenceStatus("error");
-      }, 20000);
-      const requestedOwnerId=supabaseAuthClient?.user?.id;
-      void appStateRepository.save(requested)
-        .then(reconciled => {
-          // Send metadata only, never the personnel data or auth session.
-          // The storage event fires in other same-origin tabs, not this one.
-          // The SQL compare-and-swap is still the security boundary.
-          if (requestedOwnerId &&
-              supabaseAuthClient?.user?.id === requestedOwnerId) {
-            try {
-              notifyOtherTabsOfStateCommit(
-                window.localStorage,requestedOwnerId,crypto.randomUUID()
-              );
-            } catch {
-              // Storage may be unavailable in private mode. CAS remains safe.
-            }
-          }
-          if (requestId !== saveRequestId.current) return;
-          if (reconciled && JSON.stringify(reconciled)!==JSON.stringify(requested)) {
-            // The server merged disjoint updates from another tab.
-            // Reflect them in React before a future edit can overwrite them.
-            setWeeklyHours(reconciled.weeklyOperatingHours);
-            setExceptions(reconciled.exceptions);
-            setPeople(reconciled.people);
-            setAvailabilities(reconciled.availabilities);
-            setWorkRules(reconciled.workRules);
-            setWeeklyPresenceRequirements(reconciled.weeklyPresenceRequirements);
-            setPresenceExceptions(reconciled.presenceExceptions);
-            const zone=resolveOperationTimeZone(reconciled.operationTimeZone);
-            setOperationTimeZone(zone);
-            setTimeZoneDraft(zone);
-            setCycleAnchorDate(reconciled.cycleAnchorDate??"");
-            setAccountingCycleDays(reconciled.accountingCycleDays);
-            setOnboarding(reconciled.onboarding??{});
-          }
-          setPersistenceStatus("saved");
-        })
-        .catch((error) => {
-          if (requestId === saveRequestId.current) {
-            setPersistenceReady(false);
-            setPersistenceProblem(
-              error instanceof Error
-                ? error.message
-                : "Não foi possível guardar os dados."
-            );
-            setPersistenceStatus("error");
-          }
-        })
-        .finally(() => {
-          if (confirmationTimeoutId !== null)
-            window.clearTimeout(confirmationTimeoutId);
-        });
-    }, 250);
-
-    return () => {
-      window.clearTimeout(timeoutId);
-      if (confirmationTimeoutId !== null)
-        window.clearTimeout(confirmationTimeoutId);
-    };
-  }, [
-    persistenceReady,
-    operationTimeZone,cycleAnchorDate,accountingCycleDays,onboarding,
-    weeklyHours,
-    exceptions,
-    people,
-    availabilities,
-    workRules,
-    weeklyPresenceRequirements,
-    presenceExceptions,
-  ]);
-
-  const summary = useMemo(() => {
-    const openDays = WEEKDAYS.filter(
-      (weekday) => weeklyHours[weekday].length > 0
-    ).length;
-
-    const totalWeeklyMinutes = WEEKDAYS.reduce((total, weekday) => {
-      return (
-        total +
-        weeklyHours[weekday].reduce(
-          (dayTotal, interval) =>
-            dayTotal +
-            timeToMinutes(interval.end) -
-            timeToMinutes(interval.start),
-          0
-        )
-      );
-    }, 0);
-
-    return {
-      openDays,
-      closedDays: 7 - openDays,
-      weeklyHours: Math.round((totalWeeklyMinutes / 60) * 10) / 10,
-    };
-  }, [weeklyHours]);
-
-  const activePeople = useMemo(
-    () => getActivePeople(people),
-    [people]
-  );
-
-  // Stable, read-only snapshots for the experimental generator.
-  // These objects are not added to the persistence/autosave dependencies.
-  const generatorOperatingCalendar = useMemo(
-    () => ({ weeklyOperatingHours: weeklyHours, exceptions }),
-    [weeklyHours, exceptions]
-  );
-  const generatorPresence = useMemo(
-    () => ({ weeklyPresenceRequirements, presenceExceptions }),
-    [weeklyPresenceRequirements, presenceExceptions]
-  );
-
-  const selectedAvailabilityPerson =
-    activePeople.find(
-      (person) => person.id === selectedAvailabilityPersonId
-    ) ??
-    activePeople[0] ??
-    null;
-
-  const selectedAvailability = selectedAvailabilityPerson
-    ? availabilities.find(
-        (availability) =>
-          availability.personId === selectedAvailabilityPerson.id
-      ) ?? createPersonAvailability(selectedAvailabilityPerson.id)
-    : null;
-
-  const updateDayInterval = (
-    weekday: Weekday,
-    field: "start" | "end",
-    value: string
-  ) => {
-    setWeeklyHours((current) => {
-      const existing = current[weekday][0] ?? {
-        start: "09:00",
-        end: "18:00",
-      };
-
-      const next =
-        field === "start"
-          ? {
-              start: value,
-              end: normalizeEnd(value, existing.end),
-            }
-          : {
-              start: existing.start,
-              end: value,
-            };
-
-      return {
-        ...current,
-        [weekday]: [next, ...current[weekday].slice(1)],
-      };
-    });
-  };
-
-  const toggleClosed = (weekday: Weekday) => {
-    setEditingWeekday(null);
-    setWeeklyHours((current) => ({
-      ...current,
-      [weekday]:
-        current[weekday].length === 0
-          ? [{ start: "09:00", end: "18:00" }]
-          : [],
-    }));
-  };
-
-  const saveException = (next: OperatingHoursException) => {
-    setExceptions(current=>{
-      if(editingExceptionIndex==="new") return [...current,next];
-      if(typeof editingExceptionIndex!=="number") return current;
-      return current.map((item,index)=>index===editingExceptionIndex?next:item);
-    });
-    setEditingExceptionIndex(null);
-    setRemovingExceptionIndex(null);
-  };
-  const confirmRemoveException = (index:number) => {
-    setExceptions(current=>current.filter((_,currentIndex)=>currentIndex!==index));
-    setEditingExceptionIndex(null);
-    setRemovingExceptionIndex(null);
-  };
-
-  const savePersonDraft=(next:Person)=>{
-    if(editingPersonId!==null){
-      setPeople(current=>current.map(person=>
-        person.id===editingPersonId?next:person));
-    }else{
-      const newPerson={...next,id:crypto.randomUUID()};
-      setPeople(current=>[...current,newPerson]);
-      setAvailabilities(current=>[
-        ...current,createPersonAvailability(newPerson.id),
-      ]);
-    }
-    setNewPersonOpen(false);
-    setEditingPersonId(null);
-    setPersonStatusPendingId(null);
-  };
-
-  const startEditingPerson=(person:Person)=>{
-    setEditingPersonId(person.id);
-    setNewPersonOpen(false);
-    setPersonStatusPendingId(null);
-  };
-  const cancelEditingPerson=()=>setEditingPersonId(null);
-  const changePersonActive=(person:Person,active:boolean)=>{
-    setPeople(current=>current.map(candidate=>
-      candidate.id===person.id?setPersonActive(candidate,active):candidate));
-    setPersonStatusPendingId(null);
-  };
-
-  const upsertAvailability = (
-    nextAvailability: PersonAvailability
-  ) => {
-    setAvailabilities((current) => {
-      const exists = current.some(
-        (availability) =>
-          availability.personId === nextAvailability.personId
-      );
-
-      if (!exists) {
-        return [...current, nextAvailability];
-      }
-
-      return current.map((availability) =>
-        availability.personId === nextAvailability.personId
-          ? nextAvailability
-          : availability
-      );
-    });
-  };
-
-  function exportPendingConfiguration(): void {
-    if (!wasHydrated.current) return;
-    const pending = {
-      version: APP_STATE_VERSION,
-      operationTimeZone,...(cycleAnchorDate ? {cycleAnchorDate} : {}),
-      ...(cycleAnchorDate && accountingCycleDays ? {accountingCycleDays} : {}),onboarding,
-      weeklyOperatingHours: weeklyHours, exceptions, people,
-      availabilities, workRules,
-      weeklyPresenceRequirements, presenceExceptions,
-    };
-    const url = URL.createObjectURL(new Blob([JSON.stringify(pending, null, 2)],
-      {type: "application/json"}));
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "schedule-engine-configuracao-pendente.json";
-    link.click();
-    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-  }
-
-  // A consent decision is not a synchronization failure. The repository
-  // reaches this state only when cloud state is empty and unowned local
-  // configuration exists. Never enable editing or autosave before resolution.
-  if (persistenceProblem && needsLegacyConsent) {
-    return <AccountEntryDecision
-      onStartFresh={()=>{
-        const ownerId=supabaseAuthClient?.user?.id;
-        if(!ownerId)return;
-        startFreshCloudAccountForOwner(window.localStorage,ownerId);
-        window.location.reload();
-      }}
-      onImportConfirmed={()=>{
-        const ownerId=supabaseAuthClient?.user?.id;
-        if(!ownerId)return;
-        authorizeLegacyImportForOwner(window.localStorage,ownerId);
-        window.location.reload();
-      }}
-    />;
-  }
-
-  // Real network, conflict and incompatible-data failures remain fail-closed
-  // and are NEVER presented as onboarding choices.
-  if (persistenceProblem) {
-    return (
-      <main className="entry-screen">
-        <section className="entry-card entry-error-card" role="alert" aria-labelledby="entry-error-title">
-          <div className="entry-brand">
-            <span className="entry-brand-symbol" aria-hidden="true">SE</span>
-            <strong>Schedule Engine</strong>
+function WelcomePage() {
+  return (
+    <main className="entry-page">
+      <section className="entry-card" aria-label="Apresentação e acesso ao Schedule Engine">
+        <div className="entry-intro">
+          <Brand />
+          <div className="entry-copy">
+            <p className="eyebrow">Planeamento de equipas</p>
+            <h1>Horários claros.<br />Decisões com confiança.</h1>
+            <p className="intro-description">
+              Um espaço pensado para organizar horários e simplificar o trabalho
+              das equipas. Estamos a construir cada função com rigor.
+            </p>
           </div>
-          <div className="entry-error-icon" aria-hidden="true">!</div>
-          <span className="entry-eyebrow">SEGURANÇA DA CONFIGURAÇÃO</span>
-          <h1 id="entry-error-title">Não foi possível carregar a configuração</h1>
-          <p className="entry-error-lead">Para proteger os horários e as alterações existentes,
-            a edição e a gravação automática estão temporariamente bloqueadas.</p>
-          <div className="entry-error-message">{persistenceProblem}</div>
-          {wasHydrated.current && <div className="entry-error-actions">
-            <p>Existem alterações locais que podem ainda não ter sido confirmadas no servidor.
-              Guarda uma cópia antes de recarregar, se precisares dessas alterações.</p>
-            <button type="button" className="entry-outline-button" onClick={exportPendingConfiguration}>
-              Descarregar cópia das alterações pendentes (JSON)
-            </button>
-            <button type="button" className="entry-outline-button" onClick={()=>{
-              if(window.confirm("Descartar as alterações locais por guardar e recarregar a última configuração do servidor? Exporta primeiro uma cópia JSON se precisares das alterações.")){
-                window.location.reload();
-              }
-            }}>
-              Recarregar configuração remota (descartar edição local)
-            </button>
-          </div>}
-          {!wasHydrated.current && <button type="button" className="entry-outline-button"
-            onClick={()=>window.location.reload()}>Tentar carregar novamente</button>}
-          <p className="entry-error-footnote">Não apagues os dados do navegador enquanto esta situação
-            não estiver resolvida. Nenhum dado foi importado automaticamente.</p>
-        </section>
-      </main>
-    );
+          <div className="entry-benefits" aria-label="Princípios do produto">
+            <p><span className="teal-dot" /> Planeamento simples e transparente</p>
+            <p><span className="teal-dot" /> Calendário como ponto de partida</p>
+            <p><span className="teal-dot" /> Regras e validação desenvolvidas por etapas</p>
+          </div>
+          <p className="entry-footer">Schedule Engine · Fundação V2</p>
+        </div>
+
+        <div className="entry-access">
+          <div className="access-content">
+            <p className="eyebrow">Acesso à conta</p>
+            <h2>Bem-vindo de volta</h2>
+            <p className="access-description">
+              Nesta primeira versão estamos a preparar a experiência de entrada.
+              A ligação às contas será implementada numa etapa própria.
+            </p>
+            <fieldset className="login-fields" disabled>
+              <legend className="sr-only">Campos de autenticação em preparação</legend>
+              <label htmlFor="login-email">Email</label>
+              <input id="login-email" type="email" placeholder="nome@empresa.pt" autoComplete="off" />
+              <label htmlFor="login-password">Palavra-passe</label>
+              <input id="login-password" type="password" placeholder="Acesso ainda não disponível" autoComplete="off" />
+              <button type="button" className="button button-primary" disabled>Entrar no Schedule Engine</button>
+            </fieldset>
+            <p className="access-note">Não introduzas credenciais reais nesta demonstração.</p>
+            <div className="preview-entry">
+              <span className="preview-label">Explorar a nova base</span>
+              <p>Consulta a estrutura inicial do calendário, sem iniciar sessão nem guardar dados.</p>
+              <a className="button button-secondary" href="/horarios">Abrir demonstração <span aria-hidden="true">→</span></a>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  );
+}
+
+function Shell({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="workspace-page">
+      <header className="workspace-header">
+        <a className="brand-link" href="/" aria-label="Schedule Engine — início">
+          <Brand compact />
+        </a>
+        <nav className="workspace-nav" aria-label="Navegação principal">
+          <a href="/horarios" aria-current={pageForPath(window.location.pathname) === "calendar" ? "page" : undefined}>Calendário</a>
+          <a href="/configuracao" aria-current={pageForPath(window.location.pathname) === "settings" ? "page" : undefined}>Configuração</a>
+          <a href="/" className="exit-link">Fechar demonstração</a>
+        </nav>
+      </header>
+      <main className="workspace-main">{children}</main>
+      <footer className="workspace-footer">V2 · Demonstração local · Sem autenticação e sem dados guardados</footer>
+    </div>
+  );
+}
+
+const WEEKDAYS = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
+
+function CalendarPage() {
+  const today = new Date();
+  const [visible, setVisible] = useState({ year: today.getFullYear(), month: today.getMonth() });
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const cells = useMemo(() => monthCells(visible.year, visible.month), [visible.year, visible.month]);
+  const todayString = String(today.getFullYear()) + "-" +
+    String(today.getMonth() + 1).padStart(2, "0") + "-" +
+    String(today.getDate()).padStart(2, "0");
+
+  function navigateMonth(direction: number) {
+    const date = new Date(visible.year, visible.month + direction, 1);
+    setVisible({ year: date.getFullYear(), month: date.getMonth() });
+    setSelectedDate(null);
   }
 
   return (
-    <main className="app-shell application-layout">
-      <ApplicationNavigation activeSection={activeSection}
-        navigate={navigate}
-        mobileOpen={mobileNavigationOpen}
-        closeMobile={()=>setMobileNavigationOpen(false)}/>
-      <div className="application-workspace">
-        <header className="application-topbar">
-          <div className="application-topbar-start">
-            <button type="button" className="app-menu-trigger"
-              aria-label="Abrir menu de navegação"
-              aria-expanded={mobileNavigationOpen}
-              onClick={()=>setMobileNavigationOpen(value=>!value)}>
-              <span aria-hidden="true">☰</span>
-            </button>
-            <div className="app-breadcrumb" aria-label="Localização atual">
-              <span>{({schedules:"Horários",operation:"Operação",team:"Equipa",rules:"Regras"} as const)[areaFor(activeSection)]}</span>
-              <span className="app-breadcrumb-divider" aria-hidden="true">/</span>
-              <strong>{route.dayDate?"Gestão diária · "+route.dayDate:sectionLabel(activeSection)}</strong>
-            </div>
-          </div>
-          <div className="header-statuses">
-            <div className={`save-status ${persistenceStatus}`}
-              title="Estado da gravação da configuração no Supabase"
-              aria-live="polite">
-              <span className="save-status-dot"/>
-              {persistenceStatus === "loading" && "A carregar"}
-              {persistenceStatus === "saving" && "A guardar"}
-              {persistenceStatus === "saved" && "Guardado"}
-              {persistenceStatus === "error" && "Erro ao guardar"}
-            </div>
-            {editingExceptionIndex!==null && <span className="operation-draft-status" role="status">Exceção por guardar</span>}
-            {cycleDraftOpen && <span className="operation-draft-status" role="status">Escolha do ciclo por guardar</span>}
-            {activeSection==="presence" && presenceDraftOpen && <span className="operation-draft-status" role="status">Cobertura por guardar</span>}
-            {activeSection==="people" && (newPersonOpen||editingPersonId!==null) && <span className="operation-draft-status" role="status">Colaborador por guardar</span>}
-            {activeSection==="availability" && availabilityDraftOpen && <span className="operation-draft-status" role="status">Disponibilidade por guardar</span>}
-          </div>
-        </header>
-        <div className="application-page">
-      {activeSection === "schedules" && (
-        <ScheduleHome
-          people={people}
-          availabilities={availabilities}
-          operatingCalendar={generatorOperatingCalendar}
-          operationTimeZone={operationTimeZone}
-          cycleAnchorDate={cycleAnchorDate || undefined}
-          accountingCycleDays={accountingCycleDays}
-          savedRevision={savedRevision}
-          initialMonth={lastSavedStart}
-          onCreate={openGenerator}
-          onConfigureTeam={() => navigate("people")}
-          initialDailyDate={route.dayDate}
-          onNavigateDay={date=>navigate("schedules",date)}
-        />
-      )}
-
-      {activeSection === "calendar" && (
-        <>
-          <section className="overview-bar" aria-label="Resumo do calendário">
-            <div className="overview-item">
-              <span>Semana padrão</span>
-              <strong>{summary.openDays} dias abertos</strong>
-            </div>
-            <div className="overview-item">
-              <span>Funcionamento</span>
-              <strong>{summary.weeklyHours}h / semana</strong>
-            </div>
-            <div className="overview-item">
-              <span>Datas especiais</span>
-              <strong>{exceptions.length} exceções</strong>
-            </div>
-          </section>
-
-          <GuidedSetup
-             operationConfirmed={isOperationConfirmed(
-               onboarding,weeklyHours,operationTimeZone,cycleAnchorDate,accountingCycleDays)}
-             cycleDecisionConfirmed={onboarding.cycleDecisionConfirmed===true}
-             canConfirmOperation={onboarding.cycleDecisionConfirmed===true &&
-               summary.openDays>0 && isIanaOperationTimeZone(operationTimeZone) &&
-               WEEKDAYS.every(day=>validateEditedIntervals(weeklyHours[day]).valid)}
-             saving={persistenceStatus!=="saved"}
-             coverageConfirmed={isCoverageConfirmed(onboarding,
-               isOperationConfirmed(onboarding,weeklyHours,operationTimeZone,cycleAnchorDate,accountingCycleDays),
-               weeklyHours,exceptions,weeklyPresenceRequirements,presenceExceptions)}
-             hasCoverage={validCoverageConfiguration(
-               weeklyHours,weeklyPresenceRequirements,presenceExceptions)}
-             hasTeam={people.some(person=>person.active)}
-             teamConfirmed={isTeamConfirmed(onboarding,
-               isCoverageConfirmed(onboarding,
-                 isOperationConfirmed(onboarding,weeklyHours,operationTimeZone,cycleAnchorDate,accountingCycleDays),
-                 weeklyHours,exceptions,weeklyPresenceRequirements,presenceExceptions),
-               people)}
-             hasAvailabilityAndRules={validateAvailabilityConfiguration(
-               people,availabilities,weeklyHours,exceptions,workRules).valid}
-             availabilityRulesConfirmed={isAvailabilityAndRulesConfirmed(onboarding,
-               isTeamConfirmed(onboarding,
-                 isCoverageConfirmed(onboarding,
-                   isOperationConfirmed(onboarding,weeklyHours,operationTimeZone,cycleAnchorDate,accountingCycleDays),
-                   weeklyHours,exceptions,weeklyPresenceRequirements,presenceExceptions),people),
-               people,availabilities,weeklyHours,exceptions,workRules)}
-             onConfirmOperation={()=>setOnboarding(previous=>({
-               ...previous,
-               operationConfirmedFingerprint:operationFingerprint(
-                 weeklyHours,operationTimeZone,cycleAnchorDate,accountingCycleDays),
-             }))}
-             onNavigate={navigate}
-           />
-           <section className="panel operation-context-compact" aria-label="Configuração temporal da operação">
-             <div className="operation-context-heading">
-               <div>
-                 <p className="section-kicker">Contexto da operação</p>
-                 <h2>Fuso horário e ciclos de trabalho</h2>
-               </div>
-               <p>A empresa pode funcionar sem ciclo fixo. A escolha não limita a geração mensal.</p>
-             </div>
-             <div className="operation-context-controls">
-               <div className="operation-timezone">
-                 <label className="se-control">
-                   <span>Fuso horário IANA</span>
-                   <input type="text" value={timeZoneDraft} autoComplete="off"
-                     placeholder="Atlantic/Azores"
-                     onChange={event=>setTimeZoneDraft(event.target.value)} />
-                 </label>
-                 <button type="button" className="se-outline"
-                   disabled={!isIanaOperationTimeZone(timeZoneDraft) ||
-                     timeZoneDraft===operationTimeZone}
-                   onClick={()=>setOperationTimeZone(timeZoneDraft)}>
-                   Aplicar fuso horário
-                 </button>
-                 {!isIanaOperationTimeZone(timeZoneDraft) &&
-                   <span role="alert">Indica um fuso horário IANA válido antes de guardar.</span>}
-               </div>
-               <OperationCycleSettings
-                 anchorDate={cycleAnchorDate}
-                 days={accountingCycleDays}
-                 decisionConfirmed={onboarding.cycleDecisionConfirmed===true}
-                 onDraftOpenChange={setCycleDraftOpen}
-                 onSave={(anchor,days)=>{
-                   setCycleAnchorDate(anchor);
-                   setAccountingCycleDays(days);
-                   setOnboarding(previous=>({...previous,cycleDecisionConfirmed:true}));
-                 }}
-               />
-             </div>
-             <p className="operation-context-footnote">
-               O fuso aplicado rege o calendário e a geração; os horários arquivados mantêm
-               o original. A geração certificada suporta períodos de até 28 dias por proposta,
-               independentemente do ciclo de trabalho escolhido.
-             </p>
-           </section>
-          <div className="dashboard-grid">
-        <section className="panel schedule-panel">
-          <div className="panel-header">
-            <div>
-              
-              <h2>Horário de funcionamento</h2>
-            </div>
-            <p className="panel-help">
-              Confirma os horários sugeridos antes da primeira geração. Abertura não é turno nem refeição.
-            </p>
-          </div>
-
-          <p className="operation-mode-hint">Funcionamento semanal: <strong>{operatingPresentation(weeklyHours)==="interrupted"?"com interrupções":"contínuo"}</strong>. Se a operação fechar e voltar a abrir no mesmo dia, adiciona outro intervalo nesse dia.</p>
-          <div className="schedule-table">
-            <div className="schedule-head" aria-hidden="true">
-              <span>Dia</span>
-              <span>Estado</span>
-              <span>Abertura</span>
-              <span>Fecho</span>
-            </div>
-
-            {WEEKDAYS.map((weekday) => {
-              const intervals = weeklyHours[weekday];
-              const closed = intervals.length === 0;
-              const interval = intervals[0];
-
-              return (
-                <div
-                  key={weekday}
-                  className={`schedule-row operation-schedule-row ${closed ? "is-closed" : ""}`}
-                >
-                  <div className="day-name">
-                    <strong>{weekdayLabels[weekday]}</strong>
-                    {intervals.length>1 && <span>{formatIntervals(intervals)}</span>}
-                    {!closed && <button type="button" className="operation-inline-trigger"
-                      aria-label={`${weekdayLabels[weekday]}: ${editingWeekday===weekday?"Ocultar edição de intervalos":intervals.length>1?"Editar intervalos de funcionamento":"Adicionar outro intervalo de funcionamento"}`}
-                      aria-controls={editingWeekday===weekday?`operation-intervals-${weekday}`:undefined}
-                      aria-expanded={editingWeekday===weekday}
-                      onClick={()=>setEditingWeekday(current=>current===weekday?null:weekday)}>
-                      {editingWeekday===weekday?"Fechar intervalos":intervals.length>1?"Editar intervalos":"+ Outro intervalo"}
-                    </button>}
-                  </div>
-
-                  <button
-                    type="button"
-                    className={`state-button ${closed ? "closed" : "open"}`}
-                    onClick={() => toggleClosed(weekday)}
-                    aria-label={`${weekdayLabels[weekday]}: ${closed ? "fechado" : "aberto"}. Alterar estado.`}
-                  >
-                    <span className="state-dot" />
-                    {closed ? "Fechado" : "Aberto"}
-                  </button>
-
-                  {!closed && interval && intervals.length===1 ? (
-                    <>
-                      <label className="select-field">
-                        <span className="sr-only">
-                          Abertura de {weekdayLabels[weekday]}
-                        </span>
-                        <TimeWheelSelect
-                          value={interval.start}
-                          onChange={(event) =>
-                            updateDayInterval(
-                              weekday,
-                              "start",
-                              event.target.value
-                            )
-                          }
-                        >
-                          {openingOptions.map((time) => (
-                            <option key={time} value={time}>
-                              {time}
-                            </option>
-                          ))}
-                        </TimeWheelSelect>
-                      </label>
-
-                      <label className="select-field">
-                        <span className="sr-only">
-                          Fecho de {weekdayLabels[weekday]}
-                        </span>
-                        <TimeWheelSelect
-                          value={interval.end}
-                          onChange={(event) =>
-                            updateDayInterval(
-                              weekday,
-                              "end",
-                              event.target.value
-                            )
-                          }
-                        >
-                          {closingOptionsAfter(interval.start).map(
-                            (time) => (
-                              <option key={time} value={time}>
-                                {time}
-                              </option>
-                            )
-                          )}
-                        </TimeWheelSelect>
-                      </label>
-                    </>
-                  ) : (
-                    <div className="closed-span">
-                      {closed ? "Sem horário de funcionamento" :
-                        "Vários intervalos configurados"}
-                    </div>
-                  )}
-                  {!closed && editingWeekday===weekday && <div
-                    className="operation-advanced-row" id={`operation-intervals-${weekday}`}>
-                    <IntervalListEditor
-                      label={"funcionamento de "+weekdayLabels[weekday]}
-                      intervals={intervals}
-                      operationMode
-                      inlineEditor
-                      onChange={next=>setWeeklyHours(current=>({
-                        ...current,[weekday]:next,
-                      }))}
-                    />
-                    <button type="button" className="operation-advanced-close"
-                      onClick={()=>setEditingWeekday(null)}>Fechar edição</button>
-                  </div>}
-                  {hasAdjacentOperatingIntervals(intervals) &&
-                    <div className="operation-adjacent-hint">
-                      <span>Os intervalos são contíguos; podes apresentá-los como um único horário.</span>
-                      <button type="button" className="se-outline"
-                        onClick={()=>{
-                          const joined=mergeAdjacentOperatingIntervals(intervals);
-                          if(joined.valid) setWeeklyHours(current=>({...current,[weekday]:joined.intervals}));
-                        }}>Unir intervalos contíguos</button>
-                    </div>}
-                </div>
-              );
-            })}
-          </div>
-        </section>
-
-        <aside className="panel exceptions-panel">
-           <div className="panel-header compact">
-             <div>
-               <p className="section-kicker">Datas especiais</p>
-               <h2>Exceções</h2>
-             </div>
-             <button type="button" className="primary-button"
-               onClick={()=>{setEditingExceptionIndex("new");setRemovingExceptionIndex(null);}}>
-               <span>+</span> Adicionar
-             </button>
-           </div>
-           <p className="section-description">
-             Feriados, encerramentos ou horários diferentes do padrão.
-             A configuração só muda depois de Guardar exceção.
-           </p>
-           {editingExceptionIndex==="new" && <OperationExceptionEditor
-             key="new"
-             existing={exceptions}
-             editingIndex={null}
-             weeklyHours={weeklyHours}
-             onSave={saveException}
-             onCancel={()=>setEditingExceptionIndex(null)}
-           />}
-           {exceptions.length===0 && editingExceptionIndex!=="new"
-             ? <div className="empty-state"><div className="empty-icon">◎</div>
-                 <strong>Nenhuma exceção definida</strong>
-                 <p>O padrão semanal aplica-se a todas as datas.</p>
-               </div>
-             : <div className="exception-list">
-                 {exceptions.map((exception,index)=>
-                   <div className="operation-exception-entry" key={exception.date}>
-                     {editingExceptionIndex===index
-                       ? <OperationExceptionEditor
-                           key={exception.date}
-                           initial={exception}
-                           existing={exceptions}
-                           editingIndex={index}
-                           weeklyHours={weeklyHours}
-                           onSave={saveException}
-                           onCancel={()=>setEditingExceptionIndex(null)}
-                         />
-                       : <>
-                           <div className="operation-exception-entry-info">
-                             <strong>{exception.date}</strong>
-                             <span>{exception.reason||"Motivo não indicado (registo anterior)"}</span>
-                             <small>{formatIntervals(exception.intervals)}</small>
-                           </div>
-                           {removingExceptionIndex===index
-                             ? <div className="operation-exception-actions">
-                                 <span>Confirmas a remoção desta exceção?</span>
-                                 <button type="button" className="se-outline"
-                                   onClick={()=>setRemovingExceptionIndex(null)}>Cancelar</button>
-                                 <button type="button" className="se-outline"
-                                   onClick={()=>confirmRemoveException(index)}>Confirmar remoção</button>
-                               </div>
-                             : <div className="operation-exception-actions">
-                                 <button type="button" className="se-outline"
-                                   onClick={()=>{setEditingExceptionIndex(index);setRemovingExceptionIndex(null);}}>Editar</button>
-                                 <button type="button" className="se-outline"
-                                   onClick={()=>setRemovingExceptionIndex(index)}>Remover</button>
-                               </div>}
-                         </>}
-                   </div>)}
-               </div>}
-         </aside>
-          </div>
-        </>
-      )}
-
-      {activeSection === "people" && (
-        <>
-          <section className="overview-bar" aria-label="Resumo de pessoas">
-            <div className="overview-item"><span>Total</span><strong>{people.length}</strong></div>
-            <div className="overview-item"><span>Ativas</span><strong>{activePeople.length}</strong></div>
-            <div className="overview-item"><span>Arquivadas</span>
-              <strong>{people.length-activePeople.length}</strong></div>
-          </section>
-          <section className="panel people-panel">
-            <div className="panel-header people-header">
-              <div>
-                <p className="section-kicker">Configuração inicial · Etapa 3</p>
-                <h2>Pessoas</h2>
-                <p className="people-description">
-                  Adiciona colaboradores e define quando podem ser escalados.
-                  Arquivar mantém os registos e os horários históricos.
-                </p>
-              </div>
-              <button type="button" className="primary-button"
-                onClick={()=>{
-                  setNewPersonOpen(true);
-                  setEditingPersonId(null);
-                  setPersonStatusPendingId(null);
-                }}>+ Adicionar colaborador</button>
-            </div>
-            {newPersonOpen && <PersonEditor
-              key="new-person" onSave={savePersonDraft}
-              onCancel={()=>setNewPersonOpen(false)}
-            />}
-            {people.length===0 && !newPersonOpen
-              ?<div className="people-empty">
-                <div className="empty-icon">◎</div>
-                <strong>Ainda não existem pessoas</strong>
-                <p>Adiciona o primeiro colaborador para configurar a equipa.</p>
-              </div>
-              :people.length>0 && <div className="people-table">
-                <div className="people-head" aria-hidden="true">
-                  <span>Pessoa</span><span>Estado</span><span>Ações</span>
-                </div>
-                {[...people].sort((a,b)=>
-                  Number(b.active)-Number(a.active)||a.name.localeCompare(b.name))
-                  .map(person=><div className="team-person-record" key={person.id}>
-                    <div className={"person-row"+(person.active?"":" is-archived")}>
-                      <div className="person-identity">
-                        <div className="person-avatar" aria-hidden="true">
-                          {getInitials(person.name)}
-                        </div>
-                        <div className="team-person-identity">
-                          <strong>{person.name}</strong>
-                          <span>ID {person.id.slice(0,8)}</span>
-                          <small>{person.employmentPeriods===undefined
-                            ?"Elegibilidade sem restrição de datas"
-                            :person.employmentPeriods.length
-                              ?"Períodos: "+person.employmentPeriods.map(p=>
-                                p.startDate+" a "+(p.endDate??"presente")).join("; ")
-                              :"Sem períodos elegíveis"}</small>
-                          {person.weeklyContractMinutes!==undefined &&
-                            <small>Máximo: {person.weeklyContractMinutes/60}h/semana</small>}
-                          {person.qualificationTags?.length
-                            ?<small>Qualificações: {person.qualificationTags.join(", ")}</small>
-                            :null}
-                        </div>
-                      </div>
-                      <div><span className={"person-status "+(person.active?"active":"archived")}>
-                        <span/>{person.active?"Ativa":"Arquivada"}</span></div>
-                      <div className="person-actions">
-                        {personStatusPendingId===person.id
-                          ?<>
-                            <span className="team-status-warning">
-                              {person.active?"Confirmas o arquivo?":"Confirmas a reativação?"}
-                            </span>
-                            <button type="button" className="secondary-button"
-                              onClick={()=>setPersonStatusPendingId(null)}>Cancelar</button>
-                            <button type="button" className="secondary-button"
-                              onClick={()=>changePersonActive(person,!person.active)}>
-                              Confirmar
-                            </button>
-                          </>
-                          :<>
-                            <button type="button" className="secondary-button"
-                              onClick={()=>startEditingPerson(person)}>Editar</button>
-                            <button type="button" className="secondary-button"
-                              onClick={()=>{
-                                setPersonStatusPendingId(person.id);
-                                setEditingPersonId(null);
-                                setNewPersonOpen(false);
-                              }}>{person.active?"Arquivar":"Reativar"}</button>
-                          </>}
-                      </div>
-                    </div>
-                    {editingPersonId===person.id && <PersonEditor
-                      key={person.id} initial={person} onSave={savePersonDraft}
-                      onCancel={cancelEditingPerson}
-                    />}
-                  </div>)}
-              </div>}
-          </section>
-          <section className="panel team-confirmation-panel"
-            aria-label="Confirmação da equipa">
-            <div>
-              <p className="section-kicker">Configuração inicial · Etapa 3</p>
-              <h2>{isTeamConfirmed(onboarding,
-                isCoverageConfirmed(onboarding,
-                  isOperationConfirmed(onboarding,weeklyHours,operationTimeZone,cycleAnchorDate,accountingCycleDays),
-                  weeklyHours,exceptions,weeklyPresenceRequirements,presenceExceptions),
-                people)?"Equipa confirmada":"Confirmar equipa e vínculos"}</h2>
-              <p>Confirma os colaboradores ativos, períodos de elegibilidade e condições
-                individuais. Não comprova disponibilidade suficiente para gerar horários.</p>
-              {people.some(p=>p.active) &&
-                !validateTeamConfiguration(people).valid &&
-                <p className="form-error" role="alert">
-                  {validateTeamConfiguration(people).issues.join(" ")}
-                </p>}
-              {!isCoverageConfirmed(onboarding,
-                isOperationConfirmed(onboarding,weeklyHours,operationTimeZone,cycleAnchorDate,accountingCycleDays),
-                weeklyHours,exceptions,weeklyPresenceRequirements,presenceExceptions) &&
-                <p className="team-confirm-hint">
-                  Confirma primeiro o funcionamento e a cobertura nas Etapas 1 e 2.
-                </p>}
-            </div>
-            {isTeamConfirmed(onboarding,
-              isCoverageConfirmed(onboarding,
-                isOperationConfirmed(onboarding,weeklyHours,operationTimeZone,cycleAnchorDate,accountingCycleDays),
-                weeklyHours,exceptions,weeklyPresenceRequirements,presenceExceptions),
-              people)
-              ?<strong className="guided-status done">Etapa 3 confirmada</strong>
-              :<button type="button" className="primary-button"
-                disabled={!validateTeamConfiguration(people).valid||
-                  !isCoverageConfirmed(onboarding,
-                    isOperationConfirmed(onboarding,weeklyHours,operationTimeZone,cycleAnchorDate,accountingCycleDays),
-                    weeklyHours,exceptions,weeklyPresenceRequirements,presenceExceptions)||
-                  persistenceStatus!=="saved"||newPersonOpen||editingPersonId!==null}
-                onClick={()=>setOnboarding(previous=>({
-                  ...previous,teamConfirmedFingerprint:teamFingerprint(people),
-                }))}>Confirmar equipa</button>}
-          </section>
-        </>
-      )}
-
-      {activeSection === "availability" && (
-        <>
-          <div className="availability-person-picker">
-            <label className="select-field">
-              <span>Pessoa</span>
-              <select value={selectedAvailabilityPerson?.id??""}
-                disabled={availabilityDraftOpen}
-                onChange={event=>setSelectedAvailabilityPersonId(event.target.value)}>
-                {activePeople.map(person=><option key={person.id} value={person.id}>
-                  {person.name}
-                </option>)}
-              </select>
-            </label>
-          </div>
-          {selectedAvailability
-            ?<AvailabilityPanel key={selectedAvailability.personId}
-              availability={selectedAvailability} weeklyHours={weeklyHours}
-              operatingExceptions={exceptions}
-              onChange={upsertAvailability}
-              onDraftOpenChange={setAvailabilityDraftOpen}/>
-            :<section className="panel"><p>Adiciona uma pessoa ativa antes de configurar disponibilidades.</p></section>}
-          <section className="panel availability-confirm-panel"
-            aria-label="Confirmação das disponibilidades e regras">
-            <div>
-              <p className="section-kicker">Configuração inicial · Etapa 4</p>
-              <h2>{isAvailabilityAndRulesConfirmed(onboarding,
-                isTeamConfirmed(onboarding,
-                  isCoverageConfirmed(onboarding,
-                    isOperationConfirmed(onboarding,weeklyHours,operationTimeZone,cycleAnchorDate,accountingCycleDays),
-                    weeklyHours,exceptions,weeklyPresenceRequirements,presenceExceptions),people),
-                people,availabilities,weeklyHours,exceptions,workRules)
-                ?"Disponibilidades e regras confirmadas"
-                :"Confirmar disponibilidades e regras"}</h2>
-              <p>Confirma os dias disponíveis ou indisponíveis de cada colaborador ativo
-                e as regras de geração. Esta validação não garante um horário viável.</p>
-              {!validateAvailabilityConfiguration(people,availabilities,weeklyHours,exceptions,workRules).valid
-                &&<p className="availability-confirm-issues">
-                  {validateAvailabilityConfiguration(people,availabilities,weeklyHours,exceptions,workRules)
-                    .issues.slice(0,4).join(" ")}
-                </p>}
-              <button type="button" className="se-outline"
-                onClick={()=>navigate("workRules")}>Ver regras de trabalho</button>
-            </div>
-            {isAvailabilityAndRulesConfirmed(onboarding,
-              isTeamConfirmed(onboarding,
-                isCoverageConfirmed(onboarding,
-                  isOperationConfirmed(onboarding,weeklyHours,operationTimeZone,cycleAnchorDate,accountingCycleDays),
-                  weeklyHours,exceptions,weeklyPresenceRequirements,presenceExceptions),people),
-              people,availabilities,weeklyHours,exceptions,workRules)
-              ?<strong className="guided-status done">Etapa 4 confirmada</strong>
-              :<button type="button" className="primary-button"
-                disabled={!isTeamConfirmed(onboarding,
-                  isCoverageConfirmed(onboarding,
-                    isOperationConfirmed(onboarding,weeklyHours,operationTimeZone,cycleAnchorDate,accountingCycleDays),
-                    weeklyHours,exceptions,weeklyPresenceRequirements,presenceExceptions),people) ||
-                  !validateAvailabilityConfiguration(people,availabilities,weeklyHours,exceptions,workRules).valid ||
-                  persistenceStatus!=="saved"||availabilityDraftOpen}
-                onClick={()=>setOnboarding(previous=>({
-                  ...previous,availabilityRulesConfirmedFingerprint:
-                    availabilityAndRulesFingerprint(availabilities,workRules),
-                }))}>Confirmar disponibilidades e regras</button>}
-          </section>
-        </>
-      )}
-
-      {activeSection === "workRules" && (
-        <WorkRulesPanel
-          weeklyOperatingHours={weeklyHours}
-          workRules={workRules}
-          onChange={setWorkRules}
-          people={people}
-          onPeopleChange={setPeople}
-        />
-      )}
-      {activeSection === "presence" && (
-        <PresencePanel
-          weeklyOperatingHours={weeklyHours}
-          operatingExceptions={exceptions}
-          people={people}
-          availabilities={availabilities}
-          weeklyRequirements={weeklyPresenceRequirements}
-          exceptions={presenceExceptions}
-          onWeeklyChange={setWeeklyPresenceRequirements}
-          onExceptionsChange={setPresenceExceptions}
-          onboarding={onboarding}
-          operationConfirmed={isOperationConfirmed(
-            onboarding,weeklyHours,operationTimeZone,cycleAnchorDate,accountingCycleDays)}
-          persistenceStatus={persistenceStatus}
-          onConfirmCoverage={()=>setOnboarding(previous=>({
-            ...previous,coverageConfirmedFingerprint:coverageFingerprint(
-              weeklyHours,exceptions,weeklyPresenceRequirements,presenceExceptions),
-          }))}
-          onDraftOpenChange={setPresenceDraftOpen}
-        />
-      )}
-
-      {activeSection === "generator" && (
-        <ScheduleGeneratorPanel
-          people={people}
-          availabilities={availabilities}
-          operatingCalendar={generatorOperatingCalendar}
-          workRules={workRules}
-          presence={generatorPresence}
-          operationTimeZone={operationTimeZone}
-          ownerId={supabaseAuthClient?.user?.id}
-          initialDate={generatorInitialDate}
-          onSaveGenerated={saveGenerated}
-          onBackToCalendar={() => navigate("schedules")}
-        />
-      )}
+    <Shell>
+      <div className="page-heading">
+        <div>
+          <p className="eyebrow">Espaço de trabalho</p>
+          <h1>Horários</h1>
+          <p>O calendário será o centro da operação. Ainda não existem horários configurados.</p>
         </div>
+        <span className="stage-tag">V2 · Base visual</span>
       </div>
-    </main>
+      <div className="calendar-layout">
+        <section className="surface calendar-panel" aria-label="Calendário mensal">
+          <header className="calendar-header">
+            <div>
+              <p className="surface-kicker">Calendário</p>
+              <h2>{monthLabel(visible.year, visible.month)}</h2>
+            </div>
+            <div className="month-actions">
+              <button className="icon-button" type="button" onClick={() => navigateMonth(-1)} aria-label="Mês anterior">‹</button>
+              <button className="today-button" type="button" onClick={() => {
+                setVisible({ year: today.getFullYear(), month: today.getMonth() });
+                setSelectedDate(todayString);
+              }}>Hoje</button>
+              <button className="icon-button" type="button" onClick={() => navigateMonth(1)} aria-label="Mês seguinte">›</button>
+            </div>
+          </header>
+          <div className="calendar-grid" role="grid" aria-label={monthLabel(visible.year, visible.month)}>
+            {WEEKDAYS.map(day => <span className="weekday" key={day} role="columnheader">{day}</span>)}
+            {cells.map((cell, index) => cell.day === null
+              ? <span className="empty-day" key={"empty-" + index} aria-hidden="true" />
+              : <button type="button" role="gridcell" key={cell.date}
+                  className={"calendar-day" + (cell.date === todayString ? " is-today" : "") + (cell.date === selectedDate ? " is-selected" : "")}
+                  onClick={() => setSelectedDate(cell.date)}
+                  aria-label={selectedDayLabel(cell.date!)}
+                  aria-selected={selectedDate === cell.date}>
+                  <span>{cell.day}</span>
+                </button>
+            )}
+          </div>
+          <p className="calendar-footnote"><span className="neutral-dot" /> Nenhum dia classificado — falta configurar a operação</p>
+        </section>
+        <aside className="surface detail-panel" aria-label="Detalhe do dia">
+          <p className="surface-kicker">Detalhe do dia</p>
+          <h2>{selectedDate ? selectedDayLabel(selectedDate) : "Seleciona uma data"}</h2>
+          <span className="detail-state">Sem configuração</span>
+          <p>
+            {selectedDate
+              ? "Este dia ainda não tem um horário. A ausência de turnos não significa folga."
+              : "Seleciona um dia do calendário para consultar o seu estado."}
+          </p>
+          <div className="detail-divider" />
+          <p className="detail-explanation">
+            Nesta etapa não existem pessoas, funcionamento, regras nem geração de turnos.
+          </p>
+          <a className="text-link" href="/configuracao">Ver próximo passo <span aria-hidden="true">→</span></a>
+        </aside>
+      </div>
+    </Shell>
   );
+}
+
+function SettingsPage() {
+  return (
+    <Shell>
+      <div className="page-heading">
+        <div>
+          <p className="eyebrow">Próxima etapa</p>
+          <h1>Configuração</h1>
+          <p>Vamos definir a operação uma decisão de cada vez.</p>
+        </div>
+        <span className="stage-tag">Ainda não implementado</span>
+      </div>
+      <section className="surface settings-panel">
+        <span className="step-number">01</span>
+        <div>
+          <p className="surface-kicker">Primeiro conceito</p>
+          <h2>Funcionamento da empresa</h2>
+          <p>Antes de gerar horários, o motor precisa de saber em que dias e intervalos a empresa funciona. Ainda não vamos introduzir regras ou pessoas.</p>
+          <p className="settings-note">Esta página é apenas a estrutura visual da próxima etapa. Não guarda configuração.</p>
+          <a className="button button-secondary" href="/horarios">Voltar ao calendário <span aria-hidden="true">→</span></a>
+        </div>
+      </section>
+    </Shell>
+  );
+}
+
+export default function App() {
+  const path = window.location.pathname;
+  useEffect(() => {
+    if (!knownFoundationPath(path)) window.history.replaceState(null, "", "/");
+  }, [path]);
+  const page = pageForPath(path);
+  if (page === "calendar") return <CalendarPage />;
+  if (page === "settings") return <SettingsPage />;
+  return <WelcomePage />;
 }
