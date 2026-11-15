@@ -1637,7 +1637,7 @@ export function generateConstrainedPeriodSchedule(
       .map(issue=>person.name+": "+issue));
   }
   policyIssues.push(...invalidRequiredWeeklyTargetPolicies(input.people??[],
-    input.workConstraints?.maximumWeeklyEffectiveMinutes,
+    input.workConstraints?.maximumWeeklyEffectiveMinutes??0,
     input.workRules?.requireWeeklyTargetsAsMinimum));
   if (policyIssues.length) return resultWith("invalid_input",policyIssues);
   const maxNodes = input.maxSearchNodes ?? DEFAULT_GLOBAL_MAX_NODES;
