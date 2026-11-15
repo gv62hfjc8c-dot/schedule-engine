@@ -42,7 +42,9 @@ export interface RequiredWeeklyTargetResult {
  * unless the rule was explicitly enabled, and always include attested shifts
  * OUTSIDE the generated month in complete Monday–Sunday weeks. */
 export function validateRequiredWeeklyTargets(
-  input:GenerateConstrainedPeriodInput,assignments:DatedWorkShift[]
+  input:Pick<GenerateConstrainedPeriodInput,
+    'workRules'|'workConstraints'|'people'|'timeZone'|'startDate'|'endDate'|'externalContext'>,
+  assignments:DatedWorkShift[]
 ):RequiredWeeklyTargetResult {
   if(!input.workRules.requireWeeklyTargetsAsMinimum)
     return {valid:true,issues:[],deficits:[]};
