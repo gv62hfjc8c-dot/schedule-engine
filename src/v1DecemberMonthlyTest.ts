@@ -8,9 +8,9 @@ import {certifyFinalGeneratedSchedule} from "./utils/finalScheduleCertification"
 import {validateRequiredWeeklyTargets,provenRequiredWeeklyTargetShortage}
   from "./utils/requiredWeeklyTargets";
 
-const assert=(condition:unknown,message:string):asserts condition=>{
+function assert(condition:unknown,message:string):asserts condition {
   if(!condition)throw Error("V1 DECEMBER: "+message);
-};
+}
 const openDays=new Set(["monday","tuesday","wednesday","thursday","friday"]);
 const hours=Object.fromEntries(WEEKDAYS.map(day=>[
   day,openDays.has(day)?[{start:"09:00",end:"19:00"}]:[],
