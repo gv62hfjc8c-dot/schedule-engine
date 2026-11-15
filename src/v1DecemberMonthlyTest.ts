@@ -86,4 +86,17 @@ assert(!certifyFinalGeneratedSchedule(noOutside,result.assignments).valid,
   "O certificador não pode confiar num mês ignorando as horas exteriores.");
 const tooLong=generateConstrainedPeriodSchedule({...input,endDate:"2027-01-01"});
 assert(tooLong.status==="invalid_input","32 dias são explicitamente rejeitados.");
+// An explicit HARD minimum exceeding the company cap is invalid,
+// not silently clipped to a lower value.
+const impossibleCompanyFloor={
+  ...input,people:input.people.map((p,i)=>i===0?{
+    ...p,weeklyContractMinutes:3000,weeklyTargetMinutes:3000,
+  }:p),
+};
+const invalidFloor=generateConstrainedPeriodSchedule(impossibleCompanyFloor);
+assert(invalidFloor.status==="invalid_input" &&
+  invalidFloor.issues.some(issue=>issue.includes("excede o limite máximo")),
+  "O motor deve rejeitar um mínimo semanal acima do teto de segurança.");
+assert(!certifyFinalGeneratedSchedule(impossibleCompanyFloor,result.assignments).valid,
+  "A certificação independente também rejeita mínimos incompatíveis.");
 console.log("V1 December PASS: hard vs soft, independent rejection and boundary safeguards.");
