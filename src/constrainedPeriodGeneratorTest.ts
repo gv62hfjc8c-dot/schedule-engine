@@ -391,9 +391,9 @@ assert(closedResult.status === "generated" &&
   closedResult.days.every(day => day.lastDailyStatus === "closed"),
   "Catorze dias consecutivos fechados aceites com contexto completo.");
 
-const tooLong = { ...closed14, endDate: "2026-11-23" };
+const tooLong = { ...closed14, endDate: "2026-11-26" };
 assert(generateConstrainedPeriodSchedule(tooLong).status === "invalid_input",
-  "Vinte e nove dias excedem o horizonte de 28 dias do gerador condicionado.");
+  "Trinta e dois dias excedem o horizonte de 31 dias do gerador condicionado.");
 assert(generateConstrainedPeriodSchedule({
   ...closed14, startDate: "2026-11-08", endDate: "2026-10-26",
 }).status === "invalid_input",
