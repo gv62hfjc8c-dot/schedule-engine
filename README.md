@@ -96,8 +96,9 @@ O esquema versionado inclui treze ficheiros de migração:
 **quatro identificadores históricos reconstruídos e seis migrações PR47**,
 mais duas
 migrações posteriores de classificação e vínculo temporal, e a migração
-V1 que alarga o arquivo a propostas de 31 dias. Esta última só fica ativa
-na instância Supabase após aplicação controlada. O histórico de
+V1 que alarga o arquivo a propostas de 31 dias. A migração V1
+(20261115223920) foi aplicada ao projeto Supabase em 15/11/2026,
+sem alterar os registos históricos. O histórico de
 alterações e de propostas é preservado; não apagar migrações antigas só porque
 o modelo de interface V1 é mais simples. Consultar
 [setup do Supabase](docs/supabase-setup.md) antes de qualquer atualização
