@@ -286,7 +286,7 @@ try{
   // 01: the operational documentation must claim 28, NOT 14 days.
   await page.getByRole("button",{name:"Operação",exact:true}).click();
   const operation=page.getByRole("region",{name:"Configuração temporal da operação"});
-  await operation.getByText(/até 28 dias por proposta/).waitFor();
+  await operation.getByText(/até 31 dias por proposta/).waitFor();
   assert(!/14 dias por proposta/.test(await operation.innerText()));
   // 15: Europe/Lisbon must persist through a real WebKit reload.
   await operation.getByLabel("Fuso horário IANA").fill("Europe/Lisbon");
@@ -807,7 +807,7 @@ try{
   await page.getByRole("button",{name:"Horários",exact:true}).click();
   await page.getByRole("button",{name:"+ Criar horário",exact:true}).click();
   await page.getByText(/Cada proposta válida é guardada no Supabase/).waitFor();
-  await page.getByText(/Até 28 dias/).waitFor();
+  await page.getByText(/Até 31 dias/).waitFor();
   await page.getByRole("heading",{name:"Nova proposta de horário"}).waitFor();
   const workflow=page.getByRole("list",{name:"Etapas do planeamento"});
   assert.equal(await workflow.locator("li").count(),3);
