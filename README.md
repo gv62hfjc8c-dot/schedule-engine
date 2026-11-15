@@ -33,3 +33,17 @@ npm run dev
 Testar os percursos no Safari e, antes de integrar o PR, verificar visualmente as resoluções 320px, 375px, 768px, 1024px e desktop largo. Os testes automáticos verificam a lógica do calendário, as rotas e contratos estáticos de linguagem e CSS, mas não substituem a inspeção visual nos dispositivos.
 
 A versão anterior está preservada na `main` e no PR70. A branch da V2 é `v2/clean-foundation`; o PR71 permanece Draft até aceitação no Mac.
+
+## Encaminhamento após autenticação
+
+A lógica independente em `src/entryRouting.ts` prepara a entrada na conta sem criar uma sessão fictícia:
+
+- Não autenticado: `/`.
+- Autenticado, configuração conhecida e vazia: `/configuracao/inicial` — primeiro acesso.
+- Autenticado, configuração parcialmente validada: `/configuracao/inicial` — retomar na primeira secção não validada.
+- Autenticado, todas as secções obrigatórias validadas: `/horarios`.
+- Autenticado, estado de configuração desconhecido ou inválido: sem encaminhamento, até se conseguir verificar.
+
+As secções previstas são empresa, funcionamento, equipa, disponibilidades, regras e cobertura. O campo `checks` representa resultados de validação das secções, **não** visualizações de páginas, cliques ou confirmações do utilizador. Não usar uma flag genérica `setupComplete` como prova. A lista e a obrigatoriedade das secções devem ser revisitadas quando as validações reais forem implementadas.
+
+A rota de introdução `/configuracao/inicial` existe como página de produto, mas **não existem formulários de onboarding nem persistência** nesta etapa. A função de decisão está coberta por testes, não está ligada ao formulário de login (que continua sem backend). Futuramente, o controlador autenticado deverá consultar os dados validados da empresa e executar a decisão; o backend deverá aplicar autorização independentemente da navegação do cliente.
