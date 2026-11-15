@@ -64,6 +64,27 @@ export function validateRequiredWeeklyTargets(
   const deficits:WeeklyTargetDeficit[]=[];
   if(issues.length)return {valid:false,issues,deficits};
   const context=input.externalContext;
+  // The external context must never contain assignments from the generated
+  // period or count the same person-day twice. Otherwise an incorrect
+  // attestation could manufacture enough hours to satisfy a HARD minimum.
+  const outsidePersonDays=new Set<string>();
+  for(const shift of context.shifts){
+    if(shift.date>=input.startDate && shift.date<=input.endDate){
+      issues.push("Contexto exterior contém um turno dentro do período gerado: "+
+        shift.personId+" ("+shift.date+").");
+    }
+    if(shift.date<context.startDate || shift.date>context.endDate){
+      issues.push("Contexto exterior contém um turno fora do intervalo confirmado: "+
+        shift.personId+" ("+shift.date+").");
+    }
+    const key=shift.personId+"|"+shift.date;
+    if(outsidePersonDays.has(key)){
+      issues.push("Turno duplicado no contexto exterior: "+shift.personId+
+        " ("+shift.date+").");
+    }
+    outsidePersonDays.add(key);
+  }
+  if(issues.length)return {valid:false,issues,deficits};
   const shifts=[...context.shifts,...assignments];
   for(const week of targetWeeks(input.startDate,input.endDate)){
     const weekStart=civil(week),weekEnd=civil(week+6*DAY);
