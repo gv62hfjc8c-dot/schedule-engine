@@ -31,7 +31,7 @@ assert.deepEqual(migrations,[
   "20261108234026_pr47_approval_config_revision_cas.sql",
   "20261109230651_20261109210000_history_day_occurrence_types.sql",
   "20261109230719_20261109223000_employment_aware_historical_verification.sql",
-  "20261115210000_v1_monthly_31_day_proposals.sql",
+  "20261115223920_v1_monthly_31_day_proposals.sql",
 ],"Active migration versions must match the reviewed lineage, including the typed historical day extension.");
 const state=file("supabase/migrations/20261102125810_generated_schedule_proposals.sql");
 contains(state,/security\s+definer/i,"State RPC must document its security context.");
@@ -63,7 +63,7 @@ absent(legacy,/grant\s+execute\s+on\s+function\s+public\.save_schedule_engine_ap
 const fourWeeks=file("supabase/migrations/20261108124759_pr47_four_week_proposals.sql");
 contains(fourWeeks,/end_date\s*<\s*start_date\s*\+\s*28/i,
   "Four-week proposals require the database CHECK to accept 28 days.");
-const month31=file("supabase/migrations/20261115210000_v1_monthly_31_day_proposals.sql");
+const month31=file("supabase/migrations/20261115223920_v1_monthly_31_day_proposals.sql");
 contains(month31,/end_date\s*<\s*start_date\s*\+\s*31/i,
   "V1 proposal migration must allow 31 consecutive days.");
 const deployedRpcMigration=file("supabase/migrations/20261108124844_pr47_state_rpc_private_schema.sql");
