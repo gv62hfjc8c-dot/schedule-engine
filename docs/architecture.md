@@ -243,8 +243,8 @@ Introduzir um conceito de cada vez e validar o seu contrato antes de construir o
 
 ## V1 — proposta mensal e obrigações semanais
 
-A V1 permite 1–31 dias na pesquisa e adiciona migração aditiva de CHECK
-para propostas de até 31 dias. A regra `requireWeeklyTargetsAsMinimum` é
+A V1 permite 1–31 dias na pesquisa e inclui a migração aditiva
+20261115223920 (CHECK até 31 dias), aplicada ao Supabase em 15/11/2026. A regra `requireWeeklyTargetsAsMinimum` é
 opcional: quando ativa, o objetivo semanal passa a mínimo de horas efetivas
 verificado pelo certificador independente. A certificação inclui semanas civis
 completas e turnos confirmados fora do mês (por exemplo 30/11 e 01/01),
