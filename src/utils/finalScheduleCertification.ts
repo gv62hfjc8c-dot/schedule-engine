@@ -7,6 +7,7 @@ import { resolvePresenceForDate } from "./presence";
 import { checkPresenceForWorkShifts } from "./workCoverage";
 import { validateWorkConstraints, type WorkConstraintViolation } from "./workConstraints";
 import { isExplicitRequiredWorkday, isPersonUnavailableOnDate, validatePersonWeeklyContractCaps, missingRequiredOutsideWorkdays } from "./personSchedulingPolicies";
+import {validateRequiredWeeklyTargets} from "./requiredWeeklyTargets";
 
 export interface FinalScheduleCertification {
   valid: boolean;
@@ -130,6 +131,8 @@ export function certifyFinalGeneratedSchedule(
     input.workConstraints.maximumWeeklyEffectiveMinutes,
     input.timeZone,input.startDate,input.endDate);
   if (!contractual.valid) issues.push(...contractual.issues);
+  const requiredWeekly=validateRequiredWeeklyTargets(input,assignments);
+  if (!requiredWeekly.valid) issues.push(...requiredWeekly.issues);
   const missingOutside=missingRequiredOutsideWorkdays(
     input.people,input.externalContext.shifts,input.startDate,input.endDate,
     input.externalContext.startDate,input.externalContext.endDate);
