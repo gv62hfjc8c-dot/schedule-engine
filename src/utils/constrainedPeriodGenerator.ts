@@ -13,7 +13,7 @@ import {
 import type { PresenceShortage } from "./presence";
 import type { DayScheduleStatus } from "./dailyGenerator";
 /** The constrained engine certifies cross-day, weekly and monthly boundaries. */
-export const MAX_CONSTRAINED_PERIOD_DAYS=28;
+export const MAX_CONSTRAINED_PERIOD_DAYS=31;
 import { getOperatingIntervalsForDate } from "./operatingCalendar";
 import { getSchedulableIntervalsForDate, isSchedulableForInterval } from "./availability";
 import { checkPresenceForWorkShifts } from "./workCoverage";
@@ -25,6 +25,7 @@ import {
 import { resolvePresenceForDate } from "./presence";
 import { provenWeeklyCapacityShortage } from "./weeklyCapacityPrecheck";
 import {provenRequiredWeeklyTargetShortage} from "./requiredWeeklyTargets";
+import {certifiedRegularWeekdaySeed} from "./certifiedRegularWeekdaySeed";
 
 /**
  * A caller must explicitly attest that all assignments AND confirmed
@@ -1751,6 +1752,28 @@ export function generateConstrainedPeriodSchedule(
       shortage,
       "O diagnóstico é um limite inferior comprovado; nenhuma pesquisa foi necessária.",
     ], [], required);
+  }
+  // For simple full-team schedules, try a deterministic construction and
+  // require the same independent certification as the general solver.
+  // Invalid candidates fall back to backtracking; no shortcut may bypass rules.
+  let regular:DatedWorkShift[]|null=null;
+  try{regular=certifiedRegularWeekdaySeed(input);}catch{regular=null;}
+  if(regular){
+    return {
+      status:"generated",
+      validationScope:"period_work_and_coverage_when_generated",
+      assignments:[...regular].sort((a,b)=>a.date.localeCompare(b.date)||
+        a.personId.localeCompare(b.personId,"en")),
+      days:dates.map(date=>({
+        date,
+        lastDailyStatus:regular!.some(s=>s.date===date)?"generated":"closed",
+        attempts:0,rejectedByWorkRules:0,
+        foundAssignments:regular!.filter(s=>s.date===date).length,
+        issues:[],shortages:[],
+      })),
+      issues:[],requiredContext:required,workViolations:[],
+      exploredNodes:0,rejectedByWorkRules:0,
+    };
   }
   const diagnostics: ConstrainedPeriodDayDiagnostic[] = dates.map(date => ({
     date,
