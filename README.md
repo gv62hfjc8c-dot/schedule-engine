@@ -1,40 +1,35 @@
-# Schedule Engine — V2 (fundação)
+# Schedule Engine — V2: base visual do produto
 
-Recomeço controlado do Schedule Engine. Esta branch contém uma base autónoma:
-interface React + TypeScript + Vite, inspirada na identidade visual anterior.
-A implementação V0/V1 continua preservada no histórico e noutras branches.
+A V2 é uma reconstrução independente do código V0/V1. A identidade visual da aplicação foi mantida, mas as páginas estão a ser desenvolvidas como ecrãs de produto final, sem etiquetas de protótipo, desenvolvimento ou demonstração.
 
-## O que já existe
+## Rotas
 
-- Página inicial em / com o mesmo conceito visual de dois painéis.
-- /horarios: calendário civil mensal sem dados (o utilizador pode navegar e selecionar dias).
-- /configuracao: estrutura visual da primeira etapa futura.
-- /horarios/gerar NÃO existe nesta versão; um endereço antigo volta à raiz.
-- Testes pequenos e independentes para as rotas e o calendário.
+- `/` — página de acesso com formulário de início de sessão e identidade visual em dois painéis.
+- `/horarios` — calendário mensal com navegação e seleção de datas. O calendário ainda não tem dados operacionais.
+- `/configuracao` — estado vazio de definições da organização.
+- `/horarios/gerar` — rota da versão anterior: regressa à página inicial.
 
-## O que ainda NÃO existe
+## Regra obrigatória de UI
 
-- Autenticação real: campos de login bloqueados, e não são recolhidas credenciais.
-- Supabase, persistência, colaboradores, turnos, regras, cobertura ou algoritmo de geração.
-- Sem dados de demonstração fictícios apresentados como reais.
+Qualquer conteúdo visível deve fazer sentido para o utilizador final. Mensagens sobre versões, branches, testes, demos, PRs ou funcionalidades futuras pertencem apenas à documentação técnica, nunca ao produto.
 
-## Como experimentar no Mac
+O layout tem de se adaptar a desktop, tablet e smartphone, incluindo ecrãs com largura de 320px. O design preserva o estilo azul-escuro e teal, navegação acessível, foco visível e redução de animações quando o sistema pede.
 
-A partir da pasta local já existente do repositório:
+## Estado funcional real
 
-    git status --short
-    git fetch origin
-    git switch --track origin/v2/clean-foundation
-    npm ci
-    npm test
-    npm run build
+O formulário de acesso **ainda não tem provedor de autenticação**. Submeter o formulário não grava, envia ou autentica credenciais e apenas apresenta uma indisponibilidade de sessão. Não se simula autenticação. A navegação direta para `/horarios` está aberta apenas enquanto não existe backend nem dados privados.
 
-Se a branch local já existir, usar git switch v2/clean-foundation e git pull --ff-only.
-Não fazer switch com modificações locais sem primeiro as verificar.
-Se o Vite já estiver ativo, confirmar a página em http://localhost:5173/.
-Se não estiver, executar npm run dev e abrir o endereço apresentado.
+Não existem ainda motor de scheduling, regras, colaboradores, turnos, aprovações, Supabase nem persistência. Os ecrãs não devem inventar resultados. Um dia sem turno nunca é automaticamente marcado como folga.
 
-## Próximo passo
+## Verificação
 
-Definir o **funcionamento da empresa**, sem antecipar as necessidades do algoritmo.
-Cada nova funcionalidade exige finalidade clara, teste no motor e verificação na UI.
+```bash
+npm ci
+npm test
+npm run build
+npm run dev
+```
+
+Testar os percursos no Safari e, antes de integrar o PR, verificar visualmente as resoluções 320px, 375px, 768px, 1024px e desktop largo. Os testes automáticos verificam a lógica do calendário, as rotas e contratos estáticos de linguagem e CSS, mas não substituem a inspeção visual nos dispositivos.
+
+A versão anterior está preservada na `main` e no PR70. A branch da V2 é `v2/clean-foundation`; o PR71 permanece Draft até aceitação no Mac.
