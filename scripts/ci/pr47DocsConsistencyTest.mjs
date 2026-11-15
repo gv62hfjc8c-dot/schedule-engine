@@ -17,8 +17,8 @@ const migrationFiles=readdirSync("supabase/migrations")
 assert.equal(migrationFiles.length,13,"Expected thirteen migrations, including the V1 monthly upgrade.");
 assert.match(docs,/quatro identificadores históricos reconstruídos\s+e seis migrações PR47/,
   "Documented migration lineage must match the deployed version count.");
-assert.match(docs,/doze ficheiros versionados/,
-  "README must distinguish the twelve applied migrations and Git alignment.");
+assert.match(docs,/treze ficheiros de migração/,
+  "README must document thirteen versioned migrations, with the latest V1 pending deployment.");
 assert.match(docs,/31 dias/);
 assert.match(architecture,/1–31 dias/);
 assert.match(app,/A geração certificada suporta períodos de até 31 dias por proposta/);
