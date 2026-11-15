@@ -24,6 +24,7 @@ import {
 } from "./personSchedulingPolicies";
 import { resolvePresenceForDate } from "./presence";
 import { provenWeeklyCapacityShortage } from "./weeklyCapacityPrecheck";
+import {provenRequiredWeeklyTargetShortage} from "./requiredWeeklyTargets";
 
 /**
  * A caller must explicitly attest that all assignments AND confirmed
@@ -1737,6 +1738,13 @@ export function generateConstrainedPeriodSchedule(
     { length: dayCount },
     (_, index) => dayString(start + index * DAY)
   );
+  const weeklyRequiredShortage=provenRequiredWeeklyTargetShortage(input);
+  if(weeklyRequiredShortage){
+    return resultWith("incomplete",[
+      weeklyRequiredShortage,
+      "A configuração é comprovadamente inviável; nenhuma pesquisa foi necessária.",
+    ],[],required);
+  }
   const shortage = provenWeeklyCapacityShortage(input, dates);
   if (shortage) {
     return resultWith("incomplete", [
