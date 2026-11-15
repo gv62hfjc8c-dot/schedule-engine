@@ -100,3 +100,34 @@ assert(invalidFloor.status==="invalid_input" &&
 assert(!certifyFinalGeneratedSchedule(impossibleCompanyFloor,result.assignments).valid,
   "A certificação independente também rejeita mínimos incompatíveis.");
 console.log("V1 December PASS: hard vs soft, independent rejection and boundary safeguards.");
+
+
+// The weekly HARD certifier is defensive even when called independently of
+// the period generator: external records cannot supply fictitious hours.
+const duplicateOutside={...input,externalContext:{
+  ...input.externalContext,shifts:[...outside,outside[0]],
+}};
+const duplicateCertification=certifyFinalGeneratedSchedule(
+  duplicateOutside,result.assignments);
+assert(!duplicateCertification.valid &&
+  duplicateCertification.issues.some(issue=>issue.includes("duplicado no contexto exterior")),
+  "Um turno exterior duplicado nunca pode validar horas obrigatórias.");
+
+const insideOutside={...input,externalContext:{
+  ...input.externalContext,shifts:[...outside,result.assignments[0]],
+}};
+const insideCertification=certifyFinalGeneratedSchedule(
+  insideOutside,result.assignments);
+assert(!insideCertification.valid &&
+  insideCertification.issues.some(issue=>issue.includes("dentro do período gerado")),
+  "O mesmo turno não pode ser contabilizado no contexto e na proposta.");
+
+const outOfRangeOutside={...input,externalContext:{
+  ...input.externalContext,shifts:[...outside,shift("2026-11-29",people[0],0)],
+}};
+const outOfRangeCertification=certifyFinalGeneratedSchedule(
+  outOfRangeOutside,result.assignments);
+assert(!outOfRangeCertification.valid &&
+  outOfRangeCertification.issues.some(issue=>issue.includes("fora do intervalo confirmado")),
+  "O certificador não pode aceitar turnos fora do intervalo atestado.");
+console.log("V1 December PASS: external context cannot duplicate or forge mandatory hours.");
