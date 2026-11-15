@@ -18,6 +18,7 @@ import { getOperatingIntervalsForDate, getWeekday } from "./operatingCalendar";
 import { resolvePresenceForDate } from "./presence";
 import { checkPresenceForWorkShifts } from "./workCoverage";
 import { MAX_CONSTRAINED_PERIOD_DAYS } from "./constrainedPeriodGenerator";
+import {validateRequiredWeeklyTargets} from "./requiredWeeklyTargets";
 import {
   isPersonUnavailableOnDate, isExplicitRequiredWorkday,
   validatePersonWeeklyContractCaps,
@@ -756,6 +757,19 @@ function validateDraft(
   if(!contracts.valid)return {
     code:"work_constraint",issues:contracts.issues,workViolations:[],
   };
+  if(environment.workRules?.requireWeeklyTargetsAsMinimum){
+    const mandatory=validateRequiredWeeklyTargets({
+      people:environment.people,
+      workRules:environment.workRules,
+      workConstraints:environment.workConstraints,
+      timeZone:ledger.timeZone,
+      startDate:draft.startDate,endDate:draft.endDate,
+      externalContext:{...ledger.coverage,completeOutsideTarget:true,
+        shifts:[...activeShifts,...externalHistory]},
+    },draft.shifts);
+    if(!mandatory.valid)return {code:"work_constraint",
+      issues:mandatory.issues,workViolations:[]};
+  }
   return null;
 }
 
