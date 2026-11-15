@@ -819,16 +819,16 @@ try{
   const presets=page.getByRole("group",{name:"Duração do período"});
   await presets.getByRole("button",{name:"14 dias"}).click();
   assert.equal(await presets.getByRole("button",{name:"14 dias"}).getAttribute("aria-pressed"),"true");
-  const beforeFullMonth=await page.locator("#p63-start-date").inputValue();
+  const beforeFullMonth=await page.locator("#p63-start-date").innerText();
+  const [_,month,year]=beforeFullMonth.trim().split("/");
   await presets.getByRole("button",{name:"Mês completo"}).click();
-  const expectedFirst=beforeFullMonth.slice(0,7)+"-01";
-  const expectedLast=String(new Date(Date.UTC(
-    Number(beforeFullMonth.slice(0,4)),Number(beforeFullMonth.slice(5,7)),0)
-  ).getUTCDate()).padStart(2,"0");
-  assert.equal(await page.locator("#p63-start-date").inputValue(),expectedFirst,
+  const expectedLast=String(new Date(Date.UTC(Number(year),Number(month),0))
+    .getUTCDate()).padStart(2,"0");
+  assert.equal((await page.locator("#p63-start-date").innerText()).trim(),
+    "01/"+month+"/"+year,
     "V1 full-month preset starts on civil day one.");
-  assert.equal(await page.locator("#p63-end-date").inputValue(),
-    beforeFullMonth.slice(0,7)+"-"+expectedLast,
+  assert.equal((await page.locator("#p63-end-date").innerText()).trim(),
+    expectedLast+"/"+month+"/"+year,
     "V1 full-month preset ends on the actual final civil day.");
   assert.equal(await presets.getByRole("button",{name:"Mês completo"})
     .getAttribute("aria-pressed"),"true",
