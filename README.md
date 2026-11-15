@@ -39,19 +39,24 @@ Uma proposta guardada não é automaticamente um horário oficialmente aprovado.
 
 ## Limitações conhecidas nesta transição V1
 
-1. A geração certificada suporta, atualmente, até **28 dias** por proposta.
-   Um mês de 31 dias exige nova capacidade com validação de semanas e descansos
-   que atravessam as fronteiras do mês.
-2. O contrato semanal é um **máximo obrigatório**, mas o objetivo semanal é
-   **soft**. A V1 ainda tem de suportar a exigência expressa de 40h efetivas
-   semanais para cada colaborador e validá-la independentemente.
+1. A geração certificada permite **até 31 dias** numa proposta, incluindo
+   meses completos. Quando o objetivo semanal é obrigatório, as semanas que
+   atravessam os limites do mês precisam de turnos exteriores efetivamente
+   conhecidos e confirmados; uma declaração vazia não cria essas horas.
+2. O contrato semanal é um **máximo obrigatório**. O objetivo é **soft**
+   por defeito; a opção de Regras **«Cumprimento obrigatório das horas
+   semanais»** transforma-o em mínimo **hard**, certificado independentemente.
+   Aplica-se a semanas civis de elegibilidade completa e inclui o contexto
+   exterior. Sem este contexto, o motor não pode declarar o mês válido.
 3. A aprovação oficial depende de **histórico verificado** e não deve ser
    inferida de propostas guardadas. A respetiva segurança, migrações e
    rastreabilidade são preservadas durante a simplificação.
 
 A auditoria de dezembro de 2026 usa oito colaboradores, segunda a sexta das
 09:00 às 19:00, folga ao fim de semana e mínimo de uma pessoa em cada intervalo.
-Não considerar o resultado mensal certificado enquanto os pontos 1 e 2 não estiverem resolvidos.
+O caso de dezembro tem testes positivos com contexto de 30/11 e 01/01,
+e negativos quando essas horas exteriores não existem. A UI mantém a
+confirmação explícita de contexto externo; não inventa horas de outros meses.
 
 ## Utilizar o projeto
 
@@ -87,10 +92,12 @@ final na conta de ensaio.
 
 ## Estado dos dados e documentação antiga
 
-O esquema ativo utiliza doze ficheiros versionados de migração:
+O esquema versionado inclui treze ficheiros de migração:
 **quatro identificadores históricos reconstruídos e seis migrações PR47**,
 mais duas
-migrações posteriores de classificação e vínculo temporal. O histórico de
+migrações posteriores de classificação e vínculo temporal, e a migração
+V1 que alarga o arquivo a propostas de 31 dias. Esta última só fica ativa
+na instância Supabase após aplicação controlada. O histórico de
 alterações e de propostas é preservado; não apagar migrações antigas só porque
 o modelo de interface V1 é mais simples. Consultar
 [setup do Supabase](docs/supabase-setup.md) antes de qualquer atualização
