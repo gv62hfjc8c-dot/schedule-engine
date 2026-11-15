@@ -768,7 +768,7 @@ export default function App() {
              </div>
              <p className="operation-context-footnote">
                O fuso aplicado rege o calendário e a geração; os horários arquivados mantêm
-               o original. A geração certificada suporta períodos de até 28 dias por proposta,
+               o original. A geração certificada suporta períodos de até 31 dias por proposta,
                independentemente do ciclo de trabalho escolhido.
              </p>
            </section>
