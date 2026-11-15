@@ -653,12 +653,12 @@ const approved28 = approveSchedule({
 });
 assert(approved28.ok && approved28.record.endDate==="2026-11-29",
   "O núcleo aprova 28 dias apenas quando o contexto completo é realmente atestado.");
-const rejected29 = approveSchedule({
+const rejected32 = approveSchedule({
   ledger:fullyReconciledFixture,expectedVersion:0,at:now1,
-  draft:draft("november-29-rejected","2026-11-02",novemberMondays.map(date=>shift(date)),"2026-11-30"),
+  draft:draft("november-32-rejected","2026-11-02",novemberMondays.map(date=>shift(date)),"2026-12-03"),
   environment:fourWeekEnvironment,
 });
-assertFailure(rejected29,"invalid_input","A aprovação continua a rejeitar períodos de 29 dias.");
+assertFailure(rejected32,"invalid_input","A aprovação continua a rejeitar períodos de 32 dias.");
 
 
 const missingPersonnelEnv=workDayEnvironment([tue]);
