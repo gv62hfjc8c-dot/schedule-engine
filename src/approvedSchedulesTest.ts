@@ -161,6 +161,19 @@ const first = approveSchedule({
   draft: proposal, environment: mondayEnvironment,
 });
 assert(first.ok, "Uma proposta válida de 4h pode ser aprovada.");
+// V1: the same 4-hour proposal cannot pass an explicit 40h HARD weekly floor.
+const weeklyRequiredEnvironment=workDayEnvironment([mon]);
+weeklyRequiredEnvironment.workRules={
+  standardShiftDurationMinutes:240,
+  requireWeeklyTargetsAsMinimum:true,
+};
+weeklyRequiredEnvironment.people[0].weeklyTargetMinutes=2400;
+const requiredHoursApproval=approveSchedule({
+  ledger:base,expectedVersion:0,at:now1,
+  draft:proposal,environment:weeklyRequiredEnvironment,
+});
+assertFailure(requiredHoursApproval,"work_constraint",
+  "A aprovação oficial também deve rejeitar mínimos semanais obrigatórios em falta.");
 if (!first.ok) throw new Error("Aprovação inicial falhou.");
 assert(first.ledger.version === 1 && first.ledger.records.length === 1 &&
   first.record.status === "approved" &&
