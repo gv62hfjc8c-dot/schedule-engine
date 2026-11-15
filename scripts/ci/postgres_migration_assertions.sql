@@ -14,8 +14,8 @@ BEGIN
  IF n<>5 THEN RAISE EXCEPTION 'RLS tables expected 5, found %',n; END IF;
  IF NOT EXISTS (
    SELECT 1 FROM pg_constraint WHERE conname='schedule_engine_generated_date_range'
-     AND pg_get_constraintdef(oid) LIKE '%(start_date + 28)%'
- ) THEN RAISE EXCEPTION '28-day archive CHECK not installed'; END IF;
+     AND pg_get_constraintdef(oid) LIKE '%(start_date + 31)%'
+ ) THEN RAISE EXCEPTION '31-day archive CHECK not installed'; END IF;
  IF has_function_privilege('anon','public.save_schedule_engine_state(bigint,jsonb)','EXECUTE')
  THEN RAISE EXCEPTION 'anonymous RPC execution exposed'; END IF;
  IF NOT has_function_privilege('authenticated','public.save_schedule_engine_state(bigint,jsonb)','EXECUTE')
@@ -58,7 +58,7 @@ BEGIN
 END $$;
 RESET ROLE;
 
--- The proposed 28-day archive range is valid; 29 is not.
+-- The proposed 31-day archive range is valid; 32 is not.
 SET ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub',
   '11111111-1111-4111-8111-111111111111',false);
@@ -67,10 +67,10 @@ INSERT INTO public.schedule_engine_generated_schedules(
 ) VALUES (
   'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
   '11111111-1111-4111-8111-111111111111',
-  '2026-11-02','2026-11-29','Atlantic/Azores',
+  '2026-12-01','2026-12-31','Atlantic/Azores',
   '{"schemaVersion":1,"validationScope":"user_attested_no_external_shifts",
     "shifts":[],"people":[],"configuration":{},
-    "startDate":"2026-11-02","endDate":"2026-11-29",
+    "startDate":"2026-12-01","endDate":"2026-12-31",
     "timeZone":"Atlantic/Azores"}'::jsonb
 );
 DO $$
@@ -81,13 +81,13 @@ BEGIN
    ) VALUES (
     'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
     '11111111-1111-4111-8111-111111111111',
-    '2026-11-02','2026-11-30','Atlantic/Azores',
+    '2026-12-01','2027-01-01','Atlantic/Azores',
     '{"schemaVersion":1,"validationScope":"user_attested_no_external_shifts",
       "shifts":[],"people":[],"configuration":{},
-      "startDate":"2026-11-02","endDate":"2026-11-30",
+      "startDate":"2026-12-01","endDate":"2027-01-01",
       "timeZone":"Atlantic/Azores"}'::jsonb
    );
-   RAISE EXCEPTION '29-day range was accepted';
+   RAISE EXCEPTION '32-day range was accepted';
  EXCEPTION WHEN check_violation THEN NULL;
  END;
 END $$;
