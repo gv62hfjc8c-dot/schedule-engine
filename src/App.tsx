@@ -196,6 +196,39 @@ function CalendarPage() {
   );
 }
 
+/**
+ * Landing screen for the future guided setup. It presents only lasting,
+ * user-facing content. No steps are marked complete or simulated.
+ */
+function InitialSetupPage() {
+  return (
+    <Shell>
+      <header className="page-heading">
+        <div>
+          <p className="eyebrow">Primeiro acesso</p>
+          <h1>Vamos configurar a tua empresa</h1>
+          <p>Prepara as informações essenciais para organizares os horários da equipa.</p>
+        </div>
+      </header>
+      <section className="surface settings-panel" aria-label="Configuração inicial">
+        <div className="settings-icon" aria-hidden="true">◷</div>
+        <div className="settings-copy">
+          <p className="surface-kicker">A tua organização</p>
+          <h2>Começar pela empresa</h2>
+          <p>
+            Identifica a tua organização e define o seu funcionamento.
+            Depois, poderás organizar a equipa, as disponibilidades e as regras
+            de planeamento.
+          </p>
+          <a className="text-link" href="/configuracao">
+            Consultar definições <span aria-hidden="true">→</span>
+          </a>
+        </div>
+      </section>
+    </Shell>
+  );
+}
+
 function SettingsPage() {
   return (
     <Shell>
@@ -233,5 +266,6 @@ export default function App() {
   const page = pageForPath(path);
   if (page === "calendar") return <CalendarPage />;
   if (page === "settings") return <SettingsPage />;
+  if (page === "setup") return <InitialSetupPage />;
   return <WelcomePage />;
 }
