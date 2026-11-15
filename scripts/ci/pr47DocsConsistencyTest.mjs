@@ -19,7 +19,7 @@ assert.match(docs,/quatro identificadores históricos reconstruídos\s+e seis mi
   "Documented migration lineage must match the deployed version count.");
 assert.match(docs,/doze ficheiros versionados/,
   "README must distinguish the twelve applied migrations and Git alignment.");
-assert.match(docs,/28 dias/);
+assert.match(docs,/31 dias/);
 assert.match(architecture,/1–31 dias/);
 assert.match(app,/A geração certificada suporta períodos de até 31 dias por proposta/);
 assert.doesNotMatch(app,/limite de geração continua a ser de 14 dias/);
