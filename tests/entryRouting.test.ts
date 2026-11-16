@@ -29,7 +29,7 @@ test("Configuração parcial retoma o primeiro ponto ainda não validado", () =>
     setup: {checks: {company: "valid", operatingHours: "valid", team: "invalid"}},
   }), {
     kind: "resume_setup",
-    destination: "/configuracao/inicial",
+    destination: "/configuracao/equipa",
     nextSection: "team",
   });
 });
