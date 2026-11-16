@@ -1,0 +1,187 @@
+/* Equipa — mesma linguagem visual, com ações acessíveis em desktop e mobile. */
+.team-panel {
+  max-width: 960px;
+  padding: clamp(18px, 3vw, 36px);
+}
+.team-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 26px;
+}
+.team-header h2 {
+  margin: 0 0 10px;
+  font-size: clamp(24px, 2.5vw, 30px);
+  letter-spacing: -.035em;
+}
+.team-header p:not(.surface-kicker) {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.65;
+  margin: 0;
+}
+.team-count {
+  flex: 0 0 89px;
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  padding: 12px;
+  color: #bce7e7;
+  background: #244554;
+  border: 1px solid #416779;
+  border-radius: 13px;
+}
+.team-count strong { font-size: 27px; line-height: 1; }
+.team-count span { font-size: 12px; font-weight: 700; }
+.team-list {
+  display: grid;
+  overflow: hidden;
+  border: 1px solid #385068;
+  border-radius: 12px;
+}
+.team-empty {
+  padding: 26px 22px;
+  background: #1f3046;
+}
+.team-empty p { color: var(--muted); margin: 0 0 8px; font-size: 14px; line-height: 1.6; }
+.team-empty p:last-child { margin: 0; }
+.team-empty strong { color: var(--text); }
+.team-person {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 14px 16px;
+  background: #1d2f44;
+  border-bottom: 1px solid #364d65;
+  min-width: 0;
+}
+.team-person:nth-child(even) { background: #22364a; }
+.team-person:last-child { border-bottom: 0; }
+.team-avatar {
+  flex: 0 0 42px;
+  display: inline-grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border: 1px solid #467788;
+  border-radius: 11px;
+  background: #2a5666;
+  color: #e6fbfc;
+  font-size: 17px;
+  font-weight: 800;
+}
+.team-person-info {
+  display: grid;
+  gap: 7px;
+  flex: 1;
+  min-width: 0;
+}
+.team-person-info strong {
+  overflow-wrap: anywhere;
+  font-size: 14px;
+}
+.team-status {
+  display: inline-flex;
+  justify-self: start;
+  padding: 4px 9px;
+  border-radius: 40px;
+  font-size: 11px;
+  font-weight: 700;
+}
+.team-status-active {
+  color: #c7f1dc;
+  background: #25463e;
+  border: 1px solid #426f5a;
+}
+.team-status-inactive {
+  color: #bed0df;
+  background: #2b3b4c;
+  border: 1px solid #486074;
+}
+.team-person-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 9px;
+}
+.team-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 8px 14px;
+  border: 1px solid #486478;
+  border-radius: 9px;
+  background: #22394d;
+  color: #d9edf8;
+  font-size: 13px;
+  font-weight: 700;
+}
+.team-action:hover { background: #2b5063; }
+.team-form {
+  display: grid;
+  gap: 12px;
+  max-width: 590px;
+  margin-top: 27px;
+}
+.team-form h3 { margin: 0 0 4px; font-size: 19px; }
+.team-form label {
+  color: #dbe7f4;
+  font-size: 13px;
+  font-weight: 700;
+}
+.team-form label span { color: #a5dde2; }
+.team-form input {
+  width: 100%;
+  min-width: 0;
+  min-height: 50px;
+  padding: 0 15px;
+  border: 1px solid #516b80;
+  border-radius: 10px;
+  background: #122032;
+  color: var(--text);
+}
+.team-form input::placeholder { color: #93a8bb; }
+.team-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+.team-form-actions .button { width: auto; margin: 0; }
+.team-help {
+  margin: 22px 0 0;
+  padding-top: 17px;
+  border-top: 1px solid #34495f;
+  color: #9fb6c8;
+  font-size: 12px;
+  line-height: 1.7;
+}
+.team-recovery {
+  padding: 17px 20px;
+  background: #382c3b;
+  border: 1px solid #8b687a;
+  border-radius: 11px;
+  margin-bottom: 23px;
+  color: #eacdd7;
+}
+.team-recovery p { font-size: 14px; line-height: 1.6; }
+@media (max-width: 620px) {
+  .team-person {
+    display: grid;
+    grid-template-columns: 42px minmax(0, 1fr);
+  }
+  .team-person-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+  .team-person-actions .team-action { flex: 1; }
+  .team-header { align-items: flex-start; }
+}
+@media (max-width: 460px) {
+  .team-form-actions { flex-direction: column; align-items: stretch; }
+  .team-form-actions .button { width: 100%; }
+  .team-person-actions { flex-direction: column; }
+  .team-person-actions .team-action { width: 100%; }
+}
