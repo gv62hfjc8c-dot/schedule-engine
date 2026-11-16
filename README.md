@@ -9,6 +9,7 @@ A V2 é uma reconstrução independente do código V0/V1. A identidade visual da
 - `/configuracao` — consulta de dados guardados da organização.
 - `/configuracao/inicial` — nome da empresa com validação e gravação local.
 - `/configuracao/funcionamento` — dias e horários semanais de funcionamento com validação e gravação local.
+- `/configuracao/equipa` — adicionar e editar colaboradores, com estado ativo/inativo.
 - `/horarios/gerar` — rota da versão anterior: regressa à página inicial.
 
 ## Regra obrigatória de UI
@@ -21,7 +22,7 @@ O layout tem de se adaptar a desktop, tablet e smartphone, incluindo ecrãs com 
 
 O formulário de acesso **ainda não tem provedor de autenticação**. Submeter o formulário não grava, envia ou autentica credenciais e apenas apresenta uma indisponibilidade de sessão. Não se simula autenticação. A navegação direta para `/horarios` está aberta apenas enquanto não existe backend nem dados privados.
 
-Não existem ainda motor de scheduling, regras, colaboradores, turnos, aprovações, Supabase nem persistência em servidor. Só os dados mínimos da empresa podem ser guardados neste dispositivo. Os ecrãs não devem inventar resultados. Um dia sem turno nunca é automaticamente marcado como folga.
+Não existem ainda motor de scheduling, regras, turnos, aprovações, Supabase nem persistência em servidor. Os dados de empresa, funcionamento e equipa podem ser guardados apenas neste dispositivo. Os ecrãs não devem inventar resultados. Um dia sem turno nunca é automaticamente marcado como folga.
 
 ## Verificação
 
@@ -34,7 +35,7 @@ npm run dev
 
 Testar os percursos no Safari e, antes de integrar o PR, verificar visualmente as resoluções 320px, 375px, 768px, 1024px e desktop largo. Os testes automáticos verificam a lógica do calendário, as rotas e contratos estáticos de linguagem e CSS, mas não substituem a inspeção visual nos dispositivos.
 
-A fundação V2 foi integrada na `main` através do PR71. A versão anterior mantém-se acessível no histórico Git e na branch do PR70. O PR72 desenvolve os horários de funcionamento na branch `v2/company-opening-hours`.
+A fundação V2 foi integrada na `main` através do PR71. A versão anterior mantém-se acessível no histórico Git e na branch do PR70. O PR72 foi integrado na `main`. O PR73 desenvolve a equipa na branch `v2/team-management`.
 
 ## Encaminhamento após autenticação
 
@@ -42,13 +43,13 @@ A lógica independente em `src/entryRouting.ts` prepara a entrada na conta sem c
 
 - Não autenticado: `/`.
 - Autenticado, configuração conhecida e vazia: `/configuracao/inicial` — primeiro acesso.
-- Autenticado, configuração parcialmente validada: `/configuracao/inicial` — retomar na primeira secção não validada.
+- Autenticado, configuração parcialmente validada: retomar na rota correspondente à primeira secção ainda não validada (empresa, funcionamento ou equipa).
 - Autenticado, todas as secções obrigatórias validadas: `/horarios`.
 - Autenticado, estado de configuração desconhecido ou inválido: sem encaminhamento, até se conseguir verificar.
 
 As secções previstas são empresa, funcionamento, equipa, disponibilidades, regras e cobertura. O campo `checks` representa resultados de validação das secções, **não** visualizações de páginas, cliques ou confirmações do utilizador. Não usar uma flag genérica `setupComplete` como prova. A lista e a obrigatoriedade das secções devem ser revisitadas quando as validações reais forem implementadas.
 
-As rotas `/configuracao/inicial` e `/configuracao/funcionamento` possuem formulários reais de configuração com armazenamento local limitado. As restantes validações e os formulários das próximas etapas ainda não existem. A função de decisão não está ligada ao formulário de login (que continua sem backend). Futuramente, o controlador autenticado deverá consultar os dados validados e autorizados da empresa antes de executar a decisão.
+As rotas `/configuracao/inicial`, `/configuracao/funcionamento` e `/configuracao/equipa` possuem formulários reais com armazenamento local limitado. A configuração de disponibilidades, regras e cobertura continua por implementar. A função de decisão não está ligada ao formulário de login (que continua sem backend). Futuramente, o controlador autenticado deverá consultar os dados validados e autorizados da empresa antes de executar a decisão.
 
 ## Identificação da empresa — primeira etapa funcional
 
@@ -76,3 +77,18 @@ O formulário inicia com uma **sugestão não gravada**, de segunda a sexta das 
 O módulo `src/localSetupSnapshot.ts` permite combinar os estados validados da identidade e do funcionamento para exercer a função pura de encaminhamento. Se a identidade estiver válida e o funcionamento não estiver configurado, o destino é `/configuracao/funcionamento`. Se ambos estiverem válidos, a próxima secção é a equipa; **a configuração global não é declarada concluída**. O login ainda não está ligado a estes estados locais e nenhum dado é enviado à cloud.
 
 Os testes em `tests/operatingHours.test.ts`, `tests/openingHoursDraftRepository.test.ts` e `tests/localSetupSnapshot.test.ts` cobrem os horários, a persistência e a decisão de entrada. A aprovação visual e funcional no Safari, desktop e telemóvel, é um critério separado antes da integração.
+
+## Equipa — PR73
+
+A terceira secção funcional do onboarding introduz a entidade `TeamMember`, independente do motor, com:
+- `id`: UUID v4 estável que não depende do nome;
+- `name`: nome identificativo normalizado e validado (2–120 caracteres);
+- `active`: elegibilidade para **futuro planeamento**, não presença, turno, férias ou folga.
+
+Permite adicionar, editar nomes, ativar e inativar colaboradores sem os apagar. Nomes iguais são permitidos para pessoas diferentes, pois o identificador é independente. A lista não está limitada à entidade empregadora real: a gravação ainda é um **rascunho local do navegador**, sem isolamento por conta, sem backend ou sincronização; não devem ser aqui introduzidos identificadores pessoais, contactos, salários ou dados sensíveis. A migração para uma fonte autenticada exigirá modelo de organizações, permissões e consentimento adequados.
+
+A validação independente do domínio, em `src/team.ts`, distingue a consistência do registo da conclusão da etapa: um rascunho vazio ou com todos inativos pode ser guardado, mas **não valida a secção Equipa**. É preciso pelo menos um colaborador ativo. A persistência isolada em `src/teamDraftRepository.ts` trata corrupção, versão desconhecida e erros de armazenamento, sem confundir ausência de dados com indisponibilidade. A interface bloqueia alteração silenciosa de um rascunho corrompido e pede confirmação explícita antes de o substituir.
+
+A função de entrada encaminha para `/configuracao/equipa` quando empresa e funcionamento estão válidos, mas ainda não existe equipa válida. Quando a equipa está válida, o próximo passo lógico é `availability` (ainda sem formulário); em nenhum caso se declara a configuração completa. Esta lógica não está ligada a um login real.
+
+O formulário e a lista estão em `src/TeamEditor.tsx`, com estilos isolados em `src/team.css`. O resumo real de membros ativos/totais aparece em `/configuracao`. Os testes de domínio, persistência, fluxo e rotas acompanham a implementação; a aceitação visual no Safari desktop/telemóvel será separada do CI.
