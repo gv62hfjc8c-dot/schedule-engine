@@ -25,7 +25,7 @@ export type EntryDecision =
   | { kind: "sign_in"; destination: "/"; nextSection: null }
   | { kind: "setup_unavailable"; destination: null; nextSection: null }
   | { kind: "first_access" | "resume_setup";
-      destination: "/configuracao/inicial"; nextSection: SetupSection }
+      destination: "/configuracao/inicial" | "/configuracao/funcionamento"; nextSection: SetupSection }
   | { kind: "calendar"; destination: "/horarios"; nextSection: null };
 
 const knownSections = new Set<string>(SETUP_SECTIONS);
@@ -58,7 +58,7 @@ export function decideEntryAfterLogin(input: {
   const started = Object.keys(checks).length > 0;
   return {
     kind: started ? "resume_setup" : "first_access",
-    destination: "/configuracao/inicial",
+    destination: nextSection === "operatingHours" ? "/configuracao/funcionamento" : "/configuracao/inicial",
     nextSection,
   };
 }
