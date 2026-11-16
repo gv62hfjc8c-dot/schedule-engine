@@ -3,7 +3,7 @@ import { monthCells, monthLabel, selectedDayLabel } from "./calendar";
 import { knownFoundationPath, pageForPath } from "./routes";
 import {loadCompanyDraftFromBrowser,saveCompanyDraftToBrowser} from "./companyDraftRepository";
 import {
-  WEEKDAYS,suggestedWeeklyOpeningHours,type Weekday,
+  WEEKDAYS as OPERATING_WEEKDAYS,suggestedWeeklyOpeningHours,type Weekday,
 } from "./operatingHours";
 import {
   loadOpeningHoursDraftFromBrowser,saveOpeningHoursDraftToBrowser,
@@ -362,7 +362,7 @@ function OperatingHoursPage() {
         )}
         <form onSubmit={handleSave} className="opening-form">
           <div className="opening-days">
-            {WEEKDAYS.map(weekday=>{
+            {OPERATING_WEEKDAYS.map(weekday=>{
               const item=days.find(d=>d.day===weekday.id)!;
               return (
                 <div className="opening-day" role="group"
