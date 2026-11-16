@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { monthCells, monthLabel, selectedDayLabel } from "./calendar";
 import { knownFoundationPath, pageForPath } from "./routes";
+import { TeamEditor } from "./TeamEditor";
+import { loadTeamDraftFromBrowser } from "./teamDraftRepository";
+import { countActiveMembers } from "./team";
 import {loadCompanyDraftFromBrowser,saveCompanyDraftToBrowser} from "./companyDraftRepository";
 import {
   WEEKDAYS as OPERATING_WEEKDAYS,suggestedWeeklyOpeningHours,type Weekday,
@@ -401,6 +404,11 @@ function OperatingHoursPage() {
               {feedback.message}
             </p>
           )}
+          {saved && (
+            <a className="text-link" href="/configuracao/equipa">
+              Organizar equipa <span aria-hidden="true">→</span>
+            </a>
+          )}
           <div className="opening-actions">
             <button className="button button-primary opening-save" type="submit">
               Guardar funcionamento
@@ -414,9 +422,25 @@ function OperatingHoursPage() {
   );
 }
 
+function TeamPage() {
+  return (
+    <Shell>
+      <header className="page-heading">
+        <div>
+          <p className="eyebrow">Configuração da empresa</p>
+          <h1>Gestão da equipa</h1>
+          <p>Adiciona colaboradores e mantém atualizada a lista da tua equipa.</p>
+        </div>
+      </header>
+      <TeamEditor />
+    </Shell>
+  );
+}
+
 function SettingsPage() {
   const [companyDraft] = useState(loadCompanyDraftFromBrowser);
   const [openingDraft] = useState(loadOpeningHoursDraftFromBrowser);
+  const [teamDraft] = useState(loadTeamDraftFromBrowser);
   return (
     <Shell>
       <header className="page-heading">
@@ -463,6 +487,27 @@ function SettingsPage() {
             </a>
           </div>
         </section>
+        <section className="surface settings-panel" aria-label="Equipa">
+          <div className="settings-icon" aria-hidden="true">◷</div>
+          <div className="settings-copy">
+            <p className="surface-kicker">Pessoas</p>
+            <h2>Equipa</h2>
+            <p>Adiciona colaboradores e identifica quem está ativo no planeamento.</p>
+            <div className="settings-empty">
+              <span className="neutral-dot" aria-hidden="true" />
+              {teamDraft.status==="loaded"
+                ? countActiveMembers(teamDraft.value)+" ativos de "+
+                  teamDraft.value.members.length+" colaboradores registados."
+                : teamDraft.status==="empty"
+                  ? "Ainda não existem colaboradores registados."
+                  : "Não foi possível consultar os colaboradores guardados."}
+            </div>
+            <a className="text-link" href="/configuracao/equipa">
+              {teamDraft.status==="loaded" ? "Gerir equipa" : "Adicionar colaboradores"}
+              <span aria-hidden="true">→</span>
+            </a>
+          </div>
+        </section>
       </div>
     </Shell>
   );
@@ -478,5 +523,6 @@ export default function App() {
   if (page === "settings") return <SettingsPage />;
   if (page === "setup") return <InitialSetupPage />;
   if (page === "operatingHours") return <OperatingHoursPage />;
+  if (page === "team") return <TeamPage />;
   return <WelcomePage />;
 }
