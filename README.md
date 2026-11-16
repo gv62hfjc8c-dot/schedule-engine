@@ -19,7 +19,7 @@ O layout tem de se adaptar a desktop, tablet e smartphone, incluindo ecrãs com 
 
 O formulário de acesso **ainda não tem provedor de autenticação**. Submeter o formulário não grava, envia ou autentica credenciais e apenas apresenta uma indisponibilidade de sessão. Não se simula autenticação. A navegação direta para `/horarios` está aberta apenas enquanto não existe backend nem dados privados.
 
-Não existem ainda motor de scheduling, regras, colaboradores, turnos, aprovações, Supabase nem persistência. Os ecrãs não devem inventar resultados. Um dia sem turno nunca é automaticamente marcado como folga.
+Não existem ainda motor de scheduling, regras, colaboradores, turnos, aprovações, Supabase nem persistência em servidor. Só os dados mínimos da empresa podem ser guardados neste dispositivo. Os ecrãs não devem inventar resultados. Um dia sem turno nunca é automaticamente marcado como folga.
 
 ## Verificação
 
@@ -46,4 +46,14 @@ A lógica independente em `src/entryRouting.ts` prepara a entrada na conta sem c
 
 As secções previstas são empresa, funcionamento, equipa, disponibilidades, regras e cobertura. O campo `checks` representa resultados de validação das secções, **não** visualizações de páginas, cliques ou confirmações do utilizador. Não usar uma flag genérica `setupComplete` como prova. A lista e a obrigatoriedade das secções devem ser revisitadas quando as validações reais forem implementadas.
 
-A rota de introdução `/configuracao/inicial` existe como página de produto, mas **não existem formulários de onboarding nem persistência** nesta etapa. A função de decisão está coberta por testes, não está ligada ao formulário de login (que continua sem backend). Futuramente, o controlador autenticado deverá consultar os dados validados da empresa e executar a decisão; o backend deverá aplicar autorização independentemente da navegação do cliente.
+A rota `/configuracao/inicial` possui agora o formulário real de identificação da empresa com armazenamento local limitado (ver secção abaixo). As restantes validações e os formulários das próximas etapas ainda não existem. A função de decisão não está ligada ao formulário de login (que continua sem backend). Futuramente, o controlador autenticado deverá consultar os dados validados e autorizados da empresa antes de executar a decisão.
+
+## Identificação da empresa — primeira etapa funcional
+
+A página `/configuracao/inicial` permite introduzir e guardar o **nome da empresa**, com normalização e validação independente em `src/companyIdentity.ts` (entre 2 e 120 caracteres, sem caracteres de controlo). O mesmo nome pode ser consultado e editado em `/configuracao`.
+
+A gravação é **exclusivamente local**, num registo versionado `schedule-engine:v2:company-identity:v1`. O adaptador fica isolado em `src/companyDraftRepository.ts`; dados inválidos ou indisponibilidade do armazenamento não podem ser interpretados como configuração concluída. Não há importação de dados anteriores, sincronização entre dispositivos, conta empresarial real ou armazenamento na cloud. A interface diz ao utilizador que os dados ficam no dispositivo.
+
+O estado resultante pode alimentar a decisão de navegação: nome guardado e validado marca apenas a secção `company` como válida; `operatingHours`, `team`, `availability`, `rules` e `coverage` continuam sem validação. A navegação após um **login real** não está ligada nesta etapa porque ainda não existe provedor de autenticação. Não declarar onboarding completo com base em localStorage.
+
+Testes: `tests/companyIdentity.test.ts` verificam normalização, campos inválidos, gravação e leitura, dados corrompidos, indisponibilidade do armazenamento e evolução do estado da decisão de entrada. A verificação visual do novo formulário no Safari e em ecrãs móveis exige aceitação específica.
