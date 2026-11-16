@@ -310,6 +310,74 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 }
 .text-link:hover { text-decoration: underline; }
 
+/* Identificação da empresa: o mesmo padrão visual em todos os ecrãs. */
+.settings-stack {
+  display: grid;
+  gap: 20px;
+  width: 100%;
+  max-width: 790px;
+}
+.company-form {
+  display: grid;
+  gap: 10px;
+  margin-top: 24px;
+  max-width: 540px;
+}
+.company-form label {
+  color: #dbe7f4;
+  font-size: 13px;
+  font-weight: 700;
+}
+.company-form label span { color: #9cdae0; }
+.company-form input {
+  width: 100%;
+  min-width: 0;
+  min-height: 51px;
+  padding: 0 15px;
+  border: 1px solid #4b627b;
+  border-radius: 10px;
+  background: #122032;
+  color: var(--text);
+}
+.company-form input::placeholder { color: #91a6b9; }
+.company-field-help {
+  margin: 0;
+  color: #a7bacb !important;
+  font-size: 12px !important;
+}
+.company-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 13px 21px;
+  margin-top: 12px;
+}
+.company-actions .company-save {
+  width: auto;
+  margin: 0;
+}
+.company-actions .text-link { margin: 0; }
+.form-success {
+  margin: 8px 0 0 !important;
+  padding: 11px 14px;
+  color: #bcecdf !important;
+  background: #1f4144;
+  border: 1px solid #407e79;
+  border-radius: 9px;
+  font-size: 13px !important;
+  line-height: 1.55;
+}
+.local-storage-note {
+  margin: 17px 0 0 !important;
+  color: #91a9bc !important;
+  font-size: 12px !important;
+}
+@media (max-width: 460px) {
+  .company-actions { flex-direction: column; align-items: stretch; }
+  .company-actions .company-save { width: 100%; }
+  .company-actions .text-link { justify-content: center; }
+}
+
 /* Tablet horizontal e vertical. */
 @media (max-width: 1020px) {
   .calendar-layout { grid-template-columns: minmax(0, 1fr); }
