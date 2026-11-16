@@ -37,14 +37,41 @@ test("Configuração parcial retoma o primeiro ponto ainda não validado", () =>
 test("Visitar uma etapa não comprova configuração completa", () => {
   const justSomeValid: OrganizationSetupSnapshot = {
     checks: {company: "valid", operatingHours: "valid", team: "valid",
-      availability: "valid", rules: "valid"},
+      rules: "valid"},
   };
   assert.deepEqual(decideEntryAfterLogin({
     authenticated: true, setup: justSomeValid,
   }), {
     kind: "resume_setup",
-    destination: "/configuracao/inicial",
+    destination: "/configuracao",
     nextSection: "coverage",
+  });
+});
+
+test("Onboarding obrigatório não inclui disponibilidades por colaborador", () => {
+  assert.deepEqual(SETUP_SECTIONS, [
+    "company", "operatingHours", "team", "rules", "coverage"
+  ]);
+});
+
+test("Depois da equipa, a próxima etapa é Regras e não Disponibilidades", () => {
+  const result=decideEntryAfterLogin({
+    authenticated:true,
+    setup:{checks:{company:"valid",operatingHours:"valid",team:"valid"}},
+  });
+  assert.deepEqual(result,{
+    kind:"resume_setup",destination:"/configuracao",nextSection:"rules",
+  });
+});
+
+test("Uma chave antiga de disponibilidades não valida a configuração", () => {
+  const result=decideEntryAfterLogin({
+    authenticated:true,
+    setup:{checks:{company:"valid",operatingHours:"valid",team:"valid",
+      rules:"valid",coverage:"valid",availability:"valid"}} as unknown as OrganizationSetupSnapshot,
+  });
+  assert.deepEqual(result,{
+    kind:"setup_unavailable",destination:null,nextSection:null,
   });
 });
 
