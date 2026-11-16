@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { monthCells, monthLabel, selectedDayLabel } from "./calendar";
 import { knownFoundationPath, pageForPath } from "./routes";
+import {loadCompanyDraftFromBrowser,saveCompanyDraftToBrowser} from "./companyDraftRepository";
 
 function Brand({ compact = false }: { compact?: boolean }) {
   return (
@@ -201,28 +202,69 @@ function CalendarPage() {
  * user-facing content. No steps are marked complete or simulated.
  */
 function InitialSetupPage() {
+  const [initial] = useState(loadCompanyDraftFromBrowser);
+  const [name, setName] = useState(initial.company?.name ?? "");
+  const [savedName, setSavedName] = useState(initial.company?.name ?? "");
+  const [feedback, setFeedback] = useState<{
+    type:"error"|"success";message:string
+  } | null>(() => initial.status==="unavailable"
+    ? {type:"error",message:"Não é possível aceder ao armazenamento deste dispositivo."}
+    : initial.status==="invalid"
+      ? {type:"error",message:"Não foi possível recuperar os dados da empresa. Podes introduzi-los novamente."}
+      : null);
+
+  function handleCompanySave(event:FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const result=saveCompanyDraftToBrowser({name});
+    if (!result.ok) {
+      setFeedback({type:"error",message:result.message});
+      return;
+    }
+    setName(result.company.name);
+    setSavedName(result.company.name);
+    setFeedback({type:"success",message:"Os dados da empresa foram guardados neste dispositivo."});
+  }
+
   return (
     <Shell>
       <header className="page-heading">
         <div>
-          <p className="eyebrow">Primeiro acesso</p>
-          <h1>Vamos configurar a tua empresa</h1>
-          <p>Prepara as informações essenciais para organizares os horários da equipa.</p>
+          <p className="eyebrow">Configuração inicial</p>
+          <h1>Dados da empresa</h1>
+          <p>Começa por identificar a organização cujos horários vais gerir.</p>
         </div>
       </header>
-      <section className="surface settings-panel" aria-label="Configuração inicial">
+      <section className="surface settings-panel" aria-label="Dados da empresa">
         <div className="settings-icon" aria-hidden="true">◷</div>
         <div className="settings-copy">
           <p className="surface-kicker">A tua organização</p>
-          <h2>Começar pela empresa</h2>
-          <p>
-            Identifica a tua organização e define o seu funcionamento.
-            Depois, poderás organizar a equipa, as disponibilidades e as regras
-            de planeamento.
+          <h2>{savedName ? "Identificação da empresa" : "Como se chama a tua empresa?"}</h2>
+          <p>O nome será utilizado para identificar a organização no Schedule Engine.</p>
+          <form className="company-form" onSubmit={handleCompanySave}>
+            <label htmlFor="company-name">Nome da empresa <span aria-hidden="true">*</span></label>
+            <input id="company-name" name="companyName" type="text"
+              autoComplete="organization" maxLength={120} minLength={2}
+              value={name} onChange={event => {
+                setName(event.target.value);
+                setFeedback(null);
+              }} placeholder="Nome da empresa" required />
+            <p className="company-field-help">Utiliza o nome pelo qual identificas a tua organização.</p>
+            {feedback && (
+              <p className={feedback.type==="error" ? "form-error" : "form-success"}
+                role={feedback.type==="error" ? "alert" : "status"}>
+                {feedback.message}
+              </p>
+            )}
+            <div className="company-actions">
+              <button className="button button-primary company-save" type="submit">
+                Guardar dados da empresa
+              </button>
+              <a className="text-link" href="/configuracao">Voltar à configuração</a>
+            </div>
+          </form>
+          <p className="local-storage-note">
+            Estes dados ficam guardados apenas neste dispositivo.
           </p>
-          <a className="text-link" href="/configuracao">
-            Consultar definições <span aria-hidden="true">→</span>
-          </a>
         </div>
       </section>
     </Shell>
@@ -230,6 +272,7 @@ function InitialSetupPage() {
 }
 
 function SettingsPage() {
+  const [companyDraft] = useState(loadCompanyDraftFromBrowser);
   return (
     <Shell>
       <header className="page-heading">
@@ -239,21 +282,37 @@ function SettingsPage() {
           <p>Consulta e gere as definições utilizadas no planeamento.</p>
         </div>
       </header>
-      <section className="surface settings-panel" aria-label="Funcionamento da empresa">
-        <div className="settings-icon" aria-hidden="true">◷</div>
-        <div className="settings-copy">
-          <p className="surface-kicker">Operação</p>
-          <h2>Funcionamento da empresa</h2>
-          <p>Define os dias e os intervalos de funcionamento da organização.</p>
-          <div className="settings-empty">
-            <span className="neutral-dot" aria-hidden="true" />
-            Ainda não existem horários de funcionamento configurados.
+      <div className="settings-stack">
+        <section className="surface settings-panel" aria-label="Dados da empresa">
+          <div className="settings-icon" aria-hidden="true">◷</div>
+          <div className="settings-copy">
+            <p className="surface-kicker">Identificação</p>
+            <h2>{companyDraft.status==="loaded" ? companyDraft.company.name : "Dados da empresa"}</h2>
+            <p>{companyDraft.status==="loaded"
+              ? "Identificação guardada neste dispositivo."
+              : "Adiciona o nome da tua organização."}</p>
+            <a className="text-link" href="/configuracao/inicial">
+              {companyDraft.status==="loaded" ? "Editar dados da empresa" : "Adicionar dados da empresa"}
+              <span aria-hidden="true">→</span>
+            </a>
           </div>
-          <a className="text-link" href="/horarios">
-            Voltar ao calendário <span aria-hidden="true">→</span>
-          </a>
-        </div>
-      </section>
+        </section>
+        <section className="surface settings-panel" aria-label="Funcionamento da empresa">
+          <div className="settings-icon" aria-hidden="true">◷</div>
+          <div className="settings-copy">
+            <p className="surface-kicker">Operação</p>
+            <h2>Funcionamento da empresa</h2>
+            <p>Define os dias e os intervalos de funcionamento da organização.</p>
+            <div className="settings-empty">
+              <span className="neutral-dot" aria-hidden="true" />
+              Ainda não existem horários de funcionamento configurados.
+            </div>
+            <a className="text-link" href="/horarios">
+              Voltar ao calendário <span aria-hidden="true">→</span>
+            </a>
+          </div>
+        </section>
+      </div>
     </Shell>
   );
 }
