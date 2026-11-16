@@ -1,14 +1,12 @@
-// main.tsx
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
-import SupabaseGate from "./components/SupabaseGate";
-import "./index.css";
+import "./styles.css";
 
-ReactDOM.createRoot(document.getElementById("root")!).render(
+const root = document.getElementById("root");
+if (!root) throw new Error("Elemento #root em falta.");
+ReactDOM.createRoot(root).render(
   <React.StrictMode>
-    <SupabaseGate>
-      <App />
-    </SupabaseGate>
+    <App />
   </React.StrictMode>
 );
