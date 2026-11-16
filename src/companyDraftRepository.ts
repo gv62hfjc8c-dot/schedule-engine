@@ -65,3 +65,20 @@ export function companyDraftSetupSnapshot(
     ? {checks:{company:"valid"}}
     : {checks:{}};
 }
+
+/** UI adapters: storage access may itself throw in private/restricted browsers. */
+export function loadCompanyDraftFromBrowser():CompanyDraftLoad {
+  try {
+    return loadCompanyDraft(window.localStorage);
+  }catch {
+    return {status:"unavailable",company:null};
+  }
+}
+
+export function saveCompanyDraftToBrowser(input:unknown):CompanyDraftSave {
+  try {
+    return saveCompanyDraft(window.localStorage,input);
+  }catch {
+    return {ok:false,message:"Não foi possível guardar os dados neste dispositivo."};
+  }
+}
