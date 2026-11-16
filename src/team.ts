@@ -1,6 +1,7 @@
 /**
  * Minimal team identity. "active" means eligible for future scheduling, not
- * currently on shift, on leave, available or present.
+ * a shift assignment, attendance record or absence. Eligibility windows are
+ * derived from the organisation's operating hours, not stored per person.
  *
  * No contract, role, personal contact or legal identifiers at this stage.
  */
