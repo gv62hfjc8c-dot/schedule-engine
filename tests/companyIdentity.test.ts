@@ -63,7 +63,7 @@ test("Guardar nome não marca as outras cinco secções como concluídas",()=>{
   });
   assert.deepEqual(result,{
     kind:"resume_setup",
-    destination:"/configuracao/inicial",
+    destination:"/configuracao/funcionamento",
     nextSection:"operatingHours",
   });
 });
