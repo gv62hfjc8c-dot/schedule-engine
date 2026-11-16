@@ -109,3 +109,19 @@ test("Armazenamento indisponível é distinto de equipa vazia",()=>{
   assert.equal(loadTeamDraft(failed).status,"unavailable");
   assert.equal(saveTeamDraft(failed,{members:[]}).ok,false);
 });
+
+test("A ficha guarda apenas ID, nome e estado, sem preferências ou restrições",()=>{
+  const s=store();
+  const supplied={
+    members:[{...person(ID_A,"Ana Silva"),
+      preferences:["manhã"],
+      restrictions:[{day:"monday",start:"10:00",end:"13:00"}],
+      availability:{monday:[]},
+    }],
+  };
+  const saved=saveTeamDraft(s,supplied);
+  assert.equal(saved.ok,true);
+  assert.deepEqual(loadTeamDraft(s),{
+    status:"loaded",value:{members:[person(ID_A,"Ana Silva")]},
+  });
+});
