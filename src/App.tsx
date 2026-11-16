@@ -301,6 +301,7 @@ function OperatingHoursPage() {
     }));
   });
   const [saved,setSaved] = useState(initial.status==="loaded");
+  const [showSuggestion,setShowSuggestion] = useState(initial.status==="empty");
   const [feedback,setFeedback] = useState<{
     type:"error"|"success";message:string;
   } | null>(() => initial.status==="unavailable"
@@ -314,6 +315,7 @@ function OperatingHoursPage() {
       item.day===day ? {...item,...change} : item
     ));
     setSaved(false);
+    setShowSuggestion(false);
     setFeedback(null);
   }
 
@@ -332,6 +334,7 @@ function OperatingHoursPage() {
       return;
     }
     setSaved(true);
+    setShowSuggestion(false);
     setFeedback({type:"success",message:"Os horários de funcionamento foram guardados neste dispositivo."});
   }
 
@@ -355,7 +358,7 @@ function OperatingHoursPage() {
         <p className="opening-description">
           Os horários repetem-se semanalmente. Os dias encerrados não têm período de abertura.
         </p>
-        {initial.status==="empty" && (
+        {showSuggestion && (
           <p className="opening-suggestion">
             Apresentamos um horário inicial sugerido. Confirma os dias e as horas antes de guardar.
           </p>
