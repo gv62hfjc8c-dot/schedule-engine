@@ -10,6 +10,8 @@ test("A página de entrada é sempre a raiz", () => {
   assert.equal(pageForPath("/configuracao/inicial"), "setup");
   assert.equal(pageForPath("/configuracao/inicial/"), "setup");
   assert.equal(knownFoundationPath("/configuracao/inicial"), true);
+  assert.equal(pageForPath("/configuracao/funcionamento"), "operatingHours");
+  assert.equal(knownFoundationPath("/configuracao/funcionamento/"), true);
   assert.equal(knownFoundationPath("/horarios/gerar"), false);
   assert.equal(pageForPath("/horarios/gerar"), "welcome");
 });
