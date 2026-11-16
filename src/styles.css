@@ -378,6 +378,137 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   .company-actions .text-link { justify-content: center; }
 }
 
+/* Horários de funcionamento: linhas semanais adaptáveis. */
+.opening-panel {
+  width: 100%;
+  max-width: 920px;
+  padding: clamp(20px, 3vw, 38px);
+}
+.opening-header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.opening-header h2 {
+  margin: 0;
+  font-size: clamp(22px, 2.5vw, 28px);
+  letter-spacing: -.035em;
+}
+.opening-description {
+  max-width: 640px;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.65;
+  margin-bottom: 12px;
+}
+.opening-suggestion {
+  padding: 12px 15px;
+  border: 1px solid #3a6270;
+  background: #203746;
+  border-radius: 10px;
+  color: #c2dfe7;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.opening-form { margin-top: 24px; }
+.opening-days {
+  display: grid;
+  border: 1px solid #345069;
+  border-radius: 12px;
+  overflow: hidden;
+}
+.opening-day {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(185px, 1fr) minmax(0, 1.5fr);
+  align-items: center;
+  gap: 15px;
+  min-height: 90px;
+  padding: 14px 18px;
+  border-bottom: 1px solid #345069;
+  background: #1c2e44;
+}
+.opening-day:nth-child(even) { background: #203449; }
+.opening-day:last-child { border-bottom: 0; }
+.opening-toggle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 42px;
+  color: #edf5fc;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.opening-toggle input {
+  appearance: auto;
+  flex-shrink: 0;
+  width: 19px;
+  height: 19px;
+  margin: 0;
+  accent-color: #54b8be;
+  cursor: pointer;
+}
+.opening-times {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  min-width: 0;
+  max-width: 420px;
+}
+.opening-times label {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+  color: #abc3d4;
+  font-size: 12px;
+  font-weight: 650;
+}
+.opening-times input {
+  width: 100%;
+  min-width: 0;
+  min-height: 42px;
+  padding: 7px 10px;
+  border: 1px solid #557186;
+  border-radius: 9px;
+  background: #142438;
+  color: #eef5fc;
+  color-scheme: dark;
+  font-size: 14px;
+}
+.opening-closed {
+  color: #a8bdd0;
+  font-size: 13px;
+}
+.opening-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px 23px;
+  margin-top: 23px;
+}
+.opening-actions .opening-save { width: auto; margin: 0; }
+.opening-actions .text-link { margin: 0; }
+@media (max-width: 620px) {
+  .opening-panel { padding: 21px 13px; }
+  .opening-day {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 9px;
+    padding: 14px;
+  }
+  .opening-times { max-width: none; }
+}
+@media (max-width: 460px) {
+  .opening-actions { flex-direction: column; align-items: stretch; }
+  .opening-actions .opening-save { width: 100%; }
+  .opening-actions .text-link { justify-content: center; }
+  .opening-times { gap: 10px; }
+  .opening-times input { padding-inline: 6px; }
+}
+
 /* Tablet horizontal e vertical. */
 @media (max-width: 1020px) {
   .calendar-layout { grid-template-columns: minmax(0, 1fr); }
