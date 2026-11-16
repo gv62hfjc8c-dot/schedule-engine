@@ -9,7 +9,6 @@ export const SETUP_SECTIONS = [
   "company",
   "operatingHours",
   "team",
-  "availability",
   "rules",
   "coverage",
 ] as const;
@@ -25,7 +24,7 @@ export type EntryDecision =
   | { kind: "sign_in"; destination: "/"; nextSection: null }
   | { kind: "setup_unavailable"; destination: null; nextSection: null }
   | { kind: "first_access" | "resume_setup";
-      destination: "/configuracao/inicial" | "/configuracao/funcionamento" | "/configuracao/equipa"; nextSection: SetupSection }
+      destination: "/configuracao/inicial" | "/configuracao/funcionamento" | "/configuracao/equipa" | "/configuracao"; nextSection: SetupSection }
   | { kind: "calendar"; destination: "/horarios"; nextSection: null };
 
 const knownSections = new Set<string>(SETUP_SECTIONS);
@@ -59,7 +58,8 @@ export function decideEntryAfterLogin(input: {
   return {
     kind: started ? "resume_setup" : "first_access",
     destination: nextSection === "operatingHours" ? "/configuracao/funcionamento" :
-      nextSection === "team" ? "/configuracao/equipa" : "/configuracao/inicial",
+      nextSection === "team" ? "/configuracao/equipa" :
+      nextSection === "company" ? "/configuracao/inicial" : "/configuracao",
     nextSection,
   };
 }
