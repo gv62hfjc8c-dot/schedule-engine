@@ -2,6 +2,12 @@ import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "re
 import { monthCells, monthLabel, selectedDayLabel } from "./calendar";
 import { knownFoundationPath, pageForPath } from "./routes";
 import {loadCompanyDraftFromBrowser,saveCompanyDraftToBrowser} from "./companyDraftRepository";
+import {
+  WEEKDAYS,suggestedWeeklyOpeningHours,type Weekday,
+} from "./operatingHours";
+import {
+  loadOpeningHoursDraftFromBrowser,saveOpeningHoursDraftToBrowser,
+} from "./openingHoursDraftRepository";
 
 function Brand({ compact = false }: { compact?: boolean }) {
   return (
@@ -255,6 +261,11 @@ function InitialSetupPage() {
                 {feedback.message}
               </p>
             )}
+            {savedName && (
+              <a className="text-link" href="/configuracao/funcionamento">
+                Definir dias e horários de funcionamento <span aria-hidden="true">→</span>
+              </a>
+            )}
             <div className="company-actions">
               <button className="button button-primary company-save" type="submit">
                 Guardar dados da empresa
@@ -271,8 +282,138 @@ function InitialSetupPage() {
   );
 }
 
+interface DayEditor {
+  day:Weekday;
+  open:boolean;
+  start:string;
+  end:string;
+}
+
+function OperatingHoursPage() {
+  const [initial] = useState(loadOpeningHoursDraftFromBrowser);
+  const [days,setDays] = useState<DayEditor[]>(() => {
+    const week=initial.status==="loaded" ? initial.value : suggestedWeeklyOpeningHours();
+    return week.days.map(d=>({
+      day:d.day,
+      open:d.intervals.length>0,
+      start:d.intervals[0]?.start??"09:00",
+      end:d.intervals[0]?.end??"18:00",
+    }));
+  });
+  const [saved,setSaved] = useState(initial.status==="loaded");
+  const [feedback,setFeedback] = useState<{
+    type:"error"|"success";message:string;
+  } | null>(() => initial.status==="unavailable"
+    ? {type:"error",message:"Não é possível consultar os horários guardados neste dispositivo."}
+    : initial.status==="invalid"
+      ? {type:"error",message:"Não foi possível recuperar os horários anteriores. Confirma os valores antes de guardar."}
+      : null);
+
+  function updateDay(day:Weekday,change:Partial<DayEditor>) {
+    setDays(current=>current.map(item=>
+      item.day===day ? {...item,...change} : item
+    ));
+    setSaved(false);
+    setFeedback(null);
+  }
+
+  function handleSave(event:FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const weeklyHours={
+      days:days.map(d=>({
+        day:d.day,
+        intervals:d.open?[{start:d.start,end:d.end}]:[],
+      })),
+    };
+    const result=saveOpeningHoursDraftToBrowser(weeklyHours);
+    if(!result.ok){
+      setFeedback({type:"error",message:result.message});
+      setSaved(false);
+      return;
+    }
+    setSaved(true);
+    setFeedback({type:"success",message:"Os horários de funcionamento foram guardados neste dispositivo."});
+  }
+
+  return (
+    <Shell>
+      <header className="page-heading">
+        <div>
+          <p className="eyebrow">Configuração da empresa</p>
+          <h1>Horário de funcionamento</h1>
+          <p>Escolhe os dias em que a empresa funciona e as horas de abertura e encerramento.</p>
+        </div>
+      </header>
+      <section className="surface opening-panel" aria-label="Funcionamento semanal">
+        <div className="opening-header">
+          <div>
+            <p className="surface-kicker">Semana habitual</p>
+            <h2>Dias e horários</h2>
+          </div>
+          <span className="detail-state">{saved ? "Horários guardados" : "Alterações por guardar"}</span>
+        </div>
+        <p className="opening-description">
+          Os horários repetem-se semanalmente. Os dias encerrados não têm período de abertura.
+        </p>
+        {initial.status==="empty" && (
+          <p className="opening-suggestion">
+            Apresentamos um horário inicial sugerido. Confirma os dias e as horas antes de guardar.
+          </p>
+        )}
+        <form onSubmit={handleSave} className="opening-form">
+          <div className="opening-days">
+            {WEEKDAYS.map(weekday=>{
+              const item=days.find(d=>d.day===weekday.id)!;
+              return (
+                <div className="opening-day" role="group"
+                  aria-label={weekday.label} key={weekday.id}>
+                  <label className="opening-toggle">
+                    <input type="checkbox" checked={item.open}
+                      onChange={event=>updateDay(weekday.id,{open:event.target.checked})}/>
+                    <span>{weekday.label}</span>
+                  </label>
+                  {item.open
+                    ? <div className="opening-times">
+                        <label htmlFor={"from-"+weekday.id}>
+                          Abertura
+                          <input id={"from-"+weekday.id} type="time" step={60}
+                            value={item.start} required
+                            onChange={event=>updateDay(weekday.id,{start:event.target.value})}/>
+                        </label>
+                        <label htmlFor={"to-"+weekday.id}>
+                          Encerramento
+                          <input id={"to-"+weekday.id} type="time" step={60}
+                            value={item.end} required
+                            onChange={event=>updateDay(weekday.id,{end:event.target.value})}/>
+                        </label>
+                      </div>
+                    : <span className="opening-closed">Encerrado</span>}
+                </div>
+              );
+            })}
+          </div>
+          {feedback && (
+            <p className={feedback.type==="error" ? "form-error" : "form-success"}
+              role={feedback.type==="error" ? "alert" : "status"}>
+              {feedback.message}
+            </p>
+          )}
+          <div className="opening-actions">
+            <button className="button button-primary opening-save" type="submit">
+              Guardar funcionamento
+            </button>
+            <a className="text-link" href="/configuracao">Ver configuração</a>
+          </div>
+        </form>
+        <p className="local-storage-note">Estes dados ficam guardados apenas neste dispositivo.</p>
+      </section>
+    </Shell>
+  );
+}
+
 function SettingsPage() {
   const [companyDraft] = useState(loadCompanyDraftFromBrowser);
+  const [openingDraft] = useState(loadOpeningHoursDraftFromBrowser);
   return (
     <Shell>
       <header className="page-heading">
@@ -302,13 +443,20 @@ function SettingsPage() {
           <div className="settings-copy">
             <p className="surface-kicker">Operação</p>
             <h2>Funcionamento da empresa</h2>
-            <p>Define os dias e os intervalos de funcionamento da organização.</p>
+            <p>Configura os dias e os intervalos de abertura da organização.</p>
             <div className="settings-empty">
               <span className="neutral-dot" aria-hidden="true" />
-              Ainda não existem horários de funcionamento configurados.
+              {openingDraft.status==="loaded"
+                ? "Funcionamento guardado: " +
+                  openingDraft.value.days.filter(day=>day.intervals.length>0).length +
+                  " dias por semana."
+                : openingDraft.status==="empty"
+                  ? "Ainda não existem horários de funcionamento guardados."
+                  : "Não foi possível consultar os horários guardados."}
             </div>
-            <a className="text-link" href="/horarios">
-              Voltar ao calendário <span aria-hidden="true">→</span>
+            <a className="text-link" href="/configuracao/funcionamento">
+              {openingDraft.status==="loaded" ? "Editar funcionamento" : "Definir funcionamento"}
+              <span aria-hidden="true">→</span>
             </a>
           </div>
         </section>
@@ -326,5 +474,6 @@ export default function App() {
   if (page === "calendar") return <CalendarPage />;
   if (page === "settings") return <SettingsPage />;
   if (page === "setup") return <InitialSetupPage />;
+  if (page === "operatingHours") return <OperatingHoursPage />;
   return <WelcomePage />;
 }
