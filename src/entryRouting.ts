@@ -10,7 +10,6 @@ export const SETUP_SECTIONS = [
   "operatingHours",
   "team",
   "rules",
-  "coverage",
 ] as const;
 
 export type SetupSection = (typeof SETUP_SECTIONS)[number];

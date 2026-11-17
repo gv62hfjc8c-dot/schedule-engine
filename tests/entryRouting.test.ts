@@ -34,23 +34,22 @@ test("Configuração parcial retoma o primeiro ponto ainda não validado", () =>
   });
 });
 
-test("Visitar uma etapa não comprova configuração completa", () => {
-  const justSomeValid: OrganizationSetupSnapshot = {
-    checks: {company: "valid", operatingHours: "valid", team: "valid",
-      rules: "valid"},
+test("Equipa válida ainda não comprova regras gerais configuradas", () => {
+  const partial: OrganizationSetupSnapshot = {
+    checks: {company: "valid", operatingHours: "valid", team: "valid"},
   };
   assert.deepEqual(decideEntryAfterLogin({
-    authenticated: true, setup: justSomeValid,
+    authenticated: true, setup: partial,
   }), {
     kind: "resume_setup",
     destination: "/configuracao",
-    nextSection: "coverage",
+    nextSection: "rules",
   });
 });
 
 test("Onboarding obrigatório não inclui disponibilidades por colaborador", () => {
   assert.deepEqual(SETUP_SECTIONS, [
-    "company", "operatingHours", "team", "rules", "coverage"
+    "company", "operatingHours", "team", "rules"
   ]);
 });
 
@@ -64,14 +63,28 @@ test("Depois da equipa, a próxima etapa é Regras e não Disponibilidades", () 
   });
 });
 
-test("Uma chave antiga de disponibilidades não valida a configuração", () => {
-  const result=decideEntryAfterLogin({
+test("Passos antigos de disponibilidades e cobertura não reativam requisitos removidos", () => {
+  for(const obsolete of ["availability","coverage"] as const){
+    const result=decideEntryAfterLogin({
+      authenticated:true,
+      setup:{checks:{company:"valid",operatingHours:"valid",team:"valid",
+        rules:"valid",[obsolete]:"valid"}} as unknown as OrganizationSetupSnapshot,
+    });
+    assert.deepEqual(result,{
+      kind:"setup_unavailable",destination:null,nextSection:null,
+    });
+  }
+});
+
+test("Quatro etapas válidas bastam: cobertura mínima não é obrigatória", () => {
+  assert.deepEqual(SETUP_SECTIONS,["company","operatingHours","team","rules"]);
+  assert.deepEqual(decideEntryAfterLogin({
     authenticated:true,
-    setup:{checks:{company:"valid",operatingHours:"valid",team:"valid",
-      rules:"valid",coverage:"valid",availability:"valid"}} as unknown as OrganizationSetupSnapshot,
-  });
-  assert.deepEqual(result,{
-    kind:"setup_unavailable",destination:null,nextSection:null,
+    setup:{checks:{
+      company:"valid",operatingHours:"valid",team:"valid",rules:"valid",
+    }},
+  }),{
+    kind:"calendar",destination:"/horarios",nextSection:null,
   });
 });
 

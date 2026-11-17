@@ -52,6 +52,16 @@ test("Uma semana completa com 40h é válida",()=>{
   assert.equal(result.weeks[0].differenceMinutes,0);
 });
 
+test("40h válidas não exigem cobertura mínima de toda a abertura da empresa",()=>{
+  const data=input({mode:"weekly",start:"2026-11-02"});
+  // Empresa aberta 08:00–21:00; colaborador trabalha apenas 09:00–17:00.
+  // Os intervalos 08:00–09:00 e 17:00–21:00 podem ficar sem ninguém.
+  const result=certifySchedule(data);
+  assert.equal(result.status,"valid");
+  assert.equal(result.weeks[0].actualMinutes,2400);
+  assert.equal(result.issues.length,0);
+});
+
 test("38h é inválido: não é uma penalização suave",()=>{
   const data=input({mode:"weekly",start:"2026-11-02"});
   (data.candidateAssignments as WorkAssignment[])[0].end="15:00";
