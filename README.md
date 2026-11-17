@@ -35,7 +35,7 @@ npm run dev
 
 Testar os percursos no Safari e, antes de integrar o PR, verificar visualmente as resoluções 320px, 375px, 768px, 1024px e desktop largo. Os testes automáticos verificam a lógica do calendário, as rotas e contratos estáticos de linguagem e CSS, mas não substituem a inspeção visual nos dispositivos.
 
-A fundação V2 foi integrada na `main` através do PR71. A versão anterior mantém-se acessível no histórico Git e na branch do PR70. O PR72 foi integrado na `main`. O PR73 desenvolve a equipa na branch `v2/team-management`.
+A fundação V2 foi integrada na `main` através do PR71. A versão anterior mantém-se acessível no histórico Git e na branch do PR70. O PR72 foi integrado na `main`. O PR73 foi integrado na `main`. O PR74 remove a etapa de disponibilidades individuais e alinha a progressão do onboarding com a configuração necessária.
 
 ## Encaminhamento após autenticação
 
@@ -47,9 +47,13 @@ A lógica independente em `src/entryRouting.ts` prepara a entrada na conta sem c
 - Autenticado, todas as secções obrigatórias validadas: `/horarios`.
 - Autenticado, estado de configuração desconhecido ou inválido: sem encaminhamento, até se conseguir verificar.
 
-As secções previstas são empresa, funcionamento, equipa, disponibilidades, regras e cobertura. O campo `checks` representa resultados de validação das secções, **não** visualizações de páginas, cliques ou confirmações do utilizador. Não usar uma flag genérica `setupComplete` como prova. A lista e a obrigatoriedade das secções devem ser revisitadas quando as validações reais forem implementadas.
+As secções previstas são empresa, funcionamento, equipa, regras e cobertura. O campo `checks` representa resultados de validação das secções, **não** visualizações de páginas, cliques ou confirmações do utilizador.
 
-As rotas `/configuracao/inicial`, `/configuracao/funcionamento` e `/configuracao/equipa` possuem formulários reais com armazenamento local limitado. A configuração de disponibilidades, regras e cobertura continua por implementar. A função de decisão não está ligada ao formulário de login (que continua sem backend). Futuramente, o controlador autenticado deverá consultar os dados validados e autorizados da empresa antes de executar a decisão.
+**Não existe um passo de disponibilidades.** Cada colaborador ativo é automaticamente elegível para receber turnos durante as janelas semanais de abertura da empresa, independentemente de quais sejam. Um colaborador inativo não é elegível para novos turnos. Não há campos, armazenamento nem preferências/restrições individuais de disponibilidade. O módulo puro `src/eligibleOpeningWindows.ts` deriva estas janelas do estado ativo e do funcionamento validado da organização; não atribui turnos nem horas de trabalho. O motor futuro continuará obrigado a validar horas contratuais, descansos e cobertura.
+
+Se a próxima secção for `rules` ou `coverage`, a navegação aponta provisoriamente para `/configuracao` (e nunca volta a enviar o utilizador à identificação da empresa). Estas secções ainda não têm formulário, e a configuração não é declarada concluída até serem realmente validadas. A autenticação real continua desligada. Não usar uma flag genérica `setupComplete` como prova. A lista e a obrigatoriedade das secções devem ser revisitadas quando as validações reais forem implementadas.
+
+As rotas `/configuracao/inicial`, `/configuracao/funcionamento` e `/configuracao/equipa` possuem formulários reais com armazenamento local limitado. A configuração de regras gerais e cobertura continua por implementar. A função de decisão não está ligada ao formulário de login (que continua sem backend). Futuramente, o controlador autenticado deverá consultar os dados validados e autorizados da empresa antes de executar a decisão.
 
 ## Identificação da empresa — primeira etapa funcional
 
@@ -57,7 +61,7 @@ A página `/configuracao/inicial` permite introduzir e guardar o **nome da empre
 
 A gravação é **exclusivamente local**, num registo versionado `schedule-engine:v2:company-identity:v1`. O adaptador fica isolado em `src/companyDraftRepository.ts`; dados inválidos ou indisponibilidade do armazenamento não podem ser interpretados como configuração concluída. Não há importação de dados anteriores, sincronização entre dispositivos, conta empresarial real ou armazenamento na cloud. A interface diz ao utilizador que os dados ficam no dispositivo.
 
-O estado resultante pode alimentar a decisão de navegação: nome guardado e validado marca apenas a secção `company` como válida; `operatingHours`, `team`, `availability`, `rules` e `coverage` continuam sem validação. A navegação após um **login real** não está ligada nesta etapa porque ainda não existe provedor de autenticação. Não declarar onboarding completo com base em localStorage.
+O estado resultante pode alimentar a decisão de navegação: nome guardado e validado marca apenas a secção `company` como válida; `operatingHours`, `team`, `rules` e `coverage` continuam sem validação. A navegação após um **login real** não está ligada nesta etapa porque ainda não existe provedor de autenticação. Não declarar onboarding completo com base em localStorage.
 
 Testes: `tests/companyIdentity.test.ts` verificam normalização, campos inválidos, gravação e leitura, dados corrompidos, indisponibilidade do armazenamento e evolução do estado da decisão de entrada. A verificação visual do novo formulário no Safari e em ecrãs móveis exige aceitação específica.
 
@@ -89,6 +93,12 @@ Permite adicionar, editar nomes, ativar e inativar colaboradores sem os apagar. 
 
 A validação independente do domínio, em `src/team.ts`, distingue a consistência do registo da conclusão da etapa: um rascunho vazio ou com todos inativos pode ser guardado, mas **não valida a secção Equipa**. É preciso pelo menos um colaborador ativo. A persistência isolada em `src/teamDraftRepository.ts` trata corrupção, versão desconhecida e erros de armazenamento, sem confundir ausência de dados com indisponibilidade. A interface bloqueia alteração silenciosa de um rascunho corrompido e pede confirmação explícita antes de o substituir.
 
-A função de entrada encaminha para `/configuracao/equipa` quando empresa e funcionamento estão válidos, mas ainda não existe equipa válida. Quando a equipa está válida, o próximo passo lógico é `availability` (ainda sem formulário); em nenhum caso se declara a configuração completa. Esta lógica não está ligada a um login real.
+A função de entrada encaminha para `/configuracao/equipa` quando empresa e funcionamento estão válidos, mas ainda não existe equipa válida. Quando a equipa está válida, o próximo passo lógico é `rules`, sem etapa autónoma de disponibilidades; em nenhum caso se declara a configuração completa. Esta lógica não está ligada a um login real.
 
 O formulário e a lista estão em `src/TeamEditor.tsx`, com estilos isolados em `src/team.css`. O resumo real de membros ativos/totais aparece em `/configuracao`. Os testes de domínio, persistência, fluxo e rotas acompanham a implementação; a aceitação visual no Safari desktop/telemóvel será separada do CI.
+
+## Limpeza do onboarding — PR74
+
+Foi retirada a entrada `availability` de `SETUP_SECTIONS`, do encaminhamento pós-login e dos testes. O percurso obrigatório é **Empresa → Funcionamento → Equipa → Regras → Cobertura**. O acesso ao calendário permanece dependente de validação real das cinco secções, sem concluir prematuramente o onboarding. Nenhum rascunho local anterior (empresa, funcionamento ou equipa) é apagado ou migrado.
+
+A regra de elegibilidade é derivada, não persistida: uma pessoa ativa recebe exatamente os intervalos de funcionamento da organização como janelas possíveis; uma pessoa inativa não recebe nenhuma. As janelas não são turnos atribuídos. A função rejeita dados de origem inválidos em vez de inventar horários. O algoritmo de atribuição e as hard constraints contratuais continuam por implementar na V2.

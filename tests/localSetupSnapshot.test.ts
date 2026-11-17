@@ -38,12 +38,12 @@ test("Após funcionamento válido encaminha para equipa",()=>{
   }),{kind:"resume_setup",destination:"/configuracao/equipa",nextSection:"team"});
 });
 
-test("Equipa com uma pessoa ativa avança para disponibilidades sem concluir onboarding",()=>{
+test("Equipa com pessoa ativa avança diretamente para regras gerais",()=>{
   const next=decideEntryAfterLogin({
     authenticated:true,setup:localSetupSnapshot(companyLoaded,hoursLoaded,teamLoaded),
   });
   assert.deepEqual(next,{
-    kind:"resume_setup",destination:"/configuracao/inicial",nextSection:"availability",
+    kind:"resume_setup",destination:"/configuracao",nextSection:"rules",
   });
   assert.notEqual(next.kind,"calendar");
 });
