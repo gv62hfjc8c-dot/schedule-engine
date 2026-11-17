@@ -47,13 +47,13 @@ A lógica independente em `src/entryRouting.ts` prepara a entrada na conta sem c
 - Autenticado, todas as secções obrigatórias validadas: `/horarios`.
 - Autenticado, estado de configuração desconhecido ou inválido: sem encaminhamento, até se conseguir verificar.
 
-As secções previstas são empresa, funcionamento, equipa, regras e cobertura. O campo `checks` representa resultados de validação das secções, **não** visualizações de páginas, cliques ou confirmações do utilizador.
+As secções previstas nesta fase são empresa, funcionamento, equipa e regras gerais. Não existe etapa nem requisito de cobertura mínima. O campo `checks` representa resultados de validação das secções, **não** visualizações de páginas, cliques ou confirmações do utilizador.
 
-**Não existe um passo de disponibilidades.** Cada colaborador ativo é automaticamente elegível para receber turnos durante as janelas semanais de abertura da empresa, independentemente de quais sejam. Um colaborador inativo não é elegível para novos turnos. Não há campos, armazenamento nem preferências/restrições individuais de disponibilidade. O módulo puro `src/eligibleOpeningWindows.ts` deriva estas janelas do estado ativo e do funcionamento validado da organização; não atribui turnos nem horas de trabalho. O motor futuro continuará obrigado a validar horas contratuais, descansos e cobertura.
+**Não existe um passo de disponibilidades.** Cada colaborador ativo é automaticamente elegível para receber turnos durante as janelas semanais de abertura da empresa, independentemente de quais sejam. Um colaborador inativo não é elegível para novos turnos. Não há campos, armazenamento nem preferências/restrições individuais de disponibilidade. O módulo puro `src/eligibleOpeningWindows.ts` deriva estas janelas do estado ativo e do funcionamento validado da organização; não atribui turnos nem horas de trabalho. O motor futuro continuará obrigado a validar a carga horária fixa de 40 horas semanais e os descansos aplicáveis, mas não terá cobertura mínima obrigatória nesta fase.
 
-Se a próxima secção for `rules` ou `coverage`, a navegação aponta provisoriamente para `/configuracao` (e nunca volta a enviar o utilizador à identificação da empresa). Estas secções ainda não têm formulário, e a configuração não é declarada concluída até serem realmente validadas. A autenticação real continua desligada. Não usar uma flag genérica `setupComplete` como prova. A lista e a obrigatoriedade das secções devem ser revisitadas quando as validações reais forem implementadas.
+Se a próxima secção for `rules`, a navegação aponta provisoriamente para `/configuracao` (e nunca volta a enviar o utilizador à identificação da empresa). Estas secções ainda não têm formulário, e a configuração não é declarada concluída até serem realmente validadas. A autenticação real continua desligada. Não usar uma flag genérica `setupComplete` como prova. A lista e a obrigatoriedade das secções devem ser revisitadas quando as validações reais forem implementadas.
 
-As rotas `/configuracao/inicial`, `/configuracao/funcionamento` e `/configuracao/equipa` possuem formulários reais com armazenamento local limitado. A configuração de regras gerais e cobertura continua por implementar. A função de decisão não está ligada ao formulário de login (que continua sem backend). Futuramente, o controlador autenticado deverá consultar os dados validados e autorizados da empresa antes de executar a decisão.
+As rotas `/configuracao/inicial`, `/configuracao/funcionamento` e `/configuracao/equipa` possuem formulários reais com armazenamento local limitado. A configuração das regras gerais ainda não está disponível no onboarding. A cobertura mínima está fora do âmbito desta fase. A função de decisão não está ligada ao formulário de login (que continua sem backend). Futuramente, o controlador autenticado deverá consultar os dados validados e autorizados da empresa antes de executar a decisão.
 
 ## Identificação da empresa — primeira etapa funcional
 
@@ -61,7 +61,7 @@ A página `/configuracao/inicial` permite introduzir e guardar o **nome da empre
 
 A gravação é **exclusivamente local**, num registo versionado `schedule-engine:v2:company-identity:v1`. O adaptador fica isolado em `src/companyDraftRepository.ts`; dados inválidos ou indisponibilidade do armazenamento não podem ser interpretados como configuração concluída. Não há importação de dados anteriores, sincronização entre dispositivos, conta empresarial real ou armazenamento na cloud. A interface diz ao utilizador que os dados ficam no dispositivo.
 
-O estado resultante pode alimentar a decisão de navegação: nome guardado e validado marca apenas a secção `company` como válida; `operatingHours`, `team`, `rules` e `coverage` continuam sem validação. A navegação após um **login real** não está ligada nesta etapa porque ainda não existe provedor de autenticação. Não declarar onboarding completo com base em localStorage.
+O estado resultante pode alimentar a decisão de navegação: nome guardado e validado marca apenas a secção `company` como válida; `operatingHours`, `team` e `rules` continuam sem validação. A navegação após um **login real** não está ligada nesta etapa porque ainda não existe provedor de autenticação. Não declarar onboarding completo com base em localStorage.
 
 Testes: `tests/companyIdentity.test.ts` verificam normalização, campos inválidos, gravação e leitura, dados corrompidos, indisponibilidade do armazenamento e evolução do estado da decisão de entrada. A verificação visual do novo formulário no Safari e em ecrãs móveis exige aceitação específica.
 
@@ -99,7 +99,7 @@ O formulário e a lista estão em `src/TeamEditor.tsx`, com estilos isolados em 
 
 ## Limpeza do onboarding — PR74
 
-Foi retirada a entrada `availability` de `SETUP_SECTIONS`, do encaminhamento pós-login e dos testes. O percurso obrigatório é **Empresa → Funcionamento → Equipa → Regras → Cobertura**. O acesso ao calendário permanece dependente de validação real das cinco secções, sem concluir prematuramente o onboarding. Nenhum rascunho local anterior (empresa, funcionamento ou equipa) é apagado ou migrado.
+Foi retirada a entrada `availability` de `SETUP_SECTIONS`, do encaminhamento pós-login e dos testes. O percurso obrigatório originalmente incluía **Empresa → Funcionamento → Equipa → Regras → Cobertura**; o PR76 retira a etapa Cobertura. O acesso ao calendário depende agora da validação real das quatro secções, sem concluir prematuramente o onboarding. Nenhum rascunho local anterior (empresa, funcionamento ou equipa) é apagado ou migrado.
 
 A regra de elegibilidade é derivada, não persistida: uma pessoa ativa recebe exatamente os intervalos de funcionamento da organização como janelas possíveis; uma pessoa inativa não recebe nenhuma. As janelas não são turnos atribuídos. A função rejeita dados de origem inválidos em vez de inventar horários. O algoritmo de atribuição e as hard constraints contratuais continuam por implementar na V2.
 
@@ -126,6 +126,16 @@ O resultado é valid, invalid ou insufficient_context; inclui códigos de erro e
 
 **Ainda não há gerador funcional ou botão de geração nesta V2.** Quando houver, a aplicação terá uma única ação «Gerar horário», que faz a certificação automaticamente e mostra os problemas ao utilizador. Não haverá um segundo botão de validar.
 
-Neste PR, um resultado valid significa que **as regras aqui implementadas** foram cumpridas. O certificado completo do motor virá depois da implementação e validação de descansos, cobertura, pausas e demais regras aplicáveis. Não se devem apresentar os resultados atuais como aprovação global de um horário de produção.
+Neste PR, um resultado valid significa que **as regras aqui implementadas** foram cumpridas. O certificado completo do motor virá depois da implementação e validação de descansos, pausas e demais regras aplicáveis que venham a integrar o âmbito. Não se devem apresentar os resultados atuais como aprovação global de um horário de produção.
 
 Os testes adicionais em tests/schedulePeriods.test.ts e tests/certifySchedule.test.ts cobrem os cinco modos, fronteiras dos meses, 38h/40h/42h, 30h+50h, equipas ativas/inativas, sobreposições e contexto read-only.
+
+## PR76 — Remoção da cobertura mínima
+
+**Decisão de âmbito:** a primeira fase do Schedule Engine **não exige cobertura mínima**. Não existe número mínimo de colaboradores por turno, regra de staffing por intervalo, grelha de cobertura ou requisito de preencher todo o funcionamento da empresa.
+
+A implementação V2 na main antes do PR76 não possuía um algoritmo de cobertura nem persistência desses dados: apenas continha uma secção `coverage` obrigatória no encaminhamento de onboarding e referências em documentação/testes. O PR76 elimina essa etapa, mantendo quatro secções: **Empresa → Funcionamento → Equipa → Regras**. Não se retiram verificações de 40 horas semanais, funcionamento, colaboradores ativos ou sobreposição de intervalos.
+
+O certificador independente do PR75 não verificava cobertura; continua a não a verificar. O seu resultado `valid` continua limitado às regras implementadas. A interface atual não tem formulário de cobertura, pelo que não é necessária qualquer migração, remoção de dados ou modificação de ecrãs.
+
+A próxima geração deve distribuir 40 horas semanais respeitando as restantes restrições implementadas, **sem impor ocupação mínima de cada intervalo da empresa**. A obrigação de 40h por colaborador também não significa trabalhar continuamente durante toda a abertura.
