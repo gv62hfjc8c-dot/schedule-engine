@@ -1,5 +1,5 @@
 /** Phase 1 contract: every active person owes exactly 40 work hours each week. */
-export const REQUIRED_WEEKLY_MINUTES=40*60;
+export const REQUIRED_WEEKLY_MINUTES=2400 as const; // 40 h × 60 min
 
 export type WeeklyHoursBalance=
   | {kind:"exact";requiredMinutes:2400;actualMinutes:number;differenceMinutes:0}
