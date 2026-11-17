@@ -122,6 +122,7 @@ export function certifySchedule(input:CertificationInput):CertificationReport {
       issue("INVALID_OPENING_HOURS","O funcionamento da empresa é inválido."),
     ]);
 
+  const validatedOpeningHours=hours.value;
   const problems:CertificationIssue[]=[];
   const contextProblems:CertificationIssue[]=[];
   const rawCandidate=input.candidateAssignments;
@@ -166,7 +167,7 @@ export function certifySchedule(input:CertificationInput):CertificationReport {
           }));
         return;
       }
-      if(!isWithinOpeningHours(normalized,hours.value))
+      if(!isWithinOpeningHours(normalized,validatedOpeningHours))
         problems.push(issue("OUTSIDE_OPENING_HOURS",
           "O turno está fora dos períodos de funcionamento da empresa.",{
             memberId:normalized.memberId,date:normalized.date,
