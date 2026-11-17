@@ -102,3 +102,30 @@ O formulário e a lista estão em `src/TeamEditor.tsx`, com estilos isolados em 
 Foi retirada a entrada `availability` de `SETUP_SECTIONS`, do encaminhamento pós-login e dos testes. O percurso obrigatório é **Empresa → Funcionamento → Equipa → Regras → Cobertura**. O acesso ao calendário permanece dependente de validação real das cinco secções, sem concluir prematuramente o onboarding. Nenhum rascunho local anterior (empresa, funcionamento ou equipa) é apagado ou migrado.
 
 A regra de elegibilidade é derivada, não persistida: uma pessoa ativa recebe exatamente os intervalos de funcionamento da organização como janelas possíveis; uma pessoa inativa não recebe nenhuma. As janelas não são turnos atribuídos. A função rejeita dados de origem inválidos em vez de inventar horários. O algoritmo de atribuição e as hard constraints contratuais continuam por implementar na V2.
+
+## PR75 — Primeira regra do núcleo e certificação independente
+
+**40 horas semanais fixas e obrigatórias** por colaborador ativo, representadas por 2 400 minutos de trabalho efetivo. Não existe configuração individual deste número nesta fase. Uma semana com 38h ou 42h é inválida, tal como um ciclo de 14 dias com 30h + 50h. Estar disponível dentro da abertura da empresa não significa que essas horas já tenham sido trabalhadas.
+
+### Módulos do núcleo (sem React, API ou Supabase)
+
+- **src/schedulePeriods.ts:** cinco modos: weekly, 14d, 21d, 28d e monthly. Períodos de duração fixa começam à segunda-feira; o mês é civil. Datas com início inclusivo e fim exclusivo. Distingue intervalo editável de horizonte das semanas completas para certificação.
+- **src/workAssignments.ts:** trabalho efetivo por colaborador, data, início e fim. As pausas não contabilizadas têm de separar intervalos de trabalho; intervalos noturnos a atravessar a meia-noite ainda não existem.
+- **src/weeklyHours.ts:** hard constraint constante de 2 400 minutos por semana completa de segunda a domingo.
+- **src/certifySchedule.ts:** valida independentemente a estrutura, colaboradores, abertura da empresa, sobreposições, períodos e 40 horas por pessoa/semana. Não atribui turnos nem escreve em dados.
+
+### Outros meses são sempre só de leitura
+
+Se o período editável for novembro de 2026, nenhuma atribuição proposta pode estar fora de 01/11–30/11. Para validar as semanas de 26/10–01/11 e 30/11–06/12, o certificador consulta contexto externo, mas nunca o modifica. O estado aprovado/rascunho do mês externo não altera esta proteção. O contexto deve declarar explicitamente que dias externos têm informação completa, incluindo os dias sem trabalho; faltando informação, o resultado não pode ser declarado válido. Turnos externos podem ter sido produzidos sob outro funcionamento da empresa, pelo que não são revalidados contra os horários atuais; apenas contribuem com os minutos registados.
+
+**A proteção de escrita no armazenamento será responsabilidade adicional do futuro adaptador de persistência**, incluindo autorização e verificação de versão do contexto. O certificador atual é uma função pura, sem qualquer operação de escrita.
+
+### Estados de certificação e limites
+
+O resultado é valid, invalid ou insufficient_context; inclui códigos de erro e totais por pessoa e semana. Uma infração comprovada prevalece sobre falta de contexto. Uma semana incompleta não pode ser declarada deficiente ou validada apenas pelo total parcial; excesso já comprovado continua inválido.
+
+**Ainda não há gerador funcional ou botão de geração nesta V2.** Quando houver, a aplicação terá uma única ação «Gerar horário», que faz a certificação automaticamente e mostra os problemas ao utilizador. Não haverá um segundo botão de validar.
+
+Neste PR, um resultado valid significa que **as regras aqui implementadas** foram cumpridas. O certificado completo do motor virá depois da implementação e validação de descansos, cobertura, pausas e demais regras aplicáveis. Não se devem apresentar os resultados atuais como aprovação global de um horário de produção.
+
+Os testes adicionais em tests/schedulePeriods.test.ts e tests/certifySchedule.test.ts cobrem os cinco modos, fronteiras dos meses, 38h/40h/42h, 30h+50h, equipas ativas/inativas, sobreposições e contexto read-only.
