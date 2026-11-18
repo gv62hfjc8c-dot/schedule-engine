@@ -5,7 +5,7 @@ A V2 é uma reconstrução independente do código V0/V1. A identidade visual da
 ## Rotas
 
 - `/` — página de acesso com formulário de início de sessão e identidade visual em dois painéis.
-- `/horarios` — calendário mensal com navegação e seleção de datas. O calendário ainda não tem dados operacionais.
+- `/horarios` — calendário mensal com geração real de propostas, verificação automática, consulta dos turnos por dia e gravação local por mês.
 - `/configuracao` — consulta de dados guardados da organização.
 - `/configuracao/inicial` — nome da empresa com validação e gravação local.
 - `/configuracao/funcionamento` — dias e horários semanais de funcionamento com validação e gravação local.
@@ -20,7 +20,7 @@ O layout tem de se adaptar a desktop, tablet e smartphone, incluindo ecrãs com 
 
 ## Estado funcional real
 
-O formulário de acesso **ainda não tem provedor de autenticação**. Submeter o formulário não grava, envia ou autentica credenciais e apenas apresenta uma indisponibilidade de sessão. Não se simula autenticação. A navegação direta para `/horarios` está aberta apenas enquanto não existe backend nem dados privados.
+O formulário de acesso **ainda não tem provedor de autenticação**. Submeter o formulário não grava, envia ou autentica credenciais e apenas apresenta uma indisponibilidade de sessão. Não se simula autenticação. A navegação direta para `/horarios` está aberta apenas enquanto não existe backend nem dados privados. Os horários guardados são rascunhos locais e não devem ser utilizados como registos oficiais.
 
 A V2 já contém um **gerador experimental puro** de atribuições e um **certificador independente**, mas ainda não existe ligação funcional à interface, aprovações, Supabase, autenticação real nem persistência dos turnos gerados. Os dados de empresa, funcionamento e equipa podem ser guardados apenas neste dispositivo. Os ecrãs não devem inventar resultados. Um dia sem turno nunca é automaticamente marcado como folga.
 
@@ -171,4 +171,27 @@ O último comando executa `examples/firstGeneration.ts` com **dados fictícios**
 
 O teste `tests/generateSchedule.test.ts` valida semanal, 14/21/28 dias, mês de novembro de 2026 com outubro/dezembro só de leitura, contexto insuficiente, 40h impossíveis, dias encerrados, múltiplos colaboradores ativos, inativos, horários repartidos, entrada corrompida e ausência de mutações.
 
-**Ainda não existe botão «Gerar horário» funcional na interface**, nem repositorizado em servidor ou persistência dos horários produzidos. A integração com a aplicação deverá disponibilizar **uma única ação de geração** que apresenta automaticamente o resultado do certificador; não criar uma página de validação separada.
+**A partir do PR78, a página /horarios dispõe de uma ação funcional «Gerar horário» para o mês visível**, certificação automática, visualização diária e possibilidade de guardar a proposta no navegador. Não existe persistência em servidor, aprovação definitiva nem ecrã separado de validação. Os modos de 7/14/21/28 dias continuam implementados no núcleo, mas a seleção visual desses modos permanece fora do PR78, que integra inicialmente a geração mensal.
+
+## PR78 — Gerar, consultar e guardar propostas no Safari
+
+A página `/horarios` utiliza agora `CalendarScheduler` e o motor real do PR77. O utilizador pode navegar entre meses civis, clicar em **Gerar horário**, consultar os intervalos atribuídos a cada colaborador no calendário e clicar em **Guardar proposta**. A certificação é executada automaticamente, incluindo quando se consulta uma proposta local guardada. Não existe ecrã nem botão independente para validar.
+
+### Persistência local (rascunhos, não horários aprovados)
+
+O adaptador `src/monthlyScheduleDraftRepository.ts` guarda uma proposta completa por mês na chave `schedule-engine:v2:schedule-month:v1:AAAA-MM` do `localStorage`. Os dados são revalidados à leitura e à escrita; entradas corrompidas não podem ser confundidas com meses vazios. O armazenamento guarda apenas os intervalos de trabalho efetivo, **não um certificado definitivo**. A certificação é recalculada ao abrir a proposta, a partir da equipa e funcionamento atuais e do contexto dos meses vizinhos.
+
+Cada escrita atinge **exclusivamente a chave do mês selecionado**. Nunca acrescenta, edita nem apaga turnos de outro mês, esteja esse mês aprovado, incompleto ou apenas em preparação. As semanas que atravessam as fronteiras do mês consultam os meses adjacentes em modo de leitura: um mês vizinho **sem proposta guardada é desconhecido**, não é assumido como 0 horas. Uma proposta mensal guardada representa o conjunto de atribuições de todos os dias desse mês, incluindo dias sem turnos, sem transformar automaticamente esses dias em folgas.
+
+Se faltar contexto externo, a proposta pode ser guardada **como rascunho não certificado**, com a respetiva advertência. **Uma proposta comprovadamente inválida não pode ser guardada pelo fluxo da UI**. No momento de guardar, a aplicação verifica se a equipa, o funcionamento, o contexto externo e o mês selecionado não foram alterados desde a geração; em caso de alteração, exige que o utilizador volte a gerar/recarregue em vez de substituir silenciosamente o que já foi guardado. Substituir uma proposta existente exige confirmação. O controlo de revisão em `localStorage` é uma defesa básica contra dados obsoletos, não uma transação atómica entre dispositivos ou uma garantia de concorrência em servidor.
+
+Este PR integra apenas o **modo mensal na interface** para reduzir a complexidade inicial. O motor já suporta 7, 14, 21 e 28 dias, que poderão ser apresentados numa fase posterior com um modelo de persistência consistente para períodos sobrepostos. Não há dados cloud, sincronização, login real, alterações ao Supabase nem horários aprovados. O certificador atual ainda não verifica todos os descansos e requisitos legais. Um resultado `valid` significa somente que as restrições codificadas até este PR foram respeitadas.
+
+### Teste manual
+
+1. Configurar a identificação da empresa, os horários semanais de funcionamento e pelo menos um colaborador ativo.
+2. Abrir `http://localhost:5173/horarios`, selecionar o mês pretendido e carregar em **Gerar horário**.
+3. Confirmar que aparecem os dias com turnos, a lista de pessoas e os intervalos no detalhe diário.
+4. Guardar a proposta e recarregar a página: os turnos devem permanecer disponíveis no mesmo dispositivo.
+5. Navegar para o mês anterior ou seguinte. O seu horário não pode ser alterado pela geração do mês corrente; se ainda não estiver guardado, deve manter-se desconhecido e causar `Contexto incompleto` quando necessário.
+6. Alterar os dados da equipa/funcionamento e voltar à proposta: a certificação não deve ser considerada permanentemente válida por ter sido guardada.

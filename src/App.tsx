@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
-import { monthCells, monthLabel, selectedDayLabel } from "./calendar";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { CalendarScheduler } from "./CalendarScheduler";
 import { knownFoundationPath, pageForPath } from "./routes";
 import { TeamEditor } from "./TeamEditor";
 import { loadTeamDraftFromBrowser } from "./teamDraftRepository";
@@ -115,93 +115,10 @@ function Shell({ children }: { children: ReactNode }) {
   );
 }
 
-const WEEKDAYS = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
-
 function CalendarPage() {
-  const [visible, setVisible] = useState(() => {
-    const today = new Date();
-    return { year: today.getFullYear(), month: today.getMonth() };
-  });
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  const cells = useMemo(
-    () => monthCells(visible.year, visible.month), [visible.year, visible.month]
-  );
-  const today = new Date();
-  const todayString = String(today.getFullYear()) + "-" +
-    String(today.getMonth() + 1).padStart(2, "0") + "-" +
-    String(today.getDate()).padStart(2, "0");
-
-  function navigateMonth(direction: number) {
-    setVisible(current => {
-      const next = new Date(current.year, current.month + direction, 1);
-      return { year: next.getFullYear(), month: next.getMonth() };
-    });
-    setSelectedDate(null);
-  }
-
-  function showToday() {
-    setVisible({ year: today.getFullYear(), month: today.getMonth() });
-    setSelectedDate(todayString);
-  }
-
   return (
     <Shell>
-      <header className="page-heading">
-        <div>
-          <p className="eyebrow">Planeamento</p>
-          <h1>Horários</h1>
-          <p>Consulta o calendário e os horários da tua equipa.</p>
-        </div>
-      </header>
-      <div className="calendar-layout">
-        <section className="surface calendar-panel" aria-label="Calendário mensal">
-          <header className="calendar-header">
-            <div>
-              <p className="surface-kicker">Calendário</p>
-              <h2>{monthLabel(visible.year, visible.month)}</h2>
-            </div>
-            <div className="month-actions">
-              <button className="icon-button" type="button" onClick={() => navigateMonth(-1)}
-                aria-label="Mês anterior">‹</button>
-              <button className="today-button" type="button" onClick={showToday}>Hoje</button>
-              <button className="icon-button" type="button" onClick={() => navigateMonth(1)}
-                aria-label="Mês seguinte">›</button>
-            </div>
-          </header>
-          <div className="calendar-grid" aria-label={monthLabel(visible.year, visible.month)}>
-            {WEEKDAYS.map(day => <span className="weekday" key={day}>{day}</span>)}
-            {cells.map((cell, index) => cell.day === null
-              ? <span className="empty-day" key={"empty-" + index} aria-hidden="true" />
-              : <button type="button" key={cell.date}
-                  className={"calendar-day" +
-                    (cell.date === todayString ? " is-today" : "") +
-                    (cell.date === selectedDate ? " is-selected" : "")}
-                  onClick={() => setSelectedDate(cell.date)}
-                  aria-label={selectedDayLabel(cell.date!)}
-                  aria-pressed={selectedDate === cell.date}>
-                  <span>{cell.day}</span>
-                </button>
-            )}
-          </div>
-          <p className="calendar-footnote">
-            <span className="neutral-dot" aria-hidden="true" />
-            Não existem horários registados neste mês.
-          </p>
-        </section>
-        <aside className="surface detail-panel" aria-label="Detalhe do dia" aria-live="polite">
-          <p className="surface-kicker">Detalhe do dia</p>
-          <h2>{selectedDate ? selectedDayLabel(selectedDate) : "Seleciona uma data"}</h2>
-          {selectedDate
-            ? <>
-                <span className="detail-state">Sem horário registado</span>
-                <p>Não existem turnos atribuídos a este dia.</p>
-                <p className="detail-explanation">
-                  Um dia sem turnos registados não corresponde automaticamente a uma folga.
-                </p>
-              </>
-            : <p>Seleciona um dia do calendário para consultar o seu horário.</p>}
-        </aside>
-      </div>
+      <CalendarScheduler />
     </Shell>
   );
 }
