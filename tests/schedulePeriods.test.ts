@@ -56,3 +56,9 @@ test("Datas civis são estritas e independentes do relógio local",()=>{
   assert.equal(enumerateCivilDays({start:"2026-11-29",endExclusive:"2026-12-02"}).join(","),
     "2026-11-29,2026-11-30,2026-12-01");
 });
+
+test("Um modo de período desconhecido falha explicitamente",()=>{
+  assert.throws(()=>resolvePlanningPeriod({
+    mode:"45d",start:"2026-11-02",
+  } as unknown as Parameters<typeof resolvePlanningPeriod>[0]),/Modo de cálculo inválido/);
+});
