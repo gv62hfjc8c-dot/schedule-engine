@@ -1,0 +1,321 @@
+import {useState} from "react";
+import {monthCells,monthLabel,selectedDayLabel} from "./calendar";
+import {generateSchedule,type GenerationResult} from "./generateSchedule";
+import {certifySchedule,type CertificationReport} from "./certifySchedule";
+import {loadTeamDraftFromBrowser} from "./teamDraftRepository";
+import {loadOpeningHoursDraftFromBrowser} from "./openingHoursDraftRepository";
+import {
+  loadMonthlyDraftFromBrowser,saveMonthlyDraftToBrowser,
+  readExternalMonthlyContextFromBrowser,type MonthlyDraftLoad,
+} from "./monthlyScheduleDraftRepository";
+import {assignmentMinutes,type WorkAssignment} from "./workAssignments";
+
+const WEEKDAYS=["Seg","Ter","Qua","Qui","Sex","Sáb","Dom"];
+
+type Feedback={kind:"error"|"success";message:string};
+type MonthView={year:number;month:number};
+interface SourceSnapshot {
+  team:ReturnType<typeof loadTeamDraftFromBrowser>;
+  opening:ReturnType<typeof loadOpeningHoursDraftFromBrowser>;
+  context:ReturnType<typeof readExternalMonthlyContextFromBrowser>;
+}
+function loadSources(year:number,month:number):SourceSnapshot {
+  return {
+    team:loadTeamDraftFromBrowser(),
+    opening:loadOpeningHoursDraftFromBrowser(),
+    context:readExternalMonthlyContextFromBrowser(year,month),
+  };
+}
+function sourceError(sources:SourceSnapshot):string|null {
+  if(sources.team.status!=="loaded")
+    return "Configura uma equipa válida com colaboradores ativos antes de gerar. Consulta Configuração → Equipa.";
+  if(sources.opening.status!=="loaded")
+    return "Configura primeiro o funcionamento da empresa. Consulta Configuração → Funcionamento.";
+  if(!sources.context.ok)return sources.context.message;
+  return null;
+}
+function certificationForSaved(
+  sources:SourceSnapshot,year:number,month:number,
+  assignments:WorkAssignment[]
+):CertificationReport|null {
+  if(sources.team.status!=="loaded"||
+    sources.opening.status!=="loaded"||!sources.context.ok)return null;
+  return certifySchedule({
+    period:{mode:"monthly",year,month},
+    team:sources.team.value,openingHours:sources.opening.value,
+    externalContext:sources.context.context,candidateAssignments:assignments,
+  });
+}
+function stateText(report:CertificationReport|null):string {
+  if(!report)return "Não foi possível verificar esta proposta com os dados atuais.";
+  if(report.status==="valid")
+    return "40 horas semanais e restantes regras implementadas verificadas. Não é uma aprovação definitiva.";
+  if(report.status==="insufficient_context")
+    return "Proposta por certificar: faltam dados de semanas que atravessam outros meses.";
+  return "A proposta tem conflitos ou horas obrigatórias incorretas.";
+}
+function memberLabel(memberId:string,names:Map<string,string>):string {
+  return names.get(memberId)??"Colaborador não encontrado";
+}
+
+function MonthWorkspace({year,month,todayString}:{
+  year:number;month:number;todayString:string;
+}) {
+  const [initial]=useState(()=>loadMonthlyDraftFromBrowser(year,month));
+  const [saved,setSaved]=useState<WorkAssignment[]|null>(
+    ()=>initial.status==="loaded"?initial.assignments:null
+  );
+  const [revision,setRevision]=useState<string|null>(
+    ()=>initial.status==="loaded"?initial.revision:null
+  );
+  const [preview,setPreview]=useState<GenerationResult|null>(null);
+  const [sourceSignature,setSourceSignature]=useState<string|null>(null);
+  const [selectedDate,setSelectedDate]=useState<string|null>(null);
+  const [feedback,setFeedback]=useState<Feedback|null>(null);
+  const [names,setNames]=useState<Map<string,string>>(()=>{
+    const team=loadTeamDraftFromBrowser();
+    return new Map(team.status==="loaded"?
+      team.value.members.map(member=>[member.id,member.name]):[]);
+  });
+  const [savedReport,setSavedReport]=useState<CertificationReport|null>(()=>{
+    if(initial.status!=="loaded")return null;
+    return certificationForSaved(loadSources(year,month),year,month,initial.assignments);
+  });
+  const data=preview?.candidateAssignments??saved??[];
+  const report=preview?.certification??savedReport;
+  const cells=monthCells(year,month-1);
+  const byDay=new Map<string,WorkAssignment[]>();
+  for(const entry of data){
+    const existing=byDay.get(entry.date)??[];
+    existing.push(entry);
+    byDay.set(entry.date,existing);
+  }
+  const dayAssignments=selectedDate?(byDay.get(selectedDate)??[]):[];
+  const isBlocked=initial.status==="invalid"||initial.status==="unavailable";
+
+  function generate(){
+    if(isBlocked){
+      setFeedback({kind:"error",message:"O registo deste mês não pode ser lido. Não será substituído automaticamente."});
+      return;
+    }
+    const sources=loadSources(year,month);
+    const problem=sourceError(sources);
+    if(problem){
+      setFeedback({kind:"error",message:problem});
+      return;
+    }
+    if(sources.team.status!=="loaded"||
+       sources.opening.status!=="loaded"||!sources.context.ok)return;
+    const result=generateSchedule({
+      period:{mode:"monthly",year,month},
+      team:sources.team.value,openingHours:sources.opening.value,
+      externalContext:sources.context.context,
+    });
+    setPreview(result);
+    setSourceSignature(JSON.stringify(sources));
+    setNames(new Map(sources.team.value.members.map(member=>[member.id,member.name])));
+    setFeedback(result.status==="invalid_input"?
+      {kind:"error",message:"Os dados de entrada não permitem gerar uma proposta."}:
+      result.status==="invalid"?
+      {kind:"error",message:"A proposta não cumpre todas as 40 horas semanais. Consulta os problemas abaixo."}:
+      {kind:"success",message:"Proposta gerada. Revê o resultado e guarda-a apenas se estiver correta."});
+  }
+
+  function save(){
+    if(isBlocked || !preview || sourceSignature===null ||
+       preview.status==="invalid"||preview.status==="invalid_input")return;
+    const currentSources=loadSources(year,month);
+    const problem=sourceError(currentSources);
+    if(problem){
+      setFeedback({kind:"error",message:problem});
+      return;
+    }
+    if(JSON.stringify(currentSources)!==sourceSignature){
+      setFeedback({kind:"error",message:"Os dados da empresa, da equipa ou dos outros meses mudaram. Gera novamente antes de guardar."});
+      return;
+    }
+    const currentReport=certificationForSaved(currentSources,year,month,
+      preview.candidateAssignments);
+    if(!currentReport || currentReport.status==="invalid"){
+      setFeedback({kind:"error",message:"A proposta não passa a certificação atual. Não foi guardada."});
+      return;
+    }
+    if(saved!==null &&
+      !window.confirm("Substituir a proposta guardada deste mês? Os horários dos outros meses não serão alterados."))return;
+    const result=saveMonthlyDraftToBrowser(
+      year,month,preview.candidateAssignments,revision
+    );
+    if(!result.ok){
+      setFeedback({kind:"error",message:result.message});
+      return;
+    }
+    setSaved(result.assignments);
+    setRevision(result.revision);
+    setSavedReport(currentReport);
+    setPreview(null);
+    setSourceSignature(null);
+    setFeedback({kind:"success",message:"Proposta de "+monthLabel(year,month-1)+
+      " guardada neste navegador. Não foi aprovada nem sincronizada com outros dispositivos."});
+  }
+
+  return (
+    <>
+      <header className="page-heading">
+        <div>
+          <p className="eyebrow">Planeamento</p>
+          <h1>Horários</h1>
+          <p>Gera, consulta e guarda propostas mensais para a tua equipa.</p>
+        </div>
+      </header>
+      <section className="surface schedule-controls" aria-label="Geração de horário">
+        <div className="schedule-controls-heading">
+          <div>
+            <p className="surface-kicker">Proposta mensal</p>
+            <h2>{monthLabel(year,month-1)}</h2>
+            <p>A geração utiliza os colaboradores ativos e o funcionamento guardado.</p>
+          </div>
+          <div className="schedule-buttons">
+            <button type="button" className="button button-primary"
+              disabled={isBlocked} onClick={generate}>Gerar horário</button>
+            {preview && (preview.status==="valid"||preview.status==="insufficient_context") &&
+              <button type="button" className="button schedule-save" onClick={save}>
+                Guardar proposta
+              </button>}
+          </div>
+        </div>
+        <p className="schedule-storage-note">
+          {saved===null?"Ainda não existe uma proposta guardada para este mês.":
+            "Existe uma proposta guardada neste dispositivo para este mês."}
+          {" "}A geração não altera os horários dos outros meses.
+        </p>
+        {isBlocked&&<p role="alert" className="form-error">
+          {initial.status==="invalid"
+            ?"Os dados guardados deste mês são inválidos. Não serão apagados nem substituídos automaticamente."
+            :"O armazenamento deste dispositivo não está disponível."}
+        </p>}
+        {feedback&&<p role={feedback.kind==="error"?"alert":"status"}
+          className={feedback.kind==="error"?"form-error":"form-success"}>
+          {feedback.message}
+        </p>}
+        {(preview||saved)&&<div className="schedule-certification" aria-live="polite">
+          <span className={"schedule-status schedule-status-"+(report?.status??"unknown")}>
+            {report?.status==="valid"?"Regras verificadas":
+              report?.status==="insufficient_context"?"Contexto incompleto":
+              report?.status==="invalid"?"Com problemas":"Não verificado"}
+          </span>
+          <p>{stateText(report)}</p>
+          {report&&report.issues.length>0&&<div className="schedule-issues">
+            <strong>Problemas encontrados</strong>
+            <ul>
+              {report.issues.slice(0,5).map((issue,index)=>
+                <li key={issue.code+"-"+index}>
+                  {issue.message}{issue.weekStart?" — semana de "+issue.weekStart:""}
+                </li>)}
+            </ul>
+            {report.issues.length>5&&<p>
+              Existem mais {report.issues.length-5} problemas no resultado.</p>}
+          </div>}
+        </div>}
+      </section>
+      <div className="calendar-layout">
+        <section className="surface calendar-panel" aria-label="Calendário mensal">
+          <header className="calendar-header">
+            <div>
+              <p className="surface-kicker">Calendário</p>
+              <h2>{monthLabel(year,month-1)}</h2>
+            </div>
+          </header>
+          <div className="calendar-grid" aria-label={monthLabel(year,month-1)}>
+            {WEEKDAYS.map(day=><span className="weekday" key={day}>{day}</span>)}
+            {cells.map((cell,index)=>cell.day===null
+              ? <span className="empty-day" key={"empty-"+index} aria-hidden="true"/>
+              : <button type="button" key={cell.date}
+                className={"calendar-day"+
+                  (cell.date===todayString?" is-today":"")+
+                  (cell.date===selectedDate?" is-selected":"")+
+                  ((byDay.get(cell.date!)?.length??0)>0?" has-assignments":"")}
+                onClick={()=>setSelectedDate(cell.date)}
+                aria-label={selectedDayLabel(cell.date!)+", "+
+                  (byDay.get(cell.date!)?.length??0)+" intervalos de trabalho"}
+                aria-pressed={selectedDate===cell.date}>
+                <span>{cell.day}</span>
+                {(byDay.get(cell.date!)?.length??0)>0&&
+                  <span className="calendar-assignment-count">
+                    {byDay.get(cell.date!)!.length} turnos
+                  </span>}
+              </button>)}
+          </div>
+          <p className="calendar-footnote">
+            <span className="neutral-dot" aria-hidden="true"/>
+            {data.length===0
+              ?"Sem turnos guardados ou propostos neste mês."
+              :preview
+                ?"A apresentar uma proposta ainda não guardada."
+                :"A apresentar a proposta guardada neste dispositivo."}
+          </p>
+        </section>
+        <aside className="surface detail-panel" aria-label="Detalhe do dia" aria-live="polite">
+          <p className="surface-kicker">Detalhe do dia</p>
+          <h2>{selectedDate?selectedDayLabel(selectedDate):"Seleciona uma data"}</h2>
+          {selectedDate
+            ?dayAssignments.length>0
+              ?<div className="day-work-list">
+                {dayAssignments.map((assignment,index)=>
+                  <div className="day-work-item" key={assignment.memberId+"-"+index}>
+                    <strong>{memberLabel(assignment.memberId,names)}</strong>
+                    <span>{assignment.start}–{assignment.end}</span>
+                    <span>{(assignmentMinutes(assignment)/60).toLocaleString("pt-PT")} h de trabalho</span>
+                  </div>)}
+              </div>
+              :<>
+                <span className="detail-state">Sem turno atribuído</span>
+                <p>Não existem turnos atribuídos a este dia.</p>
+                <p className="detail-explanation">
+                  Um dia sem turnos registados não corresponde automaticamente a uma folga.
+                </p>
+              </>
+            :<p>Seleciona um dia do calendário para consultar o seu horário.</p>}
+        </aside>
+      </div>
+      <p className="schedule-disclaimer">
+        As propostas são rascunhos locais, não horários aprovados. A certificação
+        atual verifica apenas as regras já implementadas; não garante ainda
+        o cumprimento de todos os descansos e requisitos legais.
+      </p>
+    </>
+  );
+}
+
+export function CalendarScheduler(){
+  const [visible,setVisible]=useState<MonthView>(()=>{
+    const date=new Date();
+    return {year:date.getFullYear(),month:date.getMonth()+1};
+  });
+  const now=new Date();
+  const todayString=String(now.getFullYear()).padStart(4,"0")+"-"+
+    String(now.getMonth()+1).padStart(2,"0")+"-"+
+    String(now.getDate()).padStart(2,"0");
+
+  function navigate(direction:number){
+    setVisible(previous=>{
+      const next=new Date(previous.year,previous.month-1+direction,1);
+      return {year:next.getFullYear(),month:next.getMonth()+1};
+    });
+  }
+  return (
+    <>
+      <div className="schedule-month-navigation">
+        <button type="button" className="icon-button" onClick={()=>navigate(-1)}
+          aria-label="Mês anterior">‹</button>
+        <button type="button" className="today-button" onClick={()=>{
+          const date=new Date();
+          setVisible({year:date.getFullYear(),month:date.getMonth()+1});
+        }}>Hoje</button>
+        <button type="button" className="icon-button" onClick={()=>navigate(1)}
+          aria-label="Mês seguinte">›</button>
+      </div>
+      <MonthWorkspace key={visible.year+"-"+visible.month}
+        year={visible.year} month={visible.month} todayString={todayString}/>
+    </>
+  );
+}
