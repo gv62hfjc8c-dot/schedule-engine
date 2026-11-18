@@ -5,7 +5,7 @@ import {
 import {validateTeamRoster} from "./team";
 import {WEEKDAYS,validateWeeklyOpeningHours} from "./operatingHours";
 import {
-  civilDayOfWeek,enumerateCivilDays,inRange,type DateRange,
+  civilDayOfWeek,daysBetween,enumerateCivilDays,inRange,type DateRange,
 } from "./schedulePeriods";
 import {
   assignmentMinutes,clockMinutes,validateWorkAssignment,
@@ -107,17 +107,45 @@ function allocateWeek(plans:DayPlan[],targetMinutes:number,
   }
 }
 
-function toAssignments(memberId:string,plan:DayPlan):WorkAssignment[] {
+/**
+ * A non-mandatory spacing preference between active colleagues.
+ * When an opening window is longer than the allocated work, rotate the
+ * available start positions over consecutive civil days. This changes neither
+ * the allocated minutes nor any hard constraint and never imposes coverage.
+ *
+ * Civil-day rotation (rather than resetting every Monday or month) avoids
+ * systematically giving the same employee the opening shift.
+ */
+function suggestedStartOffset(plan:DayPlan,memberIndex:number,activeCount:number):number {
+  if(activeCount<2 || plan.allocated===0)return 0;
+  const spare=plan.capacity-plan.allocated;
+  if(spare<=0)return 0; // e.g. four 10-hour working days.
+  const dayIndex=daysBetween("1970-01-01",plan.date);
+  const slot=((dayIndex+memberIndex)%activeCount+activeCount)%activeCount;
+  return Math.round(spare*slot/(activeCount-1));
+}
+
+function toAssignments(
+  memberId:string,plan:DayPlan,memberIndex:number,activeCount:number
+):WorkAssignment[] {
   let minutesLeft=plan.allocated;
+  let skip=suggestedStartOffset(plan,memberIndex,activeCount);
   const assignments:WorkAssignment[]=[];
   for(const interval of plan.intervals){
     if(minutesLeft===0)break;
-    const amount=Math.min(minutesLeft,interval.end-interval.start);
+    const length=interval.end-interval.start;
+    if(skip>=length){
+      skip-=length;
+      continue;
+    }
+    const start=interval.start+skip;
+    skip=0;
+    const amount=Math.min(minutesLeft,interval.end-start);
     if(amount<=0)continue;
     assignments.push({
       memberId,date:plan.date,
-      start:formatClock(interval.start),
-      end:formatClock(interval.start+amount),
+      start:formatClock(start),
+      end:formatClock(start+amount),
     });
     minutesLeft-=amount;
   }
@@ -154,12 +182,12 @@ export function generateSchedule(input:GenerationInput):GenerationResult {
   const candidates:WorkAssignment[]=[];
   const shortfalls:GenerationShortfall[]=[];
 
+  const activeMembers=team.value.members.filter(member=>member.active);
   for(const week of period.weeks){
     const unknownExternalDays=enumerateCivilDays(week)
       .filter(date=>!inRange(date,period) && !completeDates.has(date));
     const contextComplete=unknownExternalDays.length===0;
-    for(const member of team.value.members){
-      if(!member.active)continue;
+    for(const [memberIndex,member] of activeMembers.entries()){
       const externalMinutes=externalAssignments.reduce((sum,entry)=>
         entry.memberId.toLowerCase()===member.id && inRange(entry.date,week)
           ? sum+assignmentMinutes(entry):sum,0);
@@ -167,7 +195,8 @@ export function generateSchedule(input:GenerationInput):GenerationResult {
       const plans=availableDays(week,period,hours.value);
       allocateWeek(plans,target,contextComplete);
       const generatedMinutes=plans.reduce((sum,plan)=>sum+plan.allocated,0);
-      for(const plan of plans)candidates.push(...toAssignments(member.id,plan));
+      for(const plan of plans)candidates.push(...toAssignments(
+        member.id,plan,memberIndex,activeMembers.length));
       if(contextComplete && generatedMinutes+externalMinutes<REQUIRED_WEEKLY_MINUTES){
         shortfalls.push({
           memberId:member.id,weekStart:week.start,
