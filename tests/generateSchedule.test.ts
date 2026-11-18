@@ -257,3 +257,59 @@ test("O resultado nunca assume que um dia sem turno é uma folga",()=>{
   assert.ok(out.candidateAssignments.every(a=>
     Object.keys(a).sort().join(",")==="date,end,memberId,start"));
 });
+
+test("Frenteira mensal: 38h em outubro são completadas apenas em novembro",()=>{
+  const data=input({mode:"monthly",year:2026,month:11});
+  const external=previousNextContext();
+  const friday=external.assignments.find(a=>a.date==="2026-10-30");
+  assert.ok(friday);
+  friday.end="15:00"; // agora outubro tem 38 horas
+  data.externalContext=external;
+  const hours=opening();
+  hours.days[6].intervals=[{start:"10:00",end:"18:00"}]; // domingo 1/11
+  data.openingHours=hours;
+  const snapshot=JSON.stringify(external);
+  const generated=generateSchedule(data);
+  assert.equal(generated.status,"valid");
+  const nov1=generated.candidateAssignments.filter(a=>a.date==="2026-11-01");
+  assert.equal(nov1.length,1);
+  assert.equal(assignmentMinutes(nov1[0]),120);
+  assert.equal(JSON.stringify(external),snapshot);
+});
+
+test("Mês de 31 dias: dezembro cruza novembro e janeiro, mas só escreve dezembro",()=>{
+  const data=input({mode:"monthly",year:2026,month:12});
+  const external={
+    assignments:[{
+      memberId:ANA,date:"2026-11-30",start:"09:00",end:"17:00",
+    }],
+    completeDates:["2026-11-30","2027-01-01","2027-01-02","2027-01-03"],
+  };
+  data.externalContext=external;
+  const snapshot=JSON.stringify(external);
+  const out=generateSchedule(data);
+  assert.equal(out.status,"valid");
+  assert.equal(resolvePlanningPeriod(data.period).endExclusive,"2027-01-01");
+  assert.ok(out.candidateAssignments.every(a=>
+    a.date>="2026-12-01" && a.date<"2027-01-01"));
+  assert.ok(out.certification.weeks.every(w=>w.actualMinutes===2400));
+  const last=out.candidateAssignments.filter(a=>a.date>="2026-12-28");
+  assert.equal(last.length,4);
+  assert.ok(last.every(a=>assignmentMinutes(a)===600));
+  assert.equal(JSON.stringify(external),snapshot);
+});
+
+test("Excesso já existente no mês anterior é inválido, não uma falta fictícia",()=>{
+  const data=input({mode:"monthly",year:2026,month:11});
+  const external=previousNextContext();
+  external.assignments.push({
+    memberId:ANA,date:"2026-10-31",start:"09:00",end:"17:00",
+  });
+  data.externalContext=external;
+  const out=generateSchedule(data);
+  assert.equal(out.status,"invalid");
+  assert.ok(out.certification.issues.some(i=>i.code==="WEEKLY_HOURS_EXCESS"&&
+    i.weekStart==="2026-10-26"));
+  assert.equal(out.shortfalls.some(s=>s.weekStart==="2026-10-26"),false);
+  assert.ok(out.candidateAssignments.every(a=>a.date.startsWith("2026-11-")));
+});
