@@ -1,4 +1,4 @@
-/** Rotas atuais. O motor de geração ainda não existe na V2. */
+/** Rotas V2. O gerador mensal utiliza a página de calendário existente. */
 export type FoundationPage = "welcome" | "calendar" | "settings" | "setup" | "operatingHours" | "team";
 
 export function pageForPath(pathname: string): FoundationPage {
