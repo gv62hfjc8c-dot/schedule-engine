@@ -4,6 +4,7 @@ import test from "node:test";
 
 const app = readFileSync(new URL("../src/App.tsx", import.meta.url), "utf8");
 const styles = readFileSync(new URL("../src/styles.css", import.meta.url), "utf8");
+const calendarScheduler = readFileSync(new URL("../src/CalendarScheduler.tsx", import.meta.url), "utf8");
 
 test("A interface não apresenta linguagem de desenvolvimento", () => {
   for (const forbidden of [
@@ -39,5 +40,17 @@ test("Layout adapta-se a desktop, tablet e telemóvel sem largura fixa da págin
 });
 
 test("A interface distingue ausência de horário e folga", () => {
-  assert.match(app, /sem turnos registados não corresponde automaticamente a uma folga/);
+  assert.match(calendarScheduler, /sem turnos registados não corresponde automaticamente a uma folga/);
+});
+
+test("O calendário mostra geração real, certificação e guarda sem validação manual", () => {
+  assert.match(app, /<CalendarScheduler\s*\/>/);
+  assert.match(calendarScheduler, /Gerar horário/);
+  assert.match(calendarScheduler, /Guardar proposta/);
+  assert.match(calendarScheduler, /generateSchedule\(/);
+  assert.match(calendarScheduler, /saveMonthlyDraftToBrowser\(/);
+  assert.match(calendarScheduler, /certificationForSaved\(/);
+  assert.doesNotMatch(calendarScheduler, /Validar horário/);
+  assert.match(calendarScheduler, /calendar-assignment-count/);
+  assert.match(calendarScheduler, /day-work-item/);
 });
