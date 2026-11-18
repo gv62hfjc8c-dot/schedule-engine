@@ -22,7 +22,7 @@ O layout tem de se adaptar a desktop, tablet e smartphone, incluindo ecrãs com 
 
 O formulário de acesso **ainda não tem provedor de autenticação**. Submeter o formulário não grava, envia ou autentica credenciais e apenas apresenta uma indisponibilidade de sessão. Não se simula autenticação. A navegação direta para `/horarios` está aberta apenas enquanto não existe backend nem dados privados.
 
-Não existem ainda motor de scheduling, regras, turnos, aprovações, Supabase nem persistência em servidor. Os dados de empresa, funcionamento e equipa podem ser guardados apenas neste dispositivo. Os ecrãs não devem inventar resultados. Um dia sem turno nunca é automaticamente marcado como folga.
+A V2 já contém um **gerador experimental puro** de atribuições e um **certificador independente**, mas ainda não existe ligação funcional à interface, aprovações, Supabase, autenticação real nem persistência dos turnos gerados. Os dados de empresa, funcionamento e equipa podem ser guardados apenas neste dispositivo. Os ecrãs não devem inventar resultados. Um dia sem turno nunca é automaticamente marcado como folga.
 
 ## Verificação
 
@@ -139,3 +139,25 @@ A implementação V2 na main antes do PR76 não possuía um algoritmo de cobertu
 O certificador independente do PR75 não verificava cobertura; continua a não a verificar. O seu resultado `valid` continua limitado às regras implementadas. A interface atual não tem formulário de cobertura, pelo que não é necessária qualquer migração, remoção de dados ou modificação de ecrãs.
 
 A próxima geração deve distribuir 40 horas semanais respeitando as restantes restrições implementadas, **sem impor ocupação mínima de cada intervalo da empresa**. A obrigação de 40h por colaborador também não significa trabalhar continuamente durante toda a abertura.
+
+## PR77 — Primeiro gerador real, com certificação automática
+
+O módulo puro `src/generateSchedule.ts` recebe período, equipa, funcionamento da empresa e contexto externo **só de leitura**. Devolve:
+- `candidateAssignments`: proposta de intervalos efetivos de trabalho **apenas** no período editável;
+- `certification`: resultado do certificador independente executado **automaticamente**, sem botão de validação adicional;
+- `status`: `valid`, `invalid`, `insufficient_context` ou `invalid_input`;
+- `shortfalls`: défices comprovados por pessoa e semana quando falta capacidade dentro do período editável e o contexto exterior está completo.
+
+### Estratégia inicial e limitações
+
+- Todos os colaboradores ativos são elegíveis para trabalhar nos intervalos de abertura da empresa, sem preferências individuais nem cobertura mínima.
+- O gerador procura cumprir **exatamente 2 400 minutos por colaborador e semana completa**, sem compensar semanas. Começa com uma distribuição determinística de até 8 horas de trabalho efetivo por dia aberto. Se os dados de fora do período estiverem completos e a empresa não oferecer cinco dias de 8 horas, procura distribuir as horas restantes entre os dias abertos, em passagens de até 60 minutos, sem inventar um limite diário obrigatório de 8 horas.
+- Suporta semana, 14 dias, 21 dias, 28 dias e mês civil; usa o mesmo certificador independente para todos os períodos.
+- Ao gerar um mês civil, só pode propor turnos **dentro desse mês**. As atribuições dos dias de outros meses entram exclusivamente no `externalContext`, independentemente de estarem aprovadas ou em elaboração. O gerador **não altera** esse contexto nem cria turnos nesses dias.
+- Com dias de outros meses não conhecidos, o gerador só coloca uma distribuição conservadora (até 8h por dia editável) nas semanas de fronteira. O certificador devolve `insufficient_context` quando não consegue provar as 40h, em vez de assumir turnos ou folgas fictícias fora do mês.
+- Se o funcionamento não permitir cumprir 40h numa semana com contexto completo, o gerador devolve `invalid`, uma proposta parcial e um défice explícito. **Nunca grava uma proposta automaticamente.** Entradas inválidas são recusadas sem gerar turnos.
+- A estratégia é deliberadamente simples e determinística, sem heurísticas de cobertura, otimização, equidade, pausas legais, descanso diário/semanal ou turnos noturnos. **Um resultado `valid` certifica apenas as regras atualmente implementadas**, não um horário legal/operacional completo.
+
+O teste `tests/generateSchedule.test.ts` valida semanal, 14/21/28 dias, mês de novembro de 2026 com outubro/dezembro só de leitura, contexto insuficiente, 40h impossíveis, dias encerrados, múltiplos colaboradores ativos, inativos, horários repartidos, entrada corrompida e ausência de mutações.
+
+**Ainda não existe botão «Gerar horário» funcional na interface**, nem repositorizado em servidor ou persistência dos horários produzidos. A integração com a aplicação deverá disponibilizar **uma única ação de geração** que apresenta automaticamente o resultado do certificador; não criar uma página de validação separada.
