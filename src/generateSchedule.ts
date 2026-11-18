@@ -168,7 +168,7 @@ export function generateSchedule(input:GenerationInput):GenerationResult {
       allocateWeek(plans,target,contextComplete);
       const generatedMinutes=plans.reduce((sum,plan)=>sum+plan.allocated,0);
       for(const plan of plans)candidates.push(...toAssignments(member.id,plan));
-      if(contextComplete && generatedMinutes+externalMinutes!==REQUIRED_WEEKLY_MINUTES){
+      if(contextComplete && generatedMinutes+externalMinutes<REQUIRED_WEEKLY_MINUTES){
         shortfalls.push({
           memberId:member.id,weekStart:week.start,
           externalMinutes,generatedMinutes,
