@@ -195,3 +195,13 @@ Este PR integra apenas o **modo mensal na interface** para reduzir a complexidad
 4. Guardar a proposta e recarregar a página: os turnos devem permanecer disponíveis no mesmo dispositivo.
 5. Navegar para o mês anterior ou seguinte. O seu horário não pode ser alterado pela geração do mês corrente; se ainda não estiver guardado, deve manter-se desconhecido e causar `Contexto incompleto` quando necessário.
 6. Alterar os dados da equipa/funcionamento e voltar à proposta: a certificação não deve ser considerada permanentemente válida por ter sido guardada.
+
+## PR79 — Distribuição simples de turnos entre colaboradores ativos
+
+No primeiro algoritmo V2, cada colaborador começava sempre na hora de abertura, pelo que, para funcionamento 09:00–19:00 e dois colaboradores ativos, ambos recebiam 09:00–17:00. Esta duplicação não era um erro do certificador: faltava uma heurística para diferenciar as janelas de trabalho.
+
+**Correção pontual:** após alocar a carga horária obrigatória, o gerador usa a margem entre a duração do funcionamento e a duração do trabalho atribuído para sugerir inícios de turno alternados por pessoa e por dia civil. Por exemplo, com dois colaboradores, segunda 09:00–17:00 / 11:00–19:00, terça com posições trocadas. Com três colaboradores, o mesmo exemplo permite 09:00–17:00, 10:00–18:00 e 11:00–19:00. A alternância tem continuidade ao atravessar semanas e meses.
+
+**Isto é uma preferência de distribuição**, não uma nova hard constraint de cobertura: se a empresa apenas abrir 8h ou não houver margem para alternar, os turnos podem continuar iguais; um único colaborador não é obrigado a prolongar a presença até ao fecho. Pausas do funcionamento (entre intervalos de abertura) nunca contam como trabalho, mesmo quando um turno é deslocado para mais tarde.
+
+Conservam-se 40h/semana por colaborador ativo, certificação independente automática, integridade dos meses vizinhos apenas em leitura e rascunhos locais por mês. Não foram adicionados novos campos de configuração nem modificações à UI ou Supabase. **Regerar um mês pode substituir apenas a proposta desse próprio mês, após confirmação; horários de meses anteriores permanecem inalterados.** Ainda não são verificadas todas as regras laborais de pausa/descanso, pelo que os turnos gerados continuam a ser propostas.
