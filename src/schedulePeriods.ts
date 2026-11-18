@@ -88,7 +88,9 @@ export function resolvePlanningPeriod(request:PeriodRequest):PlanningPeriod {
     if(civilDayOfWeek(start)!==0)
       throw new Error("Períodos de 7, 14, 21 e 28 dias começam à segunda-feira.");
     const length=request.mode==="weekly"?7:
-      request.mode==="14d"?14:request.mode==="21d"?21:28;
+      request.mode==="14d"?14:request.mode==="21d"?21:
+      request.mode==="28d"?28:null;
+    if(length===null)throw new Error("Modo de cálculo inválido.");
     endExclusive=addCivilDays(start,length);
   }
 
