@@ -120,6 +120,30 @@ test("09–19 com duas pessoas: uma abre e a outra fecha, mantendo 40h cada",()=
   assert.notEqual(monday.start,tuesday.start,"A preferência deve rodar entre colaboradores");
 });
 
+test("Regressão no calendário mensal: novembro 2026, dois ativos, 09h–19h",()=>{
+  const hours=opening();
+  for(const day of hours.days)if(day.intervals.length)
+    day.intervals=[{start:"09:00",end:"19:00"}];
+  const data:GenerationInput={
+    period:{mode:"monthly",year:2026,month:11},
+    openingHours:hours,
+    team:{members:[
+      {id:ANA,name:"Ana",active:true},
+      {id:RUI,name:"Rui",active:true},
+    ]},
+  };
+  const before=JSON.stringify(data);
+  const result=generateSchedule(data);
+  assert.equal(result.status,"insufficient_context");
+  assert.ok(result.certification.issues.some(e=>e.code==="CONTEXT_INCOMPLETE"));
+  assert.ok(result.candidateAssignments.every(a=>
+    a.date>="2026-11-01" && a.date<"2026-12-01"));
+  const shifts=result.candidateAssignments
+    .filter(a=>a.date==="2026-11-02").map(a=>[a.start,a.end]).sort();
+  assert.deepEqual(shifts,[["09:00","17:00"],["11:00","19:00"]]);
+  assert.equal(JSON.stringify(data),before);
+});
+
 test("Três colaboradores distribuem os inícios pelo período aberto, sem cobertura hard",()=>{
   const CARLA="1a2b3c4d-3333-4444-8aaa-123456789abe";
   const data=week();
