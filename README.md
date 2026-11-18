@@ -158,6 +158,17 @@ O módulo puro `src/generateSchedule.ts` recebe período, equipa, funcionamento 
 - Se o funcionamento não permitir cumprir 40h numa semana com contexto completo, o gerador devolve `invalid`, uma proposta parcial e um défice explícito. **Nunca grava uma proposta automaticamente.** Entradas inválidas são recusadas sem gerar turnos.
 - A estratégia é deliberadamente simples e determinística, sem heurísticas de cobertura, otimização, equidade, pausas legais, descanso diário/semanal ou turnos noturnos. **Um resultado `valid` certifica apenas as regras atualmente implementadas**, não um horário legal/operacional completo.
 
+### Experiência prática no Terminal
+
+```bash
+npm ci
+npm test
+npm run build
+npm run example:generator
+```
+
+O último comando executa `examples/firstGeneration.ts` com **dados fictícios**, apresentando uma semana com 40h por colaborador ativo e um mês com contexto exterior desconhecido. Mostra turnos gerados e o relatório automático do certificador. Não grava dados locais ou remotos nem modifica os horários de outros meses.
+
 O teste `tests/generateSchedule.test.ts` valida semanal, 14/21/28 dias, mês de novembro de 2026 com outubro/dezembro só de leitura, contexto insuficiente, 40h impossíveis, dias encerrados, múltiplos colaboradores ativos, inativos, horários repartidos, entrada corrompida e ausência de mutações.
 
 **Ainda não existe botão «Gerar horário» funcional na interface**, nem repositorizado em servidor ou persistência dos horários produzidos. A integração com a aplicação deverá disponibilizar **uma única ação de geração** que apresenta automaticamente o resultado do certificador; não criar uma página de validação separada.
