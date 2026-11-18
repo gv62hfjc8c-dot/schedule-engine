@@ -92,6 +92,97 @@ test("Gera para todos os ativos; inativos nunca recebem turnos",()=>{
   assert.ok(one.candidateAssignments.every(a=>a.memberId===ANA));
 });
 
+
+test("09–19 com duas pessoas: uma abre e a outra fecha, mantendo 40h cada",()=>{
+  const data=week();
+  const hours=opening();
+  for(const day of hours.days)if(day.intervals.length)
+    day.intervals=[{start:"09:00",end:"19:00"}];
+  data.openingHours=hours;
+  data.team={members:[
+    {id:ANA,name:"Ana",active:true},
+    {id:RUI,name:"Rui",active:true},
+  ]};
+  const result=generateSchedule(data);
+  assert.equal(result.status,"valid");
+  assert.equal(result.certification.status,"valid");
+  assert.deepEqual(result.certification.weeks.map(w=>w.actualMinutes),[2400,2400]);
+  for(const date of enumerateCivilDays({start:"2026-11-02",endExclusive:"2026-11-07"})){
+    const shifts=result.candidateAssignments.filter(a=>a.date===date);
+    assert.equal(shifts.length,2);
+    assert.deepEqual(shifts.map(a=>[a.start,a.end]).sort(),[
+      ["09:00","17:00"],["11:00","19:00"],
+    ]);
+  }
+  const monday=result.candidateAssignments.find(a=>a.date==="2026-11-02"&&a.memberId===ANA);
+  const tuesday=result.candidateAssignments.find(a=>a.date==="2026-11-03"&&a.memberId===ANA);
+  assert.ok(monday&&tuesday);
+  assert.notEqual(monday.start,tuesday.start,"A preferência deve rodar entre colaboradores");
+});
+
+test("Três colaboradores distribuem os inícios pelo período aberto, sem cobertura hard",()=>{
+  const CARLA="1a2b3c4d-3333-4444-8aaa-123456789abe";
+  const data=week();
+  const hours=opening();
+  for(const day of hours.days)if(day.intervals.length)
+    day.intervals=[{start:"09:00",end:"19:00"}];
+  data.openingHours=hours;
+  data.team={members:[
+    {id:ANA,name:"Ana",active:true},
+    {id:RUI,name:"Rui",active:true},
+    {id:CARLA,name:"Carla",active:true},
+  ]};
+  const result=generateSchedule(data);
+  assert.equal(result.status,"valid");
+  const monday=result.candidateAssignments.filter(a=>a.date==="2026-11-02");
+  assert.deepEqual(monday.map(a=>[a.start,a.end]).sort(),[
+    ["09:00","17:00"],["10:00","18:00"],["11:00","19:00"],
+  ]);
+  assert.deepEqual(result.certification.weeks.map(w=>w.actualMinutes),[2400,2400,2400]);
+});
+
+test("Sem margem temporal, é normal haver turnos iguais: 8h abertas e 8h de trabalho",()=>{
+  const data=week();
+  const hours=opening();
+  for(const day of hours.days)if(day.intervals.length)
+    day.intervals=[{start:"09:00",end:"17:00"}];
+  data.openingHours=hours;
+  data.team={members:[
+    {id:ANA,name:"Ana",active:true},
+    {id:RUI,name:"Rui",active:true},
+  ]};
+  const result=generateSchedule(data);
+  assert.equal(result.status,"valid");
+  assert.equal(result.candidateAssignments.length,10);
+  assert.ok(result.candidateAssignments.every(a=>a.start==="09:00"&&a.end==="17:00"));
+});
+
+test("Alternar turnos em funcionamento repartido não inclui pausas como trabalho",()=>{
+  const data=week();
+  const hours=opening();
+  for(const day of hours.days)if(day.intervals.length)
+    day.intervals=[{start:"09:00",end:"13:00"},{start:"14:00",end:"20:00"}];
+  data.openingHours=hours;
+  data.team={members:[
+    {id:ANA,name:"Ana",active:true},
+    {id:RUI,name:"Rui",active:true},
+  ]};
+  const result=generateSchedule(data);
+  assert.equal(result.status,"valid");
+  const monday=result.candidateAssignments.filter(a=>a.date==="2026-11-02");
+  const perPerson=new Map<string,WorkAssignment[]>();
+  for(const item of monday){
+    perPerson.set(item.memberId,[...(perPerson.get(item.memberId)??[]),item]);
+  }
+  assert.equal(perPerson.size,2);
+  assert.deepEqual([...perPerson.values()].map(items=>items.map(x=>[x.start,x.end]))
+    .sort((a,b)=>a[0][0].localeCompare(b[0][0])),[
+    [["09:00","13:00"],["14:00","18:00"]],
+    [["11:00","13:00"],["14:00","20:00"]],
+  ]);
+  assert.deepEqual(result.certification.weeks.map(w=>w.actualMinutes),[2400,2400]);
+});
+
 test("As 8h/dia são uma preferência do algoritmo, não hard constraint",()=>{
   const data=week();
   const hours=opening();
