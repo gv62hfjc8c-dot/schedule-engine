@@ -150,9 +150,15 @@ test("Diagnóstico 2/10/50/200: 28 dias, 40h exatas e métricas de distribuiçã
       size,first.candidateAssignments,first.status,
       first.certification.weeks.length,firstMs,secondMs,data.period.mode
     );
-    assert.ok(metric.distinctStartsPerDayMin>=2);
-    assert.ok(metric.distinctStartsPerDayMax<=size);
-    assert.ok(metric.meanStartGapMinutes>=0 && metric.meanStartGapMinutes<=120);
+    const expectedDifferentStarts=Math.min(size,5); // 09:00..11:00 every 30m.
+    assert.equal(metric.distinctStartsPerDayMin,expectedDifferentStarts);
+    assert.equal(metric.distinctStartsPerDayMax,expectedDifferentStarts);
+    assert.equal(metric.meanStartGapMinutes,0,
+      "Cada pessoa deve percorrer posições equivalentes nas 4 semanas.");
+    assert.equal(metric.noExactOpeningShifts,0);
+    assert.equal(metric.noExactClosingShifts,0);
+    assert.ok(first.candidateAssignments.every(shift=>
+      (clockMinutes(shift.start)-OPEN)%30===0));
     // Quality observations are diagnostic: no arbitrary fairness threshold
     // should be mistaken for a contractual rule.
     console.log("SCHEDULE_DISTRIBUTION_DIAGNOSTIC "+JSON.stringify(metric));
@@ -200,4 +206,34 @@ test("Métricas de 2 colaboradores revelam distribuição alternada, sem cobertu
   assert.equal(metric.openingShiftsPerMemberMin,10);
   assert.equal(metric.openingShiftsPerMemberMax,10);
   assert.equal(metric.meanStartGapMinutes,0);
+});
+
+test("Preferência de 60 minutos: até 200 pessoas entram em horas certas",()=>{
+  const data=scenario(200);
+  data.preferences={startSpacingMinutes:60};
+  const snapshot=JSON.stringify(data);
+  const result=generateSchedule(data);
+  assert.equal(result.status,"valid");
+  assert.equal(result.candidateAssignments.length,4000);
+  assert.ok(result.certification.weeks.every(w=>w.actualMinutes===2400));
+  const starts=new Set(result.candidateAssignments
+    .filter(shift=>shift.date==="2026-11-02").map(shift=>shift.start));
+  assert.deepEqual([...starts].sort(),["09:00","10:00","11:00"]);
+  assert.ok(result.candidateAssignments.every(shift=>
+    (clockMinutes(shift.start)-OPEN)%60===0));
+  const metric=quality(200,result.candidateAssignments,result.status,
+    result.certification.weeks.length,0,0,"28d-60m");
+  assert.ok(metric.meanStartGapMinutes<=12);
+  assert.equal(JSON.stringify(data),snapshot);
+  console.log("SCHEDULE_SPACING_60_DIAGNOSTIC "+JSON.stringify(metric));
+});
+
+test("Uma preferência inválida não é silenciosamente convertida em 30 minutos",()=>{
+  const data=scenario(2);
+  data.preferences={startSpacingMinutes:15 as 30};
+  const result=generateSchedule(data);
+  assert.equal(result.status,"invalid_input");
+  assert.deepEqual(result.candidateAssignments,[]);
+  assert.ok(result.certification.issues.some(issue=>
+    issue.code==="INVALID_GENERATION_PREFERENCE"));
 });
