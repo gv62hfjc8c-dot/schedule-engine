@@ -143,6 +143,34 @@
   color: var(--text);
 }
 .team-form input::placeholder { color: #93a8bb; }
+.team-form select {
+  width: 100%;
+  min-width: 0;
+  min-height: 50px;
+  padding: 0 15px;
+  border: 1px solid #516b80;
+  border-radius: 10px;
+  background: #122032;
+  color: var(--text);
+  color-scheme: dark;
+  font: inherit;
+}
+.team-form input:focus-visible,
+.team-form select:focus-visible {
+  outline: 3px solid #85d9de;
+  outline-offset: 3px;
+}
+.team-field-help {
+  margin: -3px 0 4px;
+  color: #9fb6c8;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.team-days-off-summary {
+  color: #bad2df;
+  font-size: 12px;
+  line-height: 1.4;
+}
 .team-form-actions {
   display: flex;
   flex-wrap: wrap;
