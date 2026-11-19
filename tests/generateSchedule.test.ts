@@ -428,3 +428,73 @@ test("Excesso já existente no mês anterior é inválido, não uma falta fictí
   assert.equal(out.shortfalls.some(s=>s.weekStart==="2026-10-26"),false);
   assert.ok(out.candidateAssignments.every(a=>a.date.startsWith("2026-11-")));
 });
+
+
+test("As entradas podem usar passos de 30 ou 60 min, sem regras de cobertura",()=>{
+  const data=week();
+  const hours=opening();
+  for(const day of hours.days){
+    day.intervals=["saturday","sunday"].includes(day.day)
+      ? []:[{start:"09:00",end:"19:00"}];
+  }
+  data.openingHours=hours;
+  data.team={members:[
+    {id:ANA,name:"Ana",active:true},
+    {id:RUI,name:"Rui",active:true},
+    {id:"1a2b3c4d-3333-4444-8aaa-123456789abe",name:"Carla",active:true},
+    {id:"1a2b3c4d-3333-4444-8aaa-123456789abf",name:"Pedro",active:true},
+  ]};
+  const thirty=generateSchedule({...data,preferences:{startSpacingMinutes:30}});
+  const sixty=generateSchedule({...data,preferences:{startSpacingMinutes:60}});
+  assert.equal(thirty.status,"valid");
+  assert.equal(sixty.status,"valid");
+  assert.deepEqual(new Set(thirty.candidateAssignments
+    .filter(a=>a.date==="2026-11-02").map(a=>a.start)),
+  new Set(["09:00","09:30","10:30","11:00"]));
+  assert.deepEqual(new Set(sixty.candidateAssignments
+    .filter(a=>a.date==="2026-11-02").map(a=>a.start)),
+  new Set(["09:00","10:00","11:00"]));
+  assert.ok(thirty.candidateAssignments.every(a=>
+    (Number(a.start.slice(3))-0)%30===0));
+  assert.ok(sixty.candidateAssignments.every(a=>a.start.endsWith(":00")));
+  assert.deepEqual(thirty.certification.weeks.map(w=>w.actualMinutes),
+    sixty.certification.weeks.map(w=>w.actualMinutes));
+  assert.ok(sixty.candidateAssignments.some(a=>
+    sixty.candidateAssignments.filter(b=>b.date===a.date&&b.start===a.start).length>1),
+    "Com mais pessoas do que posições horárias, entradas coincidentes são válidas.");
+});
+
+test("A preferência de entradas não vira hard constraint do certificador",()=>{
+  const data=week();
+  const hours=opening();
+  for(const day of hours.days)day.intervals=
+    ["saturday","sunday"].includes(day.day)?[]:[{start:"09:00",end:"19:00"}];
+  data.openingHours=hours;
+  const assignments=enumerateCivilDays({
+    start:"2026-11-02",endExclusive:"2026-11-07",
+  }).map(date=>({memberId:ANA,date,start:"09:15",end:"17:15"}));
+  const report=certifySchedule({...data,candidateAssignments:assignments});
+  assert.equal(report.status,"valid");
+});
+
+test("Rotação atravessa novembro/dezembro sem reiniciar no dia 1",()=>{
+  const data=week("2026-11-30");
+  const hours=opening();
+  for(const day of hours.days)day.intervals=
+    ["saturday","sunday"].includes(day.day)?[]:[{start:"09:00",end:"19:00"}];
+  data.openingHours=hours;
+  data.team={members:[
+    {id:ANA,name:"Ana",active:true},
+    {id:RUI,name:"Rui",active:true},
+  ]};
+  const weekly=generateSchedule(data);
+  const december=generateSchedule({...data,period:{
+    mode:"monthly",year:2026,month:12,
+  }});
+  assert.equal(weekly.status,"valid");
+  assert.equal(december.status,"insufficient_context");
+  const dec1=(shifts:WorkAssignment[])=>shifts
+    .filter(a=>a.date==="2026-12-01").map(a=>[a.memberId,a.start,a.end]).sort();
+  assert.deepEqual(dec1(weekly.candidateAssignments),dec1(december.candidateAssignments));
+  assert.ok(december.candidateAssignments.every(a=>a.date.startsWith("2026-12-")));
+});
