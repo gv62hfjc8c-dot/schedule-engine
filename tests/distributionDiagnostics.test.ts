@@ -308,8 +308,15 @@ test("Escalabilidade de 2 a 200 colaboradores com seis dias de duração diferen
       perMemberWeek.set(key,[
         ...(perMemberWeek.get(key)??[]),assignment,
       ]);
-      assert.equal(assignmentMinutes(assignment),
-        civilDayOfWeek(assignment.date)===5?150:450);
+      const minutes=assignmentMinutes(assignment);
+      if(civilDayOfWeek(assignment.date)===5){
+        assert.equal(minutes,240);
+        assert.equal(assignment.start,"09:00");
+        assert.equal(assignment.end,"13:00");
+      }else{
+        assert.ok(minutes===420||minutes===480,
+          "Os cinco dias longos devem repartir 36h com turnos alinhados");
+      }
     }
     assert.equal(perMemberWeek.size,size*4);
     for(const work of perMemberWeek.values()){
@@ -317,16 +324,19 @@ test("Escalabilidade de 2 a 200 colaboradores com seis dias de duração diferen
       assert.equal(work.reduce((sum,a)=>sum+assignmentMinutes(a),0),2400);
       const weekdays=work.filter(a=>civilDayOfWeek(a.date)<5);
       assert.equal(weekdays.length,5);
-      assert.equal(new Set(weekdays.map(a=>a.start)).size,1);
-      assert.equal(new Set(weekdays.map(a=>a.end)).size,1);
+      assert.equal(weekdays.reduce((sum,a)=>sum+assignmentMinutes(a),0),2160);
+      assert.deepEqual(weekdays.map(assignmentMinutes).sort((a,b)=>a-b),
+        [420,420,420,420,480]);
+      assert.ok(new Set(weekdays.map(a=>a.start)).size<=2);
+      assert.ok(new Set(weekdays.map(a=>a.end)).size<=2);
       assert.equal(work.filter(a=>civilDayOfWeek(a.date)===5).length,1);
     }
     console.log("SCHEDULE_ALL_OPEN_DAYS_DIAGNOSTIC "+JSON.stringify({
       teamSize:size,weeks:4,openDays:6,
       assignments:first.candidateAssignments.length,
       weeklyMinutes:2400,
-      weekdayMinutes:450,
-      shortOpenDayMinutes:150,
+      weekdayMinutesTotal:2160,
+      shortOpenDayMinutes:240,
       elapsedMs:Math.round(elapsed*100)/100,
     }));
   }
