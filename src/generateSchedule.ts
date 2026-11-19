@@ -207,6 +207,86 @@ function allocateBalancedWeek(plans:DayPlan[],targetMinutes:number):void {
 }
 
 /**
+ * Choose EXACTLY the requested number of working dates, where the number of
+ * non-working calendar dates is configured per person. This is a weekly HARD
+ * constraint, independent of the SOFT time distribution and without assigning
+ * official "Folga" labels to otherwise empty calendar dates.
+ *
+ * Up to seven eligible dates means the entire power set is small (<=128).
+ * Compare viable subsets, preferring full use of shorter opening windows and
+ * stable repeated shifts. No weekday is pinned and no coverage is required.
+ */
+function allocateConfiguredDays(
+  plans:DayPlan[],targetMinutes:number,editableWorkdays:number
+):void {
+  const open=plans.filter(plan=>plan.capacity>0);
+  if(targetMinutes<=0 || editableWorkdays<=0)return;
+
+  const slots=Math.min(editableWorkdays,open.length);
+  const maximumCapacity=Math.max(...open.map(plan=>plan.capacity),0);
+  interface Option {
+    days:DayPlan[];
+    shortUse:number;
+    consistency:number;
+    minShift:number;
+    distance:number;
+  }
+  let best:Option|null=null;
+  const choose=(start:number,selected:DayPlan[]):void=>{
+    if(selected.length===slots){
+      const totalCapacity=selected.reduce((sum,plan)=>sum+plan.capacity,0);
+      if(totalCapacity<targetMinutes)return;
+      const candidate=selected.map(plan=>({...plan,allocated:0}));
+      allocateBalancedWeek(candidate,targetMinutes);
+      if(candidate.some(plan=>plan.allocated===0) ||
+        candidate.reduce((sum,plan)=>sum+plan.allocated,0)!==targetMinutes)return;
+
+      const shortUse=candidate.reduce((sum,plan)=>
+        sum+(plan.capacity<maximumCapacity?plan.allocated:0),0);
+      const groups=new Map<number,Map<number,number>>();
+      for(const plan of candidate){
+        const count=groups.get(plan.capacity)??new Map<number,number>();
+        count.set(plan.allocated,(count.get(plan.allocated)??0)+1);
+        groups.set(plan.capacity,count);
+      }
+      const consistency=[...groups.values()].reduce((sum,counts)=>
+        sum+Math.max(...counts.values()),0);
+      const minShift=Math.min(...candidate.map(plan=>plan.allocated));
+      const distance=candidate.reduce((sum,plan)=>
+        sum+Math.abs(plan.allocated-Math.min(480,plan.capacity)),0);
+      const next={days:candidate,shortUse,consistency,minShift,distance};
+      if(!best || next.shortUse>best.shortUse ||
+        (next.shortUse===best.shortUse && (
+          next.consistency>best.consistency ||
+          (next.consistency===best.consistency && (
+            next.minShift>best.minShift ||
+            (next.minShift===best.minShift && next.distance<best.distance)
+          ))
+        )))best=next;
+      return;
+    }
+    for(let i=start;i<=open.length-(slots-selected.length);i++)
+      choose(i+1,[...selected,open[i]]);
+  };
+  if(slots>0)choose(0,[]);
+
+  if(best){
+    for(const plan of best.days){
+      const matching=plans.find(p=>p.date===plan.date);
+      if(matching)matching.allocated=plan.allocated;
+    }
+    return;
+  }
+
+  // Infeasible conditions are NOT fixed by silently adding extra workdays
+  // or fabricating closed hours. Produce a bounded proposal; the independent
+  // certifier will report the violated hard constraint(s).
+  const fallback=[...open].sort((a,b)=>
+    b.capacity-a.capacity || a.date.localeCompare(b.date)).slice(0,slots);
+  allocateBalancedWeek(fallback,targetMinutes);
+}
+
+/**
  * Preserve the legacy conservative allocation on incomplete month-boundary
  * weeks. Unknown neighboring dates must never be assumed free or filled in.
  * When the whole week is known, optimize ALL its editable open days together.
@@ -343,7 +423,15 @@ export function generateSchedule(input:GenerationInput):GenerationResult {
           ? sum+assignmentMinutes(entry):sum,0);
       const target=Math.max(0,REQUIRED_WEEKLY_MINUTES-externalMinutes);
       const plans=availableDays(week,period,hours.value);
-      allocateWeek(plans,target,contextComplete);
+      if(member.weeklyDaysOff!==undefined && contextComplete){
+        const knownWorkedDates=new Set(externalAssignments
+          .filter(entry=>entry.memberId.toLowerCase()===member.id &&
+            inRange(entry.date,week)).map(entry=>entry.date));
+        const editableWorkdays=7-member.weeklyDaysOff-knownWorkedDates.size;
+        allocateConfiguredDays(plans,target,editableWorkdays);
+      }else{
+        allocateWeek(plans,target,contextComplete);
+      }
       const generatedMinutes=plans.reduce((sum,plan)=>sum+plan.allocated,0);
       for(const plan of plans)candidates.push(...toAssignments(
         member.id,plan,memberIndex,activeMembers.length));
