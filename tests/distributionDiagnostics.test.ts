@@ -208,32 +208,31 @@ test("Métricas de 2 colaboradores revelam distribuição alternada, sem cobertu
   assert.equal(metric.meanStartGapMinutes,0);
 });
 
-test("Preferência de 60 minutos: até 200 pessoas entram em horas certas",()=>{
-  const data=scenario(200);
-  data.preferences={startSpacingMinutes:60};
-  const snapshot=JSON.stringify(data);
-  const result=generateSchedule(data);
-  assert.equal(result.status,"valid");
-  assert.equal(result.candidateAssignments.length,4000);
-  assert.ok(result.certification.weeks.every(w=>w.actualMinutes===2400));
-  const starts=new Set(result.candidateAssignments
-    .filter(shift=>shift.date==="2026-11-02").map(shift=>shift.start));
-  assert.deepEqual([...starts].sort(),["09:00","10:00","11:00"]);
-  assert.ok(result.candidateAssignments.every(shift=>
-    (clockMinutes(shift.start)-OPEN)%60===0));
-  const metric=quality(200,result.candidateAssignments,result.status,
-    result.certification.weeks.length,0,0,"28d-60m");
-  assert.ok(metric.meanStartGapMinutes<=12);
-  assert.equal(JSON.stringify(data),snapshot);
-  console.log("SCHEDULE_SPACING_60_DIAGNOSTIC "+JSON.stringify(metric));
+test("O motor escolhe horas certas quando há posições suficientes para a equipa",()=>{
+  for(const size of [2,3]){
+    const data=scenario(size);
+    const snapshot=JSON.stringify(data);
+    const result=generateSchedule(data);
+    assert.equal(result.status,"valid");
+    const starts=[...new Set(result.candidateAssignments
+      .filter(shift=>shift.date==="2026-11-02").map(shift=>shift.start))].sort();
+    assert.deepEqual(starts,size===2
+      ?["09:00","11:00"]
+      :["09:00","10:00","11:00"]);
+    assert.ok(result.candidateAssignments.every(shift=>
+      clockMinutes(shift.start)%60===0));
+    assert.equal(JSON.stringify(data),snapshot);
+  }
 });
 
-test("Uma preferência inválida não é silenciosamente convertida em 30 minutos",()=>{
-  const data=scenario(2);
-  data.preferences={startSpacingMinutes:15 as 30};
+test("O motor usa meias horas automaticamente quando há mais pessoas",()=>{
+  const data=scenario(4);
   const result=generateSchedule(data);
-  assert.equal(result.status,"invalid_input");
-  assert.deepEqual(result.candidateAssignments,[]);
-  assert.ok(result.certification.issues.some(issue=>
-    issue.code==="INVALID_GENERATION_PREFERENCE"));
+  assert.equal(result.status,"valid");
+  const starts=[...new Set(result.candidateAssignments
+    .filter(shift=>shift.date==="2026-11-02").map(shift=>shift.start))].sort();
+  assert.deepEqual(starts,["09:00","09:30","10:30","11:00"]);
+  assert.ok(result.candidateAssignments.every(shift=>
+    clockMinutes(shift.start)%30===0));
+  assert.equal(result.certification.weeks.every(w=>w.actualMinutes===2400),true);
 });
