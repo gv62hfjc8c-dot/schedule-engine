@@ -52,7 +52,7 @@ function stateText(report:CertificationReport|null):string {
     return "40 horas semanais e restantes regras implementadas verificadas. Não é uma aprovação definitiva.";
   if(report.status==="insufficient_context")
     return "Proposta por certificar: faltam dados de semanas que atravessam outros meses.";
-  return "A proposta tem conflitos ou horas obrigatórias incorretas.";
+  return "A proposta tem conflitos ou não cumpre as horas e os dias sem trabalho configurados.";
 }
 function memberLabel(memberId:string,names:Map<string,string>):string {
   return names.get(memberId)??"Colaborador não encontrado";
@@ -117,7 +117,7 @@ function MonthWorkspace({year,month,todayString}:{
     setFeedback(result.status==="invalid_input"?
       {kind:"error",message:"Os dados de entrada não permitem gerar uma proposta."}:
       result.status==="invalid"?
-      {kind:"error",message:"A proposta não cumpre todas as 40 horas semanais. Consulta os problemas abaixo."}:
+      {kind:"error",message:"A proposta não cumpre todas as horas ou os dias sem trabalho semanais configurados. Consulta os problemas abaixo."}:
       {kind:"success",message:"Proposta gerada. Revê o resultado e guarda-a apenas se estiver correta."});
   }
 
