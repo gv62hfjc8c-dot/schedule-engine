@@ -184,6 +184,49 @@ test("PR82: os sete dias da semana partilham a mesma posição quando a capacida
   assert.equal(new Set(ana.map(a=>a.start)).size,1);
 });
 
+
+test("PR82: dezembro conserva o turno iniciado em novembro sem modificar novembro",()=>{
+  const data=week("2026-11-30");
+  const hours=opening();
+  for(const day of hours.days)if(day.intervals.length)
+    day.intervals=[{start:"09:00",end:"19:00"}];
+  data.openingHours=hours;
+  data.team={members:[
+    {id:ANA,name:"Ana",active:true},
+    {id:RUI,name:"Rui",active:true},
+  ]};
+  const previousWeek=generateSchedule(data);
+  assert.equal(previousWeek.status,"valid");
+  const november30=previousWeek.candidateAssignments.filter(a=>
+    a.date==="2026-11-30").map(a=>({...a}));
+  assert.equal(november30.length,2);
+  const monthlyData:GenerationInput={
+    ...data,
+    period:{mode:"monthly",year:2026,month:12},
+    externalContext:{
+      assignments:november30,
+      completeDates:["2026-11-30","2027-01-01","2027-01-02","2027-01-03"],
+    },
+  };
+  const before=JSON.stringify(monthlyData);
+  const december=generateSchedule(monthlyData);
+  assert.equal(december.status,"valid");
+  assert.ok(december.certification.weeks.every(w=>w.actualMinutes===2400));
+  assert.ok(december.candidateAssignments.every(a=>
+    a.date>="2026-12-01"&&a.date<"2027-01-01"));
+  for(const monday of november30){
+    const otherDays=december.candidateAssignments.filter(a=>
+      a.memberId===monday.memberId&&
+      a.date>="2026-12-01"&&a.date<="2026-12-04");
+    assert.equal(otherDays.length,4);
+    assert.ok(otherDays.every(a=>
+      a.start===monday.start&&a.end===monday.end),
+      "O turno da semana não pode mudar por atravessar o dia 1 do mês");
+  }
+  assert.equal(JSON.stringify(monthlyData),before,
+    "O contexto de novembro tem de permanecer imutável");
+});
+
 test("Regressão no calendário mensal: novembro 2026, dois ativos, 09h–19h",()=>{
   const hours=opening();
   for(const day of hours.days)if(day.intervals.length)
