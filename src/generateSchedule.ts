@@ -17,7 +17,7 @@ import {REQUIRED_WEEKLY_MINUTES} from "./weeklyHours";
 export type StartSpacingMinutes=30|60;
 export const DEFAULT_START_SPACING_MINUTES:StartSpacingMinutes=30;
 export interface GenerationPreferences {
-  /** Candidate starts use offsets in these increments from the opening time. */
+  /** Candidate starts favor actual clock boundaries (:00/:30 or :00). */
   startSpacingMinutes?:StartSpacingMinutes;
 }
 export type GenerationInput=Omit<CertificationInput,"candidateAssignments"> & {
@@ -134,7 +134,8 @@ function allocateWeek(plans:DayPlan[],targetMinutes:number,
  * Use at most one position per active colleague when few people are present,
  * spread these positions across the entire feasible span (2 staff continue
  * to open/close). For larger teams share aligned positions instead of
- * fabricating 09:15, 09:17 etc. Each person's position rotates by civil
+ * fabricating 09:15, 09:17 etc. Irregular opening intervals use the actual
+ * clock grid, not elapsed open minutes, and permit a fallback if unavoidable. Each person's position rotates by civil
  * date; on a five-day 09:00-19:00 week with five 30-minute positions every
  * person visits each position exactly once regardless of team size.
  *
@@ -146,14 +147,31 @@ function suggestedStartOffset(
   startSpacingMinutes:StartSpacingMinutes
 ):number {
   if(activeCount<2 || plan.allocated===0)return 0;
-  const spare=plan.capacity-plan.allocated;
-  const feasibleSlots=Math.floor(spare/startSpacingMinutes)+1;
-  const usedSlots=Math.min(activeCount,feasibleSlots);
-  if(usedSlots<2)return 0;
+  // Actual clock grid (:00/:30 or :00), not simply "minutes of opening
+  // capacity": a split interval of 09:00-09:45 + 10:00-18:15 must not
+  // produce a shift starting at 10:15 from a 60-minute offset.
+  const remainingCapacity=plan.capacity-plan.allocated;
+  const feasibleOffsets:number[]=[];
+  let precedingOpenMinutes=0;
+  for(const interval of plan.intervals){
+    const first=Math.ceil(interval.start/startSpacingMinutes)*startSpacingMinutes;
+    for(let start=first;start<interval.end;start+=startSpacingMinutes){
+      const offset=precedingOpenMinutes+start-interval.start;
+      if(offset<=remainingCapacity)feasibleOffsets.push(offset);
+    }
+    precedingOpenMinutes+=interval.end-interval.start;
+  }
+  // A start that is not grid-aligned is a last-resort soft fallback when the
+  // business has no aligned, feasible start at all. It remains certifiable.
+  if(feasibleOffsets.length===0)return 0;
+  const usedSlots=Math.min(activeCount,feasibleOffsets.length);
+  if(usedSlots<2)return feasibleOffsets[0];
   const dayIndex=daysBetween("1970-01-01",plan.date);
   const position=((dayIndex+memberIndex)%usedSlots+usedSlots)%usedSlots;
-  const alignedSlot=Math.round(position*(feasibleSlots-1)/(usedSlots-1));
-  return alignedSlot*startSpacingMinutes;
+  const alignedIndex=Math.round(
+    position*(feasibleOffsets.length-1)/(usedSlots-1)
+  );
+  return feasibleOffsets[alignedIndex];
 }
 
 function toAssignments(
