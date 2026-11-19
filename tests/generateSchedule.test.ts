@@ -212,20 +212,75 @@ test("PR82: semana com seis dias de horários diferentes é distribuída sem ult
     const shifts=result.candidateAssignments.filter(a=>a.memberId===id);
     const saturday=shifts.filter(a=>a.date==="2026-11-07");
     assert.equal(saturday.length,1);
-    assert.ok(saturday[0].start>="09:00"&&saturday[0].end<="13:00");
-    assert.ok(["00","30"].includes(saturday[0].start.slice(3)));
-    assert.equal(assignmentMinutes(saturday[0]),150);
+    assert.deepEqual([saturday[0].start,saturday[0].end],
+      ["09:00","13:00"],"Uma janela de 4h ocupada por 4h não necessita de turnos");
+    assert.equal(assignmentMinutes(saturday[0]),240);
     assert.equal(total(shifts),2400);
     const weekdays=shifts.filter(a=>a.date>="2026-11-02"&&a.date<="2026-11-06");
     assert.equal(weekdays.length,5);
-    assert.ok(weekdays.every(a=>assignmentMinutes(a)===450));
-    assert.equal(new Set(weekdays.map(a=>a.start)).size,1);
-    assert.equal(new Set(weekdays.map(a=>a.end)).size,1);
+    assert.equal(total(weekdays),2160);
+    assert.deepEqual(weekdays.map(assignmentMinutes).sort((a,b)=>a-b),
+      [420,420,420,420,480],
+      "Trabalho restante: 36h distribuídas por cinco dias com tempos alinhados");
+    assert.ok(new Set(weekdays.map(a=>a.start)).size<=2);
+    assert.ok(new Set(weekdays.map(a=>a.end)).size<=2);
   }
   assert.ok(result.candidateAssignments.every(a=>
     a.date>="2026-11-02"&&a.date<="2026-11-08"));
   assert.equal(JSON.stringify(data),before);
   assert.deepEqual(result,generateSchedule(data));
+});
+
+
+test("Uma janela reduzida é aproveitada por inteiro em qualquer dia da semana",()=>{
+  for(let shortIndex=0;shortIndex<7;shortIndex++){
+    const data=week();
+    const hours=opening();
+    for(let i=0;i<hours.days.length;i++){
+      hours.days[i].intervals=i===shortIndex
+        ?[{start:"09:00",end:"13:00"}]
+        :[{start:"09:00",end:"19:00"}];
+    }
+    data.openingHours=hours;
+    data.team={members:[
+      {id:ANA,name:"Ana",active:true},
+      {id:RUI,name:"Rui",active:true},
+    ]};
+    const snapshot=JSON.stringify(data);
+    const out=generateSchedule(data);
+    assert.equal(out.status,"valid",hours.days[shortIndex].day);
+    assert.ok(out.certification.weeks.every(w=>w.actualMinutes===2400));
+    const date=enumerateCivilDays({
+      start:"2026-11-02",endExclusive:"2026-11-09",
+    })[shortIndex];
+    for(const id of [ANA,RUI]){
+      const shift=out.candidateAssignments.filter(a=>
+        a.memberId===id&&a.date===date);
+      assert.equal(shift.length,1);
+      assert.deepEqual([shift[0].start,shift[0].end],
+        ["09:00","13:00"],
+        "O turno completo não pode ser reduzido quando o dia é curto");
+      assert.equal(total(out.candidateAssignments.filter(a=>a.memberId===id)),2400);
+    }
+    assert.equal(JSON.stringify(data),snapshot);
+  }
+});
+
+test("Uma janela curta não é uma obrigação de cobertura se faltar carga semanal",()=>{
+  const data=week();
+  const hours=opening();
+  for(let i=0;i<hours.days.length;i++){
+    hours.days[i].intervals=i<4
+      ? [{start:"09:00",end:"19:00"}]
+      : i===4?[{start:"09:00",end:"13:00"}]:[];
+  }
+  data.openingHours=hours;
+  const out=generateSchedule(data);
+  assert.equal(out.status,"valid");
+  assert.equal(out.certification.weeks[0].actualMinutes,2400);
+  // A regra hard é a soma de 40h; o horário reduzido é uma preferência
+  // que não torna a proposta inválida quando não é necessário utilizá-lo.
+  assert.ok(out.candidateAssignments.every(a=>a.date<="2026-11-06"));
 });
 
 test("PR82: qualquer dia aberto é considerado, inclusive domingo e intervalos repartidos",()=>{
