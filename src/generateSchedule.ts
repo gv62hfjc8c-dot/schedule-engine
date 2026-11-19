@@ -13,7 +13,26 @@ import {
 } from "./workAssignments";
 import {REQUIRED_WEEKLY_MINUTES} from "./weeklyHours";
 
-export type GenerationInput=Omit<CertificationInput,"candidateAssignments">;
+/** Soft preference for candidate shift starts, not a certification rule. */
+export type StartSpacingMinutes=30|60;
+export const DEFAULT_START_SPACING_MINUTES:StartSpacingMinutes=30;
+export interface GenerationPreferences {
+  /** Candidate starts use offsets in these increments from the opening time. */
+  startSpacingMinutes?:StartSpacingMinutes;
+}
+export type GenerationInput=Omit<CertificationInput,"candidateAssignments"> & {
+  preferences?:GenerationPreferences;
+};
+
+/** Treat malformed runtime preferences as an input error, never silently ignore. */
+function resolveSpacing(preferences:unknown):StartSpacingMinutes|null {
+  if(preferences===undefined)return DEFAULT_START_SPACING_MINUTES;
+  if(!preferences||typeof preferences!=="object"||Array.isArray(preferences))
+    return null;
+  const value=(preferences as {startSpacingMinutes?:unknown}).startSpacingMinutes;
+  if(value===undefined)return DEFAULT_START_SPACING_MINUTES;
+  return value===30||value===60?value:null;
+}
 export interface GenerationShortfall {
   memberId:string;
   weekStart:string;
@@ -108,28 +127,43 @@ function allocateWeek(plans:DayPlan[],targetMinutes:number,
 }
 
 /**
- * A non-mandatory spacing preference between active colleagues.
- * When an opening window is longer than the allocated work, rotate the
- * available start positions over consecutive civil days. This changes neither
- * the allocated minutes nor any hard constraint and never imposes coverage.
+ * Deterministic, fair candidate start rotation on a configurable grid.
+ * The grid is a SOFT preference: it is not checked by the certifier, never
+ * requires minimum staffing, and never moves work outside opening hours.
  *
- * Civil-day rotation (rather than resetting every Monday or month) avoids
- * systematically giving the same employee the opening shift.
+ * Use at most one position per active colleague when few people are present,
+ * spread these positions across the entire feasible span (2 staff continue
+ * to open/close). For larger teams share aligned positions instead of
+ * fabricating 09:15, 09:17 etc. Each person's position rotates by civil
+ * date; on a five-day 09:00-19:00 week with five 30-minute positions every
+ * person visits each position exactly once regardless of team size.
+ *
+ * The reference date is global, not a month/week boundary: the sequence does
+ * not restart just because a new calendar month is generated.
  */
-function suggestedStartOffset(plan:DayPlan,memberIndex:number,activeCount:number):number {
+function suggestedStartOffset(
+  plan:DayPlan,memberIndex:number,activeCount:number,
+  startSpacingMinutes:StartSpacingMinutes
+):number {
   if(activeCount<2 || plan.allocated===0)return 0;
   const spare=plan.capacity-plan.allocated;
-  if(spare<=0)return 0; // e.g. four 10-hour working days.
+  const feasibleSlots=Math.floor(spare/startSpacingMinutes)+1;
+  const usedSlots=Math.min(activeCount,feasibleSlots);
+  if(usedSlots<2)return 0;
   const dayIndex=daysBetween("1970-01-01",plan.date);
-  const slot=((dayIndex+memberIndex)%activeCount+activeCount)%activeCount;
-  return Math.round(spare*slot/(activeCount-1));
+  const position=((dayIndex+memberIndex)%usedSlots+usedSlots)%usedSlots;
+  const alignedSlot=Math.round(position*(feasibleSlots-1)/(usedSlots-1));
+  return alignedSlot*startSpacingMinutes;
 }
 
 function toAssignments(
-  memberId:string,plan:DayPlan,memberIndex:number,activeCount:number
+  memberId:string,plan:DayPlan,memberIndex:number,activeCount:number,
+  startSpacingMinutes:StartSpacingMinutes
 ):WorkAssignment[] {
   let minutesLeft=plan.allocated;
-  let skip=suggestedStartOffset(plan,memberIndex,activeCount);
+  let skip=suggestedStartOffset(
+    plan,memberIndex,activeCount,startSpacingMinutes
+  );
   const assignments:WorkAssignment[]=[];
   for(const interval of plan.intervals){
     if(minutesLeft===0)break;
@@ -173,6 +207,20 @@ export function generateSchedule(input:GenerationInput):GenerationResult {
     };
   }
 
+  const startSpacingMinutes=resolveSpacing(input.preferences);
+  if(startSpacingMinutes===null){
+    return {
+      status:"invalid_input",candidateAssignments:[],shortfalls:[],
+      certification:{
+        ...emptyCertification,status:"invalid",
+        issues:[...emptyCertification.issues,{
+          code:"INVALID_GENERATION_PREFERENCE",
+          message:"O intervalo de entradas deve ser 30 ou 60 minutos.",
+        }],
+      },
+    };
+  }
+
   const period=emptyCertification.period;
   const externalRaw=input.externalContext?.assignments??[];
   const externalAssignments=(externalRaw as unknown[])
@@ -196,7 +244,7 @@ export function generateSchedule(input:GenerationInput):GenerationResult {
       allocateWeek(plans,target,contextComplete);
       const generatedMinutes=plans.reduce((sum,plan)=>sum+plan.allocated,0);
       for(const plan of plans)candidates.push(...toAssignments(
-        member.id,plan,memberIndex,activeMembers.length));
+        member.id,plan,memberIndex,activeMembers.length,startSpacingMinutes));
       if(contextComplete && generatedMinutes+externalMinutes<REQUIRED_WEEKLY_MINUTES){
         shortfalls.push({
           memberId:member.id,weekStart:week.start,
