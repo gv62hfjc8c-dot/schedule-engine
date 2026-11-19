@@ -115,8 +115,11 @@ function allocateWeek(plans:DayPlan[],targetMinutes:number,
  * hours. Multiple colleagues may share the same start time.
  *
  * Derive positions from the *actual wall-clock* within opening windows,
- * including split openings; capacity counts effective work only. Rotate
- * positions by civil day, never resetting at a week or month boundary.
+ * including split openings; capacity counts effective work only. Keep the
+ * same preferred start within each Monday-Sunday week and rotate positions
+ * between consecutive civil weeks, without resetting at month boundaries.
+ * Different daily capacities may still require different starts to preserve
+ * the mandatory weekly hours and opening constraints.
  */
 function feasibleStartOffsets(plan:DayPlan,spacingMinutes:30|60):number[] {
   const remainingCapacity=plan.capacity-plan.allocated;
@@ -144,8 +147,11 @@ function suggestedStartOffset(
   if(feasibleOffsets.length===0)return 0;
   const usedSlots=Math.min(activeCount,feasibleOffsets.length);
   if(usedSlots<2)return feasibleOffsets[0];
-  const dayIndex=daysBetween("1970-01-01",plan.date);
-  const position=((dayIndex+memberIndex)%usedSlots+usedSlots)%usedSlots;
+  // Monday 1970-01-05 anchors the rotation to civil weeks, not days.
+  // Floor works for dates before 1970 and ensures all seven days in the
+  // same week get the same preferred slot, even across two civil months.
+  const weekIndex=Math.floor(daysBetween("1970-01-05",plan.date)/7);
+  const position=((weekIndex+memberIndex)%usedSlots+usedSlots)%usedSlots;
   const alignedIndex=Math.round(
     position*(feasibleOffsets.length-1)/(usedSlots-1)
   );
