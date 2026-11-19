@@ -270,8 +270,11 @@ function allocateConfiguredDays(
   };
   if(slots>0)choose(0,[]);
 
-  if(best){
-    for(const plan of best.days){
+  // The recursive chooser updates best through a closure; make this
+  // mutation explicit to TypeScript's control-flow analysis.
+  const winner=best as Option|null;
+  if(winner){
+    for(const plan of winner.days){
       const matching=plans.find(p=>p.date===plan.date);
       if(matching)matching.allocated=plan.allocated;
     }
