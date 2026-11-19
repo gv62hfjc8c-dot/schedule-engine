@@ -498,3 +498,43 @@ test("Rotação atravessa novembro/dezembro sem reiniciar no dia 1",()=>{
   assert.deepEqual(dec1(weekly.candidateAssignments),dec1(december.candidateAssignments));
   assert.ok(december.candidateAssignments.every(a=>a.date.startsWith("2026-12-")));
 });
+
+
+test("A grelha usa horas reais em funcionamento repartido não alinhado",()=>{
+  const data=week();
+  const hours=opening();
+  for(const day of hours.days)day.intervals=
+    ["saturday","sunday"].includes(day.day)
+      ? []:[{start:"09:00",end:"09:45"},{start:"10:00",end:"18:15"}];
+  data.openingHours=hours;
+  data.team={members:[
+    {id:ANA,name:"Ana",active:true},
+    {id:RUI,name:"Rui",active:true},
+  ]};
+  const result=generateSchedule({...data,preferences:{startSpacingMinutes:30}});
+  assert.equal(result.status,"valid");
+  const monday=result.candidateAssignments.filter(a=>a.date==="2026-11-02");
+  assert.equal(monday.length,3);
+  const starts=monday.map(a=>a.start);
+  assert.deepEqual(starts.sort(),["09:00","10:00","10:00"]);
+  assert.ok(result.candidateAssignments.every(a=>
+    a.start.endsWith(":00")||a.start.endsWith(":30")));
+  assert.deepEqual(result.certification.weeks.map(w=>w.actualMinutes),[2400,2400]);
+});
+
+test("Se não houver início alinhado possível, o motor prioriza a validade",()=>{
+  const data=week();
+  const hours=opening();
+  for(const day of hours.days)day.intervals=
+    ["saturday","sunday"].includes(day.day)
+      ? []:[{start:"09:05",end:"17:05"}];
+  data.openingHours=hours;
+  data.team={members:[
+    {id:ANA,name:"Ana",active:true},
+    {id:RUI,name:"Rui",active:true},
+  ]};
+  const result=generateSchedule({...data,preferences:{startSpacingMinutes:60}});
+  assert.equal(result.status,"valid");
+  assert.ok(result.candidateAssignments.every(a=>
+    a.start==="09:05"&&a.end==="17:05"));
+});
