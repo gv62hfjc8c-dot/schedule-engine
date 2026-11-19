@@ -172,7 +172,7 @@ function MonthWorkspace({year,month,todayString}:{
           <div>
             <p className="surface-kicker">Proposta mensal</p>
             <h2>{monthLabel(year,month-1)}</h2>
-            <p>A geração utiliza os colaboradores ativos e o funcionamento guardado.</p>
+            <p>O motor distribui automaticamente os turnos conforme a equipa e o funcionamento guardado.</p>
           </div>
           <div className="schedule-buttons">
             <button type="button" className="button button-primary"

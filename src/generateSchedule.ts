@@ -14,6 +14,7 @@ import {
 import {REQUIRED_WEEKLY_MINUTES} from "./weeklyHours";
 
 export type GenerationInput=Omit<CertificationInput,"candidateAssignments">;
+
 export interface GenerationShortfall {
   memberId:string;
   weekStart:string;
@@ -108,21 +109,47 @@ function allocateWeek(plans:DayPlan[],targetMinutes:number,
 }
 
 /**
- * A non-mandatory spacing preference between active colleagues.
- * When an opening window is longer than the allocated work, rotate the
- * available start positions over consecutive civil days. This changes neither
- * the allocated minutes nor any hard constraint and never imposes coverage.
+ * Candidate start selection is a SOFT optimization, not a hard rule or
+ * setting exposed to the user. Prefer whole-hour starts if there are enough
+ * distinct feasible positions for the active team; otherwise include half
+ * hours. Multiple colleagues may share the same start time.
  *
- * Civil-day rotation (rather than resetting every Monday or month) avoids
- * systematically giving the same employee the opening shift.
+ * Derive positions from the *actual wall-clock* within opening windows,
+ * including split openings; capacity counts effective work only. Rotate
+ * positions by civil day, never resetting at a week or month boundary.
  */
-function suggestedStartOffset(plan:DayPlan,memberIndex:number,activeCount:number):number {
+function feasibleStartOffsets(plan:DayPlan,spacingMinutes:30|60):number[] {
+  const remainingCapacity=plan.capacity-plan.allocated;
+  const offsets:number[]=[];
+  let precedingOpenMinutes=0;
+  for(const interval of plan.intervals){
+    const first=Math.ceil(interval.start/spacingMinutes)*spacingMinutes;
+    for(let start=first;start<interval.end;start+=spacingMinutes){
+      const offset=precedingOpenMinutes+start-interval.start;
+      if(offset<=remainingCapacity)offsets.push(offset);
+    }
+    precedingOpenMinutes+=interval.end-interval.start;
+  }
+  return offsets;
+}
+
+function suggestedStartOffset(
+  plan:DayPlan,memberIndex:number,activeCount:number
+):number {
   if(activeCount<2 || plan.allocated===0)return 0;
-  const spare=plan.capacity-plan.allocated;
-  if(spare<=0)return 0; // e.g. four 10-hour working days.
+  const fullHours=feasibleStartOffsets(plan,60);
+  const feasibleOffsets=fullHours.length>=activeCount
+    ? fullHours:feasibleStartOffsets(plan,30);
+  // Validity prevails when even a half-hour position is impossible.
+  if(feasibleOffsets.length===0)return 0;
+  const usedSlots=Math.min(activeCount,feasibleOffsets.length);
+  if(usedSlots<2)return feasibleOffsets[0];
   const dayIndex=daysBetween("1970-01-01",plan.date);
-  const slot=((dayIndex+memberIndex)%activeCount+activeCount)%activeCount;
-  return Math.round(spare*slot/(activeCount-1));
+  const position=((dayIndex+memberIndex)%usedSlots+usedSlots)%usedSlots;
+  const alignedIndex=Math.round(
+    position*(feasibleOffsets.length-1)/(usedSlots-1)
+  );
+  return feasibleOffsets[alignedIndex];
 }
 
 function toAssignments(

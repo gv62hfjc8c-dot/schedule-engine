@@ -235,3 +235,33 @@ Em todos os quatro casos, a certificação das **40h semanais** foi `valid` (seg
 Foi executado ainda um cenário de **dezembro de 2026 (31 dias), 200 colaboradores**, produzindo 4 600 atribuições apenas dentro de dezembro, em cerca de 285 ms, com estado `insufficient_context` porque os dias exteriores de novembro/janeiro não foram fornecidos. O motor não inventou contexto e não declarou a proposta validada.
 
 **Próxima decisão:** melhorar a equidade ao longo do horizonte sem acrescentar cobertura mínima, exigência de turnos exclusivos ou outra hard constraint. Primeiro comparar pequenas variantes da rotação contra estas mesmas métricas e validar com casos reais. A certificação atual continua incompleta quanto a pausas, descansos e legalidade final.
+
+## PR81 — Distribuição automática e justa das horas de entrada
+
+O PR80 mediu uma diferença de até **105 minutos entre as médias individuais de entrada** numa equipa de 200 colaboradores. O PR81 substitui a distribuição proporcional ao número de pessoas por uma **heurística automática de rotação**, sem controlo ou configuração adicional na interface. O utilizador continua a clicar apenas em **Gerar horário**.
+
+O motor calcula as posições de início possíveis a partir do funcionamento real da empresa, das horas de trabalho necessárias e do número de colaboradores ativos. **Prefere entradas à hora certa** quando existem posições distintas suficientes para a equipa; **considera também meias horas** quando é útil ter mais posições. Para uma empresa aberta de segunda a sexta das 09:00 às 19:00, com 8h de trabalho por colaborador, isto produz por exemplo:
+
+- 2 colaboradores: 09:00–17:00 e 11:00–19:00, alternando;
+- 3 colaboradores: 09:00–17:00, 10:00–18:00 e 11:00–19:00;
+- 4 colaboradores: pode distribuir 09:00–17:00, 09:30–17:30, 10:30–18:30 e 11:00–19:00;
+- equipas maiores: reutilizam as posições de meia em meia hora, alternando as atribuições em cada dia civil.
+
+**Não existe um seletor de 30/60 minutos**, nem uma regra obrigatória de cobertura mínima ou exclusividade de horários. O alinhamento é uma *soft preference*, nunca uma hard constraint: se não houver entrada alinhada que permita cumprir a abertura e a duração do trabalho, o gerador preserva a viabilidade em vez de inventar horários ou reprovar turnos. A grelha baseia-se no relógio real, mesmo em funcionamento repartido; não confunde pausas de funcionamento com trabalho. O certificador independente não rejeita um turno manual tecnicamente válido só porque começa, por exemplo, às 09:15.
+
+A rotação acompanha as datas civis sem reiniciar ao entrar num novo mês e mantém a geração exclusivamente dentro do período editável. Os horários de meses vizinhos são sempre contexto read-only. Os rascunhos já guardados não são modificados até uma geração e substituição expressamente confirmadas.
+
+### Regressão de equidade
+
+Os testes de diagnóstico sintéticos utilizam 28 dias, 20 dias úteis, 09:00–19:00 e 40h semanais obrigatórias por colaborador. Comparação com PR80:
+
+| Ativos | Amplitude das médias antes | Amplitude após rotação automática | Posições de início por dia |
+| ---: | ---: | ---: | ---: |
+| 2 | 0 min | 0 min | 2 |
+| 10 | 13,4 min | 0 min | 5 |
+| 50 | 58,9 min | 0 min | 5 |
+| 200 | 105 min | 0 min | 5 |
+
+As métricas demonstram equidade **apenas neste cenário sintético**; não comprovam justiça com exceções, diferentes durações ou preferências ainda não implementadas. Os testes verificam também determinismo, 40h/semana exatas, ausência de mutações, mês civil de 31 dias, continuidade entre meses e separação entre restrições hard e preferência soft. O gerador ainda não certifica todas as pausas e descansos legais e só guarda rascunhos locais, não horários oficiais.
+
+Verificar com `npm test`, `npm run test:distribution` e `npm run build`. No Safari, basta abrir `/horarios`, carregar em **Gerar horário** e observar os turnos: não há qualquer seletor a configurar.

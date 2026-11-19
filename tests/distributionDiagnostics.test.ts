@@ -150,9 +150,15 @@ test("Diagnóstico 2/10/50/200: 28 dias, 40h exatas e métricas de distribuiçã
       size,first.candidateAssignments,first.status,
       first.certification.weeks.length,firstMs,secondMs,data.period.mode
     );
-    assert.ok(metric.distinctStartsPerDayMin>=2);
-    assert.ok(metric.distinctStartsPerDayMax<=size);
-    assert.ok(metric.meanStartGapMinutes>=0 && metric.meanStartGapMinutes<=120);
+    const expectedDifferentStarts=Math.min(size,5); // 09:00..11:00 every 30m.
+    assert.equal(metric.distinctStartsPerDayMin,expectedDifferentStarts);
+    assert.equal(metric.distinctStartsPerDayMax,expectedDifferentStarts);
+    assert.equal(metric.meanStartGapMinutes,0,
+      "Cada pessoa deve percorrer posições equivalentes nas 4 semanas.");
+    assert.equal(metric.noExactOpeningShifts,0);
+    assert.equal(metric.noExactClosingShifts,0);
+    assert.ok(first.candidateAssignments.every(shift=>
+      (clockMinutes(shift.start)-OPEN)%30===0));
     // Quality observations are diagnostic: no arbitrary fairness threshold
     // should be mistaken for a contractual rule.
     console.log("SCHEDULE_DISTRIBUTION_DIAGNOSTIC "+JSON.stringify(metric));
@@ -200,4 +206,33 @@ test("Métricas de 2 colaboradores revelam distribuição alternada, sem cobertu
   assert.equal(metric.openingShiftsPerMemberMin,10);
   assert.equal(metric.openingShiftsPerMemberMax,10);
   assert.equal(metric.meanStartGapMinutes,0);
+});
+
+test("O motor escolhe horas certas quando há posições suficientes para a equipa",()=>{
+  for(const size of [2,3]){
+    const data=scenario(size);
+    const snapshot=JSON.stringify(data);
+    const result=generateSchedule(data);
+    assert.equal(result.status,"valid");
+    const starts=[...new Set(result.candidateAssignments
+      .filter(shift=>shift.date==="2026-11-02").map(shift=>shift.start))].sort();
+    assert.deepEqual(starts,size===2
+      ?["09:00","11:00"]
+      :["09:00","10:00","11:00"]);
+    assert.ok(result.candidateAssignments.every(shift=>
+      clockMinutes(shift.start)%60===0));
+    assert.equal(JSON.stringify(data),snapshot);
+  }
+});
+
+test("O motor usa meias horas automaticamente quando há mais pessoas",()=>{
+  const data=scenario(4);
+  const result=generateSchedule(data);
+  assert.equal(result.status,"valid");
+  const starts=[...new Set(result.candidateAssignments
+    .filter(shift=>shift.date==="2026-11-02").map(shift=>shift.start))].sort();
+  assert.deepEqual(starts,["09:00","09:30","10:30","11:00"]);
+  assert.ok(result.candidateAssignments.every(shift=>
+    clockMinutes(shift.start)%30===0));
+  assert.equal(result.certification.weeks.every(w=>w.actualMinutes===2400),true);
 });

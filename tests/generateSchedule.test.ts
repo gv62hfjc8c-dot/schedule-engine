@@ -428,3 +428,104 @@ test("Excesso já existente no mês anterior é inválido, não uma falta fictí
   assert.equal(out.shortfalls.some(s=>s.weekStart==="2026-10-26"),false);
   assert.ok(out.candidateAssignments.every(a=>a.date.startsWith("2026-11-")));
 });
+
+
+test("O motor escolhe sozinho entradas em horas ou meias horas",()=>{
+  const data=week();
+  const hours=opening();
+  for(const day of hours.days){
+    day.intervals=["saturday","sunday"].includes(day.day)
+      ? []:[{start:"09:00",end:"19:00"}];
+  }
+  data.openingHours=hours;
+  data.team={members:[
+    {id:ANA,name:"Ana",active:true},
+    {id:RUI,name:"Rui",active:true},
+    {id:"1a2b3c4d-3333-4444-8aaa-123456789abe",name:"Carla",active:true},
+    {id:"1a2b3c4d-3333-4444-8aaa-123456789abf",name:"Pedro",active:true},
+  ]};
+  const result=generateSchedule(data);
+  assert.equal(result.status,"valid");
+  assert.deepEqual(new Set(result.candidateAssignments
+    .filter(a=>a.date==="2026-11-02").map(a=>a.start)),
+  new Set(["09:00","09:30","10:30","11:00"]));
+  assert.ok(result.candidateAssignments.every(a=>
+    Number(a.start.slice(3))%30===0));
+  assert.ok(result.certification.weeks.every(w=>w.actualMinutes===2400));
+  assert.deepEqual(result,generateSchedule(data));
+});
+
+test("A distribuição automática não vira hard constraint do certificador",()=>{
+  const data=week();
+  const hours=opening();
+  for(const day of hours.days)day.intervals=
+    ["saturday","sunday"].includes(day.day)?[]:[{start:"09:00",end:"19:00"}];
+  data.openingHours=hours;
+  const assignments=enumerateCivilDays({
+    start:"2026-11-02",endExclusive:"2026-11-07",
+  }).map(date=>({memberId:ANA,date,start:"09:15",end:"17:15"}));
+  const report=certifySchedule({...data,candidateAssignments:assignments});
+  assert.equal(report.status,"valid");
+});
+
+test("Rotação atravessa novembro/dezembro sem reiniciar no dia 1",()=>{
+  const data=week("2026-11-30");
+  const hours=opening();
+  for(const day of hours.days)day.intervals=
+    ["saturday","sunday"].includes(day.day)?[]:[{start:"09:00",end:"19:00"}];
+  data.openingHours=hours;
+  data.team={members:[
+    {id:ANA,name:"Ana",active:true},
+    {id:RUI,name:"Rui",active:true},
+  ]};
+  const weekly=generateSchedule(data);
+  const december=generateSchedule({...data,period:{
+    mode:"monthly",year:2026,month:12,
+  }});
+  assert.equal(weekly.status,"valid");
+  assert.equal(december.status,"insufficient_context");
+  const dec1=(shifts:WorkAssignment[])=>shifts
+    .filter(a=>a.date==="2026-12-01").map(a=>[a.memberId,a.start,a.end]).sort();
+  assert.deepEqual(dec1(weekly.candidateAssignments),dec1(december.candidateAssignments));
+  assert.ok(december.candidateAssignments.every(a=>a.date.startsWith("2026-12-")));
+});
+
+
+test("A grelha usa horas reais em funcionamento repartido não alinhado",()=>{
+  const data=week();
+  const hours=opening();
+  for(const day of hours.days)day.intervals=
+    ["saturday","sunday"].includes(day.day)
+      ? []:[{start:"09:00",end:"09:45"},{start:"10:00",end:"18:15"}];
+  data.openingHours=hours;
+  data.team={members:[
+    {id:ANA,name:"Ana",active:true},
+    {id:RUI,name:"Rui",active:true},
+  ]};
+  const result=generateSchedule(data);
+  assert.equal(result.status,"valid");
+  const monday=result.candidateAssignments.filter(a=>a.date==="2026-11-02");
+  assert.equal(monday.length,3);
+  const starts=monday.map(a=>a.start);
+  assert.deepEqual(starts.sort(),["09:00","10:00","10:00"]);
+  assert.ok(result.candidateAssignments.every(a=>
+    a.start.endsWith(":00")||a.start.endsWith(":30")));
+  assert.deepEqual(result.certification.weeks.map(w=>w.actualMinutes),[2400,2400]);
+});
+
+test("Se não houver início alinhado possível, o motor prioriza a validade",()=>{
+  const data=week();
+  const hours=opening();
+  for(const day of hours.days)day.intervals=
+    ["saturday","sunday"].includes(day.day)
+      ? []:[{start:"09:05",end:"17:05"}];
+  data.openingHours=hours;
+  data.team={members:[
+    {id:ANA,name:"Ana",active:true},
+    {id:RUI,name:"Rui",active:true},
+  ]};
+  const result=generateSchedule(data);
+  assert.equal(result.status,"valid");
+  assert.ok(result.candidateAssignments.every(a=>
+    a.start==="09:05"&&a.end==="17:05"));
+});

@@ -54,3 +54,12 @@ test("O calendário mostra geração real, certificação e guarda sem validaç�
   assert.match(calendarScheduler, /calendar-assignment-count/);
   assert.match(calendarScheduler, /day-work-item/);
 });
+
+test("O calendário gera automaticamente, sem seletor de intervalos de entradas",()=>{
+  assert.doesNotMatch(calendarScheduler,/schedule-start-spacing/);
+  assert.doesNotMatch(calendarScheduler,/startSpacingMinutes/);
+  assert.doesNotMatch(calendarScheduler,/30 em 30 minutos/);
+  assert.doesNotMatch(calendarScheduler,/60 em 60 minutos/);
+  assert.match(calendarScheduler,/O motor distribui automaticamente os turnos/);
+  assert.match(calendarScheduler,/generateSchedule\(\{/);
+});
