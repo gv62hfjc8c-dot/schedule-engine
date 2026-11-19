@@ -235,3 +235,33 @@ Em todos os quatro casos, a certificação das **40h semanais** foi `valid` (seg
 Foi executado ainda um cenário de **dezembro de 2026 (31 dias), 200 colaboradores**, produzindo 4 600 atribuições apenas dentro de dezembro, em cerca de 285 ms, com estado `insufficient_context` porque os dias exteriores de novembro/janeiro não foram fornecidos. O motor não inventou contexto e não declarou a proposta validada.
 
 **Próxima decisão:** melhorar a equidade ao longo do horizonte sem acrescentar cobertura mínima, exigência de turnos exclusivos ou outra hard constraint. Primeiro comparar pequenas variantes da rotação contra estas mesmas métricas e validar com casos reais. A certificação atual continua incompleta quanto a pausas, descansos e legalidade final.
+
+## PR81 — Equidade da rotação e entradas de 30/60 minutos
+
+O PR80 revelou que, com 200 colaboradores, a alternância do PR79 criava uma amplitude de **105 minutos entre as médias de início** individuais ao longo de 28 dias, apesar de todos cumprirem as horas obrigatórias. A causa era a rotação de apenas uma posição por dia numa lista proporcional ao número total de colaboradores.
+
+A V2 passa a utilizar **posições de entrada no relógio** com espaçamento configurável, independentes da quantidade de pessoas: 30 minutos (padrão) ou 60 minutos, definidos no seletor **Entradas de** na página \`/horarios\` antes da geração. Para uma empresa aberta 09:00–19:00, com 8h de trabalho efetivo em cada um de cinco dias úteis, podem surgir:
+
+- **30 minutos:** 09:00, 09:30, 10:00, 10:30 e 11:00.
+- **60 minutos:** 09:00, 10:00 e 11:00.
+
+Com 2 pessoas, o gerador continua a utilizar preferencialmente as duas extremidades (09:00–17:00 e 11:00–19:00) e alterna quem abre/fecha. Com 200 pessoas, várias pessoas partilham legitimamente a mesma entrada; cada membro percorre as posições temporais ao longo dos dias, sem criar horas artificiais como 09:15. A alternância usa datas civis, sem recomeçar no dia 1 do mês.
+
+**Isto é uma preferência de otimização, não uma hard constraint:** não existe cobertura mínima, não há obrigação de entradas diferentes e o certificador não reprova um turno individual válido das 09:15. Os períodos de abertura repartidos também são tratados em minutos de relógio (não pelo tempo cumulativo aberto); se não houver qualquer início alinhado possível, a validade e o funcionamento prevalecem sobre o alinhamento. A escolha 30/60 é feita por geração, não altera propostas antigas até ser gerada e guardada uma substituição confirmada. Não foi adicionada configuração persistente de política empresarial nesta etapa.
+
+### Resultados sintéticos reproduzidos (CI 19/11/2026)
+
+Cenário 28 dias, 20 dias úteis, seg–sex 09:00–19:00, cada pessoa 40h/semana:
+
+| Ativos | Amplitude média antes (PR80) | Amplitude média depois (30 min) | Inícios distintos por dia |
+| ---: | ---: | ---: | ---: |
+| 2 | 0 min | 0 min | 2 |
+| 10 | 13,4 min | 0 min | 5 |
+| 50 | 58,9 min | 0 min | 5 |
+| 200 | 105 min | 0 min | 5 |
+
+Para 200 pessoas em **60 minutos**, a amplitude observada foi **6 minutos** e há 3 horários de entrada distintos por dia. Todos os 28 dias foram certificados como \`valid\` segundo as regras atualmente implementadas, com 40h exatas por colaborador e semana; os testes confirmam determinismo, ausência de mutações, entradas alinhadas quando possível, rotação, funcionamento repartido, e preservação de datas exteriores ao mês.
+
+Com 200 pessoas e 28 dias no CI, observou-se cerca de **227–259 ms por execução**; estes valores são indicativos e variam consoante o runner. O teste mensal de dezembro, com 200 pessoas e meses exteriores desconhecidos, permanece corretamente \`insufficient_context\` — não há preenchimento fictício dos dias externos. O motor continua sem a totalidade das regras laborais de pausas/descansos e os horários guardados são rascunhos locais, não horários aprovados.
+
+Executar \`npm test\`, \`npm run test:distribution\`, \`npm run build\` e confirmar manualmente no Safari os dois valores do seletor antes do merge.
