@@ -5,7 +5,7 @@ import {generateSchedule,type GenerationInput} from "../src/generateSchedule";
 import {certifySchedule} from "../src/certifySchedule";
 import {WEEKDAYS,type WeeklyOpeningHours} from "../src/operatingHours";
 import {
-  civilDayOfWeek,enumerateCivilDays,resolvePlanningPeriod,
+  addCivilDays,civilDayOfWeek,enumerateCivilDays,resolvePlanningPeriod,
   type PeriodRequest,
 } from "../src/schedulePeriods";
 import {
@@ -153,12 +153,28 @@ test("Diagnóstico 2/10/50/200: 28 dias, 40h exatas e métricas de distribuiçã
     const expectedDifferentStarts=Math.min(size,5); // 09:00..11:00 every 30m.
     assert.equal(metric.distinctStartsPerDayMin,expectedDifferentStarts);
     assert.equal(metric.distinctStartsPerDayMax,expectedDifferentStarts);
-    assert.equal(metric.meanStartGapMinutes,0,
-      "Cada pessoa deve percorrer posições equivalentes nas 4 semanas.");
-    assert.equal(metric.noExactOpeningShifts,0);
-    assert.equal(metric.noExactClosingShifts,0);
+    // A 5-slot rotation needs FIVE weeks for complete equity, while this
+    // baseline spans only four. Never change starts midweek to force the
+    // older daily-rotation metric to zero.
+    assert.ok(metric.meanStartGapMinutes<=30,
+      "Em quatro semanas a rotação não deve exceder um slot de desvio médio");
+    assert.ok(metric.openingShiftsPerMemberMax-
+      metric.openingShiftsPerMemberMin<=5);
+    assert.ok(metric.closingShiftsPerMemberMax-
+      metric.closingShiftsPerMemberMin<=5);
     assert.ok(first.candidateAssignments.every(shift=>
       (clockMinutes(shift.start)-OPEN)%30===0));
+    const memberWeekStarts=new Map<string,Set<string>>();
+    for(const shift of first.candidateAssignments){
+      const monday=addCivilDays(shift.date,-civilDayOfWeek(shift.date));
+      const key=shift.memberId+"|"+monday;
+      const starts=memberWeekStarts.get(key)??new Set<string>();
+      starts.add(shift.start);
+      memberWeekStarts.set(key,starts);
+    }
+    assert.equal(memberWeekStarts.size,4*size);
+    assert.ok([...memberWeekStarts.values()].every(starts=>starts.size===1),
+      "O colaborador deve ter um único horário de entrada por semana");
     // Quality observations are diagnostic: no arbitrary fairness threshold
     // should be mistaken for a contractual rule.
     console.log("SCHEDULE_DISTRIBUTION_DIAGNOSTIC "+JSON.stringify(metric));
@@ -235,4 +251,30 @@ test("O motor usa meias horas automaticamente quando há mais pessoas",()=>{
   assert.ok(result.candidateAssignments.every(shift=>
     clockMinutes(shift.start)%30===0));
   assert.equal(result.certification.weeks.every(w=>w.actualMinutes===2400),true);
+});
+
+
+test("Equidade em cinco semanas: 200 colaboradores percorrem as cinco posições",()=>{
+  const data=scenario(200);
+  const baseline=generateSchedule(data);
+  const next=generateSchedule(scenario(200,{
+    mode:"weekly",start:"2026-11-30",
+  }));
+  assert.equal(baseline.status,"valid");
+  assert.equal(next.status,"valid");
+  const mondayDates=[
+    "2026-11-02","2026-11-09","2026-11-16",
+    "2026-11-23","2026-11-30",
+  ];
+  const all=[...baseline.candidateAssignments,...next.candidateAssignments];
+  for(const member of (data.team as {members:{id:string}[]}).members){
+    const starts=mondayDates.map(date=>{
+      const shift=all.find(a=>a.memberId===member.id&&a.date===date);
+      assert.ok(shift,"Falta uma segunda-feira de trabalho");
+      return shift.start;
+    });
+    assert.deepEqual([...new Set(starts)].sort(),[
+      "09:00","09:30","10:00","10:30","11:00",
+    ]);
+  }
 });
