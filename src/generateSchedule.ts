@@ -13,26 +13,8 @@ import {
 } from "./workAssignments";
 import {REQUIRED_WEEKLY_MINUTES} from "./weeklyHours";
 
-/** Soft preference for candidate shift starts, not a certification rule. */
-export type StartSpacingMinutes=30|60;
-export const DEFAULT_START_SPACING_MINUTES:StartSpacingMinutes=30;
-export interface GenerationPreferences {
-  /** Candidate starts favor actual clock boundaries (:00/:30 or :00). */
-  startSpacingMinutes?:StartSpacingMinutes;
-}
-export type GenerationInput=Omit<CertificationInput,"candidateAssignments"> & {
-  preferences?:GenerationPreferences;
-};
+export type GenerationInput=Omit<CertificationInput,"candidateAssignments">;
 
-/** Treat malformed runtime preferences as an input error, never silently ignore. */
-function resolveSpacing(preferences:unknown):StartSpacingMinutes|null {
-  if(preferences===undefined)return DEFAULT_START_SPACING_MINUTES;
-  if(!preferences||typeof preferences!=="object"||Array.isArray(preferences))
-    return null;
-  const value=(preferences as {startSpacingMinutes?:unknown}).startSpacingMinutes;
-  if(value===undefined)return DEFAULT_START_SPACING_MINUTES;
-  return value===30||value===60?value:null;
-}
 export interface GenerationShortfall {
   memberId:string;
   weekStart:string;
@@ -127,42 +109,38 @@ function allocateWeek(plans:DayPlan[],targetMinutes:number,
 }
 
 /**
- * Deterministic, fair candidate start rotation on a configurable grid.
- * The grid is a SOFT preference: it is not checked by the certifier, never
- * requires minimum staffing, and never moves work outside opening hours.
+ * Candidate start selection is a SOFT optimization, not a hard rule or
+ * setting exposed to the user. Prefer whole-hour starts if there are enough
+ * distinct feasible positions for the active team; otherwise include half
+ * hours. Multiple colleagues may share the same start time.
  *
- * Use at most one position per active colleague when few people are present,
- * spread these positions across the entire feasible span (2 staff continue
- * to open/close). For larger teams share aligned positions instead of
- * fabricating 09:15, 09:17 etc. Irregular opening intervals use the actual
- * clock grid, not elapsed open minutes, and permit a fallback if unavoidable. Each person's position rotates by civil
- * date; on a five-day 09:00-19:00 week with five 30-minute positions every
- * person visits each position exactly once regardless of team size.
- *
- * The reference date is global, not a month/week boundary: the sequence does
- * not restart just because a new calendar month is generated.
+ * Derive positions from the *actual wall-clock* within opening windows,
+ * including split openings; capacity counts effective work only. Rotate
+ * positions by civil day, never resetting at a week or month boundary.
  */
-function suggestedStartOffset(
-  plan:DayPlan,memberIndex:number,activeCount:number,
-  startSpacingMinutes:StartSpacingMinutes
-):number {
-  if(activeCount<2 || plan.allocated===0)return 0;
-  // Actual clock grid (:00/:30 or :00), not simply "minutes of opening
-  // capacity": a split interval of 09:00-09:45 + 10:00-18:15 must not
-  // produce a shift starting at 10:15 from a 60-minute offset.
+function feasibleStartOffsets(plan:DayPlan,spacingMinutes:30|60):number[] {
   const remainingCapacity=plan.capacity-plan.allocated;
-  const feasibleOffsets:number[]=[];
+  const offsets:number[]=[];
   let precedingOpenMinutes=0;
   for(const interval of plan.intervals){
-    const first=Math.ceil(interval.start/startSpacingMinutes)*startSpacingMinutes;
-    for(let start=first;start<interval.end;start+=startSpacingMinutes){
+    const first=Math.ceil(interval.start/spacingMinutes)*spacingMinutes;
+    for(let start=first;start<interval.end;start+=spacingMinutes){
       const offset=precedingOpenMinutes+start-interval.start;
-      if(offset<=remainingCapacity)feasibleOffsets.push(offset);
+      if(offset<=remainingCapacity)offsets.push(offset);
     }
     precedingOpenMinutes+=interval.end-interval.start;
   }
-  // A start that is not grid-aligned is a last-resort soft fallback when the
-  // business has no aligned, feasible start at all. It remains certifiable.
+  return offsets;
+}
+
+function suggestedStartOffset(
+  plan:DayPlan,memberIndex:number,activeCount:number
+):number {
+  if(activeCount<2 || plan.allocated===0)return 0;
+  const fullHours=feasibleStartOffsets(plan,60);
+  const feasibleOffsets=fullHours.length>=activeCount
+    ? fullHours:feasibleStartOffsets(plan,30);
+  // Validity prevails when even a half-hour position is impossible.
   if(feasibleOffsets.length===0)return 0;
   const usedSlots=Math.min(activeCount,feasibleOffsets.length);
   if(usedSlots<2)return feasibleOffsets[0];
@@ -175,13 +153,10 @@ function suggestedStartOffset(
 }
 
 function toAssignments(
-  memberId:string,plan:DayPlan,memberIndex:number,activeCount:number,
-  startSpacingMinutes:StartSpacingMinutes
+  memberId:string,plan:DayPlan,memberIndex:number,activeCount:number
 ):WorkAssignment[] {
   let minutesLeft=plan.allocated;
-  let skip=suggestedStartOffset(
-    plan,memberIndex,activeCount,startSpacingMinutes
-  );
+  let skip=suggestedStartOffset(plan,memberIndex,activeCount);
   const assignments:WorkAssignment[]=[];
   for(const interval of plan.intervals){
     if(minutesLeft===0)break;
@@ -225,20 +200,6 @@ export function generateSchedule(input:GenerationInput):GenerationResult {
     };
   }
 
-  const startSpacingMinutes=resolveSpacing(input.preferences);
-  if(startSpacingMinutes===null){
-    return {
-      status:"invalid_input",candidateAssignments:[],shortfalls:[],
-      certification:{
-        ...emptyCertification,status:"invalid",
-        issues:[...emptyCertification.issues,{
-          code:"INVALID_GENERATION_PREFERENCE",
-          message:"O intervalo de entradas deve ser 30 ou 60 minutos.",
-        }],
-      },
-    };
-  }
-
   const period=emptyCertification.period;
   const externalRaw=input.externalContext?.assignments??[];
   const externalAssignments=(externalRaw as unknown[])
@@ -262,7 +223,7 @@ export function generateSchedule(input:GenerationInput):GenerationResult {
       allocateWeek(plans,target,contextComplete);
       const generatedMinutes=plans.reduce((sum,plan)=>sum+plan.allocated,0);
       for(const plan of plans)candidates.push(...toAssignments(
-        member.id,plan,memberIndex,activeMembers.length,startSpacingMinutes));
+        member.id,plan,memberIndex,activeMembers.length));
       if(contextComplete && generatedMinutes+externalMinutes<REQUIRED_WEEKLY_MINUTES){
         shortfalls.push({
           memberId:member.id,weekStart:week.start,
