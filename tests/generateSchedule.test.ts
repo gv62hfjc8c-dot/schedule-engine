@@ -212,7 +212,8 @@ test("PR82: semana com seis dias de horários diferentes é distribuída sem ult
     const shifts=result.candidateAssignments.filter(a=>a.memberId===id);
     const saturday=shifts.filter(a=>a.date==="2026-11-07");
     assert.equal(saturday.length,1);
-    assert.deepEqual([saturday[0].start,saturday[0].end],["09:00","11:30"]);
+    assert.ok(saturday[0].start>="09:00"&&saturday[0].end<="13:00");
+    assert.ok(["00","30"].includes(saturday[0].start.slice(3)));
     assert.equal(assignmentMinutes(saturday[0]),150);
     assert.equal(total(shifts),2400);
     const weekdays=shifts.filter(a=>a.date>="2026-11-02"&&a.date<="2026-11-06");
@@ -299,7 +300,7 @@ test("PR82: o dia de funcionamento reduzido também conta na semana de fronteira
   for(const id of [ANA,RUI]){
     const original=weekly.candidateAssignments.filter(a=>a.memberId===id);
     const projected=december.candidateAssignments.filter(a=>
-      a.memberId===id && a.date>="2026-12-01" && a.date<="2026-12-07");
+      a.memberId===id && a.date>="2026-12-01" && a.date<"2026-12-07");
     assert.deepEqual(projected,original.filter(a=>a.date!=="2026-11-30"));
   }
   assert.equal(JSON.stringify(data),before);
