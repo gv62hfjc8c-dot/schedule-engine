@@ -118,6 +118,18 @@ function allocateBalancedWeek(plans:DayPlan[],targetMinutes:number):void {
     smallestShift:number;
     targetDistance:number;
   };
+  // Prefer clarity over a deeply nested quality comparator.
+  function isBetter(next:Candidate,previous:Candidate):boolean {
+    if(next.activeDays!==previous.activeDays)
+      return next.activeDays>previous.activeDays;
+    if(next.shortWindowMinutes!==previous.shortWindowMinutes)
+      return next.shortWindowMinutes>previous.shortWindowMinutes;
+    if(next.consistency!==previous.consistency)
+      return next.consistency>previous.consistency;
+    if(next.smallestShift!==previous.smallestShift)
+      return next.smallestShift>previous.smallestShift;
+    return next.targetDistance<previous.targetDistance;
+  }
   let best:Candidate|null=null;
   for(const baseline of baselines){
     const allocations=open.map(plan=>Math.min(plan.capacity,baseline));
@@ -188,18 +200,7 @@ function allocateBalancedWeek(plans:DayPlan[],targetMinutes:number):void {
       allocations,activeDays,shortWindowMinutes,consistency,
       smallestShift,targetDistance,
     };
-    if(!best ||
-      candidate.activeDays>best.activeDays ||
-      (candidate.activeDays===best.activeDays &&
-        (candidate.shortWindowMinutes>best.shortWindowMinutes ||
-         (candidate.shortWindowMinutes===best.shortWindowMinutes &&
-          (candidate.consistency>best.consistency ||
-           (candidate.consistency===best.consistency &&
-            (candidate.smallestShift>best.smallestShift ||
-             (candidate.smallestShift===best.smallestShift &&
-              candidate.targetDistance<best.targetDistance))))))){
-      best=candidate;
-    }
+    if(!best || isBetter(candidate,best))best=candidate;
   }
   if(!best)throw new Error("A carga semanal não pôde ser distribuída.");
   for(let i=0;i<open.length;i++)open[i].allocated=best.allocations[i];
