@@ -5,6 +5,7 @@ import test from "node:test";
 const app = readFileSync(new URL("../src/App.tsx", import.meta.url), "utf8");
 const styles = readFileSync(new URL("../src/styles.css", import.meta.url), "utf8");
 const calendarScheduler = readFileSync(new URL("../src/CalendarScheduler.tsx", import.meta.url), "utf8");
+const teamEditor = readFileSync(new URL("../src/TeamEditor.tsx", import.meta.url), "utf8");
 
 test("A interface não apresenta linguagem de desenvolvimento", () => {
   for (const forbidden of [
@@ -62,4 +63,17 @@ test("O calendário gera automaticamente, sem seletor de intervalos de entradas"
   assert.doesNotMatch(calendarScheduler,/60 em 60 minutos/);
   assert.match(calendarScheduler,/O motor distribui automaticamente os turnos/);
   assert.match(calendarScheduler,/generateSchedule\(\{/);
+});
+
+
+test("Folgas semanais configuram só a quantidade na página Equipa",()=>{
+  assert.match(teamEditor,/id="team-weekly-days-off"/);
+  assert.match(teamEditor,/name="weeklyDaysOff"/);
+  assert.match(teamEditor,/Por definir \(sem regra adicional\)/);
+  assert.match(teamEditor,/O motor escolhe os dias/);
+  assert.doesNotMatch(teamEditor,/name="dayOffWeekday"/);
+  assert.doesNotMatch(teamEditor,/type="date"/);
+  assert.doesNotMatch(calendarScheduler,/Adicionar folga/);
+  assert.match(calendarScheduler,
+    /sem turnos registados não corresponde automaticamente a uma folga/);
 });
