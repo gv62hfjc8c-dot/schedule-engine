@@ -959,3 +959,49 @@ test("PR83: folgas por semana consideram contexto externo sem alterar outros mes
   assert.deepEqual(actual,expected);
   assert.equal(JSON.stringify(data),before);
 });
+
+
+test("PR83: pessoas da mesma equipa podem ter uma e duas folgas, sem cobertura mínima",()=>{
+  const data=week();
+  const hours=opening();
+  for(const day of hours.days)day.intervals=
+    day.day==="sunday"?[]:day.day==="saturday"
+      ?[{start:"09:00",end:"13:00"}]
+      :[{start:"09:00",end:"19:00"}];
+  data.openingHours=hours;
+  data.team={members:[
+    {id:ANA,name:"Ana",active:true,weeklyDaysOff:1},
+    {id:RUI,name:"Rui",active:true,weeklyDaysOff:2},
+  ]};
+  const result=generateSchedule(data);
+  assert.equal(result.status,"valid");
+  for(const [memberId,worked] of [[ANA,6],[RUI,5]] as const){
+    const shifts=result.candidateAssignments.filter(a=>a.memberId===memberId);
+    assert.equal(total(shifts),2400);
+    assert.equal(new Set(shifts.map(a=>a.date)).size,worked);
+    assert.deepEqual(shifts.filter(a=>a.date==="2026-11-07")
+      .map(a=>[a.start,a.end]),[["09:00","13:00"]]);
+  }
+});
+
+test("PR83: zero folgas é possível com sete dias abertos; seis folgas não cabem em 40h",()=>{
+  const data=week();
+  const hours=opening();
+  for(const day of hours.days)day.intervals=[{start:"09:00",end:"19:00"}];
+  data.openingHours=hours;
+  data.team={members:[
+    {id:ANA,name:"Ana",active:true,weeklyDaysOff:0},
+  ]};
+  const seven=generateSchedule(data);
+  assert.equal(seven.status,"valid");
+  assert.equal(new Set(seven.candidateAssignments.map(a=>a.date)).size,7);
+  assert.equal(total(seven.candidateAssignments),2400);
+  data.team={members:[
+    {id:ANA,name:"Ana",active:true,weeklyDaysOff:6},
+  ]};
+  const impossible=generateSchedule(data);
+  assert.equal(impossible.status,"invalid");
+  assert.ok(impossible.certification.issues.some(i=>i.code==="WEEKLY_HOURS_MISSING"));
+  assert.ok(impossible.candidateAssignments.every(a=>
+    a.start>="09:00"&&a.end<="19:00"));
+});
