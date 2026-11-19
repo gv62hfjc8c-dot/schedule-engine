@@ -82,13 +82,14 @@ function availableDays(
  * coverage: an open day is eligible, not an obligation to supply any number
  * of colleagues. The same weekly load planning applies to every active person.
  *
- * Prefer using every feasible open day, then preserve repeated daily work
- * durations (stable turns for days with comparable opening capacity), then
- * avoid nearly-empty shifts. Clock-aligned durations are SOFT preferences.
+ * Prefer using feasible open days and making full use of shorter windows
+ * before spreading the remaining hours over longer, comparable days.
+ * Repeated daily durations and avoiding tiny leftover shifts are softer
+ * trade-offs; none of these preferences forces staffing coverage.
  *
- * With Mon-Fri 09-19 and Sat 09-13, an entirely known 40h week can receive
- * five identical 7h30 shifts and a 2h30 shift on Saturday; neither more than
- * 40h nor a mandatory Saturday coverage constraint is introduced.
+ * Example: when a company has five 10h days plus a 4h day, that short
+ * day may be assigned all 4h (no stagger) and the remaining 36h may be
+ * allocated across the five longer days, without exceeding 40h.
  */
 function allocateBalancedWeek(plans:DayPlan[],targetMinutes:number):void {
   const open=plans.filter(plan=>plan.capacity>0);
@@ -113,6 +114,7 @@ function allocateBalancedWeek(plans:DayPlan[],targetMinutes:number):void {
     allocations:number[];
     activeDays:number;
     consistency:number;
+    shortWindowMinutes:number;
     smallestShift:number;
     targetDistance:number;
   };
@@ -136,8 +138,11 @@ function allocateBalancedWeek(plans:DayPlan[],targetMinutes:number):void {
     }else if(delta<0){
       let excess=-delta;
       const order=open.map((plan,i)=>({i,capacity:plan.capacity}))
-        // Prefer shortening an already shorter opening window first.
-        .sort((a,b)=>a.capacity-b.capacity || b.i-a.i);
+        // Spare the shorter windows where feasible: when a day only opens
+        // four hours, giving it the full four is more useful than carving
+        // it into an unnecessary partial shift. Long windows can absorb
+        // the unavoidable reduction.
+        .sort((a,b)=>b.capacity-a.capacity || b.i-a.i);
       for(const {i} of order){
         const reserve=canUseEveryDay?minimums[i]:0;
         const reduction=Math.min(excess,allocations[i]-reserve);
@@ -170,20 +175,29 @@ function allocateBalancedWeek(plans:DayPlan[],targetMinutes:number):void {
     }
     const consistency=[...capacityGroups.values()].reduce((sum,counts)=>
       sum+Math.max(...counts.values()),0);
+    // Generic relative capacity: no weekday names and no fixed 4h cutoff.
+    // Preferring full utilization of shorter windows remains a SOFT score.
+    const shortWindowMinutes=allocations.reduce((sum,minutes,i)=>
+      sum+(open[i].capacity<maximumCapacity?minutes:0),0);
     const smallestShift=Math.min(...allocations.filter(minutes=>minutes>0));
     // Tie-breaker: avoid extreme daily lengths when several equally stable
     // plans exist. 8h remains only a quality objective, not a daily cap.
     const targetDistance=allocations.reduce((sum,minutes,i)=>
       sum+Math.abs(minutes-Math.min(480,open[i].capacity)),0);
-    const candidate={allocations,activeDays,consistency,smallestShift,targetDistance};
+    const candidate={
+      allocations,activeDays,shortWindowMinutes,consistency,
+      smallestShift,targetDistance,
+    };
     if(!best ||
       candidate.activeDays>best.activeDays ||
       (candidate.activeDays===best.activeDays &&
-        (candidate.consistency>best.consistency ||
-         (candidate.consistency===best.consistency &&
-           (candidate.smallestShift>best.smallestShift ||
-            (candidate.smallestShift===best.smallestShift &&
-              candidate.targetDistance<best.targetDistance)))))){
+        (candidate.shortWindowMinutes>best.shortWindowMinutes ||
+         (candidate.shortWindowMinutes===best.shortWindowMinutes &&
+          (candidate.consistency>best.consistency ||
+           (candidate.consistency===best.consistency &&
+            (candidate.smallestShift>best.smallestShift ||
+             (candidate.smallestShift===best.smallestShift &&
+              candidate.targetDistance<best.targetDistance))))))){
       best=candidate;
     }
   }
