@@ -940,7 +940,11 @@ test("PR83: folgas por semana consideram contexto externo sem alterar outros mes
     period:{mode:"monthly",year:2026,month:12},
     team:roster,openingHours:hours,
     externalContext:{
-      assignments:previous,
+      // A última semana de dezembro exige também o turno histórico
+      // de 01/01: dia conhecido vazio NÃO pode ser tratado como folga extra.
+      assignments:[...previous,{
+        memberId:ANA,date:"2027-01-01",start:"09:00",end:"17:00",
+      }],
       completeDates:["2026-11-30","2027-01-01","2027-01-02","2027-01-03"],
     },
   };
