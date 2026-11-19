@@ -15,6 +15,7 @@ export function TeamEditor() {
     initial.status==="empty" || initial.status==="loaded"
   );
   const [name,setName] = useState("");
+  const [weeklyDaysOff,setWeeklyDaysOff] = useState<number|null>(null);
   const [editingId,setEditingId] = useState<string|null>(null);
   const [feedback,setFeedback] = useState<Feedback|null>(()=>
     initial.status==="unavailable"
@@ -60,6 +61,7 @@ export function TeamEditor() {
       id,
       name,
       active:current?.active??true,
+      ...(weeklyDaysOff===null?{}:{weeklyDaysOff}),
     };
     const next:TeamRoster={
       members:editingId
@@ -68,6 +70,7 @@ export function TeamEditor() {
     };
     if(persist(next,editingId ? "Dados do colaborador atualizados." : "Colaborador adicionado.")){
       setName("");
+      setWeeklyDaysOff(null);
       setEditingId(null);
     }
   }
@@ -77,6 +80,7 @@ export function TeamEditor() {
     if(!member)return;
     setEditingId(id);
     setName(member.name);
+    setWeeklyDaysOff(member.weeklyDaysOff??null);
     setFeedback(null);
     document.getElementById("team-name")?.focus();
   }
@@ -84,6 +88,7 @@ export function TeamEditor() {
   function cancelEdit(){
     setEditingId(null);
     setName("");
+    setWeeklyDaysOff(null);
     setFeedback(null);
   }
 
@@ -154,6 +159,13 @@ export function TeamEditor() {
                       : "team-status team-status-inactive"}>
                       {member.active ? "Ativo" : "Inativo"}
                     </span>
+                    <span className="team-days-off-summary">
+                      {member.weeklyDaysOff===undefined
+                        ? "Folgas por semana: por definir"
+                        : member.weeklyDaysOff+" "+
+                          (member.weeklyDaysOff===1?"dia sem trabalho/semana":
+                            "dias sem trabalho/semana")}
+                    </span>
                   </div>
                   <div className="team-person-actions">
                     <button type="button" className="team-action"
@@ -179,6 +191,25 @@ export function TeamEditor() {
                 setName(event.target.value);
                 setFeedback(null);
               }}/>
+            <label htmlFor="team-weekly-days-off">Dias de folga por semana</label>
+            <select id="team-weekly-days-off" name="weeklyDaysOff"
+              value={weeklyDaysOff===null?"":weeklyDaysOff}
+              onChange={event=>{
+                setWeeklyDaysOff(event.target.value===""?null:Number(event.target.value));
+                setFeedback(null);
+              }}>
+              <option value="">Por definir (sem regra adicional)</option>
+              {Array.from({length:7},(_,days)=>(
+                <option key={days} value={days}>
+                  {days} {days===1?"dia":"dias"}
+                </option>
+              ))}
+            </select>
+            <p className="team-field-help">
+              Define apenas a quantidade semanal. O motor escolhe os dias
+              sem trabalho conforme o funcionamento da empresa e as 40 horas
+              obrigatórias. Não são definidas folgas em dias específicos.
+            </p>
             <div className="team-form-actions">
               <button type="submit" className="button button-primary">
                 {editingId ? "Guardar alterações" : "Adicionar à equipa"}
