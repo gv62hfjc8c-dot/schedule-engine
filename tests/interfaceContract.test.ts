@@ -54,3 +54,13 @@ test("O calendário mostra geração real, certificação e guarda sem validaç�
   assert.match(calendarScheduler, /calendar-assignment-count/);
   assert.match(calendarScheduler, /day-work-item/);
 });
+
+test("O intervalo de entradas é escolhido pelo utilizador e alterar a opção limpa a pré-visualização",()=>{
+  assert.match(calendarScheduler,/id="schedule-start-spacing"/);
+  assert.match(calendarScheduler,/value=\{30\}/);
+  assert.match(calendarScheduler,/value=\{60\}/);
+  assert.match(calendarScheduler,/preferences:\{startSpacingMinutes\}/);
+  assert.match(calendarScheduler,/setPreview\(null\)/);
+  assert.match(calendarScheduler,/setSourceSignature\(null\)/);
+  assert.match(calendarScheduler,/sem cobertura mínima obrigatória/);
+});
