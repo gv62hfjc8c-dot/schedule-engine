@@ -430,7 +430,7 @@ test("Excesso já existente no mês anterior é inválido, não uma falta fictí
 });
 
 
-test("As entradas podem usar passos de 30 ou 60 min, sem regras de cobertura",()=>{
+test("O motor escolhe sozinho entradas em horas ou meias horas",()=>{
   const data=week();
   const hours=opening();
   for(const day of hours.days){
@@ -444,27 +444,18 @@ test("As entradas podem usar passos de 30 ou 60 min, sem regras de cobertura",()
     {id:"1a2b3c4d-3333-4444-8aaa-123456789abe",name:"Carla",active:true},
     {id:"1a2b3c4d-3333-4444-8aaa-123456789abf",name:"Pedro",active:true},
   ]};
-  const thirty=generateSchedule({...data,preferences:{startSpacingMinutes:30}});
-  const sixty=generateSchedule({...data,preferences:{startSpacingMinutes:60}});
-  assert.equal(thirty.status,"valid");
-  assert.equal(sixty.status,"valid");
-  assert.deepEqual(new Set(thirty.candidateAssignments
+  const result=generateSchedule(data);
+  assert.equal(result.status,"valid");
+  assert.deepEqual(new Set(result.candidateAssignments
     .filter(a=>a.date==="2026-11-02").map(a=>a.start)),
   new Set(["09:00","09:30","10:30","11:00"]));
-  assert.deepEqual(new Set(sixty.candidateAssignments
-    .filter(a=>a.date==="2026-11-02").map(a=>a.start)),
-  new Set(["09:00","10:00","11:00"]));
-  assert.ok(thirty.candidateAssignments.every(a=>
-    (Number(a.start.slice(3))-0)%30===0));
-  assert.ok(sixty.candidateAssignments.every(a=>a.start.endsWith(":00")));
-  assert.deepEqual(thirty.certification.weeks.map(w=>w.actualMinutes),
-    sixty.certification.weeks.map(w=>w.actualMinutes));
-  assert.ok(sixty.candidateAssignments.some(a=>
-    sixty.candidateAssignments.filter(b=>b.date===a.date&&b.start===a.start).length>1),
-    "Com mais pessoas do que posições horárias, entradas coincidentes são válidas.");
+  assert.ok(result.candidateAssignments.every(a=>
+    Number(a.start.slice(3))%30===0));
+  assert.ok(result.certification.weeks.every(w=>w.actualMinutes===2400));
+  assert.deepEqual(result,generateSchedule(data));
 });
 
-test("A preferência de entradas não vira hard constraint do certificador",()=>{
+test("A distribuição automática não vira hard constraint do certificador",()=>{
   const data=week();
   const hours=opening();
   for(const day of hours.days)day.intervals=
@@ -511,7 +502,7 @@ test("A grelha usa horas reais em funcionamento repartido não alinhado",()=>{
     {id:ANA,name:"Ana",active:true},
     {id:RUI,name:"Rui",active:true},
   ]};
-  const result=generateSchedule({...data,preferences:{startSpacingMinutes:30}});
+  const result=generateSchedule(data);
   assert.equal(result.status,"valid");
   const monday=result.candidateAssignments.filter(a=>a.date==="2026-11-02");
   assert.equal(monday.length,3);
@@ -533,7 +524,7 @@ test("Se não houver início alinhado possível, o motor prioriza a validade",()
     {id:ANA,name:"Ana",active:true},
     {id:RUI,name:"Rui",active:true},
   ]};
-  const result=generateSchedule({...data,preferences:{startSpacingMinutes:60}});
+  const result=generateSchedule(data);
   assert.equal(result.status,"valid");
   assert.ok(result.candidateAssignments.every(a=>
     a.start==="09:05"&&a.end==="17:05"));
