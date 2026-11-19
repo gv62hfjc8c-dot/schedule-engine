@@ -1,6 +1,6 @@
 import {useState} from "react";
 import {monthCells,monthLabel,selectedDayLabel} from "./calendar";
-import {generateSchedule,type GenerationResult,type StartSpacingMinutes,DEFAULT_START_SPACING_MINUTES} from "./generateSchedule";
+import {generateSchedule,type GenerationResult} from "./generateSchedule";
 import {certifySchedule,type CertificationReport} from "./certifySchedule";
 import {loadTeamDraftFromBrowser} from "./teamDraftRepository";
 import {loadOpeningHoursDraftFromBrowser} from "./openingHoursDraftRepository";
@@ -68,7 +68,6 @@ function MonthWorkspace({year,month,todayString}:{
   const [revision,setRevision]=useState<string|null>(
     ()=>initial.status==="loaded"?initial.revision:null
   );
-  const [startSpacingMinutes,setStartSpacingMinutes]=useState<StartSpacingMinutes>(DEFAULT_START_SPACING_MINUTES);
   const [preview,setPreview]=useState<GenerationResult|null>(null);
   const [sourceSignature,setSourceSignature]=useState<string|null>(null);
   const [selectedDate,setSelectedDate]=useState<string|null>(null);
@@ -111,7 +110,6 @@ function MonthWorkspace({year,month,todayString}:{
       period:{mode:"monthly",year,month},
       team:sources.team.value,openingHours:sources.opening.value,
       externalContext:sources.context.context,
-      preferences:{startSpacingMinutes},
     });
     setPreview(result);
     setSourceSignature(JSON.stringify(sources));
@@ -174,22 +172,7 @@ function MonthWorkspace({year,month,todayString}:{
           <div>
             <p className="surface-kicker">Proposta mensal</p>
             <h2>{monthLabel(year,month-1)}</h2>
-            <p>A geração utiliza os colaboradores ativos e o funcionamento guardado.</p>
-          </div>
-          <div className="schedule-generation-settings">
-            <label htmlFor="schedule-start-spacing">Entradas de</label>
-            <select id="schedule-start-spacing" value={startSpacingMinutes}
-              disabled={isBlocked} onChange={event=>{
-                const next=Number(event.target.value) as StartSpacingMinutes;
-                setStartSpacingMinutes(next);
-                setPreview(null);
-                setSourceSignature(null);
-                setFeedback(null);
-              }}>
-              <option value={30}>30 em 30 minutos</option>
-              <option value={60}>60 em 60 minutos</option>
-            </select>
-            <p>Preferência para distribuir entradas, sem cobertura mínima obrigatória.</p>
+            <p>O motor distribui automaticamente os turnos conforme a equipa e o funcionamento guardado.</p>
           </div>
           <div className="schedule-buttons">
             <button type="button" className="button button-primary"
