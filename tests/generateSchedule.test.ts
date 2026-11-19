@@ -1005,3 +1005,87 @@ test("PR83: zero folgas é possível com sete dias abertos; seis folgas não cab
   assert.ok(impossible.candidateAssignments.every(a=>
     a.start>="09:00"&&a.end<="19:00"));
 });
+
+
+test("PR83: as folgas de quatro pessoas não ficam concentradas no mesmo dia longo",()=>{
+  const data=input({mode:"28d",start:"2026-11-02"});
+  const hours=opening();
+  for(const day of hours.days)day.intervals=
+    day.day==="saturday"?[]:day.day==="sunday"
+      ?[{start:"09:00",end:"13:00"}]
+      :[{start:"09:00",end:"19:00"}];
+  data.openingHours=hours;
+  const ids=[ANA,RUI,
+    "1a2b3c4d-3333-4444-8aaa-123456789abe",
+    "1a2b3c4d-3333-4444-8aaa-123456789abf",
+  ];
+  data.team={members:ids.map((id,index)=>({
+    id,name:"Teste "+(index+1),active:true,
+    weeklyDaysOff:index===0?1:2,
+  }))};
+  const snapshot=JSON.stringify(data);
+  const out=generateSchedule(data);
+  assert.equal(out.status,"valid");
+  assert.equal(out.certification.status,"valid");
+  for(let w=0;w<4;w++){
+    const monday=new Date(Date.UTC(2026,10,2+7*w));
+    const date=(offset:number)=>{
+      const d=new Date(monday);
+      d.setUTCDate(d.getUTCDate()+offset);
+      return d.toISOString().slice(0,10);
+    };
+    const short=date(6);
+    assert.deepEqual(out.candidateAssignments.filter(a=>a.date===short)
+      .map(a=>[a.memberId,a.start,a.end]).sort((a,b)=>
+        String(a[0]).localeCompare(String(b[0]))),
+      ids.map(id=>[id,"09:00","13:00"]).sort((a,b)=>
+        String(a[0]).localeCompare(String(b[0]))));
+    const weekdays=Array.from({length:5},(_,i)=>date(i));
+    const headcounts=weekdays.map(day=>
+      new Set(out.candidateAssignments.filter(a=>a.date===day)
+        .map(a=>a.memberId)).size);
+    assert.deepEqual([...headcounts].sort((a,b)=>a-b),[3,3,3,4,4],
+      "Três ausências por semana devem ficar em três dias longos diferentes");
+    assert.equal(out.candidateAssignments.filter(a=>a.date===date(5)).length,0);
+    for(let i=0;i<ids.length;i++){
+      const weekShifts=out.candidateAssignments.filter(a=>
+        a.memberId===ids[i] && a.date>=date(0) && a.date<date(7));
+      assert.equal(weekShifts.reduce((sum,a)=>sum+assignmentMinutes(a),0),2400);
+      assert.equal(new Set(weekShifts.map(a=>a.date)).size,i===0?6:5);
+    }
+  }
+  assert.deepEqual(out,generateSchedule(data));
+  assert.equal(JSON.stringify(data),snapshot);
+});
+
+test("PR83: a proteção da janela curta é genérica, sem nome de dia",()=>{
+  for(let shortIndex=0;shortIndex<7;shortIndex++){
+    const data=week();
+    const hours=opening();
+    const closedIndex=shortIndex===6?5:6;
+    for(let i=0;i<7;i++){
+      hours.days[i].intervals=i===closedIndex?[]:
+        i===shortIndex?[{start:"09:00",end:"13:00"}]:
+          [{start:"09:00",end:"19:00"}];
+    }
+    data.openingHours=hours;
+    data.team={members:Array.from({length:4},(_,i)=>({
+      id:"00000000-0000-4000-8000-"+String(i+1).padStart(12,"0"),
+      name:"Colaborador "+i,active:true,weeklyDaysOff:2,
+    }))};
+    const out=generateSchedule(data);
+    assert.equal(out.status,"valid","Janela curta "+hours.days[shortIndex].day);
+    const dates=enumerateCivilDays({start:"2026-11-02",endExclusive:"2026-11-09"});
+    const short=out.candidateAssignments.filter(a=>a.date===dates[shortIndex]);
+    assert.equal(short.length,4);
+    assert.ok(short.every(a=>a.start==="09:00"&&a.end==="13:00"));
+    const counts=dates.filter((_,i)=>i!==shortIndex&&i!==closedIndex)
+      .map(day=>new Set(out.candidateAssignments.filter(a=>a.date===day)
+        .map(a=>a.memberId)).size);
+    assert.equal(counts.length,5);
+    assert.ok(Math.max(...counts)-Math.min(...counts)<=1,
+      "As ausências devem ficar dispersas pelos cinco dias longos");
+    assert.ok(out.certification.weeks.every(w=>w.actualMinutes===2400));
+    assert.ok(out.candidateAssignments.every(a=>a.date!==dates[closedIndex]));
+  }
+});
