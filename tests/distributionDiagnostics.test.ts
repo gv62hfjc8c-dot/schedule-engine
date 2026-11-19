@@ -379,9 +379,24 @@ test("PR83: folgas semanais configuradas escalam de 2 a 200 colaboradores",()=>{
       assert.equal(longDays.length,4);
       assert.ok(longDays.every(a=>assignmentMinutes(a)===540));
     }
+    const weeklyLongDayCounts:number[][]=[];
+    for(let week=0;week<4;week++){
+      const monday=addCivilDays("2026-11-02",7*week);
+      const longDays=Array.from({length:5},(_,offset)=>
+        addCivilDays(monday,offset));
+      const counts=longDays.map(date=>
+        new Set(first.candidateAssignments.filter(a=>a.date===date)
+          .map(a=>a.memberId)).size);
+      assert.ok(Math.max(...counts)-Math.min(...counts)<=1,
+        "O número de colaboradores sem turno nos dias longos deve ser equilibrado");
+      assert.equal(counts.reduce((sum,count)=>sum+count,0),size*4,
+        "Cada pessoa trabalha em quatro dos cinco dias longos");
+      weeklyLongDayCounts.push(counts);
+    }
     console.log("SCHEDULE_WEEKLY_DAYS_OFF_DIAGNOSTIC "+JSON.stringify({
       teamSize:size,weeks:4,daysOffPerPerson:2,
       totalAssignments:first.candidateAssignments.length,
+      firstWeekLongDayCounts:weeklyLongDayCounts[0],
       elapsedMs:Math.round(elapsed*100)/100,
     }));
   }
