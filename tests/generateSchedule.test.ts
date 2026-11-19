@@ -177,13 +177,134 @@ test("PR82: os sete dias da semana partilham a mesma posição quando a capacida
   ]};
   const result=generateSchedule(data);
   assert.equal(result.status,"valid");
-  // Alocação das 40h nos cinco primeiros dias ainda é independente da
-  // preferência soft de início; não se introduz cobertura nem folga.
+  // Todos os dias abertos devem ser candidatos; nenhuma categoria de dia
+  // (sábado, domingo ou outro) é ignorada pelo gerador.
   const ana=result.candidateAssignments.filter(a=>a.memberId===ANA);
-  assert.equal(ana.length,5);
-  assert.equal(new Set(ana.map(a=>a.start)).size,1);
+  assert.equal(ana.length,7);
+  assert.equal(total(ana),2400);
+  assert.deepEqual(new Set(ana.map(a=>a.date)),
+    new Set(enumerateCivilDays({start:"2026-11-02",endExclusive:"2026-11-09"})));
 });
 
+
+
+test("PR82: semana com seis dias de horários diferentes é distribuída sem ultrapassar 40h",()=>{
+  const data=week("2026-11-02");
+  const hours=opening();
+  for(const day of hours.days){
+    day.intervals=day.day==="sunday"?[]:
+      day.day==="saturday"?[{start:"09:00",end:"13:00"}]:
+        [{start:"09:00",end:"19:00"}];
+  }
+  data.openingHours=hours;
+  data.team={members:[
+    {id:ANA,name:"Ana",active:true},
+    {id:RUI,name:"Rui",active:true},
+  ]};
+  const before=JSON.stringify(data);
+  const result=generateSchedule(data);
+  assert.equal(result.status,"valid");
+  assert.equal(result.certification.status,"valid");
+  assert.deepEqual(result.certification.issues,[]);
+  assert.deepEqual(result.certification.weeks.map(w=>w.actualMinutes),
+    [2400,2400]);
+  for(const id of [ANA,RUI]){
+    const shifts=result.candidateAssignments.filter(a=>a.memberId===id);
+    const saturday=shifts.filter(a=>a.date==="2026-11-07");
+    assert.equal(saturday.length,1);
+    assert.deepEqual([saturday[0].start,saturday[0].end],["09:00","11:30"]);
+    assert.equal(assignmentMinutes(saturday[0]),150);
+    assert.equal(total(shifts),2400);
+    const weekdays=shifts.filter(a=>a.date>="2026-11-02"&&a.date<="2026-11-06");
+    assert.equal(weekdays.length,5);
+    assert.ok(weekdays.every(a=>assignmentMinutes(a)===450));
+    assert.equal(new Set(weekdays.map(a=>a.start)).size,1);
+    assert.equal(new Set(weekdays.map(a=>a.end)).size,1);
+  }
+  assert.ok(result.candidateAssignments.every(a=>
+    a.date>="2026-11-02"&&a.date<="2026-11-08"));
+  assert.equal(JSON.stringify(data),before);
+  assert.deepEqual(result,generateSchedule(data));
+});
+
+test("PR82: qualquer dia aberto é considerado, inclusive domingo e intervalos repartidos",()=>{
+  const data=week("2026-11-02");
+  const hours=opening();
+  const intervals=[
+    [{start:"08:00",end:"16:00"}],
+    [{start:"10:00",end:"19:00"}],
+    [{start:"09:00",end:"12:00"},{start:"13:00",end:"19:00"}],
+    [{start:"11:00",end:"19:00"}],
+    [{start:"09:00",end:"18:00"}],
+    [{start:"09:00",end:"13:00"}],
+    [{start:"10:00",end:"14:00"}],
+  ];
+  for(let i=0;i<hours.days.length;i++)
+    hours.days[i].intervals=intervals[i];
+  data.openingHours=hours;
+  const out=generateSchedule(data);
+  assert.equal(out.status,"valid");
+  assert.equal(total(out.candidateAssignments),2400);
+  assert.deepEqual(new Set(out.candidateAssignments.map(a=>a.date)),
+    new Set(enumerateCivilDays({
+      start:"2026-11-02",endExclusive:"2026-11-09",
+    })));
+  assert.ok(out.candidateAssignments.every(a=>
+    assignmentMinutes(a)>0));
+  assert.ok(out.certification.weeks.every(w=>w.actualMinutes===2400));
+});
+
+test("PR82: falta real de capacidade continua inválida, sem inventar horas",()=>{
+  const data=week("2026-11-02");
+  const hours=opening();
+  for(const day of hours.days)
+    day.intervals=day.day==="sunday"?[]:
+      [{start:"09:00",end:"15:00"}]; // 6 × 6h = 36h
+  data.openingHours=hours;
+  const out=generateSchedule(data);
+  assert.equal(out.status,"invalid");
+  assert.equal(total(out.candidateAssignments),2160);
+  assert.ok(out.shortfalls.some(s=>s.missingMinutes===240));
+});
+
+test("PR82: o dia de funcionamento reduzido também conta na semana de fronteira",()=>{
+  const hours=opening();
+  for(const day of hours.days)day.intervals=
+    day.day==="sunday"?[]:
+      day.day==="saturday"?[{start:"09:00",end:"13:00"}]:
+        [{start:"09:00",end:"19:00"}];
+  const teamData={members:[
+    {id:ANA,name:"Ana",active:true},
+    {id:RUI,name:"Rui",active:true},
+  ]};
+  const weekly=generateSchedule({
+    period:{mode:"weekly",start:"2026-11-30"},
+    openingHours:hours,team:teamData,
+  });
+  assert.equal(weekly.status,"valid");
+  const monday=weekly.candidateAssignments.filter(a=>a.date==="2026-11-30");
+  assert.equal(monday.length,2);
+  const data:GenerationInput={
+    period:{mode:"monthly",year:2026,month:12},
+    openingHours:hours,team:teamData,
+    externalContext:{
+      assignments:monday,
+      completeDates:["2026-11-30","2027-01-01","2027-01-02","2027-01-03"],
+    },
+  };
+  const before=JSON.stringify(data);
+  const december=generateSchedule(data);
+  assert.equal(december.status,"valid");
+  assert.ok(december.certification.weeks.every(w=>w.actualMinutes===2400));
+  for(const id of [ANA,RUI]){
+    const original=weekly.candidateAssignments.filter(a=>a.memberId===id);
+    const projected=december.candidateAssignments.filter(a=>
+      a.memberId===id && a.date>="2026-12-01" && a.date<="2026-12-07");
+    assert.deepEqual(projected,original.filter(a=>a.date!=="2026-11-30"));
+  }
+  assert.equal(JSON.stringify(data),before);
+  assert.ok(december.candidateAssignments.every(a=>a.date.startsWith("2026-12-")));
+});
 
 test("PR82: dezembro conserva o turno iniciado em novembro sem modificar novembro",()=>{
   const data=week("2026-11-30");
@@ -336,8 +457,11 @@ test("Quando há 7 dias abertos a 6h, o motor usa também o domingo para complet
   assert.equal(out.status,"valid");
   assert.equal(total(out.candidateAssignments),2400);
   assert.equal(out.candidateAssignments.length,7);
-  assert.equal(out.candidateAssignments.at(-1)?.date,"2026-11-08");
-  assert.equal(assignmentMinutes(out.candidateAssignments.at(-1)!),240);
+  assert.ok(out.candidateAssignments.some(a=>a.date==="2026-11-08"));
+  assert.deepEqual(out.candidateAssignments
+    .map(assignmentMinutes).sort((a,b)=>a-b),
+    [240,360,360,360,360,360,360],
+    "Todos os dias são elegíveis, sem favorecer um dia concreto para o turno parcial.");
 });
 
 test("Intervalos descontínuos do funcionamento geram trabalho efetivo separado",()=>{
