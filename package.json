@@ -9,7 +9,8 @@
     "typecheck": "tsc --noEmit",
     "test": "tsx --test tests/*.test.ts",
     "preview": "vite preview",
-    "example:generator": "tsx examples/firstGeneration.ts"
+    "example:generator": "tsx examples/firstGeneration.ts",
+    "test:distribution": "tsx --test tests/distributionDiagnostics.test.ts"
   },
   "dependencies": {
     "react": "^18.3.1",
