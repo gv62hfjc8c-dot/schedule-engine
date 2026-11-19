@@ -265,3 +265,41 @@ Os testes de diagnóstico sintéticos utilizam 28 dias, 20 dias úteis, 09:00–
 As métricas demonstram equidade **apenas neste cenário sintético**; não comprovam justiça com exceções, diferentes durações ou preferências ainda não implementadas. Os testes verificam também determinismo, 40h/semana exatas, ausência de mutações, mês civil de 31 dias, continuidade entre meses e separação entre restrições hard e preferência soft. O gerador ainda não certifica todas as pausas e descansos legais e só guarda rascunhos locais, não horários oficiais.
 
 Verificar com `npm test`, `npm run test:distribution` e `npm run build`. No Safari, basta abrir `/horarios`, carregar em **Gerar horário** e observar os turnos: não há qualquer seletor a configurar.
+
+## PR82 — Estabilidade de turnos dentro da semana, com rotação entre semanas
+
+**Requisito confirmado pelo utilizador:** numa empresa aberta de segunda a sexta-feira, das 09:00 às 19:00, dois colaboradores de 40h semanais devem manter sempre que possível o mesmo turno de segunda a sexta e **trocar de turno na semana seguinte**. Esta é uma correção da interpretação anterior (que tentava alternar os dias de trabalho, incluindo o sábado). Essa interpretação anterior foi rejeitada, a branch do PR82 foi reposta à `main` e o PR82 foi reformulado, sem alterar a seleção dos dias de trabalho.
+
+| | Colaborador A | Colaborador B |
+| --- | --- | --- |
+| Semana 1 | 09:00–17:00 todos os dias úteis | 11:00–19:00 todos os dias úteis |
+| Semana 2 | 11:00–19:00 todos os dias úteis | 09:00–17:00 todos os dias úteis |
+| Semana 3 | 09:00–17:00 todos os dias úteis | 11:00–19:00 todos os dias úteis |
+
+*Exemplo ilustrativo de atribuição de pessoas aos turnos; a posição inicial depende da semana civil de referência.*
+
+### O que muda tecnicamente
+
+Só a unidade de rotação do início de turno: antes rodava por **dia civil**; agora roda por **semana civil segunda–domingo**, com âncora global de segunda-feira (1970-01-05). **Não reinicia** no primeiro dia de cada mês, nem quando o horizonte é consultado como 7, 14, 21, 28 dias ou mês civil. As posições continuam a ser calculadas automaticamente a partir das horas de funcionamento, do tempo atribuído a cada dia e do número de colaboradores, preferindo entradas às horas certas ou meias horas quando necessário. Não há seletor na interface.
+
+A seleção de dias e a repartição de horas semanais podem agora ser otimizadas em dias abertos de durações diferentes (ver extensão abaixo), **sem alterar** as 40 horas semanais obrigatórias nem as regras de certificação. A estabilidade do turno é uma **preferência SOFT**: dias com funcionamento ou durações de trabalho diferentes podem exigir horários diferentes, e nesse caso a validade tem prioridade. Não há cobertura mínima, alteração às folgas, regras adicionais de descanso, Supabase ou persistência.
+
+### Como validar
+
+Os testes com **2 colaboradores** exigem que ambos mantenham a mesma entrada e saída em cada um dos cinco dias da semana e **troquem de turno na semana seguinte**. Foram acrescentados testes para fronteira novembro/dezembro com dados de novembro apenas em leitura, garantindo que o turno de 30/11 se mantém em 01/12–04/12, sem escrever em novembro. Mantêm-se os testes de 2, 10, 50 e 200 pessoas, determinismo, funcionamento repartido, mês de 31 dias e certificador independente.
+
+**Trade-off mensurável:** com cinco posições de meia em meia hora entre 09:00 e 11:00, o período de 28 dias tem apenas quatro semanas. Mantendo o turno fixo dentro de cada semana, a diferença entre médias individuais de início pode chegar a **30 minutos** em quatro semanas, em vez de 0 minutos na versão que alternava todos os dias. Isto não implica favorecimento permanente: um ciclo de **cinco semanas** permite que cada pessoa percorra as cinco posições. Os limites de desempenho e equidade dependem do cenário e não substituem regras de equidade de longo prazo ainda por definir.
+
+Executar `npm test`, `npm run test:distribution`, `npm run build`. Validar no Safari a geração de duas semanas consecutivas com dois colaboradores 09h–19h, sem substituir propostas antigas até estar satisfeito com o resultado.
+
+### PR82 — Distribuição semanal pelos dias reais de funcionamento (extensão)
+
+Depois de confirmar a rotação estável dos horários de entrada entre semanas, o utilizador identificou outro limite: a alocação das **40h semanais** era feita sempre por ordem de dia civil, até 8h/dia, pelo que ignorava qualquer dia aberto depois de as primeiras cinco jornadas terem consumido as 40h. A clarificação é **geral**: todos os dias/intervalos de funcionamento da empresa devem ser candidatos, sejam quais forem os seus nomes, ordens, aberturas ou durações; sábado não tem qualquer tratamento especial. **Ainda não decidir/implementar alternância de colaboradores por dias.**
+
+O gerador passa a otimizar em conjunto as durações de trabalho da semana em todos os dias abertos e editáveis, quando o contexto semanal exterior é completo. A função `allocateBalancedWeek` procura: (1) utilizar os dias viáveis abertos, sem considerar a presença como nova hard constraint de cobertura; (2) aproveitar integralmente períodos mais curtos quando possível, em vez de os encurtar para criar desfasamentos sem utilidade; (3) manter durações iguais nos dias com a mesma capacidade de funcionamento (estabilidade); (4) evitar turnos residuais muito curtos; e (5) não exceder a capacidade temporal nem as 40h semanais obrigatórias. Tudo isto é SOFT, não uma regra de cobertura. A seleção automática dos horários de entrada continua a preferir horas e meias horas e mantém o mesmo início ao longo de uma semana sempre que as capacidades/durações o permitem. Em semanas que atravessam meses e não têm contexto de todos os dias, conserva-se o comportamento conservador e o certificador devolve `insufficient_context`, sem inventar turnos nos meses adjacentes.
+
+**Caso concreto corrigido após validação do utilizador:** segunda a sexta 09:00–19:00, sábado 09:00–13:00 e domingo encerrado, duas pessoas de 40h. O motor distribui **4 × 7h + 1 × 8h + 1 × 4h = 40h por pessoa**, com quatro dias longos de duração igual e um quinto dia longo de duração diferente para completar exatamente 36 horas antes do dia curto. Como no dia de funcionamento reduzido são atribuídas **as quatro horas completas**, todos os colaboradores começam às **09:00 e saem às 13:00**, sem desfasamentos artificiais nem necessidade de escolher turnos nesse dia. O dia curto foi identificado apenas pela sua **capacidade relativa**, nunca pelo nome «sábado». Em horários mais complexos, aproveitar integralmente um período curto é uma preferência, não uma obrigação de cobertura nem uma regra de presença individual.
+
+Também foram testados sete dias de funcionamento, com durações diferentes e períodos interrompidos, o caso de 36h totais de abertura (certificação correta como inválido por faltarem 4h), continuação de uma semana de novembro para dezembro sem modificar novembro, e equipas de 2, 10, 50 e 200 pessoas no cenário 6 dias abertos. Não foi alterada a interface, o modelo de dados, as folgas, a seleção de pessoas por dia, a persistência, o Supabase nem a regra hard de 40h por semana. **A distribuição pelos dias e as entradas alinhadas continuam preferências soft, sem cobertura mínima.**
+
+**Revisão adicional — 19/11/2026:** a geração do PR82 foi novamente testada com períodos curtos de 4h colocados em **qualquer um dos sete dias**, incluindo todos os colaboradores ativos na mesma janela 09:00–13:00. No cenário de seis dias abertos, foram testadas equipas de 2, 10, 50 e 200 pessoas, verificando 4h completas no dia curto, 36h redistribuídas pelos restantes dias, 40h/semana certificadas e turnos de entrada/saída estáveis quando a duração do trabalho é igual. Os testes sintéticos não equivalem a certificação legal de pausas e descansos.

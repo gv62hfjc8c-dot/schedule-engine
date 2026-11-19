@@ -5,7 +5,7 @@ import {generateSchedule,type GenerationInput} from "../src/generateSchedule";
 import {certifySchedule} from "../src/certifySchedule";
 import {WEEKDAYS,type WeeklyOpeningHours} from "../src/operatingHours";
 import {
-  civilDayOfWeek,enumerateCivilDays,resolvePlanningPeriod,
+  addCivilDays,civilDayOfWeek,enumerateCivilDays,resolvePlanningPeriod,
   type PeriodRequest,
 } from "../src/schedulePeriods";
 import {
@@ -153,12 +153,28 @@ test("Diagnóstico 2/10/50/200: 28 dias, 40h exatas e métricas de distribuiçã
     const expectedDifferentStarts=Math.min(size,5); // 09:00..11:00 every 30m.
     assert.equal(metric.distinctStartsPerDayMin,expectedDifferentStarts);
     assert.equal(metric.distinctStartsPerDayMax,expectedDifferentStarts);
-    assert.equal(metric.meanStartGapMinutes,0,
-      "Cada pessoa deve percorrer posições equivalentes nas 4 semanas.");
-    assert.equal(metric.noExactOpeningShifts,0);
-    assert.equal(metric.noExactClosingShifts,0);
+    // A 5-slot rotation needs FIVE weeks for complete equity, while this
+    // baseline spans only four. Never change starts midweek to force the
+    // older daily-rotation metric to zero.
+    assert.ok(metric.meanStartGapMinutes<=30,
+      "Em quatro semanas a rotação não deve exceder um slot de desvio médio");
+    assert.ok(metric.openingShiftsPerMemberMax-
+      metric.openingShiftsPerMemberMin<=5);
+    assert.ok(metric.closingShiftsPerMemberMax-
+      metric.closingShiftsPerMemberMin<=5);
     assert.ok(first.candidateAssignments.every(shift=>
       (clockMinutes(shift.start)-OPEN)%30===0));
+    const memberWeekStarts=new Map<string,Set<string>>();
+    for(const shift of first.candidateAssignments){
+      const monday=addCivilDays(shift.date,-civilDayOfWeek(shift.date));
+      const key=shift.memberId+"|"+monday;
+      const starts=memberWeekStarts.get(key)??new Set<string>();
+      starts.add(shift.start);
+      memberWeekStarts.set(key,starts);
+    }
+    assert.equal(memberWeekStarts.size,4*size);
+    assert.ok([...memberWeekStarts.values()].every(starts=>starts.size===1),
+      "O colaborador deve ter um único horário de entrada por semana");
     // Quality observations are diagnostic: no arbitrary fairness threshold
     // should be mistaken for a contractual rule.
     console.log("SCHEDULE_DISTRIBUTION_DIAGNOSTIC "+JSON.stringify(metric));
@@ -235,4 +251,93 @@ test("O motor usa meias horas automaticamente quando há mais pessoas",()=>{
   assert.ok(result.candidateAssignments.every(shift=>
     clockMinutes(shift.start)%30===0));
   assert.equal(result.certification.weeks.every(w=>w.actualMinutes===2400),true);
+});
+
+
+test("Equidade em cinco semanas: 200 colaboradores percorrem as cinco posições",()=>{
+  const data=scenario(200);
+  const baseline=generateSchedule(data);
+  const next=generateSchedule(scenario(200,{
+    mode:"weekly",start:"2026-11-30",
+  }));
+  assert.equal(baseline.status,"valid");
+  assert.equal(next.status,"valid");
+  const mondayDates=[
+    "2026-11-02","2026-11-09","2026-11-16",
+    "2026-11-23","2026-11-30",
+  ];
+  const all=[...baseline.candidateAssignments,...next.candidateAssignments];
+  for(const member of (data.team as {members:{id:string}[]}).members){
+    const starts=mondayDates.map(date=>{
+      const shift=all.find(a=>a.memberId===member.id&&a.date===date);
+      assert.ok(shift,"Falta uma segunda-feira de trabalho");
+      return shift.start;
+    });
+    assert.deepEqual([...new Set(starts)].sort(),[
+      "09:00","09:30","10:00","10:30","11:00",
+    ]);
+  }
+});
+
+
+test("Escalabilidade de 2 a 200 colaboradores com seis dias de duração diferente",()=>{
+  for(const size of TEAM_SIZES){
+    const data=scenario(size);
+    (data.openingHours as WeeklyOpeningHours).days[5].intervals=[
+      {start:"09:00",end:"13:00"},
+    ];
+    const snapshot=JSON.stringify(data);
+    const before=performance.now();
+    const first=generateSchedule(data);
+    const elapsed=performance.now()-before;
+    const second=generateSchedule(data);
+    assert.equal(first.status,"valid",size+" colaboradores");
+    assert.equal(first.certification.status,"valid");
+    assert.equal(first.candidateAssignments.length,size*24);
+    assert.equal(first.certification.weeks.length,size*4);
+    assert.ok(first.certification.weeks.every(w=>
+      w.complete&&w.actualMinutes===2400));
+    assert.deepEqual(first,second,"Mesmo input deve gerar o mesmo horário");
+    assert.equal(JSON.stringify(data),snapshot,"Sem mutação dos inputs");
+
+    const perMemberWeek=new Map<string,WorkAssignment[]>();
+    for(const assignment of first.candidateAssignments){
+      const monday=addCivilDays(assignment.date,
+        -civilDayOfWeek(assignment.date));
+      const key=assignment.memberId+"|"+monday;
+      perMemberWeek.set(key,[
+        ...(perMemberWeek.get(key)??[]),assignment,
+      ]);
+      const minutes=assignmentMinutes(assignment);
+      if(civilDayOfWeek(assignment.date)===5){
+        assert.equal(minutes,240);
+        assert.equal(assignment.start,"09:00");
+        assert.equal(assignment.end,"13:00");
+      }else{
+        assert.ok(minutes===420||minutes===480,
+          "Os cinco dias longos devem repartir 36h com turnos alinhados");
+      }
+    }
+    assert.equal(perMemberWeek.size,size*4);
+    for(const work of perMemberWeek.values()){
+      assert.equal(work.length,6);
+      assert.equal(work.reduce((sum,a)=>sum+assignmentMinutes(a),0),2400);
+      const weekdays=work.filter(a=>civilDayOfWeek(a.date)<5);
+      assert.equal(weekdays.length,5);
+      assert.equal(weekdays.reduce((sum,a)=>sum+assignmentMinutes(a),0),2160);
+      assert.deepEqual(weekdays.map(assignmentMinutes).sort((a,b)=>a-b),
+        [420,420,420,420,480]);
+      assert.ok(new Set(weekdays.map(a=>a.start)).size<=2);
+      assert.ok(new Set(weekdays.map(a=>a.end)).size<=2);
+      assert.equal(work.filter(a=>civilDayOfWeek(a.date)===5).length,1);
+    }
+    console.log("SCHEDULE_ALL_OPEN_DAYS_DIAGNOSTIC "+JSON.stringify({
+      teamSize:size,weeks:4,openDays:6,
+      assignments:first.candidateAssignments.length,
+      weeklyMinutes:2400,
+      weekdayMinutesTotal:2160,
+      shortOpenDayMinutes:240,
+      elapsedMs:Math.round(elapsed*100)/100,
+    }));
+  }
 });
