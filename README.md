@@ -205,3 +205,33 @@ No primeiro algoritmo V2, cada colaborador começava sempre na hora de abertura,
 **Isto é uma preferência de distribuição**, não uma nova hard constraint de cobertura: se a empresa apenas abrir 8h ou não houver margem para alternar, os turnos podem continuar iguais; um único colaborador não é obrigado a prolongar a presença até ao fecho. Pausas do funcionamento (entre intervalos de abertura) nunca contam como trabalho, mesmo quando um turno é deslocado para mais tarde.
 
 Conservam-se 40h/semana por colaborador ativo, certificação independente automática, integridade dos meses vizinhos apenas em leitura e rascunhos locais por mês. Não foram adicionados novos campos de configuração nem modificações à UI ou Supabase. **Regerar um mês pode substituir apenas a proposta desse próprio mês, após confirmação; horários de meses anteriores permanecem inalterados.** Ainda não são verificadas todas as regras laborais de pausa/descanso, pelo que os turnos gerados continuam a ser propostas.
+
+## PR80 — Diagnóstico da distribuição para 2, 10, 50 e 200 colaboradores
+
+**Objetivo desta etapa:** medir e testar o algoritmo V2 atual; não altera a geração, a certificação, a UI nem a persistência. Os resultados abaixo provêm de testes sintéticos e reproduzíveis, não de dados pessoais nem de utilização real.
+
+Executar:
+```bash
+npm ci
+npm run test:distribution
+npm run build
+```
+
+O cenário comum é **28 dias a partir de 02/11/2026**, segunda a sexta **09:00–19:00**, sábado e domingo encerrados. Cada colaborador ativo necessita de 40h por semana e recebe 20 intervalos de 8h. São verificadas as hard constraints já implementadas, o determinismo (mesma entrada = mesma saída), a ausência de alterações nos inputs e a qualidade da distribuição. Os resultados detalhados aparecem na saída dos testes com a marca `SCHEDULE_DISTRIBUTION_DIAGNOSTIC`.
+
+### Resultados observados no GitHub Actions 44500072146 (19/11/2026)
+
+| Pessoas | Turnos em 28 dias | Inícios diferentes por dia | Pessoas sem início exato às 09h | Pessoas sem fim exato às 19h | Diferença máxima entre médias individuais de início | Tempo de execução, duas medições |
+| ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| 2 | 40 | 2 | 0 | 0 | 0 min | 14,55 / 2,34 ms |
+| 10 | 200 | 10 | 0 | 0 | 13,4 min | 12,91 / 9,34 ms |
+| 50 | 1 000 | 50 | 30 | 30 | 58,9 min | 47,87 / 74 ms |
+| 200 | 4 000 | 121 | 180 | 180 | 105 min | 232,4 / 242,66 ms |
+
+Em todos os quatro casos, a certificação das **40h semanais** foi `valid` (segundo as regras implementadas). Os valores de duração são observações pontuais num runner partilhado: **não são SLA**, não provam comportamento em todos os dispositivos e não permitem extrapolar desempenho para milhares de pessoas.
+
+**Interpretação:** a heurística atual alterna de forma equilibrada para 2 pessoas, mas à medida que a equipa cresce as médias individuais dos inícios divergem. Com 200 pessoas, a dispersão entre médias é de 105 minutos dentro de uma margem total de 120 minutos. O algoritmo desloca a posição de cada pessoa apenas um índice por dia civil, sem otimizar diretamente a equidade num horizonte de várias semanas. A inexistência de abertura/fecho exato para muitos colaboradores, isoladamente, **não constitui violação**: há apenas 20 dias úteis e cada dia tem um número limitado de posições exatas de abertura e fecho. Também existem apenas 121 minutos de início possíveis entre 09:00 e 11:00, pelo que **121 inícios distintos para 200 pessoas** é compatível com a granularidade de um minuto e com a possibilidade de turnos coincidentes.
+
+Foi executado ainda um cenário de **dezembro de 2026 (31 dias), 200 colaboradores**, produzindo 4 600 atribuições apenas dentro de dezembro, em cerca de 285 ms, com estado `insufficient_context` porque os dias exteriores de novembro/janeiro não foram fornecidos. O motor não inventou contexto e não declarou a proposta validada.
+
+**Próxima decisão:** melhorar a equidade ao longo do horizonte sem acrescentar cobertura mínima, exigência de turnos exclusivos ou outra hard constraint. Primeiro comparar pequenas variantes da rotação contra estas mesmas métricas e validar com casos reais. A certificação atual continua incompleta quanto a pausas, descansos e legalidade final.
