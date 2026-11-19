@@ -77,34 +77,136 @@ function availableDays(
 }
 
 /**
- * Deterministic baseline: first prefer up to 8 hours per open day, from
- * Monday onwards. If all external dates of the week are known, spread
- * necessary excess capacity in one-hour rounds over the same days.
+ * Distribute required weekly minutes across the ACTUAL open days, regardless
+ * of their weekday. The optimization is intentionally independent of staffing
+ * coverage: an open day is eligible, not an obligation to supply any number
+ * of colleagues. The same weekly load planning applies to every active person.
  *
- * Eight hours is a planning heuristic, NOT a hard daily limit: a week with
- * four 10-hour business days can still receive four 10-hour assignments.
- * Other rules (daily rest, legal breaks, etc.) are NOT implemented here.
+ * Prefer using every feasible open day, then preserve repeated daily work
+ * durations (stable turns for days with comparable opening capacity), then
+ * avoid nearly-empty shifts. Clock-aligned durations are SOFT preferences.
+ *
+ * With Mon-Fri 09-19 and Sat 09-13, an entirely known 40h week can receive
+ * five identical 7h30 shifts and a 2h30 shift on Saturday; neither more than
+ * 40h nor a mandatory Saturday coverage constraint is introduced.
+ */
+function allocateBalancedWeek(plans:DayPlan[],targetMinutes:number):void {
+  const open=plans.filter(plan=>plan.capacity>0);
+  if(targetMinutes<=0 || open.length===0)return;
+  const totalCapacity=open.reduce((sum,plan)=>sum+plan.capacity,0);
+  if(targetMinutes>=totalCapacity){
+    for(const plan of open)plan.allocated=plan.capacity;
+    return;
+  }
+
+  // The normal target is a full weekly 40h or the verified remaining hours
+  // after immutable context. With very few remaining minutes, some open dates
+  // may legitimately have no assignment.
+  const minimums=open.map(plan=>Math.min(30,plan.capacity));
+  const canUseEveryDay=targetMinutes>=minimums.reduce((a,b)=>a+b,0);
+  const maximumCapacity=Math.max(...open.map(plan=>plan.capacity));
+  const baselines=new Set<number>([0,maximumCapacity]);
+  for(let minutes=30;minutes<=maximumCapacity;minutes+=30)
+    baselines.add(minutes);
+
+  type Candidate={
+    allocations:number[];
+    activeDays:number;
+    consistency:number;
+    smallestShift:number;
+    targetDistance:number;
+  };
+  let best:Candidate|null=null;
+  for(const baseline of baselines){
+    const allocations=open.map(plan=>Math.min(plan.capacity,baseline));
+    let delta=targetMinutes-allocations.reduce((a,b)=>a+b,0);
+
+    if(delta>0){
+      // Concentrate unavoidable differences in as few workdays as possible.
+      // Stable sort keeps the choice deterministic when capacities match.
+      const order=open.map((plan,i)=>({i,capacity:plan.capacity}))
+        .sort((a,b)=>(b.capacity-allocations[b.i])-
+          (a.capacity-allocations[a.i]) || b.i-a.i);
+      for(const {i,capacity} of order){
+        const extra=Math.min(delta,capacity-allocations[i]);
+        allocations[i]+=extra;
+        delta-=extra;
+        if(delta===0)break;
+      }
+    }else if(delta<0){
+      let excess=-delta;
+      const order=open.map((plan,i)=>({i,capacity:plan.capacity}))
+        // Prefer shortening an already shorter opening window first.
+        .sort((a,b)=>a.capacity-b.capacity || b.i-a.i);
+      for(const {i} of order){
+        const reserve=canUseEveryDay?minimums[i]:0;
+        const reduction=Math.min(excess,allocations[i]-reserve);
+        allocations[i]-=reduction;
+        excess-=reduction;
+        if(excess===0)break;
+      }
+      // When the target cannot support a shift on every open day, zero is
+      // allowed: the engine must not invent work or minimum staffing.
+      if(excess>0){
+        for(const {i} of order){
+          const reduction=Math.min(excess,allocations[i]);
+          allocations[i]-=reduction;
+          excess-=reduction;
+          if(excess===0)break;
+        }
+      }
+      delta=excess===0?0:-excess;
+    }
+    if(delta!==0)continue;
+
+    const activeDays=allocations.filter(minutes=>minutes>0).length;
+    // Repeated work duration is the measure of stable shifts for comparable
+    // days; no preference is hard-coded for Saturday or Sunday.
+    const capacityGroups=new Map<number,Map<number,number>>();
+    for(let i=0;i<open.length;i++){
+      const durations=capacityGroups.get(open[i].capacity)??new Map<number,number>();
+      durations.set(allocations[i],(durations.get(allocations[i])??0)+1);
+      capacityGroups.set(open[i].capacity,durations);
+    }
+    const consistency=[...capacityGroups.values()].reduce((sum,counts)=>
+      sum+Math.max(...counts.values()),0);
+    const smallestShift=Math.min(...allocations.filter(minutes=>minutes>0));
+    // Tie-breaker: avoid extreme daily lengths when several equally stable
+    // plans exist. 8h remains only a quality objective, not a daily cap.
+    const targetDistance=allocations.reduce((sum,minutes,i)=>
+      sum+Math.abs(minutes-Math.min(480,open[i].capacity)),0);
+    const candidate={allocations,activeDays,consistency,smallestShift,targetDistance};
+    if(!best ||
+      candidate.activeDays>best.activeDays ||
+      (candidate.activeDays===best.activeDays &&
+        (candidate.consistency>best.consistency ||
+         (candidate.consistency===best.consistency &&
+           (candidate.smallestShift>best.smallestShift ||
+            (candidate.smallestShift===best.smallestShift &&
+              candidate.targetDistance<best.targetDistance)))))){
+      best=candidate;
+    }
+  }
+  if(!best)throw new Error("A carga semanal não pôde ser distribuída.");
+  for(let i=0;i<open.length;i++)open[i].allocated=best.allocations[i];
+}
+
+/**
+ * Preserve the legacy conservative allocation on incomplete month-boundary
+ * weeks. Unknown neighboring dates must never be assumed free or filled in.
+ * When the whole week is known, optimize ALL its editable open days together.
  */
 function allocateWeek(plans:DayPlan[],targetMinutes:number,
   externalComplete:boolean):void {
+  if(externalComplete){
+    allocateBalancedWeek(plans,targetMinutes);
+    return;
+  }
   let remaining=targetMinutes;
   for(const plan of plans){
     const slice=Math.min(remaining,480,plan.capacity);
     plan.allocated+=slice;
     remaining-=slice;
-  }
-  if(!externalComplete)return; // Do not consume unknown next/previous-month hours.
-  while(remaining>0){
-    let progress=0;
-    for(const plan of plans){
-      const extra=Math.min(60,remaining,plan.capacity-plan.allocated);
-      if(extra<=0)continue;
-      plan.allocated+=extra;
-      progress+=extra;
-      remaining-=extra;
-      if(remaining===0)break;
-    }
-    if(progress===0)break;
   }
 }
 
