@@ -265,3 +265,29 @@ Os testes de diagnóstico sintéticos utilizam 28 dias, 20 dias úteis, 09:00–
 As métricas demonstram equidade **apenas neste cenário sintético**; não comprovam justiça com exceções, diferentes durações ou preferências ainda não implementadas. Os testes verificam também determinismo, 40h/semana exatas, ausência de mutações, mês civil de 31 dias, continuidade entre meses e separação entre restrições hard e preferência soft. O gerador ainda não certifica todas as pausas e descansos legais e só guarda rascunhos locais, não horários oficiais.
 
 Verificar com `npm test`, `npm run test:distribution` e `npm run build`. No Safari, basta abrir `/horarios`, carregar em **Gerar horário** e observar os turnos: não há qualquer seletor a configurar.
+
+## PR82 — Estabilidade de turnos dentro da semana, com rotação entre semanas
+
+**Requisito confirmado pelo utilizador:** numa empresa aberta de segunda a sexta-feira, das 09:00 às 19:00, dois colaboradores de 40h semanais devem manter sempre que possível o mesmo turno de segunda a sexta e **trocar de turno na semana seguinte**. Esta é uma correção da interpretação anterior (que tentava alternar os dias de trabalho, incluindo o sábado). Essa interpretação anterior foi rejeitada, a branch do PR82 foi reposta à `main` e o PR82 foi reformulado, sem alterar a seleção dos dias de trabalho.
+
+| | Colaborador A | Colaborador B |
+| --- | --- | --- |
+| Semana 1 | 09:00–17:00 todos os dias úteis | 11:00–19:00 todos os dias úteis |
+| Semana 2 | 11:00–19:00 todos os dias úteis | 09:00–17:00 todos os dias úteis |
+| Semana 3 | 09:00–17:00 todos os dias úteis | 11:00–19:00 todos os dias úteis |
+
+*Exemplo ilustrativo de atribuição de pessoas aos turnos; a posição inicial depende da semana civil de referência.*
+
+### O que muda tecnicamente
+
+Só a unidade de rotação do início de turno: antes rodava por **dia civil**; agora roda por **semana civil segunda–domingo**, com âncora global de segunda-feira (1970-01-05). **Não reinicia** no primeiro dia de cada mês, nem quando o horizonte é consultado como 7, 14, 21, 28 dias ou mês civil. As posições continuam a ser calculadas automaticamente a partir das horas de funcionamento, do tempo atribuído a cada dia e do número de colaboradores, preferindo entradas às horas certas ou meias horas quando necessário. Não há seletor na interface.
+
+A distribuição das horas de trabalho e dos dias atribuídos, bem como as **40 horas semanais obrigatórias**, são exatamente as mesmas do PR81. A estabilidade do turno é uma **preferência SOFT**: dias com funcionamento ou durações de trabalho diferentes podem exigir horários diferentes, e nesse caso a validade tem prioridade. Não há cobertura mínima, alteração às folgas, regras adicionais de descanso, Supabase ou persistência.
+
+### Como validar
+
+Os testes com **2 colaboradores** exigem que ambos mantenham a mesma entrada e saída em cada um dos cinco dias da semana e **troquem de turno na semana seguinte**. Foram acrescentados testes para fronteira novembro/dezembro com dados de novembro apenas em leitura, garantindo que o turno de 30/11 se mantém em 01/12–04/12, sem escrever em novembro. Mantêm-se os testes de 2, 10, 50 e 200 pessoas, determinismo, funcionamento repartido, mês de 31 dias e certificador independente.
+
+**Trade-off mensurável:** com cinco posições de meia em meia hora entre 09:00 e 11:00, o período de 28 dias tem apenas quatro semanas. Mantendo o turno fixo dentro de cada semana, a diferença entre médias individuais de início pode chegar a **30 minutos** em quatro semanas, em vez de 0 minutos na versão que alternava todos os dias. Isto não implica favorecimento permanente: um ciclo de **cinco semanas** permite que cada pessoa percorra as cinco posições. Os limites de desempenho e equidade dependem do cenário e não substituem regras de equidade de longo prazo ainda por definir.
+
+Executar `npm test`, `npm run test:distribution`, `npm run build`. Validar no Safari a geração de duas semanas consecutivas com dois colaboradores 09h–19h, sem substituir propostas antigas até estar satisfeito com o resultado.
