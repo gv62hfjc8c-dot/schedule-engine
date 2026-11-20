@@ -341,3 +341,17 @@ A correção mantém as restrições obrigatórias inalteradas e introduz uma **
 **Escala sintética:** com duas folgas configuradas por pessoa e uma janela curta aberta, a contagem de presenças nos cinco dias longos na primeira semana é: equipa de 2 → [2, 2, 2, 1, 1]; de 10 → [8, 8, 8, 8, 8]; de 50 → [40, 40, 40, 40, 40]; de 200 → [160, 160, 160, 160, 160]. As 40h e a contagem semanal de dias sem trabalho continuam certificadas. Estes números demonstram distribuição no cenário testado, **não** um mínimo de cobertura exigido nem uma garantia geral de equidade em todas as configurações. Não foi introduzida alternância de pessoas entre semanas.
 
 O calendário ainda distingue «Sem turno» de folga registada, mantém a mesma interface e não altera propostas guardadas. A distribuição das ausências é um critério de otimização, não uma nova hard constraint.
+
+### PR83 — Filtro de colaborador na página Horários
+
+Para permitir verificar visualmente a distribuição individual dos turnos e dos dias sem trabalho, o calendário mensal passou a ter o filtro **«Ver horário de»**, com as opções **«Toda a equipa»** (vista inicial) e cada colaborador existente na Equipa. A seleção não altera o motor, as 40 horas obrigatórias, a certificação, as escolhas de folgas nem os dados guardados.
+
+- **Toda a equipa:** o calendário mantém as contagens de turnos por dia e o detalhe com as pessoas escaladas.
+- **Pessoa selecionada:** cada dia do mês apresenta as suas **horas de entrada e saída** ou **«Sem turno»**; o detalhe do dia mostra apenas os seus intervalos, incluindo períodos repartidos.
+- No topo, a vista individual apresenta o total de horas e o número de dias com trabalho **nesse mês** (não são horas semanais nem uma contagem de folgas formais).
+- O filtro mantém a pessoa selecionada ao navegar entre meses. Funciona sobre **pré-visualizações ainda não guardadas** e sobre **propostas mensais guardadas**, privilegiando a pré-visualização quando existe.
+- O filtro é **exclusivamente de consulta**. O botão Guardar proposta e o certificador independente continuam a receber o conjunto completo de turnos de todos os colaboradores; não existe gravação de um horário filtrado.
+- Colaboradores presentes numa proposta antiga, mas ausentes da equipa atual, continuam disponíveis na lista para que os turnos guardados não fiquem escondidos; são identificados como «Colaborador não encontrado».
+- **«Sem turno» não significa automaticamente «Folga».** Não foi adicionada qualquer classificação de folgas oficiais.
+
+Código: `src/calendarScheduleView.ts` contém apenas a projeção de leitura por colaborador e os totais; `src/CalendarScheduler.tsx` apresenta o filtro; estilos locais em `src/calendarScheduler.css`. Testes automatizados verificam isolamento do colaborador, turnos repartidos, dias sem turno, ausência de mutação e que a gravação e a certificação continuam a usar a proposta completa. Deve ser validado no Safari com o cenário de quatro colaboradores do PR83 antes do merge.
