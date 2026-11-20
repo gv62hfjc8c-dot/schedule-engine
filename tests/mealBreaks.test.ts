@@ -229,3 +229,46 @@ test("O mês de 31 dias conserva as datas exteriores read-only",()=>{
     i.code==="CONTEXT_INCOMPLETE"));
   assert.equal(JSON.stringify(input),before);
 });
+
+
+test("O certificador rejeita explicitamente dois turnos no mesmo dia mesmo com pausa separada",()=>{
+  const d=scenario();
+  const valid=generated(d);
+  assert.equal(valid.status,"valid");
+  const first=valid.candidateAssignments.find(a=>
+    a.memberId===ANA&&a.date==="2026-11-02")!;
+  assert.ok(first.mealBreak);
+  const split=[
+    {memberId:ANA,date:first.date,start:first.start,end:first.mealBreak!.start},
+    {memberId:ANA,date:first.date,start:first.mealBreak!.end,end:first.end},
+  ];
+  const replaced=valid.candidateAssignments.flatMap(a=>
+    a===first?split:[a]);
+  const report=certifySchedule({...d,candidateAssignments:replaced});
+  assert.equal(report.status,"invalid");
+  assert.ok(report.issues.some(i=>i.code==="MULTIPLE_SHIFTS_SAME_DAY"));
+});
+
+test("Caso real: quatro colaboradores com 1/2 dias sem trabalho mantêm cobertura",()=>{
+  const d=scenario(6);
+  const hours=d.openingHours as ReturnType<typeof suggestedWeeklyOpeningHours>;
+  hours.days[5].intervals=[{start:"09:00",end:"13:00"}];
+  d.team={members:[ANA,RUI,
+    "1a2b3c4d-3333-4444-8aaa-123456789abe",
+    "1a2b3c4d-3333-4444-8aaa-123456789abf",
+  ].map((id,index)=>({
+    id,name:"Teste "+(index+1),active:true,
+    weeklyDaysOff:index===0?1:2,
+  }))};
+  const result=generated(d);
+  assert.equal(result.status,"valid",JSON.stringify(result.certification.issues));
+  assert.ok(result.certification.weeks.every(w=>w.actualMinutes===2400));
+  for(const date of ["2026-11-02","2026-11-03","2026-11-04",
+    "2026-11-05","2026-11-06"])
+    assertCoverage(result.candidateAssignments,date,540,1140);
+  assertCoverage(result.candidateAssignments,"2026-11-07",540,780);
+  const sat=result.candidateAssignments.filter(a=>a.date==="2026-11-07");
+  assert.equal(sat.length,4);
+  assert.ok(sat.every(a=>!a.mealBreak));
+  assert.equal(result.candidateAssignments.length,21);
+});
