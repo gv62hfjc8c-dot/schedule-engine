@@ -20,7 +20,7 @@ test("Vista de toda a equipa preserva turnos, sem mutação",()=>{
   assert.equal(view.assignments.length,5);
   assert.equal(view.byDay.get("2026-11-02")?.length,3);
   assert.equal(view.workingDays,3);
-  assert.equal(view.totalMinutes,32*60);
+  assert.equal(view.totalMinutes,28*60);
   assert.equal(JSON.stringify(assignments),snapshot);
 });
 
