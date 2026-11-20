@@ -59,8 +59,12 @@ function memberLabel(memberId:string,names:Map<string,string>):string {
   return names.get(memberId)??"Colaborador não encontrado";
 }
 
-function MonthWorkspace({year,month,todayString}:{
+function MonthWorkspace({
+  year,month,todayString,selectedMemberId,onSelectMember,
+}:{
   year:number;month:number;todayString:string;
+  selectedMemberId:string|null;
+  onSelectMember:(id:string|null)=>void;
 }) {
   const [initial]=useState(()=>loadMonthlyDraftFromBrowser(year,month));
   const [saved,setSaved]=useState<WorkAssignment[]|null>(
@@ -72,7 +76,6 @@ function MonthWorkspace({year,month,todayString}:{
   const [preview,setPreview]=useState<GenerationResult|null>(null);
   const [sourceSignature,setSourceSignature]=useState<string|null>(null);
   const [selectedDate,setSelectedDate]=useState<string|null>(null);
-  const [selectedMemberId,setSelectedMemberId]=useState<string|null>(null);
   const [feedback,setFeedback]=useState<Feedback|null>(null);
   const [names,setNames]=useState<Map<string,string>>(()=>{
     const team=loadTeamDraftFromBrowser();
@@ -94,6 +97,9 @@ function MonthWorkspace({year,month,todayString}:{
       memberOptions.set(entry.memberId,"Colaborador não encontrado ("+
         entry.memberId.slice(0,8)+")");
   }
+  if(selectedMemberId!==null && !memberOptions.has(selectedMemberId))
+    memberOptions.set(selectedMemberId,"Colaborador não encontrado ("+
+      selectedMemberId.slice(0,8)+")");
   const cells=monthCells(year,month-1);
   const dayAssignments=selectedDate?(byDay.get(selectedDate)??[]):[];
   const isBlocked=initial.status==="invalid"||initial.status==="unavailable";
@@ -122,7 +128,7 @@ function MonthWorkspace({year,month,todayString}:{
     if(selectedMemberId!==null &&
       !sources.team.value.members.some(member=>member.id===selectedMemberId) &&
       !result.candidateAssignments.some(a=>a.memberId===selectedMemberId))
-      setSelectedMemberId(null);
+      onSelectMember(null);
     setFeedback(result.status==="invalid_input"?
       {kind:"error",message:"Os dados de entrada não permitem gerar uma proposta."}:
       result.status==="invalid"?
@@ -237,7 +243,7 @@ function MonthWorkspace({year,month,todayString}:{
               <label htmlFor="schedule-member-filter">Ver horário de</label>
               <select id="schedule-member-filter"
                 value={selectedMemberId??""}
-                onChange={event=>setSelectedMemberId(
+                onChange={event=>onSelectMember(
                   event.target.value===""?null:event.target.value
                 )}>
                 <option value="">Toda a equipa</option>
@@ -266,8 +272,8 @@ function MonthWorkspace({year,month,todayString}:{
                   (byDay.get(cell.date!)?.length??0)+" intervalos de trabalho"}
                 aria-pressed={selectedDate===cell.date}>
                 <span>{cell.day}</span>
-                {(byDay.get(cell.date!)?.length??0)>0&&
-                  (selectedMemberId!==null
+                {(byDay.get(cell.date!)?.length??0)>0
+                  ?(selectedMemberId!==null
                     ?<span className="calendar-member-shifts">
                       {byDay.get(cell.date!)!.map((shift,index)=>
                         <span key={shift.memberId+"-"+index}>
@@ -276,7 +282,9 @@ function MonthWorkspace({year,month,todayString}:{
                     </span>
                     :<span className="calendar-assignment-count">
                       {byDay.get(cell.date!)!.length} turnos
-                    </span>)}
+                    </span>)
+                  :selectedMemberId!==null && data.length>0 &&
+                    <span className="calendar-member-empty">Sem turno</span>}
               </button>)}
           </div>
           <p className="calendar-footnote">
@@ -325,6 +333,7 @@ function MonthWorkspace({year,month,todayString}:{
 }
 
 export function CalendarScheduler(){
+  const [selectedMemberId,setSelectedMemberId]=useState<string|null>(null);
   const [visible,setVisible]=useState<MonthView>(()=>{
     const date=new Date();
     return {year:date.getFullYear(),month:date.getMonth()+1};
@@ -353,7 +362,8 @@ export function CalendarScheduler(){
           aria-label="Mês seguinte">›</button>
       </div>
       <MonthWorkspace key={visible.year+"-"+visible.month}
-        year={visible.year} month={visible.month} todayString={todayString}/>
+        year={visible.year} month={visible.month} todayString={todayString}
+        selectedMemberId={selectedMemberId} onSelectMember={setSelectedMemberId}/>
     </>
   );
 }
