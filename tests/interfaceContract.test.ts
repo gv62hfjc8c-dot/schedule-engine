@@ -96,3 +96,14 @@ test("O calendário pode filtrar por colaborador sem alterar geração ou grava�
   assert.match(calendarScheduler,/certificationForSaved\(currentSources,year,month,\s*preview\.candidateAssignments,preview\.mealBreaks,"v1"\)/);
   assert.doesNotMatch(calendarScheduler,/saveMonthlyDraftToBrowser\(\s*year,month,view/);
 });
+
+
+test("Pausas de refeição explícitas são mostradas e guardadas com a proposta completa",()=>{
+  assert.match(calendarScheduler,/mealBreakPolicy:"v1"/);
+  assert.match(calendarScheduler,/preview\.mealBreaks,"v1"/);
+  assert.match(calendarScheduler,/dayMealBreaks\.map/);
+  assert.match(calendarScheduler,/Pausa para refeição/);
+  assert.match(calendarScheduler,/1 hora, não contabilizada como trabalho/);
+  assert.match(calendarScheduler,/Pausa \{meal\.start\}/);
+  assert.doesNotMatch(calendarScheduler,/name="mealDuration"/);
+});
