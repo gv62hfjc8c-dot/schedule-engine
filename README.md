@@ -406,3 +406,18 @@ Esta distribuição cobre integralmente a abertura. O exemplo é ilustrativo: a 
 A suite verifica dois colaboradores sem intervalo descoberto (até ao minuto), rejeição de pausas simultâneas que deixam a empresa vazia, rejeição de dois turnos por pessoa, pausas fora de regra, quatro pessoas com folgas diferentes, abertura repartida, 40h efetivas, semanas que atravessam meses e reprodução determinística. Testes de 28 dias cobrem equipas de 2, 10, 50 e 200 pessoas com configuração compatível de folgas; outra prova mostra que folgas incompatíveis produzem `invalid`, mesmo com as 40 horas corretas.
 
 A validação automatizada não substitui teste funcional no Safari nem certificação legal integral. O PR84 permanece em **Draft**, fora da `main`, até confirmação do utilizador.
+
+### PR84 — Dias de funcionamento curto são indivisíveis (20/11/2026)
+
+**Regra confirmada pelo utilizador:** sempre que um colaborador tem turno num dia cuja abertura da empresa é curta, trabalha **a jornada completa de funcionamento**, não apenas uma parte para acertar as contas semanais. Isto **não obriga todos os colaboradores a trabalhar nesse dia**; obriga cada pessoa escalada a cumprir a janela completa. Não existem condições especiais por nome do dia (incluindo sábado). Nesta fase, «dia curto» significa até **4h totais de abertura**, tal como a regra inicial de não atribuir pausa para refeição nas jornadas até quatro horas.
+
+Exemplos:
+- Abertura **09h–13h**: quem estiver escalado trabalha **09h–13h**, quatro horas efetivas e sem refeição; atribuições como 09h–11h ou 10h–13h são **inválidas**.
+- Abertura **10h–13h**: quem estiver escalado trabalha **10h–13h**, três horas efetivas e sem refeição.
+- Num dia sem turno atribuído ao colaborador, nada é criado artificialmente. A obrigação de cobertura de funcionamento permanece independente.
+
+**Algoritmo:** em `src/generateSchedule.ts`, a alocação semanal mantém a otimização anterior para jornadas normais, mas avalia as combinações possíveis de dias curtos **inteiros ou não trabalhados**. Para um máximo de sete datas civis por semana, esta enumeração é pequena. Só considera válidas as distribuições que cabem no total semanal sem fragmentar os dias curtos. No caso de contexto mensal incompleto, a alocação conservadora também deixa de atribuir remanescentes parciais numa janela curta. Se não houver solução que cumpra simultaneamente 40h, dias de descanso, pausas, abertura e cobertura, o resultado deve ser marcado `invalid` ou `insufficient_context` conforme o contexto conhecido, nunca «valid» falsamente.
+
+**Certificação independente:** `src/certifySchedule.ts` introduz `SHORT_OPENING_INCOMPLETE`: cada turno efetivamente atribuído num dia curto tem de coincidir com o início e o fim do funcionamento desse dia e totalizar todas as horas de abertura. A verificação é independente da heurística do gerador. Se o funcionamento curto for repartido em intervalos incompatíveis com o atual modelo de turno único e sem pausa, o motor não inventa um turno equivalente: a proposta fica inválida.
+
+**Testes:** casos de abertura 09h–13h deslocada para **qualquer dia da semana**, abertura de três horas 10h–13h, vários dias curtos numa só semana, cumprimento das 40h efetivas, e rejeição deliberada de uma atribuição parcial 10h–13h num dia 09h–13h. Mantêm-se as regressões de 2/10/50/200 colaboradores, refeições dentro de um único turno e cobertura contínua. **CI GitHub Actions [44763336983](https://github.com/gv62hfjc8c-dot/schedule-engine/actions/runs/44763336983)** em `698759ab4df223d2a8f8236139f11d5c3e624d75`: `npm ci` PASS, **196/196 testes PASS**, `npm run build` PASS. Falta aceitação manual no Safari. PR84 ainda em Draft, fora da main.
