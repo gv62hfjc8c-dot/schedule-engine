@@ -114,6 +114,17 @@ function MonthWorkspace({
     meal.date===selectedDate &&
     (selectedMemberId===null||meal.memberId===selectedMemberId)
   ):[];
+  const dayTimeline=[
+    ...dayAssignments.map((assignment,index)=>({
+      kind:"work" as const,start:assignment.start,
+      memberId:assignment.memberId,index,assignment,
+    })),
+    ...dayMealBreaks.map((meal,index)=>({
+      kind:"meal" as const,start:meal.start,
+      memberId:meal.memberId,index,meal,
+    })),
+  ].sort((a,b)=>a.start.localeCompare(b.start)||
+    a.memberId.localeCompare(b.memberId));
   const isBlocked=initial.status==="invalid"||initial.status==="unavailable";
 
   function generate(){
@@ -325,17 +336,17 @@ function MonthWorkspace({
           {selectedDate
             ?dayAssignments.length>0
               ?<div className="day-work-list">
-                {dayAssignments.map((assignment,index)=>
-                  <div className="day-work-item" key={assignment.memberId+"-"+index}>
-                    <strong>{memberLabel(assignment.memberId,names)}</strong>
-                    <span>{assignment.start}–{assignment.end}</span>
-                    <span>{(assignmentMinutes(assignment)/60).toLocaleString("pt-PT")} h de trabalho</span>
-                  </div>)}
-                {dayMealBreaks.map((meal,index)=>
-                  <div className="day-work-item day-meal-item"
-                    key={"meal-"+meal.memberId+"-"+index}>
-                    <strong>{memberLabel(meal.memberId,names)} · Pausa para refeição</strong>
-                    <span>{meal.start}–{meal.end}</span>
+                {dayTimeline.map(item=>item.kind==="work"
+                  ?<div className="day-work-item"
+                    key={"work-"+item.memberId+"-"+item.index}>
+                    <strong>{memberLabel(item.memberId,names)}</strong>
+                    <span>{item.assignment.start}–{item.assignment.end}</span>
+                    <span>{(assignmentMinutes(item.assignment)/60).toLocaleString("pt-PT")} h de trabalho</span>
+                  </div>
+                  :<div className="day-work-item day-meal-item"
+                    key={"meal-"+item.memberId+"-"+item.index}>
+                    <strong>{memberLabel(item.memberId,names)} · Pausa para refeição</strong>
+                    <span>{item.meal.start}–{item.meal.end}</span>
                     <span>1 hora, não contabilizada como trabalho</span>
                   </div>)}
               </div>
