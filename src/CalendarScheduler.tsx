@@ -9,6 +9,7 @@ import {
   readExternalMonthlyContextFromBrowser,type MonthlyDraftLoad,
 } from "./monthlyScheduleDraftRepository";
 import {assignmentMinutes,type WorkAssignment} from "./workAssignments";
+import {calendarScheduleView} from "./calendarScheduleView";
 
 const WEEKDAYS=["Seg","Ter","Qua","Qui","Sex","Sáb","Dom"];
 
@@ -71,6 +72,7 @@ function MonthWorkspace({year,month,todayString}:{
   const [preview,setPreview]=useState<GenerationResult|null>(null);
   const [sourceSignature,setSourceSignature]=useState<string|null>(null);
   const [selectedDate,setSelectedDate]=useState<string|null>(null);
+  const [selectedMemberId,setSelectedMemberId]=useState<string|null>(null);
   const [feedback,setFeedback]=useState<Feedback|null>(null);
   const [names,setNames]=useState<Map<string,string>>(()=>{
     const team=loadTeamDraftFromBrowser();
@@ -83,13 +85,16 @@ function MonthWorkspace({year,month,todayString}:{
   });
   const data=preview?.candidateAssignments??saved??[];
   const report=preview?.certification??savedReport;
-  const cells=monthCells(year,month-1);
-  const byDay=new Map<string,WorkAssignment[]>();
+  // A display-only projection: certification and saving ALWAYS use full data.
+  const view=calendarScheduleView(data,selectedMemberId);
+  const byDay=view.byDay;
+  const memberOptions=new Map(names);
   for(const entry of data){
-    const existing=byDay.get(entry.date)??[];
-    existing.push(entry);
-    byDay.set(entry.date,existing);
+    if(!memberOptions.has(entry.memberId))
+      memberOptions.set(entry.memberId,"Colaborador não encontrado ("+
+        entry.memberId.slice(0,8)+")");
   }
+  const cells=monthCells(year,month-1);
   const dayAssignments=selectedDate?(byDay.get(selectedDate)??[]):[];
   const isBlocked=initial.status==="invalid"||initial.status==="unavailable";
 
@@ -114,6 +119,10 @@ function MonthWorkspace({year,month,todayString}:{
     setPreview(result);
     setSourceSignature(JSON.stringify(sources));
     setNames(new Map(sources.team.value.members.map(member=>[member.id,member.name])));
+    if(selectedMemberId!==null &&
+      !sources.team.value.members.some(member=>member.id===selectedMemberId) &&
+      !result.candidateAssignments.some(a=>a.memberId===selectedMemberId))
+      setSelectedMemberId(null);
     setFeedback(result.status==="invalid_input"?
       {kind:"error",message:"Os dados de entrada não permitem gerar uma proposta."}:
       result.status==="invalid"?
@@ -224,7 +233,25 @@ function MonthWorkspace({year,month,todayString}:{
               <p className="surface-kicker">Calendário</p>
               <h2>{monthLabel(year,month-1)}</h2>
             </div>
+            <div className="schedule-member-filter">
+              <label htmlFor="schedule-member-filter">Ver horário de</label>
+              <select id="schedule-member-filter"
+                value={selectedMemberId??""}
+                onChange={event=>setSelectedMemberId(
+                  event.target.value===""?null:event.target.value
+                )}>
+                <option value="">Toda a equipa</option>
+                {[...memberOptions].map(([id,name])=>
+                  <option key={id} value={id}>{name}</option>)}
+              </select>
+            </div>
           </header>
+          {selectedMemberId!==null&&
+            <p className="schedule-member-summary" role="status">
+              <strong>{memberLabel(selectedMemberId,memberOptions)}</strong>
+              {" · "}{(view.totalMinutes/60).toLocaleString("pt-PT")} h
+              {" · "}{view.workingDays} dias com turno neste mês
+            </p>}
           <div className="calendar-grid" aria-label={monthLabel(year,month-1)}>
             {WEEKDAYS.map(day=><span className="weekday" key={day}>{day}</span>)}
             {cells.map((cell,index)=>cell.day===null
@@ -240,9 +267,16 @@ function MonthWorkspace({year,month,todayString}:{
                 aria-pressed={selectedDate===cell.date}>
                 <span>{cell.day}</span>
                 {(byDay.get(cell.date!)?.length??0)>0&&
-                  <span className="calendar-assignment-count">
-                    {byDay.get(cell.date!)!.length} turnos
-                  </span>}
+                  (selectedMemberId!==null
+                    ?<span className="calendar-member-shifts">
+                      {byDay.get(cell.date!)!.map((shift,index)=>
+                        <span key={shift.memberId+"-"+index}>
+                          {shift.start}–{shift.end}
+                        </span>)}
+                    </span>
+                    :<span className="calendar-assignment-count">
+                      {byDay.get(cell.date!)!.length} turnos
+                    </span>)}
               </button>)}
           </div>
           <p className="calendar-footnote">
@@ -252,6 +286,8 @@ function MonthWorkspace({year,month,todayString}:{
               :preview
                 ?"A apresentar uma proposta ainda não guardada."
                 :"A apresentar a proposta guardada neste dispositivo."}
+            {selectedMemberId!==null&&
+              " O filtro mostra apenas este colaborador e não altera o horário."}
           </p>
         </section>
         <aside className="surface detail-panel" aria-label="Detalhe do dia" aria-live="polite">
@@ -269,7 +305,9 @@ function MonthWorkspace({year,month,todayString}:{
               </div>
               :<>
                 <span className="detail-state">Sem turno atribuído</span>
-                <p>Não existem turnos atribuídos a este dia.</p>
+                <p>{selectedMemberId===null
+                  ?"Não existem turnos atribuídos a este dia."
+                  :"Este colaborador não tem turno atribuído neste dia."}</p>
                 <p className="detail-explanation">
                   Um dia sem turnos registados não corresponde automaticamente a uma folga.
                 </p>
