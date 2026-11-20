@@ -13,6 +13,7 @@ import {validateMealBreak,SHORT_SHIFT_MAX_WORK_MINUTES,
   MEAL_BREAK_EARLIEST_AFTER_ENTRY_MINUTES,
   type MealBreak} from "./mealBreaks";
 import {clockMinutes} from "./workAssignments";
+import {shortOpeningDays} from "./shortOpenings";
 
 export type CertificationStatus="valid"|"invalid"|"insufficient_context";
 export type CertificationIssueCode=
@@ -138,6 +139,7 @@ export function certifySchedule(input:CertificationInput):CertificationReport {
     ]);
 
   const validatedOpeningHours=hours.value;
+  const shortDays=shortOpeningDays(validatedOpeningHours);
   const problems:CertificationIssue[]=[];
   const contextProblems:CertificationIssue[]=[];
   const rawCandidate=input.candidateAssignments;
@@ -276,13 +278,12 @@ export function certifySchedule(input:CertificationInput):CertificationReport {
         // A short day is defined by actual COMPANY opening, not by
         // which weekday it is. Every assigned worker covers the ENTIRE
         // short opening; nobody is allowed a partial shift there.
-        const opening=validatedOpeningHours.days[
-          (new Date(date+"T12:00:00Z").getUTCDay()+6)%7
-        ].intervals;
+        const weekday=(new Date(date+"T12:00:00Z").getUTCDay()+6)%7;
+        const opening=validatedOpeningHours.days[weekday].intervals;
+        const isShortOpening=shortDays.has(weekday);
         const shortMinutes=opening.reduce((sum,span)=>
           sum+clockMinutes(span.end)-clockMinutes(span.start),0);
-        if(shortMinutes>0 &&
-          shortMinutes<=SHORT_SHIFT_MAX_WORK_MINUTES){
+        if(isShortOpening){
           const first=opening[0];
           const last=opening[opening.length-1];
           if(effective!==shortMinutes ||
@@ -294,7 +295,8 @@ export function certifySchedule(input:CertificationInput):CertificationReport {
               }));
         }
         const meal=shift.mealBreak;
-        if(!meal && effective>SHORT_SHIFT_MAX_WORK_MINUTES){
+        if(!meal && !isShortOpening &&
+          effective>SHORT_SHIFT_MAX_WORK_MINUTES){
           problems.push(issue("MEAL_BREAK_MISSING",
             "Uma jornada normal exige pausa dentro do próprio turno.",{
               memberId,date,
@@ -308,7 +310,7 @@ export function certifySchedule(input:CertificationInput):CertificationReport {
             "A pausa para refeição deve durar exatamente uma hora.",{
               memberId,date,
             }));
-        if(effective<=SHORT_SHIFT_MAX_WORK_MINUTES)
+        if(isShortOpening || effective<=SHORT_SHIFT_MAX_WORK_MINUTES)
           problems.push(issue("MEAL_BREAK_UNNECESSARY",
             "Uma jornada curta não admite pausa de refeição.",{
               memberId,date,
