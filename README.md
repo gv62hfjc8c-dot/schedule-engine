@@ -356,30 +356,53 @@ Para permitir verificar visualmente a distribuição individual dos turnos e dos
 
 Código: `src/calendarScheduleView.ts` contém apenas a projeção de leitura por colaborador e os totais; `src/CalendarScheduler.tsx` apresenta o filtro; estilos locais em `src/calendarScheduler.css`. Testes automatizados verificam isolamento do colaborador, turnos repartidos, dias sem turno, ausência de mutação e que a gravação e a certificação continuam a usar a proposta completa. Deve ser validado no Safari com o cenário de quatro colaboradores do PR83 antes do merge.
 
-## PR84 — Pausa para refeição de uma hora após três horas da entrada
+## PR84 — Um único turno com pausa interna e cobertura contínua (revisão de 20/11/2026)
 
-**Decisão do utilizador (20/11/2026):** corrigir o requisito inicial de três horas e meia para **três horas após a entrada**. Durante esta fase a pausa tem **duração fixa de 60 minutos**, sem campo configurável. Em jornadas curtas não se cria pausa. Para esta primeira experiência, uma jornada curta significa **até 4h de trabalho efetivo**, conforme o exemplo anterior das 09h às 13h. Esta definição é provisória e não pretende codificar legislação laboral geral.
+O utilizador definiu uma pausa de refeição de **60 minutos**, que só pode começar **a partir de três horas após a entrada**, sem pausa em jornadas curtas. A duração ainda não é configurável. Para a experiência inicial, jornadas com até **4h efetivas** são tratadas como curtas; trata-se de uma escolha operacional provisória, não de um parecer jurídico.
 
-O motor passa a calcular pausas de refeição explícitas nas novas propostas geradas pela página Horários. A pausa não é trabalho efetivo, não é deduzida implicitamente de um único turno, não é confundida com o encerramento da empresa e não conta para as **40h semanais obrigatórias**. A jornada normal é representada por segmentos reais de trabalho `WorkAssignment` e um registo próprio `MealBreak` com colaborador, data, início e fim.
+A **primeira implementação do PR84 foi rejeitada** pelo utilizador por dois motivos objetivos:
+1. Produzia **dois turnos** para a mesma pessoa (um antes e outro depois da refeição). Isto é incorreto: a pessoa tem **um único turno de entrada a saída** e a pausa acontece dentro desse turno.
+2. Distribuía pausas isoladamente e podia deixar a empresa **sem ninguém a trabalhar durante a abertura**. A nova regra exige **pelo menos um colaborador efetivamente a trabalhar em cada minuto de funcionamento**. Não foi introduzido um mínimo de duas ou mais pessoas, apenas ausência de cobertura zero. Ao contrário da política SOFT de distribuição anterior, esta exigência é agora uma **HARD constraint explícita** para propostas novas.
 
-Exemplos:
-- **Dia curto 09:00–13:00:** quatro horas contínuas de trabalho e **nenhuma** pausa de refeição.
-- **Entrada 09:00, jornada de 8h efetivas, empresa aberta 09–19:** trabalho 09:00–12:00, pausa **12:00–13:00**, trabalho 13:00–18:00.
-- **Entrada 10:00, mesma jornada:** trabalho 10:00–13:00, pausa **13:00–14:00**, trabalho 14:00–19:00.
-- **Empresa fechada 12:00–13:00:** a pausa pode coincidir com esse período, se não começar antes de três horas da entrada e o trabalho de ambos os lados for viável.
+### Modelo correto
 
-### Restrições e modelo
+O objeto `WorkAssignment` representa **um turno por colaborador e data**, por exemplo:
 
-Em `src/mealBreaks.ts`, as constantes `MEAL_BREAK_EARLIEST_AFTER_ENTRY_MINUTES=180`, `MEAL_BREAK_DURATION_MINUTES=60` e `SHORT_SHIFT_MAX_WORK_MINUTES=240` são parâmetros INTERNOS da primeira versão, não campos para a empresa escolher. O planeador escolhe um início de pausa viável após a hora mínima, mantém um período de trabalho antes e outro depois e respeita os intervalos reais de funcionamento. Ajusta a capacidade diária efetiva: por exemplo, um funcionamento de 8h contínuas pode acomodar no máximo **7h efetivas** se houver pausa obrigatória de uma hora. Caso a carga semanal se torne impossível, o resultado fica **invalid** — nunca se inventam turnos fora da abertura nem se declaram 40h sem as cumprir.
+```ts
+{
+  memberId: "id-da-pessoa",
+  date: "2026-11-02",
+  start: "09:00",
+  end: "18:00",
+  mealBreak: { start: "12:00", end: "13:00" },
+}
+```
 
-O certificador independente `src/certifySchedule.ts` valida para as novas propostas V1: exatamente uma pausa de **60 minutos** em cada data com mais de quatro horas efetivas, início da pausa após pelo menos **180 minutos de relógio** desde a primeira entrada desse dia, sem sobreposição com trabalho e com períodos de trabalho antes e depois. Para jornadas até quatro horas, não aceita pausas de refeição. Assim uma simples interrupção, sem identificação como pausa, não satisfaz o certificador. Mantêm-se a verificação independente das **40h por semana**, dias sem trabalho configurados, contexto entre meses e funcionamento.
+O tempo de trabalho efetivo é `(18:00-09:00)-(13:00-12:00)=8h`. A pausa **não é um segundo turno**. O turno único aparece no calendário como `09:00–18:00`, com a pausa `12:00–13:00` identificada **dentro do turno**, e oito horas efetivas. Para uma janela curta `09:00–13:00`, há um turno `09:00–13:00` **sem refeição**, totalizando quatro horas.
 
-### Persistência e compatibilidade
+### Planeamento e certificação
 
-As propostas novas contêm `mealBreakPolicy:"v1"` e `mealBreaks` explícitos. A página Horários apresenta a pausa separadamente dos turnos e guarda os dois conjuntos. O envelope local dos rascunhos mensais aceita os campos novos de forma **retrocompatível**: rascunhos guardados antes desta fase continuam legíveis, sem pausas inventadas retroativamente nem regravações automáticas. Ao gerar uma nova proposta, a política V1 aplica-se; rascunhos antigos continuam certificados pelas regras sob as quais foram guardados até serem substituídos com confirmação. O contexto de outros meses mantém-se read-only.
+- `src/mealBreaks.ts` produz **candidatos de turno único** com pausa opcional embutida e hora de refeição válida. Os dois segmentos de trabalho efetivo antes/depois da pausa são usados **apenas para contas e validação**; não são turnos separados. Em empresas com abertura repartida, a pausa pode coincidir com um fecho de uma hora, se for viável.
+- `src/mealCoveragePlanner.ts` coordena os turnos de **todos os colaboradores de um mesmo dia**. A escolha privilegia cobrir minutos abertos ainda sem ninguém, antes de preferências como entrada estável/rotação semanal, e nunca cria trabalhadores, horários fora da abertura ou horas em excesso.
+- `src/workAssignments.ts` valida o turno com pausa aninhada, desconta a pausa de `assignmentMinutes` e calcula intervalos efetivamente trabalhados para avaliar abertura/cobertura.
+- `src/certifySchedule.ts` certifica independentemente: **um único turno por pessoa/data**, pausa **60 minutos**, início **>= entrada+180 minutos**, ausência de pausa em jornadas curtas, horários de funcionamento respeitados, **zero lacunas de cobertura** em cada intervalo de abertura, 40h efetivas semanais e número de dias sem trabalho configurado. Um problema `OPENING_UNCOVERED` inclui data e horário exato da primeira lacuna encontrada em cada intervalo.
+- **Se uma configuração for impossível** (por exemplo, duas pessoas com folgas que deixam uma pessoa sozinha numa janela de 10h, com pausa obrigatória), o resultado é `invalid`, mesmo que cada pessoa cumpra 40h. É uma incompatibilidade de constraints; o motor **não deve inventar cobertura nem declarar uma solução válida**.
+
+Exemplo com empresa aberta `09:00–19:00` e duas pessoas, cada uma com oito horas de trabalho efetivo por dia:
+
+| Pessoa | Turno | Pausa | Horas efetivas |
+|---|---|---|---|
+| A | 09:00–18:00 | 12:00–13:00 | 8h |
+| B | 10:00–19:00 | 13:00–14:00 | 8h |
+
+Esta distribuição cobre integralmente a abertura. O exemplo é ilustrativo: a escolha automática pode trocar os horários entre pessoas e semanas, mas **não pode deixar lacunas** se a proposta for considerada válida.
+
+### Persistência e histórico
+
+`src/monthlyScheduleDraftRepository.ts` guarda as propostas novas com `mealBreakPolicy:"v2"` e os turnos únicos com `mealBreak` aninhado, mantendo o mesmo envelope mensal `version:1` para preservar dados existentes. Os rascunhos antigos sem refeições e os rascunhos experimentais `mealBreakPolicy:"v1"` com pausa separada continuam **legíveis**, sem regravação automática. A página Horários identifica propostas antigas como **«Modelo anterior»**, em vez de as apresentar como certificadas pelas novas regras. Regenerar uma proposta exige confirmação antes de substituir a antiga; os outros meses são contexto apenas de leitura.
 
 ### Testes
 
-`tests/mealBreaks.test.ts` verifica o limiar de 3h, a duração de 60 minutos, trabalho efetivo vs. pausas, janela curta, abertura repartida, invalidação de almoço em falta/cedo/duração incorreta/sobreposto e falta de capacidade. `tests/monthlyScheduleDraftRepository.test.ts` verifica gravação/releitura dos intervalos de refeição, manutenção de rascunhos V1 anteriores e rejeição de dados de pausas corrompidos. `tests/mealBreaksScale.test.ts` simula **2, 10, 50 e 200 colaboradores** com 28 dias, cinco janelas longas e um dia curto, 1 ou 2 dias sem trabalho configurados por pessoa: todas as semanas preservam **40h efetivas**, com pausa em cada jornada normal e nenhuma no dia curto.
+A suite verifica dois colaboradores sem intervalo descoberto (até ao minuto), rejeição de pausas simultâneas que deixam a empresa vazia, rejeição de dois turnos por pessoa, pausas fora de regra, quatro pessoas com folgas diferentes, abertura repartida, 40h efetivas, semanas que atravessam meses e reprodução determinística. Testes de 28 dias cobrem equipas de 2, 10, 50 e 200 pessoas com configuração compatível de folgas; outra prova mostra que folgas incompatíveis produzem `invalid`, mesmo com as 40 horas corretas.
 
-A validação automática **não equivale a confirmar todos os descansos e requisitos legais**. Antes de integrar PR84, confirmar no Safari o horário gerado com pausas e a leitura da proposta guardada.
+A validação automatizada não substitui teste funcional no Safari nem certificação legal integral. O PR84 permanece em **Draft**, fora da `main`, até confirmação do utilizador.
