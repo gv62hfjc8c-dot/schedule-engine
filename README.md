@@ -355,3 +355,31 @@ Para permitir verificar visualmente a distribuição individual dos turnos e dos
 - **«Sem turno» não significa automaticamente «Folga».** Não foi adicionada qualquer classificação de folgas oficiais.
 
 Código: `src/calendarScheduleView.ts` contém apenas a projeção de leitura por colaborador e os totais; `src/CalendarScheduler.tsx` apresenta o filtro; estilos locais em `src/calendarScheduler.css`. Testes automatizados verificam isolamento do colaborador, turnos repartidos, dias sem turno, ausência de mutação e que a gravação e a certificação continuam a usar a proposta completa. Deve ser validado no Safari com o cenário de quatro colaboradores do PR83 antes do merge.
+
+## PR84 — Pausa para refeição de uma hora após três horas da entrada
+
+**Decisão do utilizador (20/11/2026):** corrigir o requisito inicial de três horas e meia para **três horas após a entrada**. Durante esta fase a pausa tem **duração fixa de 60 minutos**, sem campo configurável. Em jornadas curtas não se cria pausa. Para esta primeira experiência, uma jornada curta significa **até 4h de trabalho efetivo**, conforme o exemplo anterior das 09h às 13h. Esta definição é provisória e não pretende codificar legislação laboral geral.
+
+O motor passa a calcular pausas de refeição explícitas nas novas propostas geradas pela página Horários. A pausa não é trabalho efetivo, não é deduzida implicitamente de um único turno, não é confundida com o encerramento da empresa e não conta para as **40h semanais obrigatórias**. A jornada normal é representada por segmentos reais de trabalho `WorkAssignment` e um registo próprio `MealBreak` com colaborador, data, início e fim.
+
+Exemplos:
+- **Dia curto 09:00–13:00:** quatro horas contínuas de trabalho e **nenhuma** pausa de refeição.
+- **Entrada 09:00, jornada de 8h efetivas, empresa aberta 09–19:** trabalho 09:00–12:00, pausa **12:00–13:00**, trabalho 13:00–18:00.
+- **Entrada 10:00, mesma jornada:** trabalho 10:00–13:00, pausa **13:00–14:00**, trabalho 14:00–19:00.
+- **Empresa fechada 12:00–13:00:** a pausa pode coincidir com esse período, se não começar antes de três horas da entrada e o trabalho de ambos os lados for viável.
+
+### Restrições e modelo
+
+Em `src/mealBreaks.ts`, as constantes `MEAL_BREAK_EARLIEST_AFTER_ENTRY_MINUTES=180`, `MEAL_BREAK_DURATION_MINUTES=60` e `SHORT_SHIFT_MAX_WORK_MINUTES=240` são parâmetros INTERNOS da primeira versão, não campos para a empresa escolher. O planeador escolhe um início de pausa viável após a hora mínima, mantém um período de trabalho antes e outro depois e respeita os intervalos reais de funcionamento. Ajusta a capacidade diária efetiva: por exemplo, um funcionamento de 8h contínuas pode acomodar no máximo **7h efetivas** se houver pausa obrigatória de uma hora. Caso a carga semanal se torne impossível, o resultado fica **invalid** — nunca se inventam turnos fora da abertura nem se declaram 40h sem as cumprir.
+
+O certificador independente `src/certifySchedule.ts` valida para as novas propostas V1: exatamente uma pausa de **60 minutos** em cada data com mais de quatro horas efetivas, início da pausa após pelo menos **180 minutos de relógio** desde a primeira entrada desse dia, sem sobreposição com trabalho e com períodos de trabalho antes e depois. Para jornadas até quatro horas, não aceita pausas de refeição. Assim uma simples interrupção, sem identificação como pausa, não satisfaz o certificador. Mantêm-se a verificação independente das **40h por semana**, dias sem trabalho configurados, contexto entre meses e funcionamento.
+
+### Persistência e compatibilidade
+
+As propostas novas contêm `mealBreakPolicy:"v1"` e `mealBreaks` explícitos. A página Horários apresenta a pausa separadamente dos turnos e guarda os dois conjuntos. O envelope local dos rascunhos mensais aceita os campos novos de forma **retrocompatível**: rascunhos guardados antes desta fase continuam legíveis, sem pausas inventadas retroativamente nem regravações automáticas. Ao gerar uma nova proposta, a política V1 aplica-se; rascunhos antigos continuam certificados pelas regras sob as quais foram guardados até serem substituídos com confirmação. O contexto de outros meses mantém-se read-only.
+
+### Testes
+
+`tests/mealBreaks.test.ts` verifica o limiar de 3h, a duração de 60 minutos, trabalho efetivo vs. pausas, janela curta, abertura repartida, invalidação de almoço em falta/cedo/duração incorreta/sobreposto e falta de capacidade. `tests/monthlyScheduleDraftRepository.test.ts` verifica gravação/releitura dos intervalos de refeição, manutenção de rascunhos V1 anteriores e rejeição de dados de pausas corrompidos. `tests/mealBreaksScale.test.ts` simula **2, 10, 50 e 200 colaboradores** com 28 dias, cinco janelas longas e um dia curto, 1 ou 2 dias sem trabalho configurados por pessoa: todas as semanas preservam **40h efetivas**, com pausa em cada jornada normal e nenhuma no dia curto.
+
+A validação automática **não equivale a confirmar todos os descansos e requisitos legais**. Antes de integrar PR84, confirmar no Safari o horário gerado com pausas e a leitura da proposta guardada.
