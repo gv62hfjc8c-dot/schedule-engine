@@ -77,3 +77,18 @@ test("Folgas semanais configuram só a quantidade na página Equipa",()=>{
   assert.match(calendarScheduler,
     /sem turnos registados não corresponde automaticamente a uma folga/);
 });
+
+test("O calendário pode filtrar por colaborador sem alterar geração ou gravação",()=>{
+  assert.match(calendarScheduler,/id="schedule-member-filter"/);
+  assert.match(calendarScheduler,/Ver horário de/);
+  assert.match(calendarScheduler,/Toda a equipa/);
+  assert.match(calendarScheduler,/calendarScheduleView\(data,selectedMemberId\)/);
+  assert.match(calendarScheduler,/calendar-member-shifts/);
+  assert.match(calendarScheduler,/view\.totalMinutes/);
+  assert.match(calendarScheduler,/view\.workingDays/);
+  assert.match(calendarScheduler,/O filtro mostra apenas este colaborador/);
+  // Both certification and persistence must still receive ALL assignments.
+  assert.match(calendarScheduler,/preview\.candidateAssignments,revision/);
+  assert.match(calendarScheduler,/certificationForSaved\(currentSources,year,month,\s*preview\.candidateAssignments\)/);
+  assert.doesNotMatch(calendarScheduler,/saveMonthlyDraftToBrowser\(\s*year,month,view/);
+});
