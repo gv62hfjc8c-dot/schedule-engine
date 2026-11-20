@@ -10,6 +10,7 @@ import {
 } from "./monthlyScheduleDraftRepository";
 import {assignmentMinutes,type WorkAssignment} from "./workAssignments";
 import {calendarScheduleView} from "./calendarScheduleView";
+import type {MealBreak} from "./mealBreaks";
 
 const WEEKDAYS=["Seg","Ter","Qua","Qui","Sex","Sáb","Dom"];
 
@@ -37,7 +38,8 @@ function sourceError(sources:SourceSnapshot):string|null {
 }
 function certificationForSaved(
   sources:SourceSnapshot,year:number,month:number,
-  assignments:WorkAssignment[]
+  assignments:WorkAssignment[],
+  mealBreaks:MealBreak[]=[],mealBreakPolicy:"v1"|undefined=undefined
 ):CertificationReport|null {
   if(sources.team.status!=="loaded"||
     sources.opening.status!=="loaded"||!sources.context.ok)return null;
@@ -45,6 +47,7 @@ function certificationForSaved(
     period:{mode:"monthly",year,month},
     team:sources.team.value,openingHours:sources.opening.value,
     externalContext:sources.context.context,candidateAssignments:assignments,
+    mealBreaks,mealBreakPolicy,
   });
 }
 function stateText(report:CertificationReport|null):string {
@@ -70,6 +73,12 @@ function MonthWorkspace({
   const [saved,setSaved]=useState<WorkAssignment[]|null>(
     ()=>initial.status==="loaded"?initial.assignments:null
   );
+  const [savedMealBreaks,setSavedMealBreaks]=useState<MealBreak[]>(
+    ()=>initial.status==="loaded"?initial.mealBreaks:[]
+  );
+  const [savedMealPolicy,setSavedMealPolicy]=useState<"v1"|undefined>(
+    ()=>initial.status==="loaded"?initial.mealBreakPolicy:undefined
+  );
   const [revision,setRevision]=useState<string|null>(
     ()=>initial.status==="loaded"?initial.revision:null
   );
@@ -84,9 +93,11 @@ function MonthWorkspace({
   });
   const [savedReport,setSavedReport]=useState<CertificationReport|null>(()=>{
     if(initial.status!=="loaded")return null;
-    return certificationForSaved(loadSources(year,month),year,month,initial.assignments);
+    return certificationForSaved(loadSources(year,month),year,month,
+      initial.assignments,initial.mealBreaks,initial.mealBreakPolicy);
   });
   const data=preview?.candidateAssignments??saved??[];
+  const mealBreaks=preview?.mealBreaks??savedMealBreaks;
   const report=preview?.certification??savedReport;
   // A display-only projection: certification and saving ALWAYS use full data.
   const view=calendarScheduleView(data,selectedMemberId);
@@ -102,6 +113,10 @@ function MonthWorkspace({
       selectedMemberId.slice(0,8)+")");
   const cells=monthCells(year,month-1);
   const dayAssignments=selectedDate?(byDay.get(selectedDate)??[]):[];
+  const dayMealBreaks=selectedDate?mealBreaks.filter(meal=>
+    meal.date===selectedDate &&
+    (selectedMemberId===null||meal.memberId===selectedMemberId)
+  ):[];
   const isBlocked=initial.status==="invalid"||initial.status==="unavailable";
 
   function generate(){
@@ -121,6 +136,7 @@ function MonthWorkspace({
       period:{mode:"monthly",year,month},
       team:sources.team.value,openingHours:sources.opening.value,
       externalContext:sources.context.context,
+      mealBreakPolicy:"v1",
     });
     setPreview(result);
     setSourceSignature(JSON.stringify(sources));
@@ -150,7 +166,7 @@ function MonthWorkspace({
       return;
     }
     const currentReport=certificationForSaved(currentSources,year,month,
-      preview.candidateAssignments);
+      preview.candidateAssignments,preview.mealBreaks,"v1");
     if(!currentReport || currentReport.status==="invalid"){
       setFeedback({kind:"error",message:"A proposta não passa a certificação atual. Não foi guardada."});
       return;
@@ -158,13 +174,16 @@ function MonthWorkspace({
     if(saved!==null &&
       !window.confirm("Substituir a proposta guardada deste mês? Os horários dos outros meses não serão alterados."))return;
     const result=saveMonthlyDraftToBrowser(
-      year,month,preview.candidateAssignments,revision
+      year,month,preview.candidateAssignments,revision,
+      preview.mealBreaks,"v1"
     );
     if(!result.ok){
       setFeedback({kind:"error",message:result.message});
       return;
     }
     setSaved(result.assignments);
+    setSavedMealBreaks(result.mealBreaks);
+    setSavedMealPolicy(result.mealBreakPolicy);
     setRevision(result.revision);
     setSavedReport(currentReport);
     setPreview(null);
@@ -279,6 +298,12 @@ function MonthWorkspace({
                         <span key={shift.memberId+"-"+index}>
                           {shift.start}–{shift.end}
                         </span>)}
+                      {mealBreaks.filter(meal=>meal.date===cell.date &&
+                        meal.memberId===selectedMemberId).map((meal,i)=>
+                        <span className="calendar-meal-time"
+                          key={"meal-"+i}>
+                          Pausa {meal.start}–{meal.end}
+                        </span>)}
                     </span>
                     :<span className="calendar-assignment-count">
                       {byDay.get(cell.date!)!.length} turnos
@@ -309,6 +334,13 @@ function MonthWorkspace({
                     <strong>{memberLabel(assignment.memberId,names)}</strong>
                     <span>{assignment.start}–{assignment.end}</span>
                     <span>{(assignmentMinutes(assignment)/60).toLocaleString("pt-PT")} h de trabalho</span>
+                  </div>)}
+                {dayMealBreaks.map((meal,index)=>
+                  <div className="day-work-item day-meal-item"
+                    key={"meal-"+meal.memberId+"-"+index}>
+                    <strong>{memberLabel(meal.memberId,names)} · Pausa para refeição</strong>
+                    <span>{meal.start}–{meal.end}</span>
+                    <span>1 hora, não contabilizada como trabalho</span>
                   </div>)}
               </div>
               :<>
