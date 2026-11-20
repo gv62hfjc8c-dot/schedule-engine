@@ -440,3 +440,33 @@ Exemplos:
 **Teste real automatizado:** quatro colaboradores, folgas semanais configuradas como `1, 2, 2, 2`, período semanal que inclui domingo **2026-11-22**, abertura 08:30–19:00 de segunda a sábado e 14:00–19:00 ao domingo. O gerador produziu e certificou `valid` **quatro turnos de domingo 14:00–19:00, sem pausa**, 40 horas efetivas por colaborador, e cobertura de todo o funcionamento em todos os dias. O teste adulterou turnos para 14:00–18:00, 15:00–19:00 e 14:30–18:30 e confirmou `invalid` via certificador independente. Inclui teste de gravação/releitura do turno de cinco horas e identificação de uma abertura curta de cinco horas noutro dia da semana, sem regra específica para domingo.
 
 **CI da correção:** GitHub Actions [44832458449](https://github.com/gv62hfjc8c-dot/schedule-engine/actions/runs/44832458449), head `480a97b2689d495a5a41fc9f01303aa26de12ed9`: `npm ci` PASS, **200/200 testes PASS**, `npm run build` PASS. PR84 permanece **OPEN/DRAFT, sem merge**, a aguardar confirmação visual desta correção no Safari. Não foram alterados outros meses nem horários guardados.
+
+## PR85 — Equilíbrio de horas com janela móvel de 28 dias
+
+Novo modo experimental no calendário da V2: cada data é avaliada com os 27 dias civis anteriores, sem âncora nem data inicial. Para 40h semanais, a referência é **160 horas em 28 dias**. Não se atribuem débitos, créditos ou pagamentos salariais a partir da diferença.
+
+### Comportamento
+- Com um colaborador selecionado, a página mantém o total de horas e dias do mês e acrescenta as horas dos **últimos 28 dias**, comparadas com a referência de 160h. A data final é a data selecionada ou o último dia do mês.
+- O gerador percorre as semanas cronologicamente e consulta os **21 dias anteriores** à semana que está a construir. Com histórico completo, o objetivo sugerido para a nova semana aproxima o total de 28 dias de 160h. Exemplos: 118h nas três semanas anteriores sugerem 42h; 122h sugerem 38h. A sugestão tem suavização de +/-4h por passo, só de otimização, nunca uma regra legal.
+- Sem histórico completo, o gerador usa a referência prudente de 40h para essa semana e a interface marca o saldo móvel como **por apurar**, não zero.
+- O certificador com a política rolling28 deixa de impor 40h exatas em cada semana, mantendo as demais verificações: folgas configuradas, turno único por dia, refeição interna, jornada curta completa e cobertura contínua.
+- Para novos horários, a política fica guardada no rascunho do mês. Rascunhos antigos sem esta política mantêm a verificação semanal original.
+- O histórico de meses anteriores é lido sem escrita. Erros de armazenamento impedem a geração para não inventar horas.
+
+### Módulos e testes
+- src/rolling28Day.ts — janela móvel por data, horas efetivas e dados ausentes.
+- src/rollingHoursPlan.ts — sugestão de horas semanais informada pelo histórico.
+- src/generateSchedule.ts — aplicação da sugestão sem comprometer cobertura, turnos e folgas.
+- src/certifySchedule.ts — política alternativa com 40h como objetivo e não igualdade hard.
+- src/monthlyScheduleDraftRepository.ts — histórico dos 27 dias anteriores e persistência da política.
+- tests/rolling28Day.test.ts e tests/rollingHoursIntegration.test.ts — testes de meses cruzados, 38/42h, refeição, folgas, histórico, compatibilidade e integridade.
+
+### Teste funcional no Safari
+1. Atualizar a branch v2/rolling-28-day-analytics e reiniciar o servidor Vite.
+2. Em Horários, gerar uma proposta, selecionar um colaborador e comparar horas do mês com a janela móvel.
+3. Selecionar datas consecutivas: a janela avança um dia de cada vez.
+4. Sem mês anterior, confirmar que o sistema informa histórico insuficiente, sem inventar dívida.
+5. Guardar uma proposta, navegar para o mês seguinte e confirmar que utiliza o histórico em leitura.
+6. Recarregar a página e confirmar que turnos e política persistem; testar cobertura e domingo curto.
+
+**Limite:** trata-se de planeamento experimental de rascunhos, não de banco de horas, aprovação ou certificação legal integral. Descansos e limites laborais específicos ainda não estão completamente modelados e exigem definição antes de uso profissional.
