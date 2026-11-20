@@ -167,7 +167,7 @@ test("O gerador usa a proposta de outubro guardada como contexto sem editar outu
 });
 
 
-test("Pausas V1 são guardadas e carregadas sem perder horas efetivas",()=>{
+test("PR84 v2 guarda UM turno com pausa interna e preserva horas efetivas",()=>{
   const storage=store();
   const hours=suggestedWeeklyOpeningHours();
   for(const d of hours.days)if(d.intervals.length)
@@ -175,34 +175,55 @@ test("Pausas V1 são guardadas e carregadas sem perder horas efetivas",()=>{
   const generated=generateSchedule({
     period:{mode:"monthly",year:2026,month:11},
     team:{members:[{id:ANA,name:"Ana",active:true}]},
-    openingHours:hours,
-    mealBreakPolicy:"v1",
+    openingHours:hours,mealBreakPolicy:"v2",
   });
-  assert.ok(generated.mealBreaks.length>0);
+  assert.ok(generated.candidateAssignments.some(a=>a.mealBreak));
   const saved=saveMonthlyDraft(storage,2026,11,
-    generated.candidateAssignments,null,generated.mealBreaks,"v1");
+    generated.candidateAssignments,null,undefined,"v2");
   assert.equal(saved.ok,true);
   const raw=storage.values.get(monthlyDraftKey(2026,11));
   assert.ok(raw);
   const restored=loadMonthlyDraft(storage,2026,11);
   assert.equal(restored.status,"loaded");
   if(restored.status!=="loaded")throw Error("missing meal data");
-  assert.equal(restored.mealBreakPolicy,"v1");
-  assert.deepEqual(restored.mealBreaks,generated.mealBreaks);
+  assert.equal(restored.mealBreakPolicy,"v2");
+  assert.deepEqual(restored.mealBreaks,[]);
   assert.deepEqual(restored.assignments,generated.candidateAssignments);
-  const work=restored.assignments.filter(a=>
+  assert.equal(restored.assignments.filter(a=>
+    a.date==="2026-11-02").length,1);
+  const firstWeek=restored.assignments.filter(a=>
     a.date>="2026-11-02"&&a.date<"2026-11-09");
-  const meals=restored.mealBreaks.filter(b=>
-    b.date>="2026-11-02"&&b.date<"2026-11-09");
-  const checked=certifySchedule({
+  const report=certifySchedule({
     period:{mode:"weekly",start:"2026-11-02"},
     team:{members:[{id:ANA,name:"Ana",active:true}]},
-    openingHours:hours,candidateAssignments:work,
-    mealBreakPolicy:"v1",mealBreaks:meals,
+    openingHours:hours,candidateAssignments:firstWeek,
+    mealBreakPolicy:"v2",
   });
-  assert.equal(checked.status,"valid");
-  assert.equal(checked.weeks[0].actualMinutes,2400);
+  // With one person and a 10h opening, 40h are possible but full
+  // coverage is impossible while that person takes a one-hour meal.
+  assert.equal(report.status,"invalid");
+  assert.equal(report.weeks[0].actualMinutes,2400);
+  assert.ok(report.issues.some(i=>i.code==="OPENING_UNCOVERED"));
   assert.equal(storage.values.get(monthlyDraftKey(2026,11)),raw);
+});
+
+test("Rascunho experimental v1 com refeição separada permanece legível",()=>{
+  const storage=store();
+  const oldWork=[
+    {memberId:ANA,date:"2026-11-02",start:"09:00",end:"12:00"},
+    {memberId:ANA,date:"2026-11-02",start:"13:00",end:"18:00"},
+  ];
+  const oldMeals=[{memberId:ANA,date:"2026-11-02",
+    start:"12:00",end:"13:00"}];
+  assert.equal(saveMonthlyDraft(storage,2026,11,
+    oldWork,null,oldMeals,"v1").ok,true);
+  const restored=loadMonthlyDraft(storage,2026,11);
+  assert.equal(restored.status,"loaded");
+  if(restored.status==="loaded"){
+    assert.equal(restored.mealBreakPolicy,"v1");
+    assert.deepEqual(restored.assignments,oldWork);
+    assert.deepEqual(restored.mealBreaks,oldMeals);
+  }
 });
 
 test("Rascunhos antigos continuam legíveis sem inventar pausas retroativas",()=>{
