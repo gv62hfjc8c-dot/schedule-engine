@@ -26,7 +26,8 @@ export type CertificationIssueCode=
   | "WEEKLY_HOURS_EXCESS"|"WEEKLY_DAYS_OFF_MISMATCH"|"CONTEXT_INCOMPLETE"
   | "INVALID_MEAL_BREAK"|"INVALID_MEAL_POLICY"|"MEAL_BREAK_MISSING"
   | "MEAL_BREAK_UNNECESSARY"|"MEAL_BREAK_TOO_EARLY"
-  | "MEAL_BREAK_OVERLAP"|"MULTIPLE_SHIFTS_SAME_DAY"|"OPENING_UNCOVERED";
+  | "MEAL_BREAK_OVERLAP"|"MULTIPLE_SHIFTS_SAME_DAY"|"OPENING_UNCOVERED"
+  | "SHORT_OPENING_INCOMPLETE";
 
 export interface CertificationIssue {
   code:CertificationIssueCode;
@@ -272,6 +273,26 @@ export function certifySchedule(input:CertificationInput):CertificationReport {
           }));
       for(const shift of proposed){
         const effective=assignmentMinutes(shift);
+        // A short day is defined by actual COMPANY opening, not by
+        // which weekday it is. Every assigned worker covers the ENTIRE
+        // short opening; nobody is allowed a partial shift there.
+        const opening=validatedOpeningHours.days[
+          (new Date(date+"T12:00:00Z").getUTCDay()+6)%7
+        ].intervals;
+        const shortMinutes=opening.reduce((sum,span)=>
+          sum+clockMinutes(span.end)-clockMinutes(span.start),0);
+        if(shortMinutes>0 &&
+          shortMinutes<=SHORT_SHIFT_MAX_WORK_MINUTES){
+          const first=opening[0];
+          const last=opening[opening.length-1];
+          if(effective!==shortMinutes ||
+            shift.start!==first.start || shift.end!==last.end)
+            problems.push(issue("SHORT_OPENING_INCOMPLETE",
+              "Um colaborador escalado num dia curto deve cumprir toda a janela de funcionamento.",{
+                memberId,date,
+                requiredMinutes:shortMinutes,actualMinutes:effective,
+              }));
+        }
         const meal=shift.mealBreak;
         if(!meal && effective>SHORT_SHIFT_MAX_WORK_MINUTES){
           problems.push(issue("MEAL_BREAK_MISSING",
