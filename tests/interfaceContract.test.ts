@@ -93,17 +93,19 @@ test("O calendário pode filtrar por colaborador sem alterar geração ou grava�
   assert.match(calendarScheduler,/O filtro mostra apenas este colaborador/);
   // Both certification and persistence must still receive ALL assignments.
   assert.match(calendarScheduler,/preview\.candidateAssignments,revision/);
-  assert.match(calendarScheduler,/certificationForSaved\(currentSources,year,month,\s*preview\.candidateAssignments,preview\.mealBreaks,"v1"\)/);
+  assert.match(calendarScheduler,/certificationForSaved\(currentSources,year,month,\s*preview\.candidateAssignments,\[\],"v2"\)/);
   assert.doesNotMatch(calendarScheduler,/saveMonthlyDraftToBrowser\(\s*year,month,view/);
 });
 
 
-test("Pausas de refeição explícitas são mostradas e guardadas com a proposta completa",()=>{
-  assert.match(calendarScheduler,/mealBreakPolicy:"v1"/);
-  assert.match(calendarScheduler,/preview\.mealBreaks,"v1"/);
-  assert.match(calendarScheduler,/dayMealBreaks\.map/);
+test("Um único turno contém a pausa, sem criar dois turnos de trabalho",()=>{
+  assert.match(calendarScheduler,/mealBreakPolicy:"v2"/);
+  assert.match(calendarScheduler,/preview\.candidateAssignments,revision/);
+  assert.match(calendarScheduler,/undefined,"v2"/);
+  assert.match(calendarScheduler,/item\.assignment\.mealBreak/);
+  assert.match(calendarScheduler,/Turno \{item\.assignment\.start\}/);
+  assert.match(calendarScheduler,/h de trabalho efetivo/);
   assert.match(calendarScheduler,/Pausa para refeição/);
-  assert.match(calendarScheduler,/1 hora, não contabilizada como trabalho/);
-  assert.match(calendarScheduler,/Pausa \{meal\.start\}/);
+  assert.match(calendarScheduler,/gapStart/);
   assert.doesNotMatch(calendarScheduler,/name="mealDuration"/);
 });
