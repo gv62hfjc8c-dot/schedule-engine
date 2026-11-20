@@ -272,3 +272,88 @@ test("Caso real: quatro colaboradores com 1/2 dias sem trabalho mantêm cobertur
   assert.ok(sat.every(a=>!a.mealBreak));
   assert.equal(result.candidateAssignments.length,21);
 });
+
+
+test("Jornada curta completa: cada pessoa escalada cumpre abertura, em qualquer dia da semana",()=>{
+  for(let shortDay=0;shortDay<7;shortDay++){
+    const d=scenario(7);
+    const hours=d.openingHours as ReturnType<typeof suggestedWeeklyOpeningHours>;
+    const closedDay=shortDay===6?5:6;
+    for(let day=0;day<7;day++){
+      hours.days[day].intervals=day===closedDay?[]:
+        day===shortDay?[{start:"09:00",end:"13:00"}]:
+          [{start:"09:00",end:"19:00"}];
+    }
+    d.team={members:[ANA,RUI,
+      "1a2b3c4d-3333-4444-8aaa-123456789abe",
+      "1a2b3c4d-3333-4444-8aaa-123456789abf",
+    ].map((id,i)=>({
+      id,name:"Pessoa "+i,active:true,weeklyDaysOff:i===0?1:2,
+    }))};
+    const result=generated(d);
+    assert.equal(result.status,"valid",
+      "Dia curto "+hours.days[shortDay].day+": "+
+      JSON.stringify(result.certification.issues.slice(0,3)));
+    const date=new Date(Date.UTC(2026,10,2+shortDay))
+      .toISOString().slice(0,10);
+    const shortShifts=result.candidateAssignments.filter(a=>a.date===date);
+    assert.ok(shortShifts.length>0);
+    for(const shift of shortShifts){
+      assert.deepEqual([shift.start,shift.end],["09:00","13:00"]);
+      assert.equal(assignmentMinutes(shift),240);
+      assert.equal(shift.mealBreak,undefined);
+    }
+    assert.ok(result.certification.weeks.every(w=>w.actualMinutes===2400));
+  }
+});
+
+test("O certificador independente rejeita um turno parcial de 3h numa janela 09-13",()=>{
+  const d=scenario(6);
+  const hours=d.openingHours as ReturnType<typeof suggestedWeeklyOpeningHours>;
+  hours.days[5].intervals=[{start:"09:00",end:"13:00"}];
+  const out=generated(d);
+  assert.equal(out.status,"valid",JSON.stringify(out.certification.issues));
+  const original=out.candidateAssignments.find(a=>a.date==="2026-11-07")!;
+  assert.ok(original);
+  const shortened={...original,start:"10:00"};
+  const tampered=out.candidateAssignments.map(a=>a===original?shortened:a);
+  const report=certifySchedule({...d,candidateAssignments:tampered});
+  assert.equal(report.status,"invalid");
+  assert.ok(report.issues.some(i=>i.code==="SHORT_OPENING_INCOMPLETE"&&
+    i.memberId===original.memberId && i.date===original.date &&
+    i.requiredMinutes===240 && i.actualMinutes===180));
+});
+
+test("Em dias com várias janelas curtas, nunca cria segmentos parciais para fechar 40h",()=>{
+  const d=scenario(7);
+  const hours=d.openingHours as ReturnType<typeof suggestedWeeklyOpeningHours>;
+  for(let i=0;i<7;i++)
+    hours.days[i].intervals=i<4?[{start:"09:00",end:"19:00"}]:
+      [{start:"09:00",end:"13:00"}];
+  const result=generated(d);
+  for(const shift of result.candidateAssignments){
+    const index=(new Date(shift.date+"T12:00:00Z").getUTCDay()+6)%7;
+    if(index>=4){
+      assert.deepEqual([shift.start,shift.end],["09:00","13:00"]);
+      assert.equal(assignmentMinutes(shift),240);
+      assert.equal(shift.mealBreak,undefined);
+    }
+  }
+  assert.equal(result.status,"valid",
+    JSON.stringify(result.certification.issues.slice(0,4)));
+  assert.ok(result.certification.weeks.every(w=>w.actualMinutes===2400));
+});
+
+test("Jornada curta de 3h também é integral, sem regra específica para sábado",()=>{
+  const d=scenario(6);
+  const hours=d.openingHours as ReturnType<typeof suggestedWeeklyOpeningHours>;
+  hours.days[2].intervals=[{start:"10:00",end:"13:00"}];
+  const out=generated(d);
+  assert.equal(out.status,"valid",JSON.stringify(out.certification.issues));
+  const wednesday=out.candidateAssignments.filter(a=>a.date==="2026-11-04");
+  assert.ok(wednesday.length>0);
+  for(const shift of wednesday){
+    assert.deepEqual([shift.start,shift.end],["10:00","13:00"]);
+    assert.equal(assignmentMinutes(shift),180);
+  }
+});
