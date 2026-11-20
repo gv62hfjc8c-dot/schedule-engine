@@ -7,6 +7,7 @@ export interface MealDayRequest {
   memberId:string;
   date:string;
   workMinutes:number;
+  shortOpening:boolean;
   memberIndex:number;
   activeCount:number;
   weekIndex:number;
@@ -36,7 +37,8 @@ export function scheduleMealDay(
   const candidates:Candidate[]=requests.map(request=>({
     request,
     options:mealDayOptions(
-      request.memberId,request.date,opening,request.workMinutes
+      request.memberId,request.date,opening,request.workMinutes,
+      request.shortOpening
     ),
   }));
   // Workers with few available positions must be placed first.
