@@ -84,6 +84,10 @@ test("O calendário pode filtrar por colaborador sem alterar geração ou grava�
   assert.match(calendarScheduler,/Toda a equipa/);
   assert.match(calendarScheduler,/calendarScheduleView\(data,selectedMemberId\)/);
   assert.match(calendarScheduler,/calendar-member-shifts/);
+  assert.match(calendarScheduler,/calendar-member-empty/);
+  assert.match(calendarScheduler,/selectedMemberId=\{selectedMemberId\}/);
+  assert.match(calendarScheduler,/onSelectMember=\{setSelectedMemberId\}/);
+  assert.match(calendarScheduler,/selectedMemberId!==null && data.length>0/);
   assert.match(calendarScheduler,/view\.totalMinutes/);
   assert.match(calendarScheduler,/view\.workingDays/);
   assert.match(calendarScheduler,/O filtro mostra apenas este colaborador/);
