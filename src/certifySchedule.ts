@@ -28,7 +28,7 @@ export type CertificationIssueCode=
   | "INVALID_MEAL_BREAK"|"INVALID_MEAL_POLICY"|"MEAL_BREAK_MISSING"
   | "MEAL_BREAK_UNNECESSARY"|"MEAL_BREAK_TOO_EARLY"
   | "MEAL_BREAK_OVERLAP"|"MULTIPLE_SHIFTS_SAME_DAY"|"OPENING_UNCOVERED"
-  | "SHORT_OPENING_INCOMPLETE";
+  | "SHORT_OPENING_INCOMPLETE" | "INVALID_HOURS_POLICY";
 
 export interface CertificationIssue {
   code:CertificationIssueCode;
@@ -76,6 +76,8 @@ export interface CertificationInput {
   candidateAssignments:unknown;
   /** Explicit V1 rule for newly generated schedules; old drafts remain legacy. */
   mealBreakPolicy?:"v1"|"v2";
+  /** Rolling 28 days is an optimization target, not an exact weekly debt. */
+  hoursPolicy?:"rolling28";
   mealBreaks?:unknown;
   externalContext?:ExternalScheduleContext;
 }
@@ -108,8 +110,9 @@ function externalDatesFor(week:DateRange,period:PlanningPeriod):string[] {
  * Priority: a provable violation => invalid; otherwise missing external
  * context => insufficient_context; otherwise all hard constraints => valid.
  *
- * The 40-hour requirement is checked per COMPLETE Monday-Sunday week, never
- * averaged across 14/21/28 days or across a calendar month.
+ * Legacy proposals require exactly 40h on every complete civil week.
+ * The rolling28 opt-in retains structural hard constraints but treats 40h
+ * per week as a balancing reference, not an obligatory exact total.
  */
 export function certifySchedule(input:CertificationInput):CertificationReport {
   let period:PlanningPeriod;
@@ -146,6 +149,9 @@ export function certifySchedule(input:CertificationInput):CertificationReport {
   const rawExternal=input.externalContext?.assignments??[];
   const rawDates=input.externalContext?.completeDates??[];
   const mealPolicy=input.mealBreakPolicy;
+  if(input.hoursPolicy!==undefined && input.hoursPolicy!=="rolling28")
+    return report("invalid",period,[issue("INVALID_HOURS_POLICY",
+      "A política de distribuição das horas é inválida.")]);
   const rawMealBreaks=input.mealBreaks??[];
   if((mealPolicy!==undefined && mealPolicy!=="v1" &&
       mealPolicy!=="v2") ||
@@ -468,7 +474,8 @@ export function certifySchedule(input:CertificationInput):CertificationReport {
           }));
       // With incomplete context a known EXCESS is still provably invalid.
       if(!complete){
-        if(total>REQUIRED_WEEKLY_MINUTES)
+        if(input.hoursPolicy!=="rolling28" &&
+          total>REQUIRED_WEEKLY_MINUTES)
           problems.push(issue("WEEKLY_HOURS_EXCESS",
             "A semana excede 40 horas mesmo sem o contexto completo.",{
               memberId:member.id,weekStart:week.start,
@@ -483,6 +490,9 @@ export function certifySchedule(input:CertificationInput):CertificationReport {
             memberId:member.id,weekStart:week.start,
             requiredDaysOff:member.weeklyDaysOff,actualDaysOff:knownDaysOff,
           }));
+      // Rolling 28-day hours are a SOFT reference. No arbitrary payroll
+      // credit or legal compliance is inferred from this certification.
+      if(input.hoursPolicy==="rolling28")continue;
       const comparison=compareWeeklyHours(total);
       if(comparison.kind==="missing")
         problems.push(issue("WEEKLY_HOURS_MISSING",

@@ -1,5 +1,5 @@
 import {
-  enumerateCivilDays,inRange,resolvePlanningPeriod,type PlanningPeriod,
+  addCivilDays,enumerateCivilDays,inRange,resolvePlanningPeriod,type PlanningPeriod,
 } from "./schedulePeriods";
 import {
   assignmentMinutes,clockMinutes,
@@ -21,12 +21,12 @@ type WriteStorage=Pick<Storage,"getItem"|"setItem">;
 
 export type MonthlyDraftLoad=
   | {status:"loaded";assignments:WorkAssignment[];
-    mealBreaks:MealBreak[];mealBreakPolicy?:"v1"|"v2";revision:string}
+    mealBreaks:MealBreak[];mealBreakPolicy?:"v1"|"v2";hoursPolicy?:"rolling28";revision:string}
   | {status:"empty";assignments:null;revision:null}
   | {status:"invalid"|"unavailable";assignments:null;revision:null};
 export type MonthlyDraftSave=
   | {ok:true;revision:string;assignments:WorkAssignment[];
-    mealBreaks:MealBreak[];mealBreakPolicy?:"v1"|"v2"}
+    mealBreaks:MealBreak[];mealBreakPolicy?:"v1"|"v2";hoursPolicy?:"rolling28"}
   | {ok:false;code:"invalid"|"unavailable"|"conflict";message:string};
 export type ExternalContextLoad=
   | {ok:true;context:ExternalScheduleContext}
@@ -112,10 +112,15 @@ export function loadMonthlyDraft(
       return {status:"invalid",assignments:null,revision:null};
     const document=value as {
       version?:unknown;year?:unknown;month?:unknown;assignments?:unknown;
-      mealBreakPolicy?:unknown;mealBreaks?:unknown;
+      mealBreakPolicy?:unknown;mealBreaks?:unknown;hoursPolicy?:unknown;
     };
     if(document.version!==VERSION||document.year!==year||document.month!==month)
       return {status:"invalid",assignments:null,revision:null};
+    if(document.hoursPolicy!==undefined &&
+      (document.hoursPolicy!=="rolling28" || document.mealBreakPolicy!=="v2"))
+      return {status:"invalid",assignments:null,revision:null};
+    const hoursPolicy=document.hoursPolicy==="rolling28"
+      ?{hoursPolicy:"rolling28" as const}:{};
     const assignments=validatedAssignments(document.assignments,year,month);
     if(assignments===null)return {status:"invalid",assignments:null,revision:null};
     if(document.mealBreakPolicy===undefined && document.mealBreaks===undefined)
@@ -125,7 +130,7 @@ export function loadMonthlyDraft(
       if(!validSingleShiftMeals(assignments))
         return {status:"invalid",assignments:null,revision:null};
       return {status:"loaded",assignments,mealBreaks:[],
-        mealBreakPolicy:"v2",revision:raw};
+        mealBreakPolicy:"v2",...hoursPolicy,revision:raw};
     }
     if(document.mealBreakPolicy!=="v1")
       return {status:"invalid",assignments:null,revision:null};
@@ -144,11 +149,15 @@ export function saveMonthlyDraft(
   storage:WriteStorage,year:number,month:number,
   input:unknown,expectedRevision:string|null,
   mealBreaksInput:unknown=undefined,mealBreakPolicy:"v1"|"v2"|undefined=undefined,
+  hoursPolicy:"rolling28"|undefined=undefined,
 ):MonthlyDraftSave {
   const key=monthlyDraftKey(year,month);
   const assignments=validatedAssignments(input,year,month);
   if(assignments===null)
     return {ok:false,code:"invalid",message:"O horário contém turnos inválidos ou fora do mês selecionado."};
+  if(hoursPolicy!==undefined &&
+    (hoursPolicy!=="rolling28" || mealBreakPolicy!=="v2"))
+    return {ok:false,code:"invalid",message:"A política de horas da proposta é inválida."};
   if(mealBreakPolicy==="v2" && !validSingleShiftMeals(assignments))
     return {ok:false,code:"invalid",
       message:"Cada turno normal exige uma pausa válida dentro do turno."};
@@ -169,11 +178,13 @@ export function saveMonthlyDraft(
     version:VERSION,year,month,assignments,
     ...(mealBreakPolicy==="v1"?{mealBreakPolicy,mealBreaks}:{}),
     ...(mealBreakPolicy==="v2"?{mealBreakPolicy}:{}),
+    ...(hoursPolicy?{hoursPolicy}:{}),
   });
   try{
     storage.setItem(key,revision);
     return {ok:true,revision,assignments,mealBreaks,
       ...(mealBreakPolicy?{mealBreakPolicy}:{}),
+      ...(hoursPolicy?{hoursPolicy}:{}),
     };
   }catch{return {ok:false,code:"unavailable",message:"Não foi possível guardar a proposta neste dispositivo."};}
 }
@@ -223,11 +234,12 @@ export function loadMonthlyDraftFromBrowser(year:number,month:number):MonthlyDra
 }
 export function saveMonthlyDraftToBrowser(
   year:number,month:number,assignments:unknown,expectedRevision:string|null,
-  mealBreaks?:unknown,mealBreakPolicy?:"v1"|"v2"
+  mealBreaks?:unknown,mealBreakPolicy?:"v1"|"v2",
+  hoursPolicy?:"rolling28"
 ):MonthlyDraftSave {
   try{return saveMonthlyDraft(
     window.localStorage,year,month,assignments,expectedRevision,
-    mealBreaks,mealBreakPolicy
+    mealBreaks,mealBreakPolicy,hoursPolicy
   );}
   catch{return {ok:false,code:"unavailable",message:"Não foi possível guardar neste dispositivo."};}
 }
@@ -236,4 +248,49 @@ export function readExternalMonthlyContextFromBrowser(
 ):ExternalContextLoad {
   try{return readExternalMonthlyContext(window.localStorage,year,month);}
   catch{return {ok:false,status:"unavailable",message:"O armazenamento de horários não está disponível neste dispositivo."};}
+}
+
+/**
+ * Read up to 27 civil dates preceding a month. A missing monthly draft means
+ * UNKNOWN, never zero work or an automatic folga.
+ * The returned values are read-only inputs for rolling balances and planning.
+ */
+export function readPriorRollingHistory(
+  storage:ReadStorage,year:number,month:number
+):ExternalContextLoad {
+  const period=monthPeriod(year,month);
+  const days=enumerateCivilDays({
+    start:addCivilDays(period.start,-27),endExclusive:period.start,
+  });
+  const loaded=new Map<string,MonthlyDraftLoad>();
+  const known:string[]=[];
+  for(const date of days){
+    const [y,m]=date.split("-").map(Number);
+    const key=monthString(y,m);
+    let draft=loaded.get(key);
+    if(!draft){
+      draft=loadMonthlyDraft(storage,y,m);
+      loaded.set(key,draft);
+    }
+    if(draft.status==="invalid"||draft.status==="unavailable")
+      return {ok:false,status:draft.status,
+        message:"Não foi possível ler o histórico de "+key+
+          " para o equilíbrio móvel de 28 dias."};
+    if(draft.status==="loaded")known.push(date);
+  }
+  const knownSet=new Set(known);
+  const assignments=[...loaded.values()]
+    .filter((draft):draft is Extract<MonthlyDraftLoad,{status:"loaded"}>=>
+      draft.status==="loaded")
+    .flatMap(draft=>draft.assignments)
+    .filter(shift=>knownSet.has(shift.date));
+  return {ok:true,context:{assignments,completeDates:known}};
+}
+
+export function readPriorRollingHistoryFromBrowser(
+  year:number,month:number
+):ExternalContextLoad {
+  try{return readPriorRollingHistory(window.localStorage,year,month);}
+  catch{return {ok:false,status:"unavailable",
+    message:"O histórico de horários não está disponível neste dispositivo."};}
 }

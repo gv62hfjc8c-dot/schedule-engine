@@ -181,6 +181,19 @@
   font-size: 12px;
 }
 .schedule-member-summary strong { color: var(--text); }
+.schedule-member-rolling {
+  margin: -3px 0 16px;
+  padding: 10px 13px;
+  border: 1px solid #3f6171;
+  border-radius: 10px;
+  background: rgba(24, 66, 76, .33);
+  color: #bfdbe5;
+  line-height: 1.55;
+  font-size: 12px;
+}
+.schedule-member-rolling p { margin: 0; overflow-wrap: anywhere; }
+.schedule-member-rolling strong { color: #e7f9f8; }
+.schedule-member-rolling small { display: block; margin-top: 4px; color: #acc7d4; font-size: 11px; }
 .calendar-member-shifts {
   display: grid;
   gap: 3px;

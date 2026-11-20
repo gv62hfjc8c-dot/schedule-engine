@@ -6,11 +6,14 @@ import {loadTeamDraftFromBrowser} from "./teamDraftRepository";
 import {loadOpeningHoursDraftFromBrowser} from "./openingHoursDraftRepository";
 import {
   loadMonthlyDraftFromBrowser,saveMonthlyDraftToBrowser,
-  readExternalMonthlyContextFromBrowser,type MonthlyDraftLoad,
+  readExternalMonthlyContextFromBrowser,readPriorRollingHistoryFromBrowser,
+  type MonthlyDraftLoad,
 } from "./monthlyScheduleDraftRepository";
 import {assignmentMinutes,type WorkAssignment} from "./workAssignments";
 import {calendarScheduleView} from "./calendarScheduleView";
 import type {MealBreak} from "./mealBreaks";
+import {calculateRolling28Day} from "./rolling28Day";
+import {enumerateCivilDays,resolvePlanningPeriod} from "./schedulePeriods";
 
 const WEEKDAYS=["Seg","Ter","Qua","Qui","Sex","Sáb","Dom"];
 
@@ -20,12 +23,14 @@ interface SourceSnapshot {
   team:ReturnType<typeof loadTeamDraftFromBrowser>;
   opening:ReturnType<typeof loadOpeningHoursDraftFromBrowser>;
   context:ReturnType<typeof readExternalMonthlyContextFromBrowser>;
+  hoursHistory:ReturnType<typeof readPriorRollingHistoryFromBrowser>;
 }
 function loadSources(year:number,month:number):SourceSnapshot {
   return {
     team:loadTeamDraftFromBrowser(),
     opening:loadOpeningHoursDraftFromBrowser(),
     context:readExternalMonthlyContextFromBrowser(year,month),
+    hoursHistory:readPriorRollingHistoryFromBrowser(year,month),
   };
 }
 function sourceError(sources:SourceSnapshot):string|null {
@@ -34,12 +39,14 @@ function sourceError(sources:SourceSnapshot):string|null {
   if(sources.opening.status!=="loaded")
     return "Configura primeiro o funcionamento da empresa. Consulta Configuração → Funcionamento.";
   if(!sources.context.ok)return sources.context.message;
+  if(!sources.hoursHistory.ok)return sources.hoursHistory.message;
   return null;
 }
 function certificationForSaved(
   sources:SourceSnapshot,year:number,month:number,
   assignments:WorkAssignment[],
-  mealBreaks:MealBreak[]=[],mealBreakPolicy:"v1"|"v2"|undefined=undefined
+  mealBreaks:MealBreak[]=[],mealBreakPolicy:"v1"|"v2"|undefined=undefined,
+  hoursPolicy:"rolling28"|undefined=undefined
 ):CertificationReport|null {
   if(sources.team.status!=="loaded"||
     sources.opening.status!=="loaded"||!sources.context.ok)return null;
@@ -47,13 +54,16 @@ function certificationForSaved(
     period:{mode:"monthly",year,month},
     team:sources.team.value,openingHours:sources.opening.value,
     externalContext:sources.context.context,candidateAssignments:assignments,
-    mealBreaks,mealBreakPolicy,
+    mealBreaks,mealBreakPolicy,hoursPolicy,
   });
 }
-function stateText(report:CertificationReport|null):string {
+function stateText(report:CertificationReport|null,
+  hoursPolicy:"rolling28"|undefined):string {
   if(!report)return "Não foi possível verificar esta proposta com os dados atuais.";
   if(report.status==="valid")
-    return "40 horas semanais e restantes regras implementadas verificadas. Não é uma aprovação definitiva.";
+    return hoursPolicy==="rolling28"
+      ?"Regras obrigatórias implementadas verificadas. A média de 40h por 28 dias é um objetivo de equilíbrio, não um limite legal certificado."
+      :"40 horas semanais e restantes regras implementadas verificadas. Não é uma aprovação definitiva.";
   if(report.status==="insufficient_context")
     return "Proposta por certificar: faltam dados de semanas que atravessam outros meses.";
   return "A proposta tem conflitos de horas, dias sem trabalho, pausas ou cobertura do funcionamento.";
@@ -79,6 +89,12 @@ function MonthWorkspace({
   const [savedPolicy,setSavedPolicy]=useState<"v1"|"v2"|undefined>(
     ()=>initial.status==="loaded"?initial.mealBreakPolicy:undefined
   );
+  const [savedHoursPolicy,setSavedHoursPolicy]=useState<"rolling28"|undefined>(
+    ()=>initial.status==="loaded"?initial.hoursPolicy:undefined
+  );
+  const [hoursHistory,setHoursHistory]=useState(
+    ()=>readPriorRollingHistoryFromBrowser(year,month)
+  );
   const [revision,setRevision]=useState<string|null>(
     ()=>initial.status==="loaded"?initial.revision:null
   );
@@ -94,7 +110,8 @@ function MonthWorkspace({
   const [savedReport,setSavedReport]=useState<CertificationReport|null>(()=>{
     if(initial.status!=="loaded")return null;
     return certificationForSaved(loadSources(year,month),year,month,
-      initial.assignments,initial.mealBreaks,initial.mealBreakPolicy);
+      initial.assignments,initial.mealBreaks,
+      initial.mealBreakPolicy,initial.hoursPolicy);
   });
   const data=preview?.candidateAssignments??saved??[];
   // Legacy PR84 v1 drafts may still carry separate meal records.
@@ -105,6 +122,20 @@ function MonthWorkspace({
   // A display-only projection: certification and saving ALWAYS use full data.
   const view=calendarScheduleView(data,selectedMemberId);
   const byDay=view.byDay;
+  const activeHoursPolicy=preview?"rolling28":savedHoursPolicy;
+  const period=resolvePlanningPeriod({mode:"monthly",year,month});
+  const throughDate=selectedDate??
+    enumerateCivilDays(period).at(-1)!;
+  const hasMonthProposal=preview!==null||saved!==null;
+  const rolling=selectedMemberId!==null&&hasMonthProposal&&hoursHistory.ok
+    ?calculateRolling28Day({
+      memberId:selectedMemberId,throughDate,
+      assignments:[...hoursHistory.context.assignments as WorkAssignment[],...data],
+      completeDates:[...hoursHistory.context.completeDates as string[],
+        ...enumerateCivilDays(period)],
+    }):null;
+  const formatHours=(minutes:number)=>
+    (minutes/60).toLocaleString("pt-PT",{maximumFractionDigits:2})+" h";
   const memberOptions=new Map(names);
   for(const entry of data){
     if(!memberOptions.has(entry.memberId))
@@ -145,14 +176,17 @@ function MonthWorkspace({
       return;
     }
     if(sources.team.status!=="loaded"||
-       sources.opening.status!=="loaded"||!sources.context.ok)return;
+       sources.opening.status!=="loaded"||!sources.context.ok||
+       !sources.hoursHistory.ok)return;
     const result=generateSchedule({
       period:{mode:"monthly",year,month},
       team:sources.team.value,openingHours:sources.opening.value,
       externalContext:sources.context.context,
-      mealBreakPolicy:"v2",
+      mealBreakPolicy:"v2",hoursPolicy:"rolling28",
+      hoursHistory:sources.hoursHistory.context,
     });
     setPreview(result);
+    setHoursHistory(sources.hoursHistory);
     setSourceSignature(JSON.stringify(sources));
     setNames(new Map(sources.team.value.members.map(member=>[member.id,member.name])));
     if(selectedMemberId!==null &&
@@ -180,7 +214,7 @@ function MonthWorkspace({
       return;
     }
     const currentReport=certificationForSaved(currentSources,year,month,
-      preview.candidateAssignments,[],"v2");
+      preview.candidateAssignments,[],"v2","rolling28");
     if(!currentReport || currentReport.status==="invalid"){
       setFeedback({kind:"error",message:"A proposta não passa a certificação atual. Não foi guardada."});
       return;
@@ -189,7 +223,7 @@ function MonthWorkspace({
       !window.confirm("Substituir a proposta guardada deste mês? Os horários dos outros meses não serão alterados."))return;
     const result=saveMonthlyDraftToBrowser(
       year,month,preview.candidateAssignments,revision,
-      undefined,"v2"
+      undefined,"v2","rolling28"
     );
     if(!result.ok){
       setFeedback({kind:"error",message:result.message});
@@ -198,6 +232,7 @@ function MonthWorkspace({
     setSaved(result.assignments);
     setSavedMealBreaks(result.mealBreaks);
     setSavedPolicy(result.mealBreakPolicy);
+    setSavedHoursPolicy(result.hoursPolicy);
     setRevision(result.revision);
     setSavedReport(currentReport);
     setPreview(null);
@@ -261,7 +296,7 @@ function MonthWorkspace({
           </span>
           <p>{legacyDraft
             ?"Este rascunho não foi certificado pelas regras novas de pausas e cobertura."
-            :stateText(report)}</p>
+            :stateText(report,activeHoursPolicy)}</p>
           {report&&report.issues.length>0&&<div className="schedule-issues">
             <strong>Problemas encontrados</strong>
             <ul>
@@ -304,6 +339,24 @@ function MonthWorkspace({
               {" · "}{(view.totalMinutes/60).toLocaleString("pt-PT")} h
               {" · "}{view.workingDays} dias com turno neste mês
             </p>}
+          {selectedMemberId!==null&&hasMonthProposal&&
+            <div className="schedule-member-rolling" role="status">
+              {rolling?.status==="complete"
+                ?<p><strong>Últimos 28 dias ({rolling.start} a {rolling.endInclusive})</strong>
+                  {" · "}{formatHours(rolling.actualMinutes!)} planeadas
+                  {" / "}{formatHours(rolling.targetMinutes!)} de referência
+                  {" · Desvio "}{rolling.differenceMinutes!>0?"+":""}
+                  {formatHours(rolling.differenceMinutes!)}</p>
+                :<p><strong>Últimos 28 dias</strong>
+                  {" · Saldo por apurar: "}
+                  {rolling?.status==="insufficient_context"
+                    ?rolling.missingDates.length+" dias sem histórico confirmado."
+                    :hoursHistory.ok
+                      ?"Não existem dados suficientes para este cálculo."
+                      :hoursHistory.message}
+                </p>}
+              <small>Indicador de planeamento; não representa dívida, crédito salarial nem trabalho realizado.</small>
+            </div>}
           <div className="calendar-grid" aria-label={monthLabel(year,month-1)}>
             {WEEKDAYS.map(day=><span className="weekday" key={day}>{day}</span>)}
             {cells.map((cell,index)=>cell.day===null

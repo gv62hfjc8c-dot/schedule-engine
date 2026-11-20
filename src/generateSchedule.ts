@@ -5,7 +5,7 @@ import {
 import {validateTeamRoster} from "./team";
 import {WEEKDAYS,validateWeeklyOpeningHours} from "./operatingHours";
 import {
-  civilDayOfWeek,daysBetween,enumerateCivilDays,inRange,type DateRange,
+  addCivilDays,civilDayOfWeek,daysBetween,enumerateCivilDays,inRange,type DateRange,
 } from "./schedulePeriods";
 import {
   assignmentMinutes,clockMinutes,validateWorkAssignment,
@@ -15,10 +15,16 @@ import {REQUIRED_WEEKLY_MINUTES} from "./weeklyHours";
 import {effectiveMealDayCapacity} from "./mealBreaks";
 import {scheduleMealDay,type MealDayRequest} from "./mealCoveragePlanner";
 import {shortOpeningDays} from "./shortOpenings";
+import {rollingWeekGuidance} from "./rollingHoursPlan";
+import type {ExternalScheduleContext} from "./certifySchedule";
 
 export type GenerationInput=Omit<
   CertificationInput,"candidateAssignments"|"mealBreaks"|"mealBreakPolicy"
-> & {mealBreakPolicy?:"v2"};
+> & {
+  mealBreakPolicy?:"v2";
+  /** Read-only history for rolling load guidance, never mutated or certified as an approval. */
+  hoursHistory?:ExternalScheduleContext;
+};
 
 export interface GenerationShortfall {
   memberId:string;
@@ -546,6 +552,44 @@ export function generateSchedule(input:GenerationInput):GenerationResult {
     .filter((x):x is WorkAssignment=>x!==null);
   const completeDates=new Set(input.externalContext?.completeDates as string[]|undefined??[]);
   const candidates:WorkAssignment[]=[];
+  // Merge known external and prior-28-day history without counting the same
+  // stored shift twice. A known date with no work remains explicitly known.
+  const historyRaw=input.hoursHistory;
+  if(historyRaw && (!Array.isArray(historyRaw.assignments) ||
+    !Array.isArray(historyRaw.completeDates))){
+    return {
+      status:"invalid_input",candidateAssignments:[],shortfalls:[],
+      certification:{...emptyCertification,status:"invalid",issues:[
+        ...emptyCertification.issues,{code:"INVALID_ASSIGNMENT",
+          message:"O histórico de horas contém dados inválidos."},
+      ]},
+    };
+  }
+  const historicAssignments=(historyRaw?.assignments??[]) as unknown[];
+  if(historicAssignments.some(value=>!validateWorkAssignment(value))){
+    return {
+      status:"invalid_input",candidateAssignments:[],shortfalls:[],
+      certification:{...emptyCertification,status:"invalid",issues:[
+        ...emptyCertification.issues,{code:"INVALID_ASSIGNMENT",
+          message:"Há turnos inválidos no histórico."},
+      ]},
+    };
+  }
+  const knownHourDates=new Set<string>([
+    ...completeDates,...(historyRaw?.completeDates as string[]|undefined??[]),
+  ]);
+  const historicHours=new Map<string,number>();
+  const seenHistoricShifts=new Set<string>();
+  for(const shift of [...externalAssignments,
+    ...historicAssignments as WorkAssignment[]]){
+    const normalized={...shift,memberId:shift.memberId.toLowerCase()};
+    const signature=JSON.stringify(normalized);
+    if(seenHistoricShifts.has(signature))continue;
+    seenHistoricShifts.add(signature);
+    const key=normalized.memberId+"|"+normalized.date;
+    historicHours.set(key,(historicHours.get(key)??0)+
+      assignmentMinutes(normalized));
+  }
   const mealCapacityCache=new Map<string,number>();
   const shortfalls:GenerationShortfall[]=[];
   const requestsByDate=new Map<string,{
@@ -565,7 +609,11 @@ export function generateSchedule(input:GenerationInput):GenerationResult {
       const externalMinutes=externalAssignments.reduce((sum,entry)=>
         entry.memberId.toLowerCase()===member.id && inRange(entry.date,week)
           ? sum+assignmentMinutes(entry):sum,0);
-      const target=Math.max(0,REQUIRED_WEEKLY_MINUTES-externalMinutes);
+      const weeklyReference=input.hoursPolicy==="rolling28" && contextComplete
+        ?rollingWeekGuidance(week.start,member.id,
+          knownHourDates,historicHours).targetMinutes
+        :REQUIRED_WEEKLY_MINUTES;
+      const target=Math.max(0,weeklyReference-externalMinutes);
       const plans=availableDays(
         week,period,hours.value,input.mealBreakPolicy,mealCapacityCache,
         shortDays
@@ -590,6 +638,11 @@ export function generateSchedule(input:GenerationInput):GenerationResult {
             (weeklyUnassigned.get(plan.date)??0)+1);
       }
       const generatedMinutes=plans.reduce((sum,plan)=>sum+plan.allocated,0);
+      // At this point v2 shifts have not been positioned within the opening.
+      // Store their intended effective minutes for later weekly guidance;
+      // the independent certification checks the actual final assignments.
+      for(const plan of plans)
+        historicHours.set(member.id+"|"+plan.date,plan.allocated);
       for(const plan of plans){
         if(plan.allocated<=0)continue;
         if(input.mealBreakPolicy==="v2"){
@@ -609,7 +662,8 @@ export function generateSchedule(input:GenerationInput):GenerationResult {
             member.id,plan,memberIndex,activeMembers.length));
         }
       }
-      if(contextComplete && generatedMinutes+externalMinutes<REQUIRED_WEEKLY_MINUTES){
+      if(input.hoursPolicy!=="rolling28" &&
+        contextComplete && generatedMinutes+externalMinutes<REQUIRED_WEEKLY_MINUTES){
         shortfalls.push({
           memberId:member.id,weekStart:week.start,
           externalMinutes,generatedMinutes,
@@ -619,6 +673,10 @@ export function generateSchedule(input:GenerationInput):GenerationResult {
         });
       }
     }
+    // Every editable civil date in this completed week is now known,
+    // including closed days and days without assigned work.
+    for(const date of enumerateCivilDays(week))
+      if(inRange(date,period))knownHourDates.add(date);
   }
   if(input.mealBreakPolicy==="v2"){
     // Schedule all colleagues TOGETHER on each day. A meal is an embedded
@@ -656,7 +714,8 @@ export function generateSchedule(input:GenerationInput):GenerationResult {
         const generatedMinutes=candidates.reduce((sum,entry)=>
           entry.memberId===member.id && inRange(entry.date,week)
             ?sum+assignmentMinutes(entry):sum,0);
-        if(externalMinutes+generatedMinutes<REQUIRED_WEEKLY_MINUTES)
+        if(input.hoursPolicy!=="rolling28" &&
+          externalMinutes+generatedMinutes<REQUIRED_WEEKLY_MINUTES)
           shortfalls.push({
             memberId:member.id,weekStart:week.start,
             externalMinutes,generatedMinutes,
