@@ -6,7 +6,7 @@ import {
 } from "./schedulePeriods";
 import {
   assignmentMinutes,assignmentsOverlap,isWithinOpeningHours,
-  validateWorkAssignment,type WorkAssignment,
+  effectiveWorkIntervals,validateWorkAssignment,type WorkAssignment,
 } from "./workAssignments";
 import {compareWeeklyHours,REQUIRED_WEEKLY_MINUTES} from "./weeklyHours";
 import {validateMealBreak,SHORT_SHIFT_MAX_WORK_MINUTES,
@@ -26,7 +26,7 @@ export type CertificationIssueCode=
   | "WEEKLY_HOURS_EXCESS"|"WEEKLY_DAYS_OFF_MISMATCH"|"CONTEXT_INCOMPLETE"
   | "INVALID_MEAL_BREAK"|"INVALID_MEAL_POLICY"|"MEAL_BREAK_MISSING"
   | "MEAL_BREAK_UNNECESSARY"|"MEAL_BREAK_TOO_EARLY"
-  | "MEAL_BREAK_OVERLAP";
+  | "MEAL_BREAK_OVERLAP"|"MULTIPLE_SHIFTS_SAME_DAY"|"OPENING_UNCOVERED";
 
 export interface CertificationIssue {
   code:CertificationIssueCode;
@@ -39,6 +39,8 @@ export interface CertificationIssue {
   actualMinutes?:number;
   requiredDaysOff?:number;
   actualDaysOff?:number;
+  gapStart?:string;
+  gapEnd?:string;
 }
 
 export interface WeeklyWorkSummary {
@@ -71,7 +73,7 @@ export interface CertificationInput {
   /** Entire proposed schedule within the selected period. Never a patch. */
   candidateAssignments:unknown;
   /** Explicit V1 rule for newly generated schedules; old drafts remain legacy. */
-  mealBreakPolicy?:"v1";
+  mealBreakPolicy?:"v1"|"v2";
   mealBreaks?:unknown;
   externalContext?:ExternalScheduleContext;
 }
@@ -142,8 +144,12 @@ export function certifySchedule(input:CertificationInput):CertificationReport {
   const rawDates=input.externalContext?.completeDates??[];
   const mealPolicy=input.mealBreakPolicy;
   const rawMealBreaks=input.mealBreaks??[];
-  if((mealPolicy!==undefined && mealPolicy!=="v1") ||
-    (mealPolicy==="v1" && !Array.isArray(rawMealBreaks)))
+  if((mealPolicy!==undefined && mealPolicy!=="v1" &&
+      mealPolicy!=="v2") ||
+    (mealPolicy==="v1" && !Array.isArray(rawMealBreaks)) ||
+    (mealPolicy==="v2" && (
+      !Array.isArray(rawMealBreaks)||rawMealBreaks.length>0
+    )))
     return report("invalid",period,[
       issue("INVALID_MEAL_POLICY","A configuração de pausa de refeição é inválida."),
     ]);
@@ -249,6 +255,81 @@ export function certifySchedule(input:CertificationInput):CertificationReport {
         }));
     group.push(entry);
     groups.set(key,group);
+  }
+
+  // PR84 v2: one actual shift per person per day, meal INSIDE the shift.
+  // Coverage is a hard constraint only for newly generated v2 proposals.
+  // Legacy saved proposals keep their original certification semantics.
+  if(mealPolicy==="v2"){
+    for(const [key,dayWork] of groups){
+      const proposed=dayWork.filter(entry=>inRange(entry.date,period));
+      if(proposed.length===0)continue;
+      const [memberId,date]=key.split("|");
+      if(proposed.length!==1)
+        problems.push(issue("MULTIPLE_SHIFTS_SAME_DAY",
+          "Um colaborador deve ter um único turno por dia.",{
+            memberId,date,
+          }));
+      for(const shift of proposed){
+        const effective=assignmentMinutes(shift);
+        const meal=shift.mealBreak;
+        if(!meal && effective>SHORT_SHIFT_MAX_WORK_MINUTES){
+          problems.push(issue("MEAL_BREAK_MISSING",
+            "Uma jornada normal exige pausa dentro do próprio turno.",{
+              memberId,date,
+            }));
+          continue;
+        }
+        if(!meal)continue;
+        const start=clockMinutes(meal.start),end=clockMinutes(meal.end);
+        if(end-start!==60)
+          problems.push(issue("INVALID_MEAL_BREAK",
+            "A pausa para refeição deve durar exatamente uma hora.",{
+              memberId,date,
+            }));
+        if(effective<=SHORT_SHIFT_MAX_WORK_MINUTES)
+          problems.push(issue("MEAL_BREAK_UNNECESSARY",
+            "Uma jornada curta não admite pausa de refeição.",{
+              memberId,date,
+            }));
+        if(start<clockMinutes(shift.start)+
+          MEAL_BREAK_EARLIEST_AFTER_ENTRY_MINUTES)
+          problems.push(issue("MEAL_BREAK_TOO_EARLY",
+            "A pausa só pode começar três horas após a entrada.",{
+              memberId,date,
+            }));
+      }
+    }
+    function hhmm(t:number):string {
+      return String(Math.floor(t/60)).padStart(2,"0")+":"+
+        String(t%60).padStart(2,"0");
+    }
+    for(const date of enumerateCivilDays(period)){
+      const weekdayIndex=(new Date(date+"T12:00:00Z").getUTCDay()+6)%7;
+      const opening=validatedOpeningHours.days[weekdayIndex];
+      const dateWork=assignments.filter(entry=>
+        entry.date===date && members.get(entry.memberId)?.active);
+      const segments=dateWork.flatMap(e=>effectiveWorkIntervals(e))
+        .sort((a,b)=>a.start-b.start||a.end-b.end);
+      for(const window of opening.intervals){
+        const open=clockMinutes(window.start),close=clockMinutes(window.end);
+        let cursor=open;
+        for(const part of segments){
+          if(part.end<=cursor||part.start>=close)continue;
+          if(part.start>cursor)break;
+          cursor=Math.min(close,Math.max(cursor,part.end));
+          if(cursor===close)break;
+        }
+        if(cursor<close){
+          const next=segments.filter(s=>s.start>cursor&&s.start<close)
+            .map(s=>s.start).sort((a,b)=>a-b)[0]??close;
+          problems.push(issue("OPENING_UNCOVERED",
+            "A empresa fica sem colaboradores a trabalhar num período de funcionamento.",{
+              date,gapStart:hhmm(cursor),gapEnd:hhmm(next),
+            }));
+        }
+      }
+    }
   }
 
   // The new meal policy validates only editable proposed days. Historical
