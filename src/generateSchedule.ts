@@ -12,8 +12,9 @@ import {
   type WorkAssignment,
 } from "./workAssignments";
 import {REQUIRED_WEEKLY_MINUTES} from "./weeklyHours";
-import {effectiveMealDayCapacity,SHORT_SHIFT_MAX_WORK_MINUTES} from "./mealBreaks";
+import {effectiveMealDayCapacity} from "./mealBreaks";
 import {scheduleMealDay,type MealDayRequest} from "./mealCoveragePlanner";
+import {shortOpeningDays} from "./shortOpenings";
 
 export type GenerationInput=Omit<
   CertificationInput,"candidateAssignments"|"mealBreaks"|"mealBreakPolicy"
@@ -68,6 +69,7 @@ function availableDays(
   hours:NonNullable<ReturnType<typeof validateWeeklyOpeningHours>["value"]>,
   mealPolicy:"v2"|undefined,
   mealCapacityCache:Map<string,number>,
+  shortDays:ReadonlySet<number>,
 ):DayPlan[] {
   return enumerateCivilDays(week)
     .filter(date=>inRange(date,editable))
@@ -80,17 +82,14 @@ function availableDays(
       }));
       const totalOpen=intervals.reduce((sum,x)=>sum+x.end-x.start,0);
       let capacity=totalOpen;
-      if(mealPolicy==="v2" && totalOpen>240){
+      const shortOpening=shortDays.has(civilDayOfWeek(date));
+      if(mealPolicy==="v2" && !shortOpening && totalOpen>240){
         const key=JSON.stringify(intervals);
         const cached=mealCapacityCache.get(key);
         capacity=cached??effectiveMealDayCapacity(intervals);
         if(cached===undefined)mealCapacityCache.set(key,capacity);
       }
-      return {
-        date,intervals,capacity,allocated:0,
-        shortOpening:totalOpen>0 &&
-          totalOpen<=SHORT_SHIFT_MAX_WORK_MINUTES,
-      };
+      return {date,intervals,capacity,allocated:0,shortOpening};
     });
 }
 
@@ -553,6 +552,7 @@ export function generateSchedule(input:GenerationInput):GenerationResult {
     intervals:DayPlan["intervals"];requests:MealDayRequest[];
   }>();
 
+  const shortDays=shortOpeningDays(hours.value);
   const activeMembers=team.value.members.filter(member=>member.active);
   for(const week of period.weeks){
     // Only this civil week's editable, open days participate in the soft
@@ -567,7 +567,8 @@ export function generateSchedule(input:GenerationInput):GenerationResult {
           ? sum+assignmentMinutes(entry):sum,0);
       const target=Math.max(0,REQUIRED_WEEKLY_MINUTES-externalMinutes);
       const plans=availableDays(
-        week,period,hours.value,input.mealBreakPolicy,mealCapacityCache
+        week,period,hours.value,input.mealBreakPolicy,mealCapacityCache,
+        shortDays
       );
       if(member.weeklyDaysOff!==undefined && contextComplete){
         const knownWorkedDates=new Set(externalAssignments
@@ -598,6 +599,7 @@ export function generateSchedule(input:GenerationInput):GenerationResult {
           day.requests.push({
             memberId:member.id,date:plan.date,workMinutes:plan.allocated,
             memberIndex,activeCount:activeMembers.length,
+            shortOpening:plan.shortOpening,
             weekIndex:Math.floor(daysBetween(
               "1970-01-05",plan.date)/7),
           });
