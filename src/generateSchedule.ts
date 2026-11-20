@@ -12,8 +12,13 @@ import {
   type WorkAssignment,
 } from "./workAssignments";
 import {REQUIRED_WEEKLY_MINUTES} from "./weeklyHours";
+import {effectiveMealDayCapacity} from "./mealBreaks";
+import {scheduleMealDay,type MealDayRequest} from "./mealCoveragePlanner";
+import {shortOpeningDays} from "./shortOpenings";
 
-export type GenerationInput=Omit<CertificationInput,"candidateAssignments">;
+export type GenerationInput=Omit<
+  CertificationInput,"candidateAssignments"|"mealBreaks"|"mealBreakPolicy"
+> & {mealBreakPolicy?:"v2"};
 
 export interface GenerationShortfall {
   memberId:string;
@@ -41,12 +46,15 @@ const FATAL_INPUT_CODES=new Set<CertificationIssueCode>([
   "INACTIVE_MEMBER","OUTSIDE_EDITABLE_PERIOD","OUTSIDE_CONTEXT_RANGE",
   "CONTEXT_IN_EDITABLE_PERIOD","INVALID_CONTEXT_DAY",
   "DUPLICATE_CONTEXT_DAY","OVERLAPPING_WORK","OUTSIDE_OPENING_HOURS",
+  "INVALID_MEAL_BREAK","INVALID_MEAL_POLICY",
 ]);
 
 interface DayPlan {
   date:string;
   capacity:number;
   allocated:number;
+  /** Business opening <=4h in this phase: work the WHOLE opening or none. */
+  shortOpening:boolean;
   intervals:{start:number;end:number}[];
 }
 
@@ -59,6 +67,9 @@ function availableDays(
   week:DateRange,
   editable:DateRange,
   hours:NonNullable<ReturnType<typeof validateWeeklyOpeningHours>["value"]>,
+  mealPolicy:"v2"|undefined,
+  mealCapacityCache:Map<string,number>,
+  shortDays:ReadonlySet<number>,
 ):DayPlan[] {
   return enumerateCivilDays(week)
     .filter(date=>inRange(date,editable))
@@ -69,10 +80,16 @@ function availableDays(
       const intervals=day.intervals.map(interval=>({
         start:clockMinutes(interval.start),end:clockMinutes(interval.end),
       }));
-      return {
-        date,intervals,capacity:intervals.reduce((sum,x)=>sum+x.end-x.start,0),
-        allocated:0,
-      };
+      const totalOpen=intervals.reduce((sum,x)=>sum+x.end-x.start,0);
+      let capacity=totalOpen;
+      const shortOpening=shortDays.has(civilDayOfWeek(date));
+      if(mealPolicy==="v2" && !shortOpening && totalOpen>240){
+        const key=JSON.stringify(intervals);
+        const cached=mealCapacityCache.get(key);
+        capacity=cached??effectiveMealDayCapacity(intervals);
+        if(cached===undefined)mealCapacityCache.set(key,capacity);
+      }
+      return {date,intervals,capacity,allocated:0,shortOpening};
     });
 }
 
@@ -91,7 +108,9 @@ function availableDays(
  * day may be assigned all 4h (no stagger) and the remaining 36h may be
  * allocated across the five longer days, without exceeding 40h.
  */
-function allocateBalancedWeek(plans:DayPlan[],targetMinutes:number):void {
+function allocateBalancedWeekUnrestricted(
+  plans:DayPlan[],targetMinutes:number
+):void {
   const open=plans.filter(plan=>plan.capacity>0);
   if(targetMinutes<=0 || open.length===0)return;
   const totalCapacity=open.reduce((sum,plan)=>sum+plan.capacity,0);
@@ -204,6 +223,96 @@ function allocateBalancedWeek(plans:DayPlan[],targetMinutes:number):void {
   }
   if(!best)throw new Error("A carga semanal não pôde ser distribuída.");
   for(let i=0;i<open.length;i++)open[i].allocated=best.allocations[i];
+}
+
+/**
+ * A short OPENING is indivisible: anybody assigned to it works ALL of it.
+ * Enumerate the tiny (<= 7 civil days) combinations of full short days,
+ * then reuse the existing balanced allocator for normal days only.
+ * This prevents the weekly optimizer from placing 30m/2h partial shifts in
+ * a 4h opening merely to force the total to 40h.
+ */
+function allocateBalancedWeek(plans:DayPlan[],targetMinutes:number):void {
+  const short=plans.filter(p=>p.shortOpening&&p.capacity>0);
+  if(short.length===0){
+    allocateBalancedWeekUnrestricted(plans,targetMinutes);
+    return;
+  }
+  const normal=plans.filter(p=>!p.shortOpening&&p.capacity>0);
+  interface Candidate {
+    allocations:Map<string,number>;
+    activeDays:number;
+    shortMinutes:number;
+    consistency:number;
+    smallestShift:number;
+    distance:number;
+  }
+  let best:Candidate|null=null;
+  for(let mask=0;mask<(1<<short.length);mask++){
+    const chosen=short.filter((_,i)=>(mask&(1<<i))!==0);
+    const fixed=chosen.reduce((sum,p)=>sum+p.capacity,0);
+    const remainder=targetMinutes-fixed;
+    if(remainder<0)continue;
+    const available=normal.reduce((sum,p)=>sum+p.capacity,0);
+    if(remainder>available)continue;
+    const rest=normal.map(p=>({...p,allocated:0}));
+    allocateBalancedWeekUnrestricted(rest,remainder);
+    const assigned=rest.reduce((sum,p)=>sum+p.allocated,0);
+    if(assigned!==remainder)continue;
+    const allocations=new Map<string,number>(
+      [...rest.map(p=>[p.date,p.allocated] as const),
+       ...short.map(p=>[p.date,chosen.includes(p)?p.capacity:0] as const)]
+    );
+    const values=[...allocations.values()].filter(n=>n>0);
+    const activeDays=values.length;
+    const shortMinutes=fixed;
+    const durations=new Map<number,Map<number,number>>();
+    for(const plan of plans.filter(p=>p.capacity>0)){
+      const times=durations.get(plan.capacity)??new Map<number,number>();
+      const minutes=allocations.get(plan.date)??0;
+      times.set(minutes,(times.get(minutes)??0)+1);
+      durations.set(plan.capacity,times);
+    }
+    const consistency=[...durations.values()].reduce((sum,counts)=>
+      sum+Math.max(...counts.values()),0);
+    const smallestShift=Math.min(...values);
+    const distance=plans.reduce((sum,p)=>
+      sum+Math.abs((allocations.get(p.date)??0)-
+        Math.min(480,p.capacity)),0);
+    const next={
+      allocations,activeDays,shortMinutes,
+      consistency,smallestShift,distance,
+    };
+    if(!best||next.activeDays>best.activeDays||
+      (next.activeDays===best.activeDays && (
+        next.shortMinutes>best.shortMinutes ||
+        (next.shortMinutes===best.shortMinutes && (
+          next.consistency>best.consistency ||
+          (next.consistency===best.consistency && (
+            next.smallestShift>best.smallestShift ||
+            (next.smallestShift===best.smallestShift &&
+              next.distance<best.distance)
+          ))
+        ))
+      )))best=next;
+  }
+  if(best){
+    for(const plan of plans)
+      plan.allocated=best.allocations.get(plan.date)??0;
+    return;
+  }
+  // No exact solution. Never invent a partial short day to hide the deficit.
+  // Prefer all normal capacity, then as many FULL short openings as fit.
+  const normalCapacity=normal.reduce((sum,p)=>sum+p.capacity,0);
+  allocateBalancedWeekUnrestricted(normal,Math.min(targetMinutes,normalCapacity));
+  let remainder=Math.max(0,targetMinutes-
+    normal.reduce((sum,p)=>sum+p.allocated,0));
+  for(const plan of short){
+    if(remainder>=plan.capacity){
+      plan.allocated=plan.capacity;
+      remainder-=plan.capacity;
+    }
+  }
 }
 
 /**
@@ -324,6 +433,9 @@ function allocateWeek(plans:DayPlan[],targetMinutes:number,
   let remaining=targetMinutes;
   for(const plan of plans){
     const slice=Math.min(remaining,480,plan.capacity);
+    // In an incomplete boundary week, never pretend that working part of
+    // a short opening meets the rule. Unknown external work stays unknown.
+    if(plan.shortOpening && slice<plan.capacity)continue;
     plan.allocated+=slice;
     remaining-=slice;
   }
@@ -434,8 +546,13 @@ export function generateSchedule(input:GenerationInput):GenerationResult {
     .filter((x):x is WorkAssignment=>x!==null);
   const completeDates=new Set(input.externalContext?.completeDates as string[]|undefined??[]);
   const candidates:WorkAssignment[]=[];
+  const mealCapacityCache=new Map<string,number>();
   const shortfalls:GenerationShortfall[]=[];
+  const requestsByDate=new Map<string,{
+    intervals:DayPlan["intervals"];requests:MealDayRequest[];
+  }>();
 
+  const shortDays=shortOpeningDays(hours.value);
   const activeMembers=team.value.members.filter(member=>member.active);
   for(const week of period.weeks){
     // Only this civil week's editable, open days participate in the soft
@@ -449,7 +566,10 @@ export function generateSchedule(input:GenerationInput):GenerationResult {
         entry.memberId.toLowerCase()===member.id && inRange(entry.date,week)
           ? sum+assignmentMinutes(entry):sum,0);
       const target=Math.max(0,REQUIRED_WEEKLY_MINUTES-externalMinutes);
-      const plans=availableDays(week,period,hours.value);
+      const plans=availableDays(
+        week,period,hours.value,input.mealBreakPolicy,mealCapacityCache,
+        shortDays
+      );
       if(member.weeklyDaysOff!==undefined && contextComplete){
         const knownWorkedDates=new Set(externalAssignments
           .filter(entry=>entry.memberId.toLowerCase()===member.id &&
@@ -470,8 +590,25 @@ export function generateSchedule(input:GenerationInput):GenerationResult {
             (weeklyUnassigned.get(plan.date)??0)+1);
       }
       const generatedMinutes=plans.reduce((sum,plan)=>sum+plan.allocated,0);
-      for(const plan of plans)candidates.push(...toAssignments(
-        member.id,plan,memberIndex,activeMembers.length));
+      for(const plan of plans){
+        if(plan.allocated<=0)continue;
+        if(input.mealBreakPolicy==="v2"){
+          const day=requestsByDate.get(plan.date)??{
+            intervals:plan.intervals,requests:[],
+          };
+          day.requests.push({
+            memberId:member.id,date:plan.date,workMinutes:plan.allocated,
+            memberIndex,activeCount:activeMembers.length,
+            shortOpening:plan.shortOpening,
+            weekIndex:Math.floor(daysBetween(
+              "1970-01-05",plan.date)/7),
+          });
+          requestsByDate.set(plan.date,day);
+        }else{
+          candidates.push(...toAssignments(
+            member.id,plan,memberIndex,activeMembers.length));
+        }
+      }
       if(contextComplete && generatedMinutes+externalMinutes<REQUIRED_WEEKLY_MINUTES){
         shortfalls.push({
           memberId:member.id,weekStart:week.start,
@@ -483,12 +620,58 @@ export function generateSchedule(input:GenerationInput):GenerationResult {
       }
     }
   }
+  if(input.mealBreakPolicy==="v2"){
+    // Schedule all colleagues TOGETHER on each day. A meal is an embedded
+    // interval in one shift, and coverage always outweighs soft preferences.
+    const preferredStarts=new Map<string,number>();
+    for(const date of [...requestsByDate.keys()].sort()){
+      const day=requestsByDate.get(date)!;
+      const requests=day.requests.map(r=>({
+        ...r,preferredStart:preferredStarts.get(
+          r.memberId+"|"+r.weekIndex
+        ),
+      }));
+      const planned=scheduleMealDay(requests,day.intervals);
+      candidates.push(...planned.assignments);
+      for(const shift of planned.assignments){
+        const weekIndex=Math.floor(daysBetween(
+          "1970-01-05",shift.date)/7);
+        const key=shift.memberId+"|"+weekIndex;
+        if(!preferredStarts.has(key))
+          preferredStarts.set(key,clockMinutes(shift.start));
+      }
+      // Missing coverage cannot be repaired by silently changing the
+      // compulsory 40h or adding workers; the certifier reports the gap.
+    }
+    // Report actual generated effective hours, not just requested allocation.
+    shortfalls.length=0;
+    for(const week of period.weeks){
+      const contextComplete=enumerateCivilDays(week).every(date=>
+        inRange(date,period)||completeDates.has(date));
+      if(!contextComplete)continue;
+      for(const member of activeMembers){
+        const externalMinutes=externalAssignments.reduce((sum,entry)=>
+          entry.memberId.toLowerCase()===member.id &&
+          inRange(entry.date,week)?sum+assignmentMinutes(entry):sum,0);
+        const generatedMinutes=candidates.reduce((sum,entry)=>
+          entry.memberId===member.id && inRange(entry.date,week)
+            ?sum+assignmentMinutes(entry):sum,0);
+        if(externalMinutes+generatedMinutes<REQUIRED_WEEKLY_MINUTES)
+          shortfalls.push({
+            memberId:member.id,weekStart:week.start,
+            externalMinutes,generatedMinutes,
+            missingMinutes:REQUIRED_WEEKLY_MINUTES-
+              externalMinutes-generatedMinutes,
+            contextComplete,
+          });
+      }
+    }
+  }
   candidates.sort((a,b)=>a.date.localeCompare(b.date) ||
     a.memberId.localeCompare(b.memberId) || a.start.localeCompare(b.start));
   const certification=certifySchedule({...input,candidateAssignments:candidates});
   return {
     status:certification.status,
-    candidateAssignments:candidates,
-    certification,shortfalls,
+    candidateAssignments:candidates,certification,shortfalls,
   };
 }

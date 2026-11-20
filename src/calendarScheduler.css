@@ -209,3 +209,15 @@
 @media (max-width: 460px) {
   .calendar-member-shifts, .calendar-member-empty { font-size: 7px; }
 }
+
+
+/* Meal intervals are visually separate from effective work intervals. */
+.calendar-meal-time {
+  color: #efc68c;
+  font-weight: 600;
+}
+.day-meal-item {
+  border: 1px dashed #8e754b;
+  background: rgba(158, 121, 67, .09);
+}
+.day-meal-item strong { color: #f1d4a9; }

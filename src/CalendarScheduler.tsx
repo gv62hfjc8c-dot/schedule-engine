@@ -10,6 +10,7 @@ import {
 } from "./monthlyScheduleDraftRepository";
 import {assignmentMinutes,type WorkAssignment} from "./workAssignments";
 import {calendarScheduleView} from "./calendarScheduleView";
+import type {MealBreak} from "./mealBreaks";
 
 const WEEKDAYS=["Seg","Ter","Qua","Qui","Sex","Sáb","Dom"];
 
@@ -37,7 +38,8 @@ function sourceError(sources:SourceSnapshot):string|null {
 }
 function certificationForSaved(
   sources:SourceSnapshot,year:number,month:number,
-  assignments:WorkAssignment[]
+  assignments:WorkAssignment[],
+  mealBreaks:MealBreak[]=[],mealBreakPolicy:"v1"|"v2"|undefined=undefined
 ):CertificationReport|null {
   if(sources.team.status!=="loaded"||
     sources.opening.status!=="loaded"||!sources.context.ok)return null;
@@ -45,6 +47,7 @@ function certificationForSaved(
     period:{mode:"monthly",year,month},
     team:sources.team.value,openingHours:sources.opening.value,
     externalContext:sources.context.context,candidateAssignments:assignments,
+    mealBreaks,mealBreakPolicy,
   });
 }
 function stateText(report:CertificationReport|null):string {
@@ -53,7 +56,7 @@ function stateText(report:CertificationReport|null):string {
     return "40 horas semanais e restantes regras implementadas verificadas. Não é uma aprovação definitiva.";
   if(report.status==="insufficient_context")
     return "Proposta por certificar: faltam dados de semanas que atravessam outros meses.";
-  return "A proposta tem conflitos ou não cumpre as horas e os dias sem trabalho configurados.";
+  return "A proposta tem conflitos de horas, dias sem trabalho, pausas ou cobertura do funcionamento.";
 }
 function memberLabel(memberId:string,names:Map<string,string>):string {
   return names.get(memberId)??"Colaborador não encontrado";
@@ -70,6 +73,12 @@ function MonthWorkspace({
   const [saved,setSaved]=useState<WorkAssignment[]|null>(
     ()=>initial.status==="loaded"?initial.assignments:null
   );
+  const [savedMealBreaks,setSavedMealBreaks]=useState<MealBreak[]>(
+    ()=>initial.status==="loaded"?initial.mealBreaks:[]
+  );
+  const [savedPolicy,setSavedPolicy]=useState<"v1"|"v2"|undefined>(
+    ()=>initial.status==="loaded"?initial.mealBreakPolicy:undefined
+  );
   const [revision,setRevision]=useState<string|null>(
     ()=>initial.status==="loaded"?initial.revision:null
   );
@@ -84,10 +93,15 @@ function MonthWorkspace({
   });
   const [savedReport,setSavedReport]=useState<CertificationReport|null>(()=>{
     if(initial.status!=="loaded")return null;
-    return certificationForSaved(loadSources(year,month),year,month,initial.assignments);
+    return certificationForSaved(loadSources(year,month),year,month,
+      initial.assignments,initial.mealBreaks,initial.mealBreakPolicy);
   });
   const data=preview?.candidateAssignments??saved??[];
-  const report=preview?.certification??savedReport;
+  // Legacy PR84 v1 drafts may still carry separate meal records.
+  // New v2 shifts contain their own pause, never a second work shift.
+  const legacyMealBreaks=preview?[]:savedMealBreaks;
+  const legacyDraft=saved!==null&&preview===null&&savedPolicy!=="v2";
+  const report=preview?.certification??(legacyDraft?null:savedReport);
   // A display-only projection: certification and saving ALWAYS use full data.
   const view=calendarScheduleView(data,selectedMemberId);
   const byDay=view.byDay;
@@ -102,6 +116,21 @@ function MonthWorkspace({
       selectedMemberId.slice(0,8)+")");
   const cells=monthCells(year,month-1);
   const dayAssignments=selectedDate?(byDay.get(selectedDate)??[]):[];
+  const dayMealBreaks=selectedDate?legacyMealBreaks.filter(meal=>
+    meal.date===selectedDate &&
+    (selectedMemberId===null||meal.memberId===selectedMemberId)
+  ):[];
+  const dayTimeline=[
+    ...dayAssignments.map((assignment,index)=>({
+      kind:"work" as const,start:assignment.start,
+      memberId:assignment.memberId,index,assignment,
+    })),
+    ...dayMealBreaks.map((meal,index)=>({
+      kind:"meal" as const,start:meal.start,
+      memberId:meal.memberId,index,meal,
+    })),
+  ].sort((a,b)=>a.start.localeCompare(b.start)||
+    a.memberId.localeCompare(b.memberId));
   const isBlocked=initial.status==="invalid"||initial.status==="unavailable";
 
   function generate(){
@@ -121,6 +150,7 @@ function MonthWorkspace({
       period:{mode:"monthly",year,month},
       team:sources.team.value,openingHours:sources.opening.value,
       externalContext:sources.context.context,
+      mealBreakPolicy:"v2",
     });
     setPreview(result);
     setSourceSignature(JSON.stringify(sources));
@@ -132,7 +162,7 @@ function MonthWorkspace({
     setFeedback(result.status==="invalid_input"?
       {kind:"error",message:"Os dados de entrada não permitem gerar uma proposta."}:
       result.status==="invalid"?
-      {kind:"error",message:"A proposta não cumpre todas as horas ou os dias sem trabalho semanais configurados. Consulta os problemas abaixo."}:
+      {kind:"error",message:"A proposta não cumpre alguma regra obrigatória de horas, folgas, pausas ou cobertura. Consulta os problemas encontrados."}:
       {kind:"success",message:"Proposta gerada. Revê o resultado e guarda-a apenas se estiver correta."});
   }
 
@@ -150,7 +180,7 @@ function MonthWorkspace({
       return;
     }
     const currentReport=certificationForSaved(currentSources,year,month,
-      preview.candidateAssignments);
+      preview.candidateAssignments,[],"v2");
     if(!currentReport || currentReport.status==="invalid"){
       setFeedback({kind:"error",message:"A proposta não passa a certificação atual. Não foi guardada."});
       return;
@@ -158,13 +188,16 @@ function MonthWorkspace({
     if(saved!==null &&
       !window.confirm("Substituir a proposta guardada deste mês? Os horários dos outros meses não serão alterados."))return;
     const result=saveMonthlyDraftToBrowser(
-      year,month,preview.candidateAssignments,revision
+      year,month,preview.candidateAssignments,revision,
+      undefined,"v2"
     );
     if(!result.ok){
       setFeedback({kind:"error",message:result.message});
       return;
     }
     setSaved(result.assignments);
+    setSavedMealBreaks(result.mealBreaks);
+    setSavedPolicy(result.mealBreakPolicy);
     setRevision(result.revision);
     setSavedReport(currentReport);
     setPreview(null);
@@ -203,6 +236,13 @@ function MonthWorkspace({
             "Existe uma proposta guardada neste dispositivo para este mês."}
           {" "}A geração não altera os horários dos outros meses.
         </p>
+        {legacyDraft&&
+          <p className="schedule-storage-note" role="status">
+            Este rascunho utiliza o modelo anterior de horários.
+            Para aplicar turnos únicos com pausa interna e a nova regra de
+            cobertura, gera uma nova proposta. O registo atual só é
+            substituído após confirmação.
+          </p>}
         {isBlocked&&<p role="alert" className="form-error">
           {initial.status==="invalid"
             ?"Os dados guardados deste mês são inválidos. Não serão apagados nem substituídos automaticamente."
@@ -214,17 +254,23 @@ function MonthWorkspace({
         </p>}
         {(preview||saved)&&<div className="schedule-certification" aria-live="polite">
           <span className={"schedule-status schedule-status-"+(report?.status??"unknown")}>
-            {report?.status==="valid"?"Regras verificadas":
+            {legacyDraft?"Modelo anterior":
+              report?.status==="valid"?"Regras verificadas":
               report?.status==="insufficient_context"?"Contexto incompleto":
               report?.status==="invalid"?"Com problemas":"Não verificado"}
           </span>
-          <p>{stateText(report)}</p>
+          <p>{legacyDraft
+            ?"Este rascunho não foi certificado pelas regras novas de pausas e cobertura."
+            :stateText(report)}</p>
           {report&&report.issues.length>0&&<div className="schedule-issues">
             <strong>Problemas encontrados</strong>
             <ul>
               {report.issues.slice(0,5).map((issue,index)=>
                 <li key={issue.code+"-"+index}>
                   {issue.message}{issue.weekStart?" — semana de "+issue.weekStart:""}
+                    {issue.date?" — "+issue.date:""}
+                    {issue.gapStart&&issue.gapEnd?
+                      " ("+issue.gapStart+"–"+issue.gapEnd+")":""}
                 </li>)}
             </ul>
             {report.issues.length>5&&<p>
@@ -278,6 +324,16 @@ function MonthWorkspace({
                       {byDay.get(cell.date!)!.map((shift,index)=>
                         <span key={shift.memberId+"-"+index}>
                           {shift.start}–{shift.end}
+                          {shift.mealBreak&&
+                            <span className="calendar-meal-time">
+                              Pausa {shift.mealBreak.start}–{shift.mealBreak.end}
+                            </span>}
+                        </span>)}
+                      {legacyMealBreaks.filter(meal=>meal.date===cell.date &&
+                        meal.memberId===selectedMemberId).map((meal,i)=>
+                        <span className="calendar-meal-time"
+                          key={"meal-"+i}>
+                          Pausa {meal.start}–{meal.end}
                         </span>)}
                     </span>
                     :<span className="calendar-assignment-count">
@@ -304,11 +360,23 @@ function MonthWorkspace({
           {selectedDate
             ?dayAssignments.length>0
               ?<div className="day-work-list">
-                {dayAssignments.map((assignment,index)=>
-                  <div className="day-work-item" key={assignment.memberId+"-"+index}>
-                    <strong>{memberLabel(assignment.memberId,names)}</strong>
-                    <span>{assignment.start}–{assignment.end}</span>
-                    <span>{(assignmentMinutes(assignment)/60).toLocaleString("pt-PT")} h de trabalho</span>
+                {dayTimeline.map(item=>item.kind==="work"
+                  ?<div className="day-work-item"
+                    key={"work-"+item.memberId+"-"+item.index}>
+                    <strong>{memberLabel(item.memberId,names)}</strong>
+                    <span>Turno {item.assignment.start}–{item.assignment.end}</span>
+                    {item.assignment.mealBreak&&
+                      <span className="meal-inline">
+                        Pausa para refeição:
+                        {" "}{item.assignment.mealBreak.start}–{item.assignment.mealBreak.end}
+                      </span>}
+                    <span>{(assignmentMinutes(item.assignment)/60).toLocaleString("pt-PT")} h de trabalho efetivo</span>
+                  </div>
+                  :<div className="day-work-item day-meal-item"
+                    key={"meal-"+item.memberId+"-"+item.index}>
+                    <strong>{memberLabel(item.memberId,names)} · Pausa para refeição</strong>
+                    <span>{item.meal.start}–{item.meal.end}</span>
+                    <span>1 hora, não contabilizada como trabalho</span>
                   </div>)}
               </div>
               :<>

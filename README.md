@@ -355,3 +355,88 @@ Para permitir verificar visualmente a distribuição individual dos turnos e dos
 - **«Sem turno» não significa automaticamente «Folga».** Não foi adicionada qualquer classificação de folgas oficiais.
 
 Código: `src/calendarScheduleView.ts` contém apenas a projeção de leitura por colaborador e os totais; `src/CalendarScheduler.tsx` apresenta o filtro; estilos locais em `src/calendarScheduler.css`. Testes automatizados verificam isolamento do colaborador, turnos repartidos, dias sem turno, ausência de mutação e que a gravação e a certificação continuam a usar a proposta completa. Deve ser validado no Safari com o cenário de quatro colaboradores do PR83 antes do merge.
+
+## PR84 — Um único turno com pausa interna e cobertura contínua (revisão de 20/11/2026)
+
+O utilizador definiu uma pausa de refeição de **60 minutos**, que só pode começar **a partir de três horas após a entrada**, sem pausa em jornadas curtas. A duração ainda não é configurável. Para a experiência inicial, jornadas com até **4h efetivas** são tratadas como curtas; trata-se de uma escolha operacional provisória, não de um parecer jurídico.
+
+A **primeira implementação do PR84 foi rejeitada** pelo utilizador por dois motivos objetivos:
+1. Produzia **dois turnos** para a mesma pessoa (um antes e outro depois da refeição). Isto é incorreto: a pessoa tem **um único turno de entrada a saída** e a pausa acontece dentro desse turno.
+2. Distribuía pausas isoladamente e podia deixar a empresa **sem ninguém a trabalhar durante a abertura**. A nova regra exige **pelo menos um colaborador efetivamente a trabalhar em cada minuto de funcionamento**. Não foi introduzido um mínimo de duas ou mais pessoas, apenas ausência de cobertura zero. Ao contrário da política SOFT de distribuição anterior, esta exigência é agora uma **HARD constraint explícita** para propostas novas.
+
+### Modelo correto
+
+O objeto `WorkAssignment` representa **um turno por colaborador e data**, por exemplo:
+
+```ts
+{
+  memberId: "id-da-pessoa",
+  date: "2026-11-02",
+  start: "09:00",
+  end: "18:00",
+  mealBreak: { start: "12:00", end: "13:00" },
+}
+```
+
+O tempo de trabalho efetivo é `(18:00-09:00)-(13:00-12:00)=8h`. A pausa **não é um segundo turno**. O turno único aparece no calendário como `09:00–18:00`, com a pausa `12:00–13:00` identificada **dentro do turno**, e oito horas efetivas. Para uma janela curta `09:00–13:00`, há um turno `09:00–13:00` **sem refeição**, totalizando quatro horas.
+
+### Planeamento e certificação
+
+- `src/mealBreaks.ts` produz **candidatos de turno único** com pausa opcional embutida e hora de refeição válida. Os dois segmentos de trabalho efetivo antes/depois da pausa são usados **apenas para contas e validação**; não são turnos separados. Em empresas com abertura repartida, a pausa pode coincidir com um fecho de uma hora, se for viável.
+- `src/mealCoveragePlanner.ts` coordena os turnos de **todos os colaboradores de um mesmo dia**. A escolha privilegia cobrir minutos abertos ainda sem ninguém, antes de preferências como entrada estável/rotação semanal, e nunca cria trabalhadores, horários fora da abertura ou horas em excesso.
+- `src/workAssignments.ts` valida o turno com pausa aninhada, desconta a pausa de `assignmentMinutes` e calcula intervalos efetivamente trabalhados para avaliar abertura/cobertura.
+- `src/certifySchedule.ts` certifica independentemente: **um único turno por pessoa/data**, pausa **60 minutos**, início **>= entrada+180 minutos**, ausência de pausa em jornadas curtas, horários de funcionamento respeitados, **zero lacunas de cobertura** em cada intervalo de abertura, 40h efetivas semanais e número de dias sem trabalho configurado. Um problema `OPENING_UNCOVERED` inclui data e horário exato da primeira lacuna encontrada em cada intervalo.
+- **Se uma configuração for impossível** (por exemplo, duas pessoas com folgas que deixam uma pessoa sozinha numa janela de 10h, com pausa obrigatória), o resultado é `invalid`, mesmo que cada pessoa cumpra 40h. É uma incompatibilidade de constraints; o motor **não deve inventar cobertura nem declarar uma solução válida**.
+
+Exemplo com empresa aberta `09:00–19:00` e duas pessoas, cada uma com oito horas de trabalho efetivo por dia:
+
+| Pessoa | Turno | Pausa | Horas efetivas |
+|---|---|---|---|
+| A | 09:00–18:00 | 12:00–13:00 | 8h |
+| B | 10:00–19:00 | 13:00–14:00 | 8h |
+
+Esta distribuição cobre integralmente a abertura. O exemplo é ilustrativo: a escolha automática pode trocar os horários entre pessoas e semanas, mas **não pode deixar lacunas** se a proposta for considerada válida.
+
+### Persistência e histórico
+
+`src/monthlyScheduleDraftRepository.ts` guarda as propostas novas com `mealBreakPolicy:"v2"` e os turnos únicos com `mealBreak` aninhado, mantendo o mesmo envelope mensal `version:1` para preservar dados existentes. Os rascunhos antigos sem refeições e os rascunhos experimentais `mealBreakPolicy:"v1"` com pausa separada continuam **legíveis**, sem regravação automática. A página Horários identifica propostas antigas como **«Modelo anterior»**, em vez de as apresentar como certificadas pelas novas regras. Regenerar uma proposta exige confirmação antes de substituir a antiga; os outros meses são contexto apenas de leitura.
+
+### Testes
+
+A suite verifica dois colaboradores sem intervalo descoberto (até ao minuto), rejeição de pausas simultâneas que deixam a empresa vazia, rejeição de dois turnos por pessoa, pausas fora de regra, quatro pessoas com folgas diferentes, abertura repartida, 40h efetivas, semanas que atravessam meses e reprodução determinística. Testes de 28 dias cobrem equipas de 2, 10, 50 e 200 pessoas com configuração compatível de folgas; outra prova mostra que folgas incompatíveis produzem `invalid`, mesmo com as 40 horas corretas.
+
+A validação automatizada não substitui teste funcional no Safari nem certificação legal integral. O PR84 permanece em **Draft**, fora da `main`, até confirmação do utilizador.
+
+### PR84 — Dias de funcionamento curto são indivisíveis (20/11/2026)
+
+**Regra confirmada pelo utilizador:** sempre que um colaborador tem turno num dia cuja abertura da empresa é curta, trabalha **a jornada completa de funcionamento**, não apenas uma parte para acertar as contas semanais. Isto **não obriga todos os colaboradores a trabalhar nesse dia**; obriga cada pessoa escalada a cumprir a janela completa. Não existem condições especiais por nome do dia (incluindo sábado). Nesta fase, «dia curto» significa até **4h totais de abertura**, tal como a regra inicial de não atribuir pausa para refeição nas jornadas até quatro horas.
+
+Exemplos:
+- Abertura **09h–13h**: quem estiver escalado trabalha **09h–13h**, quatro horas efetivas e sem refeição; atribuições como 09h–11h ou 10h–13h são **inválidas**.
+- Abertura **10h–13h**: quem estiver escalado trabalha **10h–13h**, três horas efetivas e sem refeição.
+- Num dia sem turno atribuído ao colaborador, nada é criado artificialmente. A obrigação de cobertura de funcionamento permanece independente.
+
+**Algoritmo:** em `src/generateSchedule.ts`, a alocação semanal mantém a otimização anterior para jornadas normais, mas avalia as combinações possíveis de dias curtos **inteiros ou não trabalhados**. Para um máximo de sete datas civis por semana, esta enumeração é pequena. Só considera válidas as distribuições que cabem no total semanal sem fragmentar os dias curtos. No caso de contexto mensal incompleto, a alocação conservadora também deixa de atribuir remanescentes parciais numa janela curta. Se não houver solução que cumpra simultaneamente 40h, dias de descanso, pausas, abertura e cobertura, o resultado deve ser marcado `invalid` ou `insufficient_context` conforme o contexto conhecido, nunca «valid» falsamente.
+
+**Certificação independente:** `src/certifySchedule.ts` introduz `SHORT_OPENING_INCOMPLETE`: cada turno efetivamente atribuído num dia curto tem de coincidir com o início e o fim do funcionamento desse dia e totalizar todas as horas de abertura. A verificação é independente da heurística do gerador. Se o funcionamento curto for repartido em intervalos incompatíveis com o atual modelo de turno único e sem pausa, o motor não inventa um turno equivalente: a proposta fica inválida.
+
+**Testes:** casos de abertura 09h–13h deslocada para **qualquer dia da semana**, abertura de três horas 10h–13h, vários dias curtos numa só semana, cumprimento das 40h efetivas, e rejeição deliberada de uma atribuição parcial 10h–13h num dia 09h–13h. Mantêm-se as regressões de 2/10/50/200 colaboradores, refeições dentro de um único turno e cobertura contínua. **CI GitHub Actions [44763336983](https://github.com/gv62hfjc8c-dot/schedule-engine/actions/runs/44763336983)** em `698759ab4df223d2a8f8236139f11d5c3e624d75`: `npm ci` PASS, **196/196 testes PASS**, `npm run build` PASS. Falta aceitação manual no Safari. PR84 ainda em Draft, fora da main.
+
+### PR84 — Deteção automática de jornadas curtas de cinco horas (20/11/2026)
+
+**Problema comprovado no Safari:** a empresa do teste tem abertura **08:30–19:00 de segunda a sábado (10h30)** e **14:00–19:00 ao domingo (5h)**. O motor anterior só identificava jornadas curtas com até **4 horas**, pelo que o domingo era tratado como uma jornada normal, limitada a quatro horas efetivas depois de descontada uma pausa, originando entradas desfasadas **14:00–18:00** e **15:00–19:00** para quatro colaboradores. Isso contradiz a regra de cada colaborador escalado trabalhar **toda a abertura curta**.
+
+**Correção:** uma janela curta é identificada a partir do **funcionamento semanal da empresa**, não pela duração que o motor atribuiu a um colaborador, nem pelo nome do dia. Nesta fase experimental, é considerada curta uma abertura diária de até **4h**; aberturas de **mais de 4h até 6h** também são curtas quando a sua duração **não ultrapassa dois terços** da maior jornada de abertura da empresa na semana. A regra é explícita, determinística, sem novo seletor e ainda pode ser refinada com mais casos reais. Por exemplo: 5h aos domingos versus 10h30 nos dias normais => **curta**; um dia de 8h versus 10h30 => **normal**. Isto não é uma classificação legal universal de períodos de refeição.
+
+**Invariante HARD:** qualquer colaborador com turno num dia curto deve trabalhar **a totalidade da abertura**, sem pausa para refeição. Exemplo real, abertura 14:00–19:00 => cada um dos quatro colaboradores escalados tem **um único turno 14:00–19:00**, cinco horas efetivas; a atribuição de 14:00–18:00 ou 15:00–19:00 é inválida. Isto não implica obrigar todos os colaboradores da equipa a trabalhar nos dias curtos: apenas os que forem escalados.
+
+**Alterações verificadas:**
+- `src/shortOpenings.ts`: regra pura comum que classifica dias curtos a partir da configuração semanal; nenhum dia específico codificado.
+- `src/generateSchedule.ts`: alocações curtas mantêm a estratégia **totalidade ou nenhum turno**; a capacidade do dia curto é igual ao total de abertura, mesmo quando ultrapassa as antigas quatro horas.
+- `src/mealBreaks.ts` e `src/mealCoveragePlanner.ts`: em dias classificados como curtos, a opção gerada é o **turno completo de abertura, sem pausa**, mesmo para cinco horas efetivas. A pausa de 60 minutos após pelo menos três horas continua para as jornadas normais.
+- `src/certifySchedule.ts`: classifica independentemente os mesmos dias a partir da configuração da empresa e rejeita qualquer atribuição parcial com `SHORT_OPENING_INCOMPLETE`. A ausência de pausa numa abertura curta válida de cinco horas deixa de ser sinalizada como `MEAL_BREAK_MISSING`.
+- `src/monthlyScheduleDraftRepository.ts`: aceita guardar uma jornada de cinco horas sem pausa; a obrigatoriedade da pausa depende do horário da empresa e é certificada pelo validador com acesso a esse contexto, não por uma regra cega de duração do turno no armazenamento.
+
+**Teste real automatizado:** quatro colaboradores, folgas semanais configuradas como `1, 2, 2, 2`, período semanal que inclui domingo **2026-11-22**, abertura 08:30–19:00 de segunda a sábado e 14:00–19:00 ao domingo. O gerador produziu e certificou `valid` **quatro turnos de domingo 14:00–19:00, sem pausa**, 40 horas efetivas por colaborador, e cobertura de todo o funcionamento em todos os dias. O teste adulterou turnos para 14:00–18:00, 15:00–19:00 e 14:30–18:30 e confirmou `invalid` via certificador independente. Inclui teste de gravação/releitura do turno de cinco horas e identificação de uma abertura curta de cinco horas noutro dia da semana, sem regra específica para domingo.
+
+**CI da correção:** GitHub Actions [44832458449](https://github.com/gv62hfjc8c-dot/schedule-engine/actions/runs/44832458449), head `480a97b2689d495a5a41fc9f01303aa26de12ed9`: `npm ci` PASS, **200/200 testes PASS**, `npm run build` PASS. PR84 permanece **OPEN/DRAFT, sem merge**, a aguardar confirmação visual desta correção no Safari. Não foram alterados outros meses nem horários guardados.
