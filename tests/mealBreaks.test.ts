@@ -150,3 +150,50 @@ test("Quando não cabe uma pausa normal, não se inventam horas ou refeições",
   assert.ok(res.shortfalls.some(s=>s.missingMinutes>0));
   assert.ok(res.certification.issues.some(i=>i.code==="WEEKLY_HOURS_MISSING"));
 });
+
+
+test("A rotação dos turnos com almoço continua semanal, nunca diária",()=>{
+  const d=scenario();
+  const result=generateSchedule({
+    period:{mode:"14d",start:"2026-11-02"},
+    team:d.team,openingHours:d.openingHours,
+    mealBreakPolicy:"v1",
+  });
+  assert.equal(result.status,"valid");
+  for(const memberId of [ANA,RUI]){
+    const shiftStart=(date:string)=>{
+      const work=result.candidateAssignments.filter(a=>
+        a.memberId===memberId&&a.date===date);
+      return work[0]?.start;
+    };
+    assert.equal(shiftStart("2026-11-02"),shiftStart("2026-11-06"));
+    assert.equal(shiftStart("2026-11-09"),shiftStart("2026-11-13"));
+    assert.notEqual(shiftStart("2026-11-02"),shiftStart("2026-11-09"));
+  }
+  assert.deepEqual(result.certification.weeks.map(w=>w.actualMinutes),
+    [2400,2400,2400,2400]);
+});
+
+test("Mês civil de 31 dias nunca inventa pausas ou turnos em meses externos",()=>{
+  const d=scenario();
+  const input={
+    period:{mode:"monthly" as const,year:2026,month:12},
+    team:d.team,openingHours:d.openingHours,mealBreakPolicy:"v1" as const,
+  };
+  const before=JSON.stringify(input);
+  const result=generateSchedule(input);
+  assert.equal(result.status,"insufficient_context");
+  assert.ok(result.candidateAssignments.every(a=>
+    a.date>="2026-12-01"&&a.date<"2027-01-01"));
+  assert.ok(result.mealBreaks.every(b=>
+    b.date>="2026-12-01"&&b.date<"2027-01-01"));
+  assert.ok(result.certification.issues.some(i=>
+    i.code==="CONTEXT_INCOMPLETE"));
+  assert.equal(JSON.stringify(input),before);
+});
+
+test("Datas de pausa impossíveis não podem entrar na certificação",()=>{
+  assert.equal(validateMealBreak({
+    memberId:ANA,date:"2026-11-31",start:"12:00",end:"13:00",
+  }),null);
+});
