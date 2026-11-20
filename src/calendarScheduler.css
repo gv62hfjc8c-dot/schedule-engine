@@ -195,10 +195,17 @@
   display: block;
   overflow-wrap: anywhere;
 }
+.calendar-member-empty {
+  display: block;
+  margin-top: 5px;
+  color: #a6b6c7;
+  font-size: 10px;
+  line-height: 1.25;
+}
 @media (max-width: 620px) {
   .schedule-member-filter { width: 100%; }
-  .calendar-member-shifts { font-size: 8px; }
+  .calendar-member-shifts, .calendar-member-empty { font-size: 8px; }
 }
 @media (max-width: 460px) {
-  .calendar-member-shifts { font-size: 7px; }
+  .calendar-member-shifts, .calendar-member-empty { font-size: 7px; }
 }
