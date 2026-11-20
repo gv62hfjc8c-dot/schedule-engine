@@ -5,6 +5,7 @@ import test from "node:test";
 const app = readFileSync(new URL("../src/App.tsx", import.meta.url), "utf8");
 const styles = readFileSync(new URL("../src/styles.css", import.meta.url), "utf8");
 const calendarScheduler = readFileSync(new URL("../src/CalendarScheduler.tsx", import.meta.url), "utf8");
+const teamEditor = readFileSync(new URL("../src/TeamEditor.tsx", import.meta.url), "utf8");
 
 test("A interface não apresenta linguagem de desenvolvimento", () => {
   for (const forbidden of [
@@ -62,4 +63,36 @@ test("O calendário gera automaticamente, sem seletor de intervalos de entradas"
   assert.doesNotMatch(calendarScheduler,/60 em 60 minutos/);
   assert.match(calendarScheduler,/O motor distribui automaticamente os turnos/);
   assert.match(calendarScheduler,/generateSchedule\(\{/);
+});
+
+
+test("Folgas semanais configuram só a quantidade na página Equipa",()=>{
+  assert.match(teamEditor,/id="team-weekly-days-off"/);
+  assert.match(teamEditor,/name="weeklyDaysOff"/);
+  assert.match(teamEditor,/Por definir \(sem regra adicional\)/);
+  assert.match(teamEditor,/O motor escolhe os dias/);
+  assert.doesNotMatch(teamEditor,/name="dayOffWeekday"/);
+  assert.doesNotMatch(teamEditor,/type="date"/);
+  assert.doesNotMatch(calendarScheduler,/Adicionar folga/);
+  assert.match(calendarScheduler,
+    /sem turnos registados não corresponde automaticamente a uma folga/);
+});
+
+test("O calendário pode filtrar por colaborador sem alterar geração ou gravação",()=>{
+  assert.match(calendarScheduler,/id="schedule-member-filter"/);
+  assert.match(calendarScheduler,/Ver horário de/);
+  assert.match(calendarScheduler,/Toda a equipa/);
+  assert.match(calendarScheduler,/calendarScheduleView\(data,selectedMemberId\)/);
+  assert.match(calendarScheduler,/calendar-member-shifts/);
+  assert.match(calendarScheduler,/calendar-member-empty/);
+  assert.match(calendarScheduler,/selectedMemberId=\{selectedMemberId\}/);
+  assert.match(calendarScheduler,/onSelectMember=\{setSelectedMemberId\}/);
+  assert.match(calendarScheduler,/selectedMemberId!==null && data.length>0/);
+  assert.match(calendarScheduler,/view\.totalMinutes/);
+  assert.match(calendarScheduler,/view\.workingDays/);
+  assert.match(calendarScheduler,/O filtro mostra apenas este colaborador/);
+  // Both certification and persistence must still receive ALL assignments.
+  assert.match(calendarScheduler,/preview\.candidateAssignments,revision/);
+  assert.match(calendarScheduler,/certificationForSaved\(currentSources,year,month,\s*preview\.candidateAssignments\)/);
+  assert.doesNotMatch(calendarScheduler,/saveMonthlyDraftToBrowser\(\s*year,month,view/);
 });

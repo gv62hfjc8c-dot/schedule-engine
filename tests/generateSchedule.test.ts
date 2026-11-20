@@ -816,3 +816,276 @@ test("Se não houver início alinhado possível, o motor prioriza a validade",()
   assert.ok(result.candidateAssignments.every(a=>
     a.start==="09:05"&&a.end==="17:05"));
 });
+
+
+test("PR83: uma folga semanal preserva seis dias de trabalho quando a empresa abre seis dias",()=>{
+  const data=week();
+  const hours=opening();
+  for(const day of hours.days)day.intervals=
+    day.day==="sunday"?[]:day.day==="saturday"
+      ?[{start:"09:00",end:"13:00"}]
+      :[{start:"09:00",end:"19:00"}];
+  data.openingHours=hours;
+  data.team={members:[
+    {id:ANA,name:"Ana",active:true,weeklyDaysOff:1},
+  ]};
+  const out=generateSchedule(data);
+  assert.equal(out.status,"valid");
+  assert.equal(total(out.candidateAssignments),2400);
+  assert.equal(new Set(out.candidateAssignments.map(a=>a.date)).size,6);
+  assert.deepEqual(out.candidateAssignments.filter(a=>a.date==="2026-11-07")
+    .map(a=>[a.start,a.end]),[["09:00","13:00"]]);
+});
+
+test("PR83: duas folgas por semana, motor escolhe cinco dias, sem escolher dia na equipa",()=>{
+  const data=input({mode:"14d",start:"2026-11-02"});
+  const hours=opening();
+  for(const day of hours.days)day.intervals=
+    day.day==="sunday"?[]:day.day==="saturday"
+      ?[{start:"09:00",end:"13:00"}]
+      :[{start:"09:00",end:"19:00"}];
+  data.openingHours=hours;
+  data.team={members:[
+    {id:ANA,name:"Ana",active:true,weeklyDaysOff:2},
+    {id:RUI,name:"Rui",active:true,weeklyDaysOff:2},
+  ]};
+  const original=JSON.stringify(data);
+  const out=generateSchedule(data);
+  assert.equal(out.status,"valid");
+  assert.deepEqual(out.certification.issues,[]);
+  for(const person of [ANA,RUI]){
+    const shifts=out.candidateAssignments.filter(a=>a.memberId===person);
+    assert.equal(total(shifts),4800);
+    for(const start of ["2026-11-02","2026-11-09"]){
+      const dates=enumerateCivilDays({start,endExclusive:
+        start==="2026-11-02"?"2026-11-09":"2026-11-16"});
+      const period=shifts.filter(a=>dates.includes(a.date));
+      assert.equal(new Set(period.map(a=>a.date)).size,5);
+      assert.equal(total(period),2400);
+      assert.deepEqual(period.filter(a=>civilDayOfWeek(a.date)===5)
+        .map(a=>[a.start,a.end]),[["09:00","13:00"]]);
+      assert.deepEqual(period.filter(a=>civilDayOfWeek(a.date)<5)
+        .map(assignmentMinutes).sort((a,b)=>a-b),[540,540,540,540]);
+    }
+  }
+  assert.equal(JSON.stringify(data),original);
+  assert.deepEqual(out,generateSchedule(data));
+});
+
+test("PR83: três folgas por semana com 40h exige quatro dias longos de 10h",()=>{
+  const data=week();
+  const hours=opening();
+  for(const day of hours.days)day.intervals=
+    day.day==="sunday"?[]:day.day==="saturday"
+      ?[{start:"09:00",end:"13:00"}]
+      :[{start:"09:00",end:"19:00"}];
+  data.openingHours=hours;
+  data.team={members:[
+    {id:ANA,name:"Ana",active:true,weeklyDaysOff:3},
+  ]};
+  const out=generateSchedule(data);
+  assert.equal(out.status,"valid");
+  assert.equal(out.candidateAssignments.length,4);
+  assert.equal(total(out.candidateAssignments),2400);
+  assert.ok(out.candidateAssignments.every(a=>assignmentMinutes(a)===600));
+});
+
+test("PR83: sem capacidade para 40h e dias de folga, nunca certifica falsamente",()=>{
+  const data=week();
+  const hours=opening();
+  for(const day of hours.days)day.intervals=
+    ["saturday","sunday"].includes(day.day)?[]:
+      [{start:"09:00",end:"19:00"}];
+  data.openingHours=hours;
+  data.team={members:[
+    {id:ANA,name:"Ana",active:true,weeklyDaysOff:1},
+  ]};
+  const out=generateSchedule(data);
+  assert.equal(out.status,"invalid");
+  assert.equal(total(out.candidateAssignments),2400);
+  assert.ok(out.certification.issues.some(i=>
+    i.code==="WEEKLY_DAYS_OFF_MISMATCH"));
+  assert.ok(out.candidateAssignments.every(a=>civilDayOfWeek(a.date)<5));
+});
+
+test("PR83: quando não há configuração nova, os horários antigos continuam iguais",()=>{
+  const data=week();
+  const old=generateSchedule(data);
+  const copy=JSON.stringify(data);
+  assert.equal(old.status,"valid");
+  assert.equal(old.candidateAssignments.length,5);
+  assert.equal(JSON.stringify(data),copy);
+  assert.equal(outsideIsNotASetting(data.team),true);
+});
+function outsideIsNotASetting(team:unknown):boolean {
+  return !JSON.stringify(team).includes("weeklyDaysOff");
+}
+
+test("PR83: folgas por semana consideram contexto externo sem alterar outros meses",()=>{
+  const hours=opening();
+  for(const day of hours.days)day.intervals=
+    day.day==="sunday"?[]:day.day==="saturday"
+      ?[{start:"09:00",end:"13:00"}]
+      :[{start:"09:00",end:"19:00"}];
+  const roster={members:[
+    {id:ANA,name:"Ana",active:true,weeklyDaysOff:2},
+  ]};
+  const full=generateSchedule({
+    period:{mode:"weekly",start:"2026-11-30"},
+    team:roster,openingHours:hours,
+  });
+  assert.equal(full.status,"valid");
+  const previous=full.candidateAssignments.filter(a=>a.date==="2026-11-30");
+  const data:GenerationInput={
+    period:{mode:"monthly",year:2026,month:12},
+    team:roster,openingHours:hours,
+    externalContext:{
+      // A última semana de dezembro exige também o turno histórico
+      // de 01/01: dia conhecido vazio NÃO pode ser tratado como folga extra.
+      assignments:[...previous,{
+        memberId:ANA,date:"2027-01-01",start:"09:00",end:"17:00",
+      }],
+      completeDates:["2026-11-30","2027-01-01","2027-01-02","2027-01-03"],
+    },
+  };
+  const before=JSON.stringify(data);
+  const month=generateSchedule(data);
+  assert.equal(month.status,"valid");
+  assert.ok(month.certification.weeks.every(w=>w.actualMinutes===2400));
+  assert.ok(month.candidateAssignments.every(a=>a.date.startsWith("2026-12-")));
+  const expected=full.candidateAssignments.filter(a=>a.date!=="2026-11-30");
+  const actual=month.candidateAssignments.filter(a=>
+    a.date>="2026-12-01"&&a.date<"2026-12-07");
+  assert.deepEqual(actual,expected);
+  assert.equal(JSON.stringify(data),before);
+});
+
+
+test("PR83: pessoas da mesma equipa podem ter uma e duas folgas, sem cobertura mínima",()=>{
+  const data=week();
+  const hours=opening();
+  for(const day of hours.days)day.intervals=
+    day.day==="sunday"?[]:day.day==="saturday"
+      ?[{start:"09:00",end:"13:00"}]
+      :[{start:"09:00",end:"19:00"}];
+  data.openingHours=hours;
+  data.team={members:[
+    {id:ANA,name:"Ana",active:true,weeklyDaysOff:1},
+    {id:RUI,name:"Rui",active:true,weeklyDaysOff:2},
+  ]};
+  const result=generateSchedule(data);
+  assert.equal(result.status,"valid");
+  for(const [memberId,worked] of [[ANA,6],[RUI,5]] as const){
+    const shifts=result.candidateAssignments.filter(a=>a.memberId===memberId);
+    assert.equal(total(shifts),2400);
+    assert.equal(new Set(shifts.map(a=>a.date)).size,worked);
+    assert.deepEqual(shifts.filter(a=>a.date==="2026-11-07")
+      .map(a=>[a.start,a.end]),[["09:00","13:00"]]);
+  }
+});
+
+test("PR83: zero folgas é possível com sete dias abertos; seis folgas não cabem em 40h",()=>{
+  const data=week();
+  const hours=opening();
+  for(const day of hours.days)day.intervals=[{start:"09:00",end:"19:00"}];
+  data.openingHours=hours;
+  data.team={members:[
+    {id:ANA,name:"Ana",active:true,weeklyDaysOff:0},
+  ]};
+  const seven=generateSchedule(data);
+  assert.equal(seven.status,"valid");
+  assert.equal(new Set(seven.candidateAssignments.map(a=>a.date)).size,7);
+  assert.equal(total(seven.candidateAssignments),2400);
+  data.team={members:[
+    {id:ANA,name:"Ana",active:true,weeklyDaysOff:6},
+  ]};
+  const impossible=generateSchedule(data);
+  assert.equal(impossible.status,"invalid");
+  assert.ok(impossible.certification.issues.some(i=>i.code==="WEEKLY_HOURS_MISSING"));
+  assert.ok(impossible.candidateAssignments.every(a=>
+    a.start>="09:00"&&a.end<="19:00"));
+});
+
+
+test("PR83: as folgas de quatro pessoas não ficam concentradas no mesmo dia longo",()=>{
+  const data=input({mode:"28d",start:"2026-11-02"});
+  const hours=opening();
+  for(const day of hours.days)day.intervals=
+    day.day==="saturday"?[]:day.day==="sunday"
+      ?[{start:"09:00",end:"13:00"}]
+      :[{start:"09:00",end:"19:00"}];
+  data.openingHours=hours;
+  const ids=[ANA,RUI,
+    "1a2b3c4d-3333-4444-8aaa-123456789abe",
+    "1a2b3c4d-3333-4444-8aaa-123456789abf",
+  ];
+  data.team={members:ids.map((id,index)=>({
+    id,name:"Teste "+(index+1),active:true,
+    weeklyDaysOff:index===0?1:2,
+  }))};
+  const snapshot=JSON.stringify(data);
+  const out=generateSchedule(data);
+  assert.equal(out.status,"valid");
+  assert.equal(out.certification.status,"valid");
+  for(let w=0;w<4;w++){
+    const monday=new Date(Date.UTC(2026,10,2+7*w));
+    const date=(offset:number)=>{
+      const d=new Date(monday);
+      d.setUTCDate(d.getUTCDate()+offset);
+      return d.toISOString().slice(0,10);
+    };
+    const short=date(6);
+    assert.deepEqual(out.candidateAssignments.filter(a=>a.date===short)
+      .map(a=>[a.memberId,a.start,a.end]).sort((a,b)=>
+        String(a[0]).localeCompare(String(b[0]))),
+      ids.map(id=>[id,"09:00","13:00"]).sort((a,b)=>
+        String(a[0]).localeCompare(String(b[0]))));
+    const weekdays=Array.from({length:5},(_,i)=>date(i));
+    const headcounts=weekdays.map(day=>
+      new Set(out.candidateAssignments.filter(a=>a.date===day)
+        .map(a=>a.memberId)).size);
+    assert.deepEqual([...headcounts].sort((a,b)=>a-b),[3,3,3,4,4],
+      "Três ausências por semana devem ficar em três dias longos diferentes");
+    assert.equal(out.candidateAssignments.filter(a=>a.date===date(5)).length,0);
+    for(let i=0;i<ids.length;i++){
+      const weekShifts=out.candidateAssignments.filter(a=>
+        a.memberId===ids[i] && a.date>=date(0) && a.date<date(7));
+      assert.equal(weekShifts.reduce((sum,a)=>sum+assignmentMinutes(a),0),2400);
+      assert.equal(new Set(weekShifts.map(a=>a.date)).size,i===0?6:5);
+    }
+  }
+  assert.deepEqual(out,generateSchedule(data));
+  assert.equal(JSON.stringify(data),snapshot);
+});
+
+test("PR83: a proteção da janela curta é genérica, sem nome de dia",()=>{
+  for(let shortIndex=0;shortIndex<7;shortIndex++){
+    const data=week();
+    const hours=opening();
+    const closedIndex=shortIndex===6?5:6;
+    for(let i=0;i<7;i++){
+      hours.days[i].intervals=i===closedIndex?[]:
+        i===shortIndex?[{start:"09:00",end:"13:00"}]:
+          [{start:"09:00",end:"19:00"}];
+    }
+    data.openingHours=hours;
+    data.team={members:Array.from({length:4},(_,i)=>({
+      id:"00000000-0000-4000-8000-"+String(i+1).padStart(12,"0"),
+      name:"Colaborador "+i,active:true,weeklyDaysOff:2,
+    }))};
+    const out=generateSchedule(data);
+    assert.equal(out.status,"valid","Janela curta "+hours.days[shortIndex].day);
+    const dates=enumerateCivilDays({start:"2026-11-02",endExclusive:"2026-11-09"});
+    const short=out.candidateAssignments.filter(a=>a.date===dates[shortIndex]);
+    assert.equal(short.length,4);
+    assert.ok(short.every(a=>a.start==="09:00"&&a.end==="13:00"));
+    const counts=dates.filter((_,i)=>i!==shortIndex&&i!==closedIndex)
+      .map(day=>new Set(out.candidateAssignments.filter(a=>a.date===day)
+        .map(a=>a.memberId)).size);
+    assert.equal(counts.length,5);
+    assert.ok(Math.max(...counts)-Math.min(...counts)<=1,
+      "As ausências devem ficar dispersas pelos cinco dias longos");
+    assert.ok(out.certification.weeks.every(w=>w.actualMinutes===2400));
+    assert.ok(out.candidateAssignments.every(a=>a.date!==dates[closedIndex]));
+  }
+});

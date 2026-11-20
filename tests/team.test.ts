@@ -125,3 +125,56 @@ test("A ficha guarda apenas ID, nome e estado, sem preferências ou restrições
     status:"loaded",value:{members:[person(ID_A,"Ana Silva")]},
   });
 });
+
+
+test("Número de dias de folga é opcional para registos antigos e persistente quando definido",()=>{
+  const s=store();
+  const a={...person(ID_A,"Ana"),weeklyDaysOff:2};
+  const b={...person(ID_B,"Rui"),weeklyDaysOff:1};
+  assert.equal(saveTeamDraft(s,{members:[a,b]}).ok,true);
+  const restored=loadTeamDraft(s);
+  assert.equal(restored.status,"loaded");
+  if(restored.status==="loaded"){
+    assert.deepEqual(restored.value.members,[a,b]);
+    assert.equal(saveTeamDraft(s,{members:[
+      {...restored.value.members[0],weeklyDaysOff:3},
+      restored.value.members[1],
+    ]}).ok,true);
+  }
+  const changed=loadTeamDraft(s);
+  assert.equal(changed.status,"loaded");
+  if(changed.status==="loaded")
+    assert.deepEqual(changed.value.members.map(m=>m.weeklyDaysOff),[3,1]);
+  assert.equal(validateTeamRoster({members:[person(ID_A,"Ana")]}).valid,true);
+  assert.deepEqual(validateTeamRoster({members:[person(ID_A,"Ana")]}),{
+    valid:true,value:{members:[person(ID_A,"Ana")]},issues:[],
+  });
+});
+
+test("Folgas semanais têm de ser inteiros entre zero e seis, sem dias pré-definidos",()=>{
+  for(const value of [-1,7,1.5,"2",null,NaN,Infinity]){
+    assert.equal(validateTeamRoster({members:[{
+      ...person(ID_A,"Ana"),weeklyDaysOff:value,
+    }]}).valid,false,String(value));
+  }
+  for(const value of [0,1,2,3,4,5,6]){
+    const checked=validateTeamRoster({members:[{
+      ...person(ID_A,"Ana"),weeklyDaysOff:value,
+    }]});
+    assert.equal(checked.valid,true,String(value));
+    if(checked.valid)assert.equal(checked.value.members[0].weeklyDaysOff,value);
+  }
+});
+
+test("Folgas inválidas não substituem uma equipa guardada",()=>{
+  const s=store();
+  assert.equal(saveTeamDraft(s,{members:[
+    {...person(ID_A,"Ana"),weeklyDaysOff:2},
+  ]}).ok,true);
+  assert.equal(saveTeamDraft(s,{members:[
+    {...person(ID_A,"Ana"),weeklyDaysOff:9},
+  ]}).ok,false);
+  const loaded=loadTeamDraft(s);
+  assert.equal(loaded.status,"loaded");
+  if(loaded.status==="loaded")assert.equal(loaded.value.members[0].weeklyDaysOff,2);
+});

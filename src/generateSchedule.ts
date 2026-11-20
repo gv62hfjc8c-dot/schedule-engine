@@ -207,6 +207,110 @@ function allocateBalancedWeek(plans:DayPlan[],targetMinutes:number):void {
 }
 
 /**
+ * Choose EXACTLY the requested number of working dates, where the number of
+ * non-working calendar dates is configured per person. This is a weekly HARD
+ * constraint, independent of the SOFT time distribution and without assigning
+ * official "Folga" labels to otherwise empty calendar dates.
+ *
+ * Up to seven eligible dates means the entire power set is small (<=128).
+ * Compare viable subsets, preferring full use of shorter opening windows
+ * and spreading the remaining unassigned days between colleagues. This
+ * distribution is SOFT (not a minimum staffing rule), and never sacrifices
+ * weekly 40h or a configured number of non-working days.
+ *
+ * weeklyUnassigned is reset for every civil week and counts days without work
+ * among colleagues already scheduled. It never stores a fixed weekday rule.
+ */
+function allocateConfiguredDays(
+  plans:DayPlan[],targetMinutes:number,editableWorkdays:number,
+  weeklyUnassigned:ReadonlyMap<string,number>,
+):void {
+  const open=plans.filter(plan=>plan.capacity>0);
+  if(targetMinutes<=0 || editableWorkdays<=0)return;
+
+  const slots=Math.min(editableWorkdays,open.length);
+  const maximumCapacity=Math.max(...open.map(plan=>plan.capacity),0);
+  interface Option {
+    days:DayPlan[];
+    shortUse:number;
+    unassignedConcentration:number;
+    consistency:number;
+    minShift:number;
+    distance:number;
+  }
+  let best:Option|null=null;
+  const choose=(start:number,selected:DayPlan[]):void=>{
+    if(selected.length===slots){
+      const totalCapacity=selected.reduce((sum,plan)=>sum+plan.capacity,0);
+      if(totalCapacity<targetMinutes)return;
+      const candidate=selected.map(plan=>({...plan,allocated:0}));
+      allocateBalancedWeek(candidate,targetMinutes);
+      if(candidate.some(plan=>plan.allocated===0) ||
+        candidate.reduce((sum,plan)=>sum+plan.allocated,0)!==targetMinutes)return;
+
+      const shortUse=candidate.reduce((sum,plan)=>
+        sum+(plan.capacity<maximumCapacity?plan.allocated:0),0);
+      const selectedDates=new Set(candidate.map(plan=>plan.date));
+      // A second absence on a day is more concentrated than the first.
+      // For a fixed number of unassigned dates, minimizing this sum is
+      // equivalent to minimizing the increment in squared daily absences.
+      const unassignedConcentration=open.reduce((sum,plan)=>
+        sum+(selectedDates.has(plan.date)?0:
+          (weeklyUnassigned.get(plan.date)??0)),0);
+      const groups=new Map<number,Map<number,number>>();
+      for(const plan of candidate){
+        const count=groups.get(plan.capacity)??new Map<number,number>();
+        count.set(plan.allocated,(count.get(plan.allocated)??0)+1);
+        groups.set(plan.capacity,count);
+      }
+      const consistency=[...groups.values()].reduce((sum,counts)=>
+        sum+Math.max(...counts.values()),0);
+      const minShift=Math.min(...candidate.map(plan=>plan.allocated));
+      const distance=candidate.reduce((sum,plan)=>
+        sum+Math.abs(plan.allocated-Math.min(480,plan.capacity)),0);
+      const next={
+        days:candidate,shortUse,unassignedConcentration,
+        consistency,minShift,distance,
+      };
+      function better(a:Option,b:Option):boolean {
+        // Short opening windows stay available to everybody if feasible.
+        if(a.shortUse!==b.shortUse)return a.shortUse>b.shortUse;
+        // Spread remaining days without work across longer windows.
+        if(a.unassignedConcentration!==b.unassignedConcentration)
+          return a.unassignedConcentration<b.unassignedConcentration;
+        if(a.consistency!==b.consistency)
+          return a.consistency>b.consistency;
+        if(a.minShift!==b.minShift)return a.minShift>b.minShift;
+        return a.distance<b.distance;
+      }
+      if(!best || better(next,best))best=next;
+      return;
+    }
+    for(let i=start;i<=open.length-(slots-selected.length);i++)
+      choose(i+1,[...selected,open[i]]);
+  };
+  if(slots>0)choose(0,[]);
+
+  // The recursive chooser updates best through a closure; make this
+  // mutation explicit to TypeScript's control-flow analysis.
+  const winner=best as Option|null;
+  if(winner){
+    for(const plan of winner.days){
+      const matching=plans.find(p=>p.date===plan.date);
+      if(matching)matching.allocated=plan.allocated;
+    }
+    return;
+  }
+
+  // Infeasible conditions are NOT fixed by silently adding extra workdays
+  // or fabricating closed hours. Produce a bounded proposal; the independent
+  // certifier will report the violated hard constraint(s).
+  const fallback=[...open].sort((a,b)=>
+    b.capacity-a.capacity || a.date.localeCompare(b.date)).slice(0,slots);
+  allocateBalancedWeek(fallback,targetMinutes);
+}
+
+/**
  * Preserve the legacy conservative allocation on incomplete month-boundary
  * weeks. Unknown neighboring dates must never be assumed free or filled in.
  * When the whole week is known, optimize ALL its editable open days together.
@@ -334,6 +438,9 @@ export function generateSchedule(input:GenerationInput):GenerationResult {
 
   const activeMembers=team.value.members.filter(member=>member.active);
   for(const week of period.weeks){
+    // Only this civil week's editable, open days participate in the soft
+    // distribution. Adjacent-month assignments remain read-only context.
+    const weeklyUnassigned=new Map<string,number>();
     const unknownExternalDays=enumerateCivilDays(week)
       .filter(date=>!inRange(date,period) && !completeDates.has(date));
     const contextComplete=unknownExternalDays.length===0;
@@ -343,7 +450,25 @@ export function generateSchedule(input:GenerationInput):GenerationResult {
           ? sum+assignmentMinutes(entry):sum,0);
       const target=Math.max(0,REQUIRED_WEEKLY_MINUTES-externalMinutes);
       const plans=availableDays(week,period,hours.value);
-      allocateWeek(plans,target,contextComplete);
+      if(member.weeklyDaysOff!==undefined && contextComplete){
+        const knownWorkedDates=new Set(externalAssignments
+          .filter(entry=>entry.memberId.toLowerCase()===member.id &&
+            inRange(entry.date,week)).map(entry=>entry.date));
+        const editableWorkdays=7-member.weeklyDaysOff-knownWorkedDates.size;
+        allocateConfiguredDays(
+          plans,target,editableWorkdays,weeklyUnassigned
+        );
+      }else{
+        allocateWeek(plans,target,contextComplete);
+      }
+      // Include every colleague in the distribution, including legacy
+      // members without a configured days-off count. Closed dates are not
+      // eligible and therefore cannot distort the choice of open days.
+      for(const plan of plans){
+        if(plan.capacity>0 && plan.allocated===0)
+          weeklyUnassigned.set(plan.date,
+            (weeklyUnassigned.get(plan.date)??0)+1);
+      }
       const generatedMinutes=plans.reduce((sum,plan)=>sum+plan.allocated,0);
       for(const plan of plans)candidates.push(...toAssignments(
         member.id,plan,memberIndex,activeMembers.length));

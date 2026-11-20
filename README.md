@@ -303,3 +303,55 @@ O gerador passa a otimizar em conjunto as durações de trabalho da semana em to
 Também foram testados sete dias de funcionamento, com durações diferentes e períodos interrompidos, o caso de 36h totais de abertura (certificação correta como inválido por faltarem 4h), continuação de uma semana de novembro para dezembro sem modificar novembro, e equipas de 2, 10, 50 e 200 pessoas no cenário 6 dias abertos. Não foi alterada a interface, o modelo de dados, as folgas, a seleção de pessoas por dia, a persistência, o Supabase nem a regra hard de 40h por semana. **A distribuição pelos dias e as entradas alinhadas continuam preferências soft, sem cobertura mínima.**
 
 **Revisão adicional — 19/11/2026:** a geração do PR82 foi novamente testada com períodos curtos de 4h colocados em **qualquer um dos sete dias**, incluindo todos os colaboradores ativos na mesma janela 09:00–13:00. No cenário de seis dias abertos, foram testadas equipas de 2, 10, 50 e 200 pessoas, verificando 4h completas no dia curto, 36h redistribuídas pelos restantes dias, 40h/semana certificadas e turnos de entrada/saída estáveis quando a duração do trabalho é igual. Os testes sintéticos não equivalem a certificação legal de pausas e descansos.
+
+## PR83 — Quantidade semanal de dias de folga por colaborador, sem dias fixados
+
+Esta é a **primeira fase de experimentação** de folgas. Na página **Configuração → Equipa**, ao adicionar ou editar um colaborador, pode definir-se apenas a **quantidade de dias sem trabalho por semana civil (segunda a domingo)**. Não se indicam datas nem dias da semana. A opção **«Por definir»** mantém o comportamento anterior. O campo opcional `weeklyDaysOff` aceita os inteiros de 0 a 6.
+
+A interpretação operacional deste primeiro modelo é: para um colaborador com `weeklyDaysOff=N`, uma semana completa e conhecida deve conter **exatamente N datas sem atribuições de trabalho e 7−N datas distintas com trabalho**, bem como **40 horas exatas**. Datas em que a empresa está encerrada contam para o número de datas sem trabalho, mas **não são declaradas nem etiquetadas automaticamente como folga oficial**. Tal como antes, a página Horários mantém «Sem turno atribuído» nos dias sem atribuições. A definição formal de folgas identificadas e os seus dias específicos ficam para uma etapa posterior.
+
+**Hard constraints:** 40h/semana por colaborador e número semanal configurado de dias sem trabalho. O certificador independente `src/certifySchedule.ts` verifica ambos e emite `WEEKLY_DAYS_OFF_MISMATCH` para quantidades incompatíveis. Dias com turnos repartidos são contados apenas uma vez. Semanas que atravessam meses só são certificadas como válidas quando o contexto externo está completo; não é permitido tratar datas desconhecidas como folgas. Um excesso conhecido de dias de trabalho pode ser inválido mesmo com contexto externo incompleto.
+
+**Preferências soft preservadas:** distribuição automática dentro do funcionamento real, aproveitamento de janelas curtas e estabilidade de turnos sempre que viável. Para garantir a contagem semanal, o motor escolhe um subconjunto de dias com funcionamento e encontra nele as horas de trabalho exigidas. Não há regras particulares para sábados, mínima cobertura, dias específicos de descanso ou alternância de folgas. Se a configuração for incompatível com o funcionamento e as 40h, o resultado é `invalid`: o motor não cria turnos fora das horas de abertura nem certifica uma solução falsa.
+
+**Compatibilidade:** equipas já guardadas no formato V2 continuam legíveis sem qualquer migração ou valor assumido de folgas. O novo campo só fica guardado quando é explicitamente definido; o armazenamento continua local neste dispositivo. A configuração não altera automaticamente propostas mensais guardadas. Ao regenerar uma proposta, a certificação pode passar a detetar conflito com regras que foram entretanto modificadas.
+
+### Casos de teste
+
+Empresa com segunda–sexta 09:00–19:00, sábado 09:00–13:00, domingo encerrado, cada colaborador com 40h obrigatórias:
+
+| Dias sem trabalho/semana | Dias trabalhados | Distribuição possível |
+|---:|---:|---|
+| 1 | 6 | Quatro dias de 7h, um de 8h, dia curto completo de 4h |
+| 2 | 5 | Quatro dias de 9h, incluindo dia curto completo de 4h |
+| 3 | 4 | Quatro dias de 10h; a janela curta pode ficar sem turno |
+
+Não são prescritas folgas em dias concretos. Os testes automatizados verificam ainda: equipas diferentes com quantidades diferentes, valores inválidos e proteção dos dados antigos; certificação independente e confrontos impossíveis; meses cruzados com contexto exterior apenas em leitura; geração determinística para equipas de **2, 10, 50 e 200 pessoas**. A medição em CI não é uma garantia de desempenho em produção.
+
+Executar `npm ci`, `npm test`, `npm run build` e `npm run dev`, e validar no Safari a edição de cada colaborador e a geração de uma nova proposta. A interpretação formal de folgas como registos próprios e os descansos previstos na lei **não estão ainda implementados nem certificados**.
+
+### Correção PR83 — distribuir dias sem trabalho entre colaboradores
+
+A primeira versão de PR83 selecionava os dias de trabalho de **cada pessoa isoladamente**, sem considerar as restantes. Em cenários simétricos (várias jornadas longas iguais e uma janela curta), todas as pessoas com dois dias sem trabalho acabavam por escolher o mesmo dia longo, criando uma concentração artificial de ausências. O utilizador identificou esse problema no Safari com **quatro colaboradores**, um configurado com 1 dia sem trabalho/semana e três com 2.
+
+A correção mantém as restrições obrigatórias inalteradas e introduz uma **preferência SOFT de distribuição conjunta por semana civil**: depois de preservar as janelas mais curtas quando a carga semanal permitir, o motor escolhe para cada pessoa os dias de trabalho que acrescentem a menor concentração de ausências nos dias abertos. Para esse efeito, acompanha apenas a contagem de dias sem trabalho já atribuídos à equipa nessa semana, nunca dias da semana fixados ou uma exigência de presença mínima. O mapa é reiniciado em cada semana. Colaboradores antigos sem preferência configurada também contribuem para a contagem das ausências já geradas. A otimização mantém uma escolha determinística em cada execução.
+
+**Exemplo reproduzido:** quatro pessoas, 40h semanais, empresa aberta em cinco dias longos de 10h, uma janela curta de 4h, outro dia encerrado; uma pessoa com 1 dia sem trabalho, três pessoas com 2. Todos trabalham na janela curta; as três ausências adicionais ficam **distribuídas por três dias longos distintos**, em vez de concentradas todas na sexta-feira. Num dos testes de regressão, a presença nos cinco dias longos fica [3, 3, 3, 4, 4] em cada semana. A janela curta pode estar em qualquer dos sete dias; não há uma exceção para sábado ou domingo.
+
+**Escala sintética:** com duas folgas configuradas por pessoa e uma janela curta aberta, a contagem de presenças nos cinco dias longos na primeira semana é: equipa de 2 → [2, 2, 2, 1, 1]; de 10 → [8, 8, 8, 8, 8]; de 50 → [40, 40, 40, 40, 40]; de 200 → [160, 160, 160, 160, 160]. As 40h e a contagem semanal de dias sem trabalho continuam certificadas. Estes números demonstram distribuição no cenário testado, **não** um mínimo de cobertura exigido nem uma garantia geral de equidade em todas as configurações. Não foi introduzida alternância de pessoas entre semanas.
+
+O calendário ainda distingue «Sem turno» de folga registada, mantém a mesma interface e não altera propostas guardadas. A distribuição das ausências é um critério de otimização, não uma nova hard constraint.
+
+### PR83 — Filtro de colaborador na página Horários
+
+Para permitir verificar visualmente a distribuição individual dos turnos e dos dias sem trabalho, o calendário mensal passou a ter o filtro **«Ver horário de»**, com as opções **«Toda a equipa»** (vista inicial) e cada colaborador existente na Equipa. A seleção não altera o motor, as 40 horas obrigatórias, a certificação, as escolhas de folgas nem os dados guardados.
+
+- **Toda a equipa:** o calendário mantém as contagens de turnos por dia e o detalhe com as pessoas escaladas.
+- **Pessoa selecionada:** cada dia do mês apresenta as suas **horas de entrada e saída** ou **«Sem turno»**; o detalhe do dia mostra apenas os seus intervalos, incluindo períodos repartidos.
+- No topo, a vista individual apresenta o total de horas e o número de dias com trabalho **nesse mês** (não são horas semanais nem uma contagem de folgas formais).
+- O filtro mantém a pessoa selecionada ao navegar entre meses. Funciona sobre **pré-visualizações ainda não guardadas** e sobre **propostas mensais guardadas**, privilegiando a pré-visualização quando existe.
+- O filtro é **exclusivamente de consulta**. O botão Guardar proposta e o certificador independente continuam a receber o conjunto completo de turnos de todos os colaboradores; não existe gravação de um horário filtrado.
+- Colaboradores presentes numa proposta antiga, mas ausentes da equipa atual, continuam disponíveis na lista para que os turnos guardados não fiquem escondidos; são identificados como «Colaborador não encontrado».
+- **«Sem turno» não significa automaticamente «Folga».** Não foi adicionada qualquer classificação de folgas oficiais.
+
+Código: `src/calendarScheduleView.ts` contém apenas a projeção de leitura por colaborador e os totais; `src/CalendarScheduler.tsx` apresenta o filtro; estilos locais em `src/calendarScheduler.css`. Testes automatizados verificam isolamento do colaborador, turnos repartidos, dias sem turno, ausência de mutação e que a gravação e a certificação continuam a usar a proposta completa. Deve ser validado no Safari com o cenário de quatro colaboradores do PR83 antes do merge.

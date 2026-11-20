@@ -19,7 +19,7 @@ export type CertificationIssueCode=
   | "CONTEXT_IN_EDITABLE_PERIOD"|"INVALID_CONTEXT_DAY"
   | "DUPLICATE_CONTEXT_DAY"|"OVERLAPPING_WORK"
   | "OUTSIDE_OPENING_HOURS"|"WEEKLY_HOURS_MISSING"
-  | "WEEKLY_HOURS_EXCESS"|"CONTEXT_INCOMPLETE";
+  | "WEEKLY_HOURS_EXCESS"|"WEEKLY_DAYS_OFF_MISMATCH"|"CONTEXT_INCOMPLETE";
 
 export interface CertificationIssue {
   code:CertificationIssueCode;
@@ -30,6 +30,8 @@ export interface CertificationIssue {
   missingDates?:string[];
   requiredMinutes?:number;
   actualMinutes?:number;
+  requiredDaysOff?:number;
+  actualDaysOff?:number;
 }
 
 export interface WeeklyWorkSummary {
@@ -246,6 +248,10 @@ export function certifySchedule(input:CertificationInput):CertificationReport {
         entry.memberId===member.id && inRange(entry.date,week)
           ? sum+assignmentMinutes(entry):sum,0);
       const complete=absent.length===0;
+      const knownWorkedDays=new Set(assignments.filter(entry=>
+        entry.memberId===member.id && inRange(entry.date,week)
+      ).map(entry=>entry.date)).size;
+      const knownDaysOff=7-knownWorkedDays;
       const summary:WeeklyWorkSummary={
         memberId:member.id,weekStart:week.start,
         weekEndExclusive:week.endExclusive,
@@ -254,6 +260,15 @@ export function certifySchedule(input:CertificationInput):CertificationReport {
         complete,
       };
       weeks.push(summary);
+      // Unknown external dates are never counted as confirmed days off.
+      // More known workdays than permitted is still a provable violation.
+      if(!complete && member.weeklyDaysOff!==undefined &&
+        knownWorkedDays>7-member.weeklyDaysOff)
+        problems.push(issue("WEEKLY_DAYS_OFF_MISMATCH",
+          "A semana já contém mais dias de trabalho do que o permitido.",{
+            memberId:member.id,weekStart:week.start,
+            requiredDaysOff:member.weeklyDaysOff,actualDaysOff:knownDaysOff,
+          }));
       // With incomplete context a known EXCESS is still provably invalid.
       if(!complete){
         if(total>REQUIRED_WEEKLY_MINUTES)
@@ -264,6 +279,13 @@ export function certifySchedule(input:CertificationInput):CertificationReport {
             }));
         continue;
       }
+      if(member.weeklyDaysOff!==undefined &&
+        knownDaysOff!==member.weeklyDaysOff)
+        problems.push(issue("WEEKLY_DAYS_OFF_MISMATCH",
+          "O número de dias sem trabalho não corresponde à configuração semanal.",{
+            memberId:member.id,weekStart:week.start,
+            requiredDaysOff:member.weeklyDaysOff,actualDaysOff:knownDaysOff,
+          }));
       const comparison=compareWeeklyHours(total);
       if(comparison.kind==="missing")
         problems.push(issue("WEEKLY_HOURS_MISSING",

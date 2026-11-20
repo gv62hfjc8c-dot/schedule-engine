@@ -258,3 +258,80 @@ test("Entradas estruturais inválidas nunca originam validação falsa",()=>{
   assert.ok(codes(data).includes("NO_ACTIVE_MEMBERS"));
   assert.equal(certifySchedule({...data,period:{mode:"weekly",start:"2026-11-03"}}).status,"invalid");
 });
+
+
+test("Folgas configuradas são hard constraint independente das 40h",()=>{
+  const data=input({mode:"weekly",start:"2026-11-02"});
+  data.team={members:[{id:ANA,name:"Ana",active:true,weeklyDaysOff:2}]};
+  assert.equal(certifySchedule(data).status,"valid");
+  const one={...data,team:{members:[
+    {id:ANA,name:"Ana",active:true,weeklyDaysOff:1},
+  ]}};
+  const report=certifySchedule(one);
+  assert.equal(report.status,"invalid");
+  assert.equal(report.weeks[0].actualMinutes,2400);
+  const issue=report.issues.find(i=>i.code==="WEEKLY_DAYS_OFF_MISMATCH");
+  assert.equal(issue?.actualDaysOff,2);
+  assert.equal(issue?.requiredDaysOff,1);
+  assert.equal(issue?.weekStart,"2026-11-02");
+  assert.deepEqual(certifySchedule(data).issues,[]);
+});
+
+test("Dias sem turno contam uma vez por data, mesmo com funcionamento repartido",()=>{
+  const data=input({mode:"weekly",start:"2026-11-02"});
+  data.team={members:[{id:ANA,name:"Ana",active:true,weeklyDaysOff:2}]};
+  const shifts=data.candidateAssignments as WorkAssignment[];
+  shifts.splice(0,1,
+    work("2026-11-02",ANA,"09:00","13:00"),
+    work("2026-11-02",ANA,"13:00","17:00"),
+  );
+  assert.equal(certifySchedule(data).status,"valid");
+  data.team={members:[{id:ANA,name:"Ana",active:true,weeklyDaysOff:3}]};
+  assert.ok(codes(data).includes("WEEKLY_DAYS_OFF_MISMATCH"));
+});
+
+test("Com contexto de mês desconhecido, não inventa dias de folga",()=>{
+  const data=input({mode:"monthly",year:2026,month:11});
+  data.team={members:[{id:ANA,name:"Ana",active:true,weeklyDaysOff:2}]};
+  data.candidateAssignments=weekdays("2026-11-02","2026-12-01");
+  const result=certifySchedule(data);
+  assert.equal(result.status,"insufficient_context");
+  assert.ok(result.issues.some(i=>i.code==="CONTEXT_INCOMPLETE"));
+  assert.ok(!result.issues.some(i=>
+    i.code==="WEEKLY_DAYS_OFF_MISMATCH"),
+    "Dias não conhecidos não podem ser tratados como folgas certas");
+});
+
+test("Com contexto incompleto, excesso já conhecido de dias de trabalho é inválido",()=>{
+  const data=input({mode:"monthly",year:2026,month:11});
+  data.team={members:[{id:ANA,name:"Ana",active:true,weeklyDaysOff:2}]};
+  data.candidateAssignments=[
+    ...weekdays("2026-11-02","2026-11-07"),
+    ...[work("2026-11-08",ANA,"09:00","10:00")],
+  ];
+  // Domingo is closed in company(): open this day to isolate the
+  // independently provable days-off violation.
+  const hours=company();
+  hours.days[6].intervals=[{start:"08:00",end:"21:00"}];
+  data.openingHours=hours;
+  const result=certifySchedule(data);
+  assert.equal(result.status,"invalid");
+  assert.ok(result.issues.some(i=>
+    i.code==="WEEKLY_DAYS_OFF_MISMATCH"));
+});
+
+test("Colaboradores diferentes podem ter quantidades semanais diferentes",()=>{
+  const data=input({mode:"weekly",start:"2026-11-02"});
+  data.team={members:[
+    {id:ANA,name:"Ana",active:true,weeklyDaysOff:2},
+    {id:RUI,name:"Rui",active:true,weeklyDaysOff:1},
+  ]};
+  data.candidateAssignments=[
+    ...weekdays("2026-11-02","2026-11-09",ANA),
+    ...weekdays("2026-11-02","2026-11-09",RUI),
+  ];
+  const report=certifySchedule(data);
+  assert.equal(report.status,"invalid");
+  assert.deepEqual(report.issues.filter(i=>
+    i.code==="WEEKLY_DAYS_OFF_MISMATCH").map(i=>i.memberId),[RUI]);
+});

@@ -3,12 +3,17 @@
  * a shift assignment, attendance record or absence. Eligibility windows are
  * derived from the organisation's operating hours, not stored per person.
  *
+ * A weekly days-off COUNT is optional until configured. No weekday is fixed;
+ * a day without a shift is not automatically labeled an official day off.
  * No contract, role, personal contact or legal identifiers at this stage.
  */
 export interface TeamMember {
   id: string;
   name: string;
   active: boolean;
+  /** Exact number of non-working calendar days per Monday-Sunday week (0..6).
+   * Omitted for legacy rosters: no days-off constraint is implied. */
+  weeklyDaysOff?: number;
 }
 export interface TeamRoster {
   members: TeamMember[];
@@ -46,7 +51,7 @@ export function validateTeamRoster(input:unknown):TeamValidation {
   for(const item of members){
     if(!item || typeof item!=="object" || Array.isArray(item))
       return {valid:false,value:null,issues:["Existe um colaborador com dados inválidos."]};
-    const member=item as {id?:unknown;name?:unknown;active?:unknown};
+    const member=item as {id?:unknown;name?:unknown;active?:unknown;weeklyDaysOff?:unknown};
     const name=validateTeamName(member.name);
     if(!name)return {valid:false,value:null,
       issues:["O nome deve conter entre 2 e 120 caracteres válidos."]};
@@ -57,8 +62,20 @@ export function validateTeamRoster(input:unknown):TeamValidation {
       return {valid:false,value:null,issues:["Existem colaboradores com identificadores repetidos."]};
     if(typeof member.active!=="boolean")
       return {valid:false,value:null,issues:["O estado de um colaborador é inválido."]};
+    if(member.weeklyDaysOff!==undefined && (
+      typeof member.weeklyDaysOff!=="number" ||
+      !Number.isInteger(member.weeklyDaysOff) ||
+      member.weeklyDaysOff<0 || member.weeklyDaysOff>6
+    ))
+      return {valid:false,value:null,issues:[
+        "As folgas semanais devem ser um número inteiro entre 0 e 6.",
+      ]};
     seen.add(id);
-    checked.push({id,name,active:member.active});
+    checked.push({
+      id,name,active:member.active,
+      ...(member.weeklyDaysOff===undefined ? {} :
+        {weeklyDaysOff:member.weeklyDaysOff}),
+    });
   }
   return {valid:true,value:{members:checked},issues:[]};
 }

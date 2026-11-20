@@ -143,3 +143,69 @@
   .schedule-buttons .button { width: 100%; }
   .calendar-day .calendar-assignment-count { font-size: 7px; }
 }
+
+/* Read-only collaborator filter. Keep it with the calendar, not generation. */
+.schedule-member-filter {
+  display: grid;
+  gap: 6px;
+  width: min(240px, 100%);
+  min-width: 0;
+}
+.schedule-member-filter label {
+  color: #b9d1df;
+  font-size: 12px;
+  font-weight: 700;
+}
+.schedule-member-filter select {
+  width: 100%;
+  min-width: 0;
+  min-height: 43px;
+  padding: 8px 12px;
+  color: var(--text);
+  background: #132337;
+  border: 1px solid #59788e;
+  border-radius: 10px;
+  color-scheme: dark;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.schedule-member-filter select:focus-visible {
+  outline: 3px solid #85d9de;
+  outline-offset: 3px;
+}
+.schedule-member-summary {
+  margin: 0 0 14px;
+  color: #bcd4e2;
+  line-height: 1.5;
+  font-size: 12px;
+}
+.schedule-member-summary strong { color: var(--text); }
+.calendar-member-shifts {
+  display: grid;
+  gap: 3px;
+  margin-top: 5px;
+  min-width: 0;
+  color: #aee5df;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+.calendar-member-shifts span {
+  display: block;
+  overflow-wrap: anywhere;
+}
+.calendar-member-empty {
+  display: block;
+  margin-top: 5px;
+  color: #a6b6c7;
+  font-size: 10px;
+  line-height: 1.25;
+}
+@media (max-width: 620px) {
+  .schedule-member-filter { width: 100%; }
+  .calendar-member-shifts, .calendar-member-empty { font-size: 8px; }
+}
+@media (max-width: 460px) {
+  .calendar-member-shifts, .calendar-member-empty { font-size: 7px; }
+}
