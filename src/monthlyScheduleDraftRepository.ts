@@ -2,6 +2,7 @@ import {
   enumerateCivilDays,inRange,resolvePlanningPeriod,type PlanningPeriod,
 } from "./schedulePeriods";
 import {
+  assignmentMinutes,clockMinutes,
   assignmentsOverlap,validateWorkAssignment,type WorkAssignment,
 } from "./workAssignments";
 import type {ExternalScheduleContext} from "./certifySchedule";
@@ -62,6 +63,25 @@ function validatedAssignments(input:unknown,year:number,month:number):WorkAssign
   return result;
 }
 
+function validSingleShiftMeals(assignments:readonly WorkAssignment[]):boolean {
+  const days=new Set<string>();
+  for(const shift of assignments){
+    const key=shift.memberId+"|"+shift.date;
+    if(days.has(key))return false;
+    days.add(key);
+    const effective=assignmentMinutes(shift);
+    if(effective>240&&!shift.mealBreak)return false;
+    if(effective<=240&&shift.mealBreak)return false;
+    if(shift.mealBreak){
+      if(clockMinutes(shift.mealBreak.end)-
+        clockMinutes(shift.mealBreak.start)!==60)return false;
+      if(clockMinutes(shift.mealBreak.start)-
+        clockMinutes(shift.start)<180)return false;
+    }
+  }
+  return true;
+}
+
 function validatedMealBreaks(
   raw:unknown,year:number,month:number
 ):MealBreak[]|null {
@@ -99,9 +119,12 @@ export function loadMonthlyDraft(
     if(document.mealBreakPolicy===undefined && document.mealBreaks===undefined)
       return {status:"loaded",assignments,mealBreaks:[],revision:raw};
     if(document.mealBreakPolicy==="v2" &&
-      document.mealBreaks===undefined)
+      document.mealBreaks===undefined){
+      if(!validSingleShiftMeals(assignments))
+        return {status:"invalid",assignments:null,revision:null};
       return {status:"loaded",assignments,mealBreaks:[],
         mealBreakPolicy:"v2",revision:raw};
+    }
     if(document.mealBreakPolicy!=="v1")
       return {status:"invalid",assignments:null,revision:null};
     const mealBreaks=validatedMealBreaks(document.mealBreaks,year,month);
@@ -124,6 +147,9 @@ export function saveMonthlyDraft(
   const assignments=validatedAssignments(input,year,month);
   if(assignments===null)
     return {ok:false,code:"invalid",message:"O horário contém turnos inválidos ou fora do mês selecionado."};
+  if(mealBreakPolicy==="v2" && !validSingleShiftMeals(assignments))
+    return {ok:false,code:"invalid",
+      message:"Cada turno normal exige uma pausa válida dentro do turno."};
   if((mealBreakPolicy===undefined && mealBreaksInput!==undefined) ||
     (mealBreakPolicy==="v1" && mealBreaksInput===undefined) ||
     (mealBreakPolicy==="v2" && mealBreaksInput!==undefined))
