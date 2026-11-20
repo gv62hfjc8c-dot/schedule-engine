@@ -1,4 +1,5 @@
 import {clockMinutes,type WorkAssignment} from "./workAssignments";
+import {parseCivilDate} from "./schedulePeriods";
 
 export const MEAL_BREAK_DURATION_MINUTES=60;
 export const MEAL_BREAK_EARLIEST_AFTER_ENTRY_MINUTES=180;
@@ -34,6 +35,7 @@ export function validateMealBreak(raw:unknown):MealBreak|null {
     typeof value.end!=="string"||!/^\d{4}-\d{2}-\d{2}$/.test(value.date))
     return null;
   try {
+    parseCivilDate(value.date);
     const start=clockMinutes(value.start),end=clockMinutes(value.end);
     if(end-start!==MEAL_BREAK_DURATION_MINUTES)return null;
     return {memberId:value.memberId,date:value.date,
