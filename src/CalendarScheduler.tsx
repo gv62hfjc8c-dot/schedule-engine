@@ -76,6 +76,9 @@ function MonthWorkspace({
   const [savedMealBreaks,setSavedMealBreaks]=useState<MealBreak[]>(
     ()=>initial.status==="loaded"?initial.mealBreaks:[]
   );
+  const [savedPolicy,setSavedPolicy]=useState<"v1"|"v2"|undefined>(
+    ()=>initial.status==="loaded"?initial.mealBreakPolicy:undefined
+  );
   const [revision,setRevision]=useState<string|null>(
     ()=>initial.status==="loaded"?initial.revision:null
   );
@@ -97,7 +100,8 @@ function MonthWorkspace({
   // Legacy PR84 v1 drafts may still carry separate meal records.
   // New v2 shifts contain their own pause, never a second work shift.
   const legacyMealBreaks=preview?[]:savedMealBreaks;
-  const report=preview?.certification??savedReport;
+  const legacyDraft=saved!==null&&preview===null&&savedPolicy!=="v2";
+  const report=preview?.certification??(legacyDraft?null:savedReport);
   // A display-only projection: certification and saving ALWAYS use full data.
   const view=calendarScheduleView(data,selectedMemberId);
   const byDay=view.byDay;
@@ -193,6 +197,7 @@ function MonthWorkspace({
     }
     setSaved(result.assignments);
     setSavedMealBreaks(result.mealBreaks);
+    setSavedPolicy(result.mealBreakPolicy);
     setRevision(result.revision);
     setSavedReport(currentReport);
     setPreview(null);
@@ -231,6 +236,13 @@ function MonthWorkspace({
             "Existe uma proposta guardada neste dispositivo para este mês."}
           {" "}A geração não altera os horários dos outros meses.
         </p>
+        {legacyDraft&&
+          <p className="schedule-storage-note" role="status">
+            Este rascunho utiliza o modelo anterior de horários.
+            Para aplicar turnos únicos com pausa interna e a nova regra de
+            cobertura, gera uma nova proposta. O registo atual só é
+            substituído após confirmação.
+          </p>}
         {isBlocked&&<p role="alert" className="form-error">
           {initial.status==="invalid"
             ?"Os dados guardados deste mês são inválidos. Não serão apagados nem substituídos automaticamente."
@@ -242,11 +254,14 @@ function MonthWorkspace({
         </p>}
         {(preview||saved)&&<div className="schedule-certification" aria-live="polite">
           <span className={"schedule-status schedule-status-"+(report?.status??"unknown")}>
-            {report?.status==="valid"?"Regras verificadas":
+            {legacyDraft?"Modelo anterior":
+              report?.status==="valid"?"Regras verificadas":
               report?.status==="insufficient_context"?"Contexto incompleto":
               report?.status==="invalid"?"Com problemas":"Não verificado"}
           </span>
-          <p>{stateText(report)}</p>
+          <p>{legacyDraft
+            ?"Este rascunho não foi certificado pelas regras novas de pausas e cobertura."
+            :stateText(report)}</p>
           {report&&report.issues.length>0&&<div className="schedule-issues">
             <strong>Problemas encontrados</strong>
             <ul>
