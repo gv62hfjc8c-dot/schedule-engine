@@ -346,6 +346,10 @@ test("Em dias com várias janelas curtas, nunca cria segmentos parciais para fec
 
 test("Jornada curta de 3h também é integral, sem regra específica para sábado",()=>{
   const d=scenario(6);
+  d.team={members:[ANA,RUI,
+    "1a2b3c4d-3333-4444-8aaa-123456789abe",
+    "1a2b3c4d-3333-4444-8aaa-123456789abf",
+  ].map((id,i)=>({id,name:"Pessoa "+i,active:true}))};
   const hours=d.openingHours as ReturnType<typeof suggestedWeeklyOpeningHours>;
   hours.days[2].intervals=[{start:"10:00",end:"13:00"}];
   const out=generated(d);
