@@ -70,7 +70,9 @@ function validSingleShiftMeals(assignments:readonly WorkAssignment[]):boolean {
     if(days.has(key))return false;
     days.add(key);
     const effective=assignmentMinutes(shift);
-    if(effective>240&&!shift.mealBreak)return false;
+    // A 5h Sunday can be a full, break-free SHORT COMPANY OPENING.
+    // Storage only validates shape. The independent certifier has access
+    // to opening hours and decides whether the pause is required.
     if(effective<=240&&shift.mealBreak)return false;
     if(shift.mealBreak){
       if(clockMinutes(shift.mealBreak.end)-
