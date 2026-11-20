@@ -20,12 +20,12 @@ type WriteStorage=Pick<Storage,"getItem"|"setItem">;
 
 export type MonthlyDraftLoad=
   | {status:"loaded";assignments:WorkAssignment[];
-    mealBreaks:MealBreak[];mealBreakPolicy?:"v1"|"v2"|"v2";revision:string}
+    mealBreaks:MealBreak[];mealBreakPolicy?:"v1"|"v2";revision:string}
   | {status:"empty";assignments:null;revision:null}
   | {status:"invalid"|"unavailable";assignments:null;revision:null};
 export type MonthlyDraftSave=
   | {ok:true;revision:string;assignments:WorkAssignment[];
-    mealBreaks:MealBreak[];mealBreakPolicy?:"v1"|"v2"|"v2"}
+    mealBreaks:MealBreak[];mealBreakPolicy?:"v1"|"v2"}
   | {ok:false;code:"invalid"|"unavailable"|"conflict";message:string};
 export type ExternalContextLoad=
   | {ok:true;context:ExternalScheduleContext}
@@ -195,7 +195,7 @@ export function loadMonthlyDraftFromBrowser(year:number,month:number):MonthlyDra
 }
 export function saveMonthlyDraftToBrowser(
   year:number,month:number,assignments:unknown,expectedRevision:string|null,
-  mealBreaks?:unknown,mealBreakPolicy?:"v1"|"v2"|"v2"
+  mealBreaks?:unknown,mealBreakPolicy?:"v1"|"v2"
 ):MonthlyDraftSave {
   try{return saveMonthlyDraft(
     window.localStorage,year,month,assignments,expectedRevision,
