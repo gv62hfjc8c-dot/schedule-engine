@@ -99,7 +99,16 @@ export function shortShiftOptions(
 export function mealDayOptions(
   memberId:string,date:string,intervals:readonly NumericOpening[],
   workMinutes:number,
+  shortOpening=false,
 ):WorkAssignment[] {
+  if(shortOpening){
+    const total=intervals.reduce((sum,i)=>sum+i.end-i.start,0);
+    // Every person assigned to a short business opening works all of it.
+    // One continuous shift cannot silently cross a closed business gap.
+    return intervals.length===1 && workMinutes===total && total>0
+      ?[{memberId,date,start:hhmm(intervals[0].start),
+        end:hhmm(intervals[0].end)}]:[];
+  }
   return candidateDayStarts(intervals).flatMap(start=>
     workMinutes<=SHORT_SHIFT_MAX_WORK_MINUTES
       ?shortShiftOptions(memberId,date,intervals,workMinutes,start)
