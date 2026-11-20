@@ -12,11 +12,12 @@ import {
   type WorkAssignment,
 } from "./workAssignments";
 import {REQUIRED_WEEKLY_MINUTES} from "./weeklyHours";
-import {
-  effectiveMealDayCapacity,selectWeeklyMealPlan,type MealBreak,
-} from "./mealBreaks";
+import {effectiveMealDayCapacity} from "./mealBreaks";
+import {scheduleMealDay,type MealDayRequest} from "./mealCoveragePlanner";
 
-export type GenerationInput=Omit<CertificationInput,"candidateAssignments"|"mealBreaks">;
+export type GenerationInput=Omit<
+  CertificationInput,"candidateAssignments"|"mealBreaks"|"mealBreakPolicy"
+> & {mealBreakPolicy?:"v2"};
 
 export interface GenerationShortfall {
   memberId:string;
@@ -32,7 +33,6 @@ export interface GenerationShortfall {
 export interface GenerationResult {
   /** Never saved automatically. Even an invalid result can contain a proposal. */
   candidateAssignments:WorkAssignment[];
-  mealBreaks:MealBreak[];
   certification:CertificationReport;
   /** "invalid_input" means the generator refused to plan from corrupt input. */
   status:"valid"|"invalid"|"insufficient_context"|"invalid_input";
@@ -64,7 +64,7 @@ function availableDays(
   week:DateRange,
   editable:DateRange,
   hours:NonNullable<ReturnType<typeof validateWeeklyOpeningHours>["value"]>,
-  mealPolicy:"v1"|undefined,
+  mealPolicy:"v2"|undefined,
   mealCapacityCache:Map<string,number>,
 ):DayPlan[] {
   return enumerateCivilDays(week)
@@ -78,7 +78,7 @@ function availableDays(
       }));
       const totalOpen=intervals.reduce((sum,x)=>sum+x.end-x.start,0);
       let capacity=totalOpen;
-      if(mealPolicy==="v1" && totalOpen>240){
+      if(mealPolicy==="v2" && totalOpen>240){
         const key=JSON.stringify(intervals);
         const cached=mealCapacityCache.get(key);
         capacity=cached??effectiveMealDayCapacity(intervals);
@@ -428,13 +428,13 @@ function toAssignments(
  * Candidate assignments must be treated as a proposal until certification.
  */
 export function generateSchedule(input:GenerationInput):GenerationResult {
-  const emptyCertification=certifySchedule({...input,candidateAssignments:[],mealBreaks:[]});
+  const emptyCertification=certifySchedule({...input,candidateAssignments:[]});
   const hours=validateWeeklyOpeningHours(input.openingHours);
   const team=validateTeamRoster(input.team);
   const fatal=emptyCertification.issues.some(x=>FATAL_INPUT_CODES.has(x.code));
   if(fatal || !emptyCertification.period || !hours.valid || !team.valid){
     return {
-      status:"invalid_input",candidateAssignments:[],mealBreaks:[],
+      status:"invalid_input",candidateAssignments:[],
       certification:emptyCertification,shortfalls:[],
     };
   }
@@ -446,9 +446,11 @@ export function generateSchedule(input:GenerationInput):GenerationResult {
     .filter((x):x is WorkAssignment=>x!==null);
   const completeDates=new Set(input.externalContext?.completeDates as string[]|undefined??[]);
   const candidates:WorkAssignment[]=[];
-  const mealBreaks:MealBreak[]=[];
   const mealCapacityCache=new Map<string,number>();
   const shortfalls:GenerationShortfall[]=[];
+  const requestsByDate=new Map<string,{
+    intervals:DayPlan["intervals"];requests:MealDayRequest[];
+  }>();
 
   const activeMembers=team.value.members.filter(member=>member.active);
   for(const week of period.weeks){
@@ -488,23 +490,21 @@ export function generateSchedule(input:GenerationInput):GenerationResult {
       const generatedMinutes=plans.reduce((sum,plan)=>sum+plan.allocated,0);
       for(const plan of plans){
         if(plan.allocated<=0)continue;
-        if(input.mealBreakPolicy==="v1" && plan.allocated>240){
-          const weekIndex=Math.floor(daysBetween(
-            "1970-01-05",plan.date)/7);
-          const withMeal=selectWeeklyMealPlan(
-            member.id,plan.date,plan.intervals,plan.allocated,
-            memberIndex,activeMembers.length,weekIndex
-          );
-          if(withMeal){
-            candidates.push(...withMeal.assignments);
-            mealBreaks.push(withMeal.mealBreak);
-            continue;
-          }
-          // Failure must never be silently certified as a valid meal break.
-          // A bounded work-only proposal receives MEAL_BREAK_MISSING.
+        if(input.mealBreakPolicy==="v2"){
+          const day=requestsByDate.get(plan.date)??{
+            intervals:plan.intervals,requests:[],
+          };
+          day.requests.push({
+            memberId:member.id,date:plan.date,workMinutes:plan.allocated,
+            memberIndex,activeCount:activeMembers.length,
+            weekIndex:Math.floor(daysBetween(
+              "1970-01-05",plan.date)/7),
+          });
+          requestsByDate.set(plan.date,day);
+        }else{
+          candidates.push(...toAssignments(
+            member.id,plan,memberIndex,activeMembers.length));
         }
-        candidates.push(...toAssignments(
-          member.id,plan,memberIndex,activeMembers.length));
       }
       if(contextComplete && generatedMinutes+externalMinutes<REQUIRED_WEEKLY_MINUTES){
         shortfalls.push({
@@ -517,13 +517,58 @@ export function generateSchedule(input:GenerationInput):GenerationResult {
       }
     }
   }
+  if(input.mealBreakPolicy==="v2"){
+    // Schedule all colleagues TOGETHER on each day. A meal is an embedded
+    // interval in one shift, and coverage always outweighs soft preferences.
+    const preferredStarts=new Map<string,number>();
+    for(const date of [...requestsByDate.keys()].sort()){
+      const day=requestsByDate.get(date)!;
+      const requests=day.requests.map(r=>({
+        ...r,preferredStart:preferredStarts.get(
+          r.memberId+"|"+r.weekIndex
+        ),
+      }));
+      const planned=scheduleMealDay(requests,day.intervals);
+      candidates.push(...planned.assignments);
+      for(const shift of planned.assignments){
+        const weekIndex=Math.floor(daysBetween(
+          "1970-01-05",shift.date)/7);
+        const key=shift.memberId+"|"+weekIndex;
+        if(!preferredStarts.has(key))
+          preferredStarts.set(key,clockMinutes(shift.start));
+      }
+      // Missing coverage cannot be repaired by silently changing the
+      // compulsory 40h or adding workers; the certifier reports the gap.
+    }
+    // Report actual generated effective hours, not just requested allocation.
+    shortfalls.length=0;
+    for(const week of period.weeks){
+      const contextComplete=enumerateCivilDays(week).every(date=>
+        inRange(date,period)||completeDates.has(date));
+      if(!contextComplete)continue;
+      for(const member of activeMembers){
+        const externalMinutes=externalAssignments.reduce((sum,entry)=>
+          entry.memberId.toLowerCase()===member.id &&
+          inRange(entry.date,week)?sum+assignmentMinutes(entry):sum,0);
+        const generatedMinutes=candidates.reduce((sum,entry)=>
+          entry.memberId===member.id && inRange(entry.date,week)
+            ?sum+assignmentMinutes(entry):sum,0);
+        if(externalMinutes+generatedMinutes<REQUIRED_WEEKLY_MINUTES)
+          shortfalls.push({
+            memberId:member.id,weekStart:week.start,
+            externalMinutes,generatedMinutes,
+            missingMinutes:REQUIRED_WEEKLY_MINUTES-
+              externalMinutes-generatedMinutes,
+            contextComplete,
+          });
+      }
+    }
+  }
   candidates.sort((a,b)=>a.date.localeCompare(b.date) ||
     a.memberId.localeCompare(b.memberId) || a.start.localeCompare(b.start));
-  const certification=certifySchedule({...input,
-    candidateAssignments:candidates,mealBreaks});
+  const certification=certifySchedule({...input,candidateAssignments:candidates});
   return {
     status:certification.status,
-    candidateAssignments:candidates,mealBreaks,
-    certification,shortfalls,
+    candidateAssignments:candidates,certification,shortfalls,
   };
 }
