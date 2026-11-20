@@ -1,16 +1,16 @@
 import {civilDayOfWeek,parseCivilDate} from "./schedulePeriods";
 import {WEEKDAYS,type WeeklyOpeningHours} from "./operatingHours";
 
-/**
- * One uninterrupted interval of effective work on one civil day.
- * An unpaid break is represented by separate work intervals, not deducted
- * implicitly. Overnight intervals are deliberately outside this phase.
+/** One shift per person and day. An optional meal interval belongs INSIDE
+ * the shift and is excluded from effective work. Old shifts without a meal
+ * remain readable for backward compatibility; overnight shifts are unsupported.
  */
 export interface WorkAssignment {
   memberId:string;
   date:string;
   start:string;
   end:string;
+  mealBreak?:{start:string;end:string};
 }
 
 const TIME=/^(?:[01]\d|2[0-3]):[0-5]\d$/;
@@ -29,18 +29,43 @@ export function validateWorkAssignment(raw:unknown):WorkAssignment|null {
     return null;
   try{
     parseCivilDate(value.date);
-    if(clockMinutes(value.end)<=clockMinutes(value.start))return null;
+    const start=clockMinutes(value.start),end=clockMinutes(value.end);
+    if(end<=start)return null;
+    let mealBreak:WorkAssignment["mealBreak"];
+    if(value.mealBreak!==undefined){
+      const meal=value.mealBreak;
+      if(!meal||typeof meal!=="object"||Array.isArray(meal)||
+        typeof meal.start!=="string"||typeof meal.end!=="string")
+        return null;
+      const bStart=clockMinutes(meal.start),bEnd=clockMinutes(meal.end);
+      if(!(start<bStart&&bStart<bEnd&&bEnd<end))return null;
+      mealBreak={start:meal.start,end:meal.end};
+    }
     return {
-      memberId:value.memberId,
-      date:value.date,
-      start:value.start,
-      end:value.end,
+      memberId:value.memberId,date:value.date,start:value.start,end:value.end,
+      ...(mealBreak?{mealBreak}:{}),
     };
   }catch{return null;}
 }
 
+/** Hours actually worked, never including the meal inside the shift. */
 export function assignmentMinutes(assignment:WorkAssignment):number {
-  return clockMinutes(assignment.end)-clockMinutes(assignment.start);
+  const span=clockMinutes(assignment.end)-clockMinutes(assignment.start);
+  return span-(assignment.mealBreak
+    ?clockMinutes(assignment.mealBreak.end)-
+      clockMinutes(assignment.mealBreak.start):0);
+}
+
+/** Work intervals for coverage checks; a shift is still one assignment. */
+export function effectiveWorkIntervals(
+  assignment:WorkAssignment
+):{start:number;end:number}[]{
+  const start=clockMinutes(assignment.start),end=clockMinutes(assignment.end);
+  if(!assignment.mealBreak)return [{start,end}];
+  return [
+    {start,end:clockMinutes(assignment.mealBreak.start)},
+    {start:clockMinutes(assignment.mealBreak.end),end},
+  ];
 }
 
 export function assignmentsOverlap(a:WorkAssignment,b:WorkAssignment):boolean {
@@ -60,9 +85,10 @@ export function isWithinOpeningHours(
   const weekday=WEEKDAYS[civilDayOfWeek(assignment.date)].id;
   const day=hours.days.find(d=>d.day===weekday);
   if(!day)return false;
-  const start=clockMinutes(assignment.start);
-  const end=clockMinutes(assignment.end);
-  return day.intervals.some(interval=>
-    start>=clockMinutes(interval.start) && end<=clockMinutes(interval.end)
+  return effectiveWorkIntervals(assignment).every(work=>
+    day.intervals.some(interval=>
+      work.start>=clockMinutes(interval.start) &&
+      work.end<=clockMinutes(interval.end)
+    )
   );
 }
