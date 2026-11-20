@@ -76,9 +76,6 @@ function MonthWorkspace({
   const [savedMealBreaks,setSavedMealBreaks]=useState<MealBreak[]>(
     ()=>initial.status==="loaded"?initial.mealBreaks:[]
   );
-  const [savedMealPolicy,setSavedMealPolicy]=useState<"v1"|undefined>(
-    ()=>initial.status==="loaded"?initial.mealBreakPolicy:undefined
-  );
   const [revision,setRevision]=useState<string|null>(
     ()=>initial.status==="loaded"?initial.revision:null
   );
@@ -183,7 +180,6 @@ function MonthWorkspace({
     }
     setSaved(result.assignments);
     setSavedMealBreaks(result.mealBreaks);
-    setSavedMealPolicy(result.mealBreakPolicy);
     setRevision(result.revision);
     setSavedReport(currentReport);
     setPreview(null);
