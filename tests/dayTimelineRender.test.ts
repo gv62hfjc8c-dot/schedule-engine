@@ -105,7 +105,7 @@ test("turno e pausa têm controlos arrastáveis acessíveis sem botões aninhado
   assert.match(enabled,/Arrasta a barra verde/);
   assert.match(enabled,/is-highlighted/);
   // The movable meal is a SIBLING of its shift, not a nested button.
-  assert.doesNotMatch(enabled,/<button[^>]*>[^]*?<button/);
+  assert.doesNotMatch(enabled,/<button[^>]*>[^<]*<button/);
   const readOnly=renderToStaticMarkup(createElement(DayScheduleTimeline,{
     timeline,names,selectedMemberId:null,hasProposal:true,
   }));
