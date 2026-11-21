@@ -34,11 +34,14 @@ export function validateMealBreak(raw:unknown):MealBreak|null {
   }catch{return null;}
 }
 
-export function candidateDayStarts(intervals:readonly NumericOpening[]):number[] {
+export function candidateDayStarts(
+  intervals:readonly NumericOpening[],spacingMinutes:15|30=30,
+):number[] {
   const starts=new Set<number>();
   for(const interval of intervals){
     starts.add(interval.start);
-    for(let t=Math.ceil(interval.start/30)*30;t<interval.end;t+=30)
+    for(let t=Math.ceil(interval.start/spacingMinutes)*spacingMinutes;
+      t<interval.end;t+=spacingMinutes)
       starts.add(t);
   }
   return [...starts].sort((a,b)=>a-b);
@@ -109,7 +112,11 @@ export function mealDayOptions(
       ?[{memberId,date,start:hhmm(intervals[0].start),
         end:hhmm(intervals[0].end)}]:[];
   }
-  return candidateDayStarts(intervals).flatMap(start=>
+  // For 8h45 effective days a 09:15 start may be the only way to cover
+  // the 19:00 closing. Preserve established 30-minute positions whenever
+  // work duration is compatible with them.
+  return candidateDayStarts(intervals,workMinutes%30===0?30:15)
+    .flatMap(start=>
     workMinutes<=SHORT_SHIFT_MAX_WORK_MINUTES
       ?shortShiftOptions(memberId,date,intervals,workMinutes,start)
       :mealShiftOptions(memberId,date,intervals,workMinutes,start)

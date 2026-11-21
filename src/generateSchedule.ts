@@ -16,6 +16,10 @@ import {effectiveMealDayCapacity} from "./mealBreaks";
 import {scheduleMealDay,type MealDayRequest} from "./mealCoveragePlanner";
 import {shortOpeningDays} from "./shortOpenings";
 import {rollingWeekGuidance} from "./rollingHoursPlan";
+import {
+  balanceLongWorkdays,compareDailyWorkload,dailyWorkloadQuality,
+  type DailyWorkloadQuality,
+} from "./dailyWorkloadBalance";
 import type {ExternalScheduleContext} from "./certifySchedule";
 
 export type GenerationInput=Omit<
@@ -140,6 +144,7 @@ function allocateBalancedWeekUnrestricted(
     activeDays:number;
     consistency:number;
     shortWindowMinutes:number;
+    quality:DailyWorkloadQuality;
     smallestShift:number;
     targetDistance:number;
   };
@@ -149,6 +154,9 @@ function allocateBalancedWeekUnrestricted(
       return next.activeDays>previous.activeDays;
     if(next.shortWindowMinutes!==previous.shortWindowMinutes)
       return next.shortWindowMinutes>previous.shortWindowMinutes;
+    // The daily burden matters more than making shifts look identical.
+    const dailyComparison=compareDailyWorkload(next.quality,previous.quality);
+    if(dailyComparison!==0)return dailyComparison<0;
     if(next.consistency!==previous.consistency)
       return next.consistency>previous.consistency;
     if(next.smallestShift!==previous.smallestShift)
@@ -222,13 +230,18 @@ function allocateBalancedWeekUnrestricted(
     const targetDistance=allocations.reduce((sum,minutes,i)=>
       sum+Math.abs(minutes-Math.min(480,open[i].capacity)),0);
     const candidate={
-      allocations,activeDays,shortWindowMinutes,consistency,
+      allocations,activeDays,shortWindowMinutes,
+      quality:dailyWorkloadQuality(allocations),consistency,
       smallestShift,targetDistance,
     };
     if(!best || isBetter(candidate,best))best=candidate;
   }
   if(!best)throw new Error("A carga semanal não pôde ser distribuída.");
   for(let i=0;i<open.length;i++)open[i].allocated=best.allocations[i];
+  // A 40h week with a 5h Sunday and four longer workdays is better
+  // distributed as four 8h45 shifts than two 9h30 shifts. Adjust only
+  // work minutes on existing normal days, preserving the exact total.
+  balanceLongWorkdays(open);
 }
 
 /**
@@ -249,6 +262,7 @@ function allocateBalancedWeek(plans:DayPlan[],targetMinutes:number):void {
     allocations:Map<string,number>;
     activeDays:number;
     shortMinutes:number;
+    quality:DailyWorkloadQuality;
     consistency:number;
     smallestShift:number;
     distance:number;
@@ -287,20 +301,23 @@ function allocateBalancedWeek(plans:DayPlan[],targetMinutes:number):void {
         Math.min(480,p.capacity)),0);
     const next={
       allocations,activeDays,shortMinutes,
+      quality:dailyWorkloadQuality(values),
       consistency,smallestShift,distance,
     };
-    if(!best||next.activeDays>best.activeDays||
-      (next.activeDays===best.activeDays && (
-        next.shortMinutes>best.shortMinutes ||
-        (next.shortMinutes===best.shortMinutes && (
-          next.consistency>best.consistency ||
-          (next.consistency===best.consistency && (
-            next.smallestShift>best.smallestShift ||
-            (next.smallestShift===best.smallestShift &&
-              next.distance<best.distance)
-          ))
-        ))
-      )))best=next;
+    function better(a:Candidate,b:Candidate):boolean {
+      if(a.activeDays!==b.activeDays)return a.activeDays>b.activeDays;
+      // Preserve the current priority of covering indivisible short
+      // openings; long-day balancing must not remove Sunday coverage.
+      if(a.shortMinutes!==b.shortMinutes)
+        return a.shortMinutes>b.shortMinutes;
+      const burden=compareDailyWorkload(a.quality,b.quality);
+      if(burden!==0)return burden<0;
+      if(a.consistency!==b.consistency)return a.consistency>b.consistency;
+      if(a.smallestShift!==b.smallestShift)
+        return a.smallestShift>b.smallestShift;
+      return a.distance<b.distance;
+    }
+    if(!best || better(next,best))best=next;
   }
   if(best){
     for(const plan of plans)
@@ -350,6 +367,7 @@ function allocateConfiguredDays(
     shortUse:number;
     unassignedConcentration:number;
     consistency:number;
+    quality:DailyWorkloadQuality;
     minShift:number;
     distance:number;
   }
@@ -385,12 +403,16 @@ function allocateConfiguredDays(
         sum+Math.abs(plan.allocated-Math.min(480,plan.capacity)),0);
       const next={
         days:candidate,shortUse,unassignedConcentration,
-        consistency,minShift,distance,
+        consistency,quality:dailyWorkloadQuality(
+          candidate.map(plan=>plan.allocated)),
+        minShift,distance,
       };
       function better(a:Option,b:Option):boolean {
         // Short opening windows stay available to everybody if feasible.
         if(a.shortUse!==b.shortUse)return a.shortUse>b.shortUse;
         // Spread remaining days without work across longer windows.
+        const burden=compareDailyWorkload(a.quality,b.quality);
+        if(burden!==0)return burden<0;
         if(a.unassignedConcentration!==b.unassignedConcentration)
           return a.unassignedConcentration<b.unassignedConcentration;
         if(a.consistency!==b.consistency)

@@ -55,7 +55,12 @@ export function scheduleMealDay(
       effectiveWorkIntervals(a).reduce((sum,part)=>
         sum+uncovered[part.end]-uncovered[part.start],0);
     const wholeHours=options.filter(o=>clockMinutes(o.start)%60===0);
-    const preferred=wholeHours.length>=request.activeCount
+    const distinctWholeHourStarts=new Set(
+      wholeHours.map(option=>clockMinutes(option.start))).size;
+    // Lunch variants at the same start time are NOT distinct positions.
+    // Otherwise a single 09:00 option with several meal placements may
+    // falsely exclude the 09:15 closing shift needed for full coverage.
+    const preferred=distinctWholeHourStarts>=request.activeCount
       ?wholeHours:options;
     const firstStarts=[...new Set(preferred.map(o=>clockMinutes(o.start)))];
     const usedSlots=Math.max(1,Math.min(request.activeCount,firstStarts.length));
