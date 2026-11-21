@@ -51,7 +51,7 @@ test("em ecrãs pequenos o gráfico preserva a escala com scroll horizontal",()=
 
 test("o calendário preserva a certificação e o armazenamento completos",()=>{
   assert.match(calendar,/certificationForSaved\(currentSources,year,month,/);
-  assert.match(calendar,/preview\.candidateAssignments,revision/);
+  assert.match(calendar,/year,month,candidates,revision/);
   assert.match(calendar,/saveMonthlyDraftToBrowser\(/);
   assert.doesNotMatch(calendar,/saveMonthlyDraftToBrowser\(\s*year,month,view/);
 });
