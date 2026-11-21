@@ -554,8 +554,8 @@ sem que o calendário filtrado oculte colaboradores da equipa.
    abertura não pode ser deslocado para fora do funcionamento.
 7. Confirmar o arrastamento e o scroll horizontal num ecrã reduzido.
 
-**Integração:** PR87 depende de PR86, que permanece em Draft. Não integrar a
-edição antes de verificar visualmente ambos em Safari.
+**Estado atual:** PR86 e PR87 já foram validados e integrados na `main`.
+Esta secção mantém os critérios históricos de aceitação.
 
 
 ## PR88 — Evitar jornadas de presença excessivamente longas
@@ -614,9 +614,73 @@ O objetivo é melhorar a experiência real da equipa sem perder cobertura.
 3. Confirmar cobertura ininterrupta, pausas internas, folgas e turnos
    dominicais completos; observar saídas às 19h sem exigir entrada às 08h30.
 4. Confirmar que o histórico guardado não foi modificado pela geração.
-   Não fazer merge sem validação funcional.
+   O PR88 já foi validado e integrado na `main`.
 
 **Limite conhecido:** esta é uma otimização local da carga diária, não
 uma pesquisa global de todas as distribuições de domingos entre
 colaboradores. Esse tema pode ser desenvolvido depois de observarmos o
 comportamento real da equipa.
+
+
+## PR89 — Política genérica de folgas e rotação de fins de semana (fundação)
+
+**Objetivo:** testar a rotação de sábados/domingos em diferentes empresas,
+sem codificar uma frequência fixa, uma equipa de quatro pessoas, um setor
+ou uma necessidade de cobertura específica. O algoritmo de turnos e o
+certificador continuam inalterados nesta fase experimental.
+
+### Contrato do novo modelo
+
+- **Descanso habitual (HARD):** cada pessoa tem um número configurado de
+  dias sem trabalho numa semana normal, e pode ter dias de descanso
+  explicitamente fixos. Um dia sem turno no calendário **não é por si só**
+  considerado uma folga oficial.
+- **Semana com fim de semana completo (HARD quando atribuída):** a política
+  individual define quantos dias sem trabalho se devem preservar de
+  segunda a sexta. Por exemplo, com mínimo 1: sábado + domingo + um dia
+  útil = **3 dias sem trabalho**. Isso aplica-se quer a pessoa tenha uma
+  ou duas folgas semanais habituais; a sua folga fixa continua protegida.
+  Uma empresa que esteja *naturalmente fechada* sábado e domingo não
+  concede automaticamente um dia extra de descanso a meio da semana.
+- **Cobertura mínima diária (HARD no pré-planeamento):** a organização
+  configura o número mínimo de pessoas presentes para **cada dia**.
+  Fechos são declarados explicitamente; cobertura zero não significa
+  necessariamente encerramento. O módulo procura conjuntos completos
+  de dias com/sem trabalho que respeitem esta cobertura.
+- **Frequência de fins de semana (SOFT):** não existe um intervalo universal
+  de quatro semanas. O módulo tenta atribuir o máximo de fins de semana
+  completos compatíveis com a configuração e prioriza quem recebeu menos
+  fins de semana, considerando também o histórico fornecido e o tempo de
+  espera. O algoritmo é determinístico, mas esta primeira fase **não
+  certifica um ótimo global de rotação**.
+- **Capacidade de horas (ANÁLISE, não horas atribuídas):** se receber a
+  capacidade efetiva máxima de cada dia, o módulo calcula o limite superior
+  do trabalho possível após os descansos. Quatro jornadas de 9h30 dão no
+  máximo **38h**; nunca se inventam duas horas para atingir as 40h.
+  A referência móvel de 160h em 28 dias permanece fora deste módulo.
+- **Contexto:** o histórico anterior é opcional, mas a sua ausência é
+  declarada na resposta. O ciclo prossegue entre meses e não reinicia
+  automaticamente no primeiro dia do mês.
+- **Limites da pesquisa:** se a pesquisa exaustiva atingir o orçamento
+  determinístico de exploração, devolve **not_proven**, nunca uma
+  alegação infundada de impossibilidade.
+
+### Implementação e fronteira de responsabilidade
+
+- `src/weekendRotation.ts`: política de descanso, escolha de fins de
+  semana, atribuição explícita de dias sem trabalho, verificação de
+  cobertura por **número de pessoas/dia**, capacidade horária máxima
+  e continuação a partir de histórico.
+- `tests/weekendRotation.test.ts`: rotação de 4/6 colaboradores, diferentes
+  mínimos de cobertura, ausência de fins de semana viáveis, descanso fixo,
+  empresa encerrada ao fim de semana, mudança de mês, histórico, validação
+  de entradas e limite máximo de 38 horas numa semana de quatro dias.
+
+**Muito importante:** estes resultados **não certificam** cobertura
+minuto a minuto, duração da refeição, compatibilidade com todas as
+restrições legais, nem os totais pretendidos de 28 dias. Antes de ligar
+esta política ao gerador V2, haverá que integrar o descanso na seleção
+de dias de trabalho, considerar ausências/exceções e atualizar o
+certificador independente para distinguir semanas habituais de semanas
+com fim de semana completo atribuído. Até lá, este módulo não altera
+a interface, os horários existentes ou a persistência.
