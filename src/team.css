@@ -213,3 +213,28 @@
   .team-person-actions { flex-direction: column; }
   .team-person-actions .team-action { width: 100%; }
 }
+
+.team-rotation-toggle {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 10px 12px;
+  border: 1px solid #425d70;
+  border-radius: 9px;
+  background: #213449;
+  cursor: pointer;
+}
+.team-form .team-rotation-toggle input[type="checkbox"] {
+  flex: 0 0 20px;
+  width: 20px;
+  min-width: 20px;
+  height: 20px;
+  min-height: 20px;
+  padding: 0;
+  accent-color: #8ad4df;
+}
+.team-rotation-toggle span {
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.4;
+}
