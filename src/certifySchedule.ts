@@ -71,6 +71,8 @@ export interface ExternalScheduleContext {
    * Absence is UNKNOWN, never interpreted as a day off.
    */
   completeDates:unknown;
+  /** Confirmed full-weekend rest decisions from prior saved proposals only. */
+  plannedFullWeekends?:unknown;
 }
 export interface CertificationInput {
   period:PeriodRequest;
