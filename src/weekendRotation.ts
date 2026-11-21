@@ -24,6 +24,8 @@ export interface RotationMember {
    * The ordinary weeklyDaysOff count may be exceeded in this situation.
    */
   minimumWeekdayDaysOffOnFullWeekend:number;
+  /** False = respect fixed/ordinary days off, but do not award weekends. */
+  eligibleFullWeekend?:boolean;
 }
 
 export type WeekdayNumbers=Record<Weekday,number>;
@@ -150,6 +152,9 @@ function validate(input:WeekendRotationInput):RotationIssue[] {
       continue;
     }
     existing.add(member.id);
+    if(member.eligibleFullWeekend!==undefined &&
+      typeof member.eligibleFullWeekend!=="boolean")
+      invalid("A elegibilidade para rotação deve ser um valor booleano.");
     if(!Number.isInteger(member.weeklyDaysOff)||
       member.weeklyDaysOff<0||member.weeklyDaysOff>6||
       !Number.isInteger(member.minimumWeekdayDaysOffOnFullWeekend)||
@@ -227,7 +232,8 @@ function findRestPatterns(
           closures.has("sunday");
         if(!naturallyClosed && bits(mask&WEEKDAYS_MASK)<
           member.minimumWeekdayDaysOffOnFullWeekend)continue;
-      }else if((mask&WEEKEND_MASK)===WEEKEND_MASK)continue;
+      }else if((mask&WEEKEND_MASK)===WEEKEND_MASK &&
+        !(closures.has("saturday")&&closures.has("sunday")))continue;
       options.push(mask);
     }
     // Earlier options avoid resting on days requiring more colleagues.
@@ -350,7 +356,8 @@ export function planWeekendRotation(
         })),
       };
 
-    const candidates=input.members.filter(member=>!forced.has(member.id))
+    const candidates=input.members.filter(member=>
+      !forced.has(member.id)&&member.eligibleFullWeekend!==false)
       .sort((a,b)=>{
         const left=counts.get(a.id)!,right=counts.get(b.id)!;
         const totalDiff=(left.prior+left.planned)-
