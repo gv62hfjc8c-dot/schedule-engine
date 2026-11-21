@@ -129,7 +129,7 @@ test("não pretende 40h numa semana de quatro dias com capacidade máxima 38h",(
   if(!checked.valid)return;
   const rotation=prepareRotation(resolvePlanningPeriod(config.period),
     checked.value,config.openingHours as ReturnType<typeof suggestedWeeklyOpeningHours>,
-    new Set<string>(),[]);
+    []);
   assert.ok(rotation);
   assert.equal(rotation!.rotation.status,"planned");
   assert.ok(rotation!.rotation.weeks.some(w=>w.members.some(m=>
