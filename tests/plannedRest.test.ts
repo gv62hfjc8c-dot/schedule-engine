@@ -4,7 +4,10 @@ import {
   restRecordsFromRotation,validatePlannedRest,
   type PlannedRestWeekMember,
 } from "../src/plannedRest";
-import {loadMonthlyDraft,saveMonthlyDraft,monthlyDraftKey} from "../src/monthlyScheduleDraftRepository";
+import {
+  loadMonthlyDraft,saveMonthlyDraft,monthlyDraftKey,
+  readPriorRollingHistory,readExternalMonthlyContext,
+} from "../src/monthlyScheduleDraftRepository";
 import {generateSchedule} from "../src/generateSchedule";
 import {suggestedWeeklyOpeningHours} from "../src/operatingHours";
 
@@ -110,4 +113,43 @@ test("o descanso de um mês não cria alterações nos meses vizinhos",()=>{
   assert.equal(saved.ok,true);
   assert.equal(s.getItem(monthlyDraftKey(2026,10)),null);
   assert.equal(s.getItem(monthlyDraftKey(2026,12)),null);
+});
+
+test("dezembro continua a equidade com fins de semana EXPLICITAMENTE guardados em novembro",()=>{
+  const source=scenario();
+  const november=generateSchedule(source);
+  assert.equal(november.rotation?.status,"planned");
+  const s=storage();
+  const records=restRecordsFromRotation(november.rotation!);
+  assert.equal(saveMonthlyDraft(s,2026,11,november.candidateAssignments,
+    null,undefined,"v2","rolling28",records).ok,true);
+  const prior=readPriorRollingHistory(s,2026,12);
+  assert.equal(prior.ok,true);
+  if(!prior.ok)return;
+  const fromRest=records.filter(r=>r.fullWeekendOff).map(r=>({
+    memberId:r.memberId,weekStart:r.weekStart,
+  }));
+  assert.deepEqual(prior.context.plannedFullWeekends,fromRest);
+  const external=readExternalMonthlyContext(s,2026,12);
+  assert.equal(external.ok,true);
+  if(!external.ok)return;
+  const next=generateSchedule({
+    ...source,period:{mode:"monthly",year:2026,month:12},
+    hoursHistory:prior.context,externalContext:external.context,
+  });
+  assert.equal(next.rotation?.historyProvided,true);
+  assert.ok(next.rotation!.weekendCounts.some(c=>c.prior>0));
+  assert.ok(next.candidateAssignments.every(s=>s.date.startsWith("2026-12-")));
+  const restored=loadMonthlyDraft(s,2026,11);
+  assert.equal(restored.status,"loaded",
+    "o planeamento de dezembro nunca altera a proposta de novembro");
+});
+
+test("um mês antigo sem registos explícitos não cria fins de semana fictícios no histórico",()=>{
+  const s=storage();
+  assert.equal(saveMonthlyDraft(s,2026,11,[],null,
+    undefined,"v2","rolling28").ok,true);
+  const prior=readPriorRollingHistory(s,2026,12);
+  assert.equal(prior.ok,true);
+  if(prior.ok)assert.equal(prior.context.plannedFullWeekends,undefined);
 });
