@@ -323,6 +323,7 @@ export function planWeekendRotation(
   };
 
   const planned:PlannedRotationWeek[]=[];
+  const uncertainty:RotationIssue[]=[];
   for(let index=0;index<input.weeks;index++){
     const weekStart=addCivilDays(input.startWeek,index*7);
     const forced=new Set(input.members.filter(member=>{
@@ -368,6 +369,13 @@ export function planWeekendRotation(
       if(trial.status==="feasible"){
         forced.add(candidate.id);
         accepted=trial;
+      }else if(trial.status==="not_proven"){
+        // Keep the last proven-feasible plan, but explicitly distinguish
+        // it from a fully evaluated rotation-frequency search.
+        uncertainty.push({
+          code:"SEARCH_NOT_PROVEN",weekStart,
+          message:"Uma alternativa de fim de semana excedeu o limite da pesquisa.",
+        });
       }
     }
     if(accepted.status!=="feasible")
@@ -400,7 +408,8 @@ export function planWeekendRotation(
     }
   }
   return {
-    status:"planned",weeks:planned,issues:[],historyProvided,
+    status:uncertainty.length?"not_proven":"planned",
+    weeks:planned,issues:uncertainty,historyProvided,
     weekendCounts:input.members.map(m=>({
       memberId:m.id,prior:counts.get(m.id)!.prior,
       planned:counts.get(m.id)!.planned,
