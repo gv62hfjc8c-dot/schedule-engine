@@ -47,6 +47,17 @@ export interface WeekendRotationInput {
   closedWeekdays?:readonly Weekday[];
   /** Optional V2 effective work capacity per weekday (not a target). */
   maximumEffectiveMinutesByWeekday?:WeekdayNumbers;
+  /**
+   * SOFT optimization budget. Unlike minimum staffing, this does NOT
+   * certify hours or set a contractual daily maximum. With all three
+   * fields present, weekend grants are spread to avoid 28-day windows
+   * that would require excessive daily work to meet the hours reference.
+   */
+  workloadPreference?:{
+    cycleReferenceMinutes:number;
+    preferredUpperDailyMinutes:number;
+    cycleWeeks:number;
+  };
   /** Explicit verified past full weekends only; missing history is UNKNOWN. */
   previousFullWeekends?:readonly RotationHistoryEntry[];
 }
@@ -189,6 +200,16 @@ function validate(input:WeekendRotationInput):RotationIssue[] {
         invalid("A capacidade de trabalho de "+day+" é inválida.");
     }
   }
+  if(input.workloadPreference!==undefined){
+    const pref=input.workloadPreference;
+    if(!pref || !Number.isSafeInteger(pref.cycleReferenceMinutes) ||
+      pref.cycleReferenceMinutes<0 ||
+      !Number.isSafeInteger(pref.preferredUpperDailyMinutes) ||
+      pref.preferredUpperDailyMinutes<1 ||
+      !Number.isInteger(pref.cycleWeeks) || pref.cycleWeeks<1 ||
+      pref.cycleWeeks>52 || !input.maximumEffectiveMinutesByWeekday)
+      invalid("A política de equilíbrio do descanso e das horas é inválida.");
+  }
   if(input.previousFullWeekends!==undefined){
     if(!Array.isArray(input.previousFullWeekends)){
       invalid("O histórico de fins de semana é inválido.");
@@ -207,6 +228,38 @@ function validate(input:WeekendRotationInput):RotationIssue[] {
     }
   }
   return issues;
+}
+
+/**
+ * Compute the MAXIMUM preferred (not absolute) work capacity of a rest
+ * pattern. This measures the cost of awarding extra rest in terms of
+ * hours that would otherwise force shifts above the preferred daily bound.
+ */
+function bestPreferredWeekCapacity(
+  member:RotationMember,
+  awarded:boolean,
+  closures:ReadonlySet<Weekday>,
+  dailyCap:WeekdayNumbers,
+  preferredUpperDailyMinutes:number,
+):number {
+  const required=requiredRestDayCount(member,awarded,[...closures]);
+  const mandatory=mandatoryMask(member,closures)|
+    (awarded?WEEKEND_MASK:0);
+  let best=-1;
+  for(let mask=0;mask<128;mask++){
+    if((mask&mandatory)!==mandatory||bits(mask)!==required)continue;
+    const fullyClosed=closures.has("saturday")&&closures.has("sunday");
+    if(awarded && !fullyClosed &&
+      bits(mask&WEEKDAYS_MASK)<
+        member.minimumWeekdayDaysOffOnFullWeekend)continue;
+    if(!awarded && !fullyClosed &&
+      (mask&WEEKEND_MASK)===WEEKEND_MASK)continue;
+    const capacity=IDS.reduce((sum,day,index)=>
+      sum+(has(mask,index)?0:Math.min(dailyCap[day],
+        preferredUpperDailyMinutes)),0);
+    if(capacity>best)best=capacity;
+  }
+  return best;
 }
 
 type Patterns={
@@ -238,9 +291,18 @@ function findRestPatterns(
     }
     // Earlier options avoid resting on days requiring more colleagues.
     options.sort((a,b)=>{
-      const score=(mask:number)=>IDS.reduce((sum,day,index)=>
+      const staffingCost=(mask:number)=>IDS.reduce((sum,day,index)=>
         sum+(has(mask,index)?input.minimumPresentByWeekday[day]:0),0);
-      return score(a)-score(b)||a-b;
+      const preference=input.workloadPreference;
+      const maxMinutes=input.maximumEffectiveMinutesByWeekday;
+      if(preference && maxMinutes){
+        const capacity=(mask:number)=>IDS.reduce((sum,day,index)=>
+          sum+(has(mask,index)?0:Math.min(maxMinutes[day],
+            preference.preferredUpperDailyMinutes)),0);
+        const capDiff=capacity(b)-capacity(a);
+        if(capDiff!==0)return capDiff;
+      }
+      return staffingCost(a)-staffingCost(b)||a-b;
     });
     return {id:member.id,options};
   }).sort((a,b)=>a.options.length-b.options.length||
@@ -330,7 +392,39 @@ export function planWeekendRotation(
 
   const planned:PlannedRotationWeek[]=[];
   const uncertainty:RotationIssue[]=[];
+  // A 28-day hours target is a soft objective, but awarding almost every
+  // weekend off can make it impossible without repeatedly >9h workdays.
+  // Derive each person's award budget from their own available workdays,
+  // closures, fixed rest and operating capacities. NEVER use a universal
+  // 'one weekend every four weeks' rule.
+  const pref=input.workloadPreference;
+  const dailyMax=input.maximumEffectiveMinutesByWeekday;
+  const cycleLength=pref?.cycleWeeks??1;
+  let cycleStart=-1;
+  let quota=new Map<string,number>();
+  let used=new Map<string,number>();
+  function startCycle(index:number):void {
+    cycleStart=index;
+    used=new Map(input.members.map(member=>[member.id,0]));
+    const length=Math.min(cycleLength,input.weeks-index);
+    quota=new Map(input.members.map(member=>{
+      if(!pref || !dailyMax || member.eligibleFullWeekend===false)
+        return [member.id,length] as const;
+      const normal=bestPreferredWeekCapacity(
+        member,false,closures,dailyMax,pref.preferredUpperDailyMinutes);
+      const awarded=bestPreferredWeekCapacity(
+        member,true,closures,dailyMax,pref.preferredUpperDailyMinutes);
+      if(normal<0 || awarded<0 || normal<=awarded)
+        return [member.id,length] as const;
+      const reference=Math.round(pref.cycleReferenceMinutes*
+        length/cycleLength);
+      const surplus=normal*length-reference;
+      const affordable=Math.floor(Math.max(0,surplus)/(normal-awarded));
+      return [member.id,Math.min(length,affordable)] as const;
+    }));
+  }
   for(let index=0;index<input.weeks;index++){
+    if(index%cycleLength===0)startCycle(index);
     const weekStart=addCivilDays(input.startWeek,index*7);
     const forced=new Set(input.members.filter(member=>{
       const mask=mandatoryMask(member,closures);
@@ -356,8 +450,18 @@ export function planWeekendRotation(
         })),
       };
 
+    const remainingWeeks=Math.min(cycleLength,input.weeks-cycleStart)-
+      (index-cycleStart);
+    const leftBudget=[...quota].reduce((sum,[id,count])=>
+      sum+Math.max(0,count-(used.get(id)??0)),0);
+    // Spread the possible grants across the calendar instead of giving
+    // nearly everybody the same Saturday/Sunday and starving the store.
+    const weeklyGrantBudget=pref
+      ?Math.ceil(leftBudget/remainingWeeks)
+      :input.members.length;
     const candidates=input.members.filter(member=>
-      !forced.has(member.id)&&member.eligibleFullWeekend!==false)
+      !forced.has(member.id)&&member.eligibleFullWeekend!==false &&
+      (!pref || (used.get(member.id)??0)<(quota.get(member.id)??0)))
       .sort((a,b)=>{
         const left=counts.get(a.id)!,right=counts.get(b.id)!;
         const totalDiff=(left.prior+left.planned)-
@@ -371,6 +475,7 @@ export function planWeekendRotation(
         return a.id.localeCompare(b.id);
       });
     for(const candidate of candidates){
+      if(pref && forced.size>=weeklyGrantBudget)break;
       const proposed=new Set([...forced,candidate.id]);
       const trial=findRestPatterns(input,proposed,closures);
       if(trial.status==="feasible"){
@@ -412,6 +517,7 @@ export function planWeekendRotation(
       const info=counts.get(id)!;
       info.planned++;
       info.last=weekStart;
+      used.set(id,(used.get(id)??0)+1);
     }
   }
   return {
