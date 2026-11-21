@@ -569,3 +569,51 @@
 @media (max-width: 620px){
   .schedule-undo, .schedule-discard { flex: 1; }
 }
+
+/* PR89: compact, responsive weekend rotation preview inside month controls. */
+.schedule-rotation-overview {
+  margin-top: 14px;
+  padding: 15px 17px;
+  border: 1px solid #425c70;
+  border-radius: 11px;
+  background: #1b3144;
+}
+.schedule-rotation-overview h3 {
+  margin: 0 0 6px;
+  color: #dcebf4;
+  font-size: 15px;
+}
+.schedule-rotation-overview p,
+.schedule-rotation-overview small {
+  color: #acc7d6;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.schedule-rotation-weeks {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(185px,1fr));
+  gap: 9px;
+  margin-top: 12px;
+}
+.schedule-rotation-week {
+  display: grid;
+  align-content: start;
+  gap: 5px;
+  border: 1px solid #456277;
+  border-radius: 9px;
+  padding: 10px 12px;
+  min-width: 0;
+  background: #21374b;
+}
+.schedule-rotation-week span {
+  font-size: 12px;
+  color: #a2c4d5;
+}
+.schedule-rotation-week strong {
+  color: #f0f8fb;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.schedule-rotation-overview .schedule-rotation-warning {
+  color: #f1d6a8;
+}
