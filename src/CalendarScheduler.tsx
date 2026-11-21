@@ -18,6 +18,7 @@ import {buildDailyTimeline} from "./dailyTimeline";
 import {DayScheduleTimeline} from "./DayScheduleTimeline";
 import type {WeeklyOpeningHours} from "./operatingHours";
 import {moveTimelineAssignment,type TimelineMove} from "./timelineEditing";
+import {restRecordsFromRotation,type PlannedRestWeekMember} from "./plannedRest";
 
 const WEEKDAYS=["Seg","Ter","Qua","Qui","Sex","Sáb","Dom"];
 
@@ -104,6 +105,10 @@ function MonthWorkspace({
   const [savedHoursPolicy,setSavedHoursPolicy]=useState<"rolling28"|undefined>(
     ()=>initial.status==="loaded"?initial.hoursPolicy:undefined
   );
+  const [savedRotationRest,setSavedRotationRest]=useState<PlannedRestWeekMember[]|null>(
+    ()=>initial.status==="loaded"&&initial.rotationRest!==undefined
+      ?initial.rotationRest:null
+  );
   const [hoursHistory,setHoursHistory]=useState(
     ()=>readPriorRollingHistoryFromBrowser(year,month)
   );
@@ -181,14 +186,23 @@ function MonthWorkspace({
     }):null;
   const formatHours=(minutes:number)=>
     (minutes/60).toLocaleString("pt-PT",{maximumFractionDigits:2})+" h";
+  const visibleRestRecords=preview?.rotation?.status==="planned"
+    ?restRecordsFromRotation(preview.rotation)
+    :preview===null?savedRotationRest??[]:[];
   const previewRestDays=new Set<string>(
-    selectedMemberId!==null && preview?.rotation?.status==="planned" &&
-    !manualEdit
-      ?preview.rotation.weeks.flatMap(week=>week.members
-        .filter(member=>member.memberId===selectedMemberId)
-        .flatMap(member=>member.daysWithoutWork))
+    selectedMemberId!==null && hasMonthProposal
+      ?visibleRestRecords.filter(member=>member.memberId===selectedMemberId)
+        .flatMap(member=>member.daysWithoutWork)
       :[]
   );
+  const savedWeekendOverview=new Map<string,string[]>();
+  if(preview===null)
+    for(const record of savedRotationRest??[]){
+      if(!record.fullWeekendOff)continue;
+      const colleagues=savedWeekendOverview.get(record.weekStart)??[];
+      colleagues.push(record.memberId);
+      savedWeekendOverview.set(record.weekStart,colleagues);
+    }
   const memberOptions=new Map(names);
   for(const entry of data){
     if(!memberOptions.has(entry.memberId))
@@ -351,9 +365,12 @@ function MonthWorkspace({
     }
     if(saved!==null &&
       !window.confirm("Substituir a proposta guardada deste mês? Os horários dos outros meses não serão alterados."))return;
+    const rest=preview?.rotation?.status==="planned"
+      ?restRecordsFromRotation(preview.rotation)
+      :preview===null?savedRotationRest??undefined:undefined;
     const result=saveMonthlyDraftToBrowser(
       year,month,candidates,revision,
-      undefined,"v2",hoursPolicy
+      undefined,"v2",hoursPolicy,rest
     );
     if(!result.ok){
       setFeedback({kind:"error",message:result.message});
@@ -363,6 +380,7 @@ function MonthWorkspace({
     setSavedMealBreaks(result.mealBreaks);
     setSavedPolicy(result.mealBreakPolicy);
     setSavedHoursPolicy(result.hoursPolicy);
+    setSavedRotationRest(result.rotationRest??null);
     setRevision(result.revision);
     setSavedReport(currentReport);
     setPreview(null);
@@ -494,10 +512,29 @@ function MonthWorkspace({
               cria horas fictícias para compensar a diferença.
             </p>
           ):null}
-          <small>Esta vista descreve a proposta ainda não guardada.
+          <small>O descanso planeado é guardado com a proposta.
             A cobertura minuto a minuto e as pausas são verificadas
             separadamente pelo certificador.</small>
         </div>}
+        {preview===null&&savedRotationRest!==null&&
+          savedRotationRest.length>0&&
+          <div className="schedule-rotation-overview"
+            aria-label="Rotação de fins de semana guardada">
+            <h3>Fins de semana completos — proposta guardada</h3>
+            <div className="schedule-rotation-weeks">
+              {[...new Set(savedRotationRest.map(record=>record.weekStart))]
+                .sort().map(weekStart=><div key={weekStart}
+                  className="schedule-rotation-week">
+                  <span>Semana de {weekStart}</span>
+                  <strong>{(savedWeekendOverview.get(weekStart)??[]).length===0
+                    ?"Sem fim de semana completo atribuído"
+                    :savedWeekendOverview.get(weekStart)!.map(id=>
+                      memberLabel(id,names)).join(" · ")}</strong>
+                </div>)}
+            </div>
+            <small>Descansos explicitamente planeados, não inferidos
+              de dias sem turno. A proposta continua a ser um rascunho local.</small>
+          </div>}
       </section>
       <div className="calendar-layout">
         <section className="surface calendar-panel" aria-label="Calendário mensal">
