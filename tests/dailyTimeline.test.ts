@@ -141,11 +141,13 @@ test("percentagens de barras respeitam o eixo configurado e cortam sem inventar 
   const bounds={start:510,end:1140};
   assert.deepEqual(timelinePosition({start:510,end:825},bounds),
     {left:0,width:50});
-  assert.deepEqual(timelinePosition({start:840,end:1140},bounds),
-    {left:(330/630)*100,width:(300/630)*100});
+  const sundayPart=timelinePosition({start:840,end:1140},bounds)!;
+  assert.ok(Math.abs(sundayPart.left-(330/630)*100)<1e-10);
+  assert.ok(Math.abs(sundayPart.width-(300/630)*100)<1e-10);
   assert.deepEqual(timelinePosition({start:0,end:510},bounds),null);
-  assert.deepEqual(timelinePosition({start:1110,end:1200},bounds),
-    {left:(600/630)*100,width:(30/630)*100});
+  const clipped=timelinePosition({start:1110,end:1200},bounds)!;
+  assert.ok(Math.abs(clipped.left-(600/630)*100)<1e-10);
+  assert.ok(Math.abs(clipped.width-(30/630)*100)<1e-10);
   assert.deepEqual(dailyTimelineTicks(840,1140),[840,900,960,1020,1080,1140]);
 });
 
