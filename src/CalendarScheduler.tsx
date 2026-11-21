@@ -14,6 +14,9 @@ import {calendarScheduleView} from "./calendarScheduleView";
 import type {MealBreak} from "./mealBreaks";
 import {calculateRolling28Day} from "./rolling28Day";
 import {enumerateCivilDays,resolvePlanningPeriod} from "./schedulePeriods";
+import {buildDailyTimeline} from "./dailyTimeline";
+import {DayScheduleTimeline} from "./DayScheduleTimeline";
+import type {WeeklyOpeningHours} from "./operatingHours";
 
 const WEEKDAYS=["Seg","Ter","Qua","Qui","Sex","Sáb","Dom"];
 
@@ -102,6 +105,15 @@ function MonthWorkspace({
   const [sourceSignature,setSourceSignature]=useState<string|null>(null);
   const [selectedDate,setSelectedDate]=useState<string|null>(null);
   const [feedback,setFeedback]=useState<Feedback|null>(null);
+  const [dailyOpening,setDailyOpening]=useState<WeeklyOpeningHours|null>(()=>{
+    const opening=loadOpeningHoursDraftFromBrowser();
+    return opening.status==="loaded"?opening.value:null;
+  });
+  const [activeMemberIds,setActiveMemberIds]=useState<string[]>(()=>{
+    const team=loadTeamDraftFromBrowser();
+    return team.status==="loaded"
+      ?team.value.members.filter(member=>member.active).map(member=>member.id):[];
+  });
   const [names,setNames]=useState<Map<string,string>>(()=>{
     const team=loadTeamDraftFromBrowser();
     return new Map(team.status==="loaded"?
@@ -146,11 +158,14 @@ function MonthWorkspace({
     memberOptions.set(selectedMemberId,"Colaborador não encontrado ("+
       selectedMemberId.slice(0,8)+")");
   const cells=monthCells(year,month-1);
-  const dayAssignments=selectedDate?(byDay.get(selectedDate)??[]):[];
-  const dayMealBreaks=selectedDate?legacyMealBreaks.filter(meal=>
-    meal.date===selectedDate &&
-    (selectedMemberId===null||meal.memberId===selectedMemberId)
-  ):[];
+  // Calendar filter is read-only and NEVER hides colleagues from daily analysis.
+  const dayAssignments=selectedDate
+    ?data.filter(assignment=>assignment.date===selectedDate):[];
+  const dayMealBreaks=selectedDate
+    ?legacyMealBreaks.filter(meal=>meal.date===selectedDate):[];
+  const dailyTimeline=selectedDate
+    ?buildDailyTimeline(selectedDate,data,activeMemberIds,dailyOpening,
+      legacyMealBreaks):null;
   const dayTimeline=[
     ...dayAssignments.map((assignment,index)=>({
       kind:"work" as const,start:assignment.start,
@@ -189,6 +204,9 @@ function MonthWorkspace({
     setHoursHistory(sources.hoursHistory);
     setSourceSignature(JSON.stringify(sources));
     setNames(new Map(sources.team.value.members.map(member=>[member.id,member.name])));
+    setDailyOpening(sources.opening.value);
+    setActiveMemberIds(sources.team.value.members.filter(member=>
+      member.active).map(member=>member.id));
     if(selectedMemberId!==null &&
       !sources.team.value.members.some(member=>member.id===selectedMemberId) &&
       !result.candidateAssignments.some(a=>a.memberId===selectedMemberId))
@@ -404,18 +422,25 @@ function MonthWorkspace({
                 ?"A apresentar uma proposta ainda não guardada."
                 :"A apresentar a proposta guardada neste dispositivo."}
             {selectedMemberId!==null&&
-              " O filtro mostra apenas este colaborador e não altera o horário."}
+              " O filtro mostra apenas este colaborador no calendário e não altera o horário; o detalhe do dia mostra toda a equipa."}
           </p>
         </section>
-        <aside className="surface detail-panel" aria-label="Detalhe do dia" aria-live="polite">
+        <section className="surface detail-panel" aria-label="Detalhe do dia" aria-live="polite">
           <p className="surface-kicker">Detalhe do dia</p>
           <h2>{selectedDate?selectedDayLabel(selectedDate):"Seleciona uma data"}</h2>
+          {selectedDate&&dailyTimeline&&
+            <DayScheduleTimeline timeline={dailyTimeline}
+              names={names} selectedMemberId={selectedMemberId}
+              hasProposal={hasMonthProposal}/>}
           {selectedDate
             ?dayAssignments.length>0
-              ?<div className="day-work-list">
+              ?<details className="daily-shift-details" open={dayAssignments.length<=8}>
+                <summary>Consultar detalhes dos turnos ({dayAssignments.length})</summary>
+                <div className="day-work-list">
                 {dayTimeline.map(item=>item.kind==="work"
                   ?<div className="day-work-item"
                     key={"work-"+item.memberId+"-"+item.index}>
+
                     <strong>{memberLabel(item.memberId,names)}</strong>
                     <span>Turno {item.assignment.start}–{item.assignment.end}</span>
                     {item.assignment.mealBreak&&
@@ -431,18 +456,17 @@ function MonthWorkspace({
                     <span>{item.meal.start}–{item.meal.end}</span>
                     <span>1 hora, não contabilizada como trabalho</span>
                   </div>)}
-              </div>
+                </div>
+              </details>
               :<>
                 <span className="detail-state">Sem turno atribuído</span>
-                <p>{selectedMemberId===null
-                  ?"Não existem turnos atribuídos a este dia."
-                  :"Este colaborador não tem turno atribuído neste dia."}</p>
+                <p>Não existem turnos atribuídos à equipa neste dia.</p>
                 <p className="detail-explanation">
                   Um dia sem turnos registados não corresponde automaticamente a uma folga.
                 </p>
               </>
             :<p>Seleciona um dia do calendário para consultar o seu horário.</p>}
-        </aside>
+        </section>
       </div>
       <p className="schedule-disclaimer">
         As propostas são rascunhos locais, não horários aprovados. A certificação
