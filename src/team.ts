@@ -1,3 +1,5 @@
+import {WEEKDAYS,type Weekday} from "./operatingHours";
+
 /**
  * Minimal team identity. "active" means eligible for future scheduling, not
  * a shift assignment, attendance record or absence. Eligibility windows are
@@ -14,6 +16,10 @@ export interface TeamMember {
   /** Exact number of non-working calendar days per Monday-Sunday week (0..6).
    * Omitted for legacy rosters: no days-off constraint is implied. */
   weeklyDaysOff?: number;
+  /** Explicit recurring mandatory rest weekdays; absent for legacy teams. */
+  fixedDaysOff?: Weekday[];
+  /** Opt-in rest rotation: a full Saturday+Sunday may add weekday rest. */
+  weekendRest?: {minimumWeekdayDaysOffOnFullWeekend:number};
 }
 export interface TeamRoster {
   members: TeamMember[];
@@ -51,7 +57,8 @@ export function validateTeamRoster(input:unknown):TeamValidation {
   for(const item of members){
     if(!item || typeof item!=="object" || Array.isArray(item))
       return {valid:false,value:null,issues:["Existe um colaborador com dados inválidos."]};
-    const member=item as {id?:unknown;name?:unknown;active?:unknown;weeklyDaysOff?:unknown};
+    const member=item as {id?:unknown;name?:unknown;active?:unknown;
+      weeklyDaysOff?:unknown;fixedDaysOff?:unknown;weekendRest?:unknown};
     const name=validateTeamName(member.name);
     if(!name)return {valid:false,value:null,
       issues:["O nome deve conter entre 2 e 120 caracteres válidos."]};
@@ -70,11 +77,39 @@ export function validateTeamRoster(input:unknown):TeamValidation {
       return {valid:false,value:null,issues:[
         "As folgas semanais devem ser um número inteiro entre 0 e 6.",
       ]};
+    const fixedDays=member.fixedDaysOff??[];
+    if(!Array.isArray(fixedDays) ||
+      fixedDays.some(day=>!WEEKDAYS.some(weekday=>weekday.id===day)) ||
+      new Set(fixedDays).size!==fixedDays.length ||
+      (fixedDays.length>0 && (member.weeklyDaysOff===undefined ||
+        fixedDays.length>member.weeklyDaysOff)))
+      return {valid:false,value:null,issues:[
+        "As folgas fixas devem ser dias distintos e caber nas folgas habituais.",
+      ]};
+    let weekendRest:TeamMember["weekendRest"];
+    if(member.weekendRest!==undefined){
+      if(!member.weekendRest || typeof member.weekendRest!=="object" ||
+        Array.isArray(member.weekendRest) ||
+        member.weeklyDaysOff===undefined)
+        return {valid:false,value:null,issues:[
+          "Configura as folgas habituais antes de ativar a rotação de fins de semana.",
+        ]};
+      const minimum=(member.weekendRest as {minimumWeekdayDaysOffOnFullWeekend?:unknown})
+        .minimumWeekdayDaysOffOnFullWeekend;
+      if(typeof minimum!=="number" || !Number.isInteger(minimum) ||
+        minimum<0 || minimum>5)
+        return {valid:false,value:null,issues:[
+          "O descanso mínimo durante a semana deve ser entre zero e cinco dias.",
+        ]};
+      weekendRest={minimumWeekdayDaysOffOnFullWeekend:minimum};
+    }
     seen.add(id);
     checked.push({
       id,name,active:member.active,
       ...(member.weeklyDaysOff===undefined ? {} :
         {weeklyDaysOff:member.weeklyDaysOff}),
+      ...(member.fixedDaysOff===undefined?{}:{fixedDaysOff:[...fixedDays] as Weekday[]}),
+      ...(weekendRest===undefined?{}:{weekendRest}),
     });
   }
   return {valid:true,value:{members:checked},issues:[]};
