@@ -1,4 +1,4 @@
-import {useState} from "react";
+import {useMemo,useState} from "react";
 import {monthCells,monthLabel,selectedDayLabel} from "./calendar";
 import {generateSchedule,type GenerationResult} from "./generateSchedule";
 import {certifySchedule,type CertificationReport} from "./certifySchedule";
@@ -17,6 +17,7 @@ import {enumerateCivilDays,resolvePlanningPeriod} from "./schedulePeriods";
 import {buildDailyTimeline} from "./dailyTimeline";
 import {DayScheduleTimeline} from "./DayScheduleTimeline";
 import type {WeeklyOpeningHours} from "./operatingHours";
+import {moveTimelineAssignment,type TimelineMove} from "./timelineEditing";
 
 const WEEKDAYS=["Seg","Ter","Qua","Qui","Sex","Sáb","Dom"];
 
@@ -27,6 +28,13 @@ interface SourceSnapshot {
   opening:ReturnType<typeof loadOpeningHoursDraftFromBrowser>;
   context:ReturnType<typeof readExternalMonthlyContextFromBrowser>;
   hoursHistory:ReturnType<typeof readPriorRollingHistoryFromBrowser>;
+}
+interface ManualEdit {
+  assignments:WorkAssignment[];
+  history:WorkAssignment[][];
+  sources:SourceSnapshot;
+  sourceSignature:string;
+  hoursPolicy:"rolling28"|undefined;
 }
 function loadSources(year:number,month:number):SourceSnapshot {
   return {
@@ -102,6 +110,10 @@ function MonthWorkspace({
     ()=>initial.status==="loaded"?initial.revision:null
   );
   const [preview,setPreview]=useState<GenerationResult|null>(null);
+  const [manualEdit,setManualEdit]=useState<ManualEdit|null>(null);
+  // A moving pointer can temporarily alter coverage without certifying the
+  // entire month for every pixel. Only the released position is committed.
+  const [dragCandidate,setDragCandidate]=useState<WorkAssignment[]|null>(null);
   const [sourceSignature,setSourceSignature]=useState<string|null>(null);
   const [selectedDate,setSelectedDate]=useState<string|null>(null);
   const [feedback,setFeedback]=useState<Feedback|null>(null);
@@ -125,16 +137,23 @@ function MonthWorkspace({
       initial.assignments,initial.mealBreaks,
       initial.mealBreakPolicy,initial.hoursPolicy);
   });
-  const data=preview?.candidateAssignments??saved??[];
+  const data=dragCandidate??manualEdit?.assignments??
+    preview?.candidateAssignments??saved??[];
   // Legacy PR84 v1 drafts may still carry separate meal records.
   // New v2 shifts contain their own pause, never a second work shift.
   const legacyMealBreaks=preview?[]:savedMealBreaks;
   const legacyDraft=saved!==null&&preview===null&&savedPolicy!=="v2";
-  const report=preview?.certification??(legacyDraft?null:savedReport);
+  const manualReport=useMemo(()=>manualEdit
+    ?certificationForSaved(manualEdit.sources,year,month,
+      manualEdit.assignments,[],"v2",manualEdit.hoursPolicy)
+    :null,[manualEdit,year,month]);
+  const report=manualEdit?manualReport:
+    preview?.certification??(legacyDraft?null:savedReport);
   // A display-only projection: certification and saving ALWAYS use full data.
   const view=calendarScheduleView(data,selectedMemberId);
   const byDay=view.byDay;
-  const activeHoursPolicy=preview?"rolling28":savedHoursPolicy;
+  const activeHoursPolicy=manualEdit?manualEdit.hoursPolicy:
+    preview?"rolling28":savedHoursPolicy;
   const period=resolvePlanningPeriod({mode:"monthly",year,month});
   const throughDate=selectedDate??
     enumerateCivilDays(period).at(-1)!;
@@ -178,8 +197,68 @@ function MonthWorkspace({
   ].sort((a,b)=>a.start.localeCompare(b.start)||
     a.memberId.localeCompare(b.memberId));
   const isBlocked=initial.status==="invalid"||initial.status==="unavailable";
+  const timelineEditable=!isBlocked && dailyOpening!==null &&
+    ((preview!==null&&preview.status!=="invalid_input") ||
+      (saved!==null&&savedPolicy==="v2"));
+
+  function previewTimelineMove(move:TimelineMove|null){
+    if(!move){setDragCandidate(null);return;}
+    const base=manualEdit?.assignments??preview?.candidateAssignments??saved??[];
+    const changed=moveTimelineAssignment(base,move);
+    setDragCandidate(changed.changed?changed.assignments:null);
+  }
+
+  function commitTimelineMove(move:TimelineMove){
+    setDragCandidate(null);
+    if(!timelineEditable)return;
+    const base=manualEdit?.assignments??preview?.candidateAssignments??saved??[];
+    if(!moveTimelineAssignment(base,move).changed)return;
+    const sources=loadSources(year,month);
+    const problem=sourceError(sources);
+    if(problem){setFeedback({kind:"error",message:problem});return;}
+    const signature=JSON.stringify(sources);
+    const expected=manualEdit?.sourceSignature??(preview?sourceSignature:null);
+    if(expected!==null && signature!==expected){
+      setFeedback({kind:"error",message:
+        "Os dados usados no horário foram alterados. Reabre ou regenera a proposta antes de editar."});
+      return;
+    }
+    setManualEdit(previous=>{
+      const before=previous?.assignments??preview?.candidateAssignments??saved??[];
+      const changed=moveTimelineAssignment(before,move);
+      if(!changed.changed)return previous;
+      return {
+        assignments:changed.assignments,
+        history:[...(previous?.history??[]),[...before]],
+        sources:previous?.sources??sources,
+        sourceSignature:previous?.sourceSignature??signature,
+        hoursPolicy:previous?previous.hoursPolicy:
+          preview?"rolling28":savedHoursPolicy,
+      };
+    });
+    setFeedback(null);
+  }
+
+  function undoTimelineEdit(){
+    setDragCandidate(null);
+    setManualEdit(previous=>{
+      if(!previous || previous.history.length===0)return previous;
+      const before=previous.history[previous.history.length-1];
+      const history=previous.history.slice(0,-1);
+      return history.length===0?null:{...previous,assignments:before,history};
+    });
+    setFeedback(null);
+  }
+
+  function discardTimelineEdits(){
+    setDragCandidate(null);
+    setManualEdit(null);
+    setFeedback(null);
+  }
 
   function generate(){
+    if(manualEdit && !window.confirm(
+      "Descartar as alterações manuais e gerar um novo horário mensal?"))return;
     if(isBlocked){
       setFeedback({kind:"error",message:"O registo deste mês não pode ser lido. Não será substituído automaticamente."});
       return;
@@ -201,6 +280,8 @@ function MonthWorkspace({
       hoursHistory:sources.hoursHistory.context,
     });
     setPreview(result);
+    setManualEdit(null);
+    setDragCandidate(null);
     setHoursHistory(sources.hoursHistory);
     setSourceSignature(JSON.stringify(sources));
     setNames(new Map(sources.team.value.members.map(member=>[member.id,member.name])));
