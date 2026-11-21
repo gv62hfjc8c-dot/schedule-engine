@@ -300,29 +300,38 @@ function MonthWorkspace({
   }
 
   function save(){
-    if(isBlocked || !preview || sourceSignature===null ||
-       preview.status==="invalid"||preview.status==="invalid_input")return;
+    if(isBlocked || dragCandidate!==null)return;
+    const candidates=manualEdit?.assignments??preview?.candidateAssignments;
+    const hoursPolicy=manualEdit?manualEdit.hoursPolicy:
+      preview?"rolling28" as const:undefined;
+    const expected=manualEdit?.sourceSignature??sourceSignature;
+    if(!candidates || expected===null ||
+       (!manualEdit && (preview?.status==="invalid" ||
+         preview?.status==="invalid_input")))return;
     const currentSources=loadSources(year,month);
     const problem=sourceError(currentSources);
     if(problem){
       setFeedback({kind:"error",message:problem});
       return;
     }
-    if(JSON.stringify(currentSources)!==sourceSignature){
-      setFeedback({kind:"error",message:"Os dados da empresa, da equipa ou dos outros meses mudaram. Gera novamente antes de guardar."});
+    if(JSON.stringify(currentSources)!==expected){
+      setFeedback({kind:"error",message:
+        "Os dados da empresa, da equipa ou dos outros meses mudaram. Reabre ou regenera antes de guardar."});
       return;
     }
+    // Always certify the FULL edited month again, not only the selected day.
     const currentReport=certificationForSaved(currentSources,year,month,
-      preview.candidateAssignments,[],"v2","rolling28");
+      candidates,[],"v2",hoursPolicy);
     if(!currentReport || currentReport.status==="invalid"){
-      setFeedback({kind:"error",message:"A proposta não passa a certificação atual. Não foi guardada."});
+      setFeedback({kind:"error",message:
+        "A edição contém conflitos obrigatórios. Corrige-os antes de guardar a proposta."});
       return;
     }
     if(saved!==null &&
       !window.confirm("Substituir a proposta guardada deste mês? Os horários dos outros meses não serão alterados."))return;
     const result=saveMonthlyDraftToBrowser(
-      year,month,preview.candidateAssignments,revision,
-      undefined,"v2","rolling28"
+      year,month,candidates,revision,
+      undefined,"v2",hoursPolicy
     );
     if(!result.ok){
       setFeedback({kind:"error",message:result.message});
@@ -335,6 +344,8 @@ function MonthWorkspace({
     setRevision(result.revision);
     setSavedReport(currentReport);
     setPreview(null);
+    setManualEdit(null);
+    setDragCandidate(null);
     setSourceSignature(null);
     setFeedback({kind:"success",message:"Proposta de "+monthLabel(year,month-1)+
       " guardada neste navegador. Não foi aprovada nem sincronizada com outros dispositivos."});
@@ -359,10 +370,19 @@ function MonthWorkspace({
           <div className="schedule-buttons">
             <button type="button" className="button button-primary"
               disabled={isBlocked} onClick={generate}>Gerar horário</button>
-            {preview && (preview.status==="valid"||preview.status==="insufficient_context") &&
-              <button type="button" className="button schedule-save" onClick={save}>
+            {(manualEdit!==null || (preview!==null &&
+              (preview.status==="valid"||preview.status==="insufficient_context"))) &&
+              <button type="button" className="button schedule-save" onClick={save}
+                disabled={dragCandidate!==null || (manualEdit!==null &&
+                  report?.status==="invalid")}>
                 Guardar proposta
               </button>}
+            {manualEdit&&<>
+              <button type="button" className="button schedule-undo"
+                onClick={undoTimelineEdit}>Desfazer alteração</button>
+              <button type="button" className="button schedule-discard"
+                onClick={discardTimelineEdits}>Descartar edições</button>
+            </>}
           </div>
         </div>
         <p className="schedule-storage-note">
@@ -370,6 +390,18 @@ function MonthWorkspace({
             "Existe uma proposta guardada neste dispositivo para este mês."}
           {" "}A geração não altera os horários dos outros meses.
         </p>
+        {manualEdit&&<p className="schedule-edit-banner" role="status">
+          Alterações manuais por guardar — {manualEdit.history.length}
+          {" "}{manualEdit.history.length===1?"movimento":"movimentos"}.
+          {report?.status==="invalid"
+            ?" Existem conflitos a corrigir antes da gravação."
+            :report?.status==="insufficient_context"
+              ?" Falta contexto histórico para certificar totalmente."
+              :" Regras implementadas verificadas nesta versão."}
+        </p>}
+        {dragCandidate&&<p className="schedule-edit-banner" role="status">
+          Movimento em curso: a cobertura é provisória até largares a barra.
+        </p>}
         {legacyDraft&&
           <p className="schedule-storage-note" role="status">
             Este rascunho utiliza o modelo anterior de horários.
@@ -512,7 +544,23 @@ function MonthWorkspace({
           {selectedDate&&dailyTimeline&&
             <DayScheduleTimeline timeline={dailyTimeline}
               names={names} selectedMemberId={selectedMemberId}
-              hasProposal={hasMonthProposal}/>}
+              hasProposal={hasMonthProposal}
+              editable={timelineEditable}
+              onPreviewMove={previewTimelineMove}
+              onCommitMove={commitTimelineMove}/>}
+          {manualEdit && !dragCandidate && report?.status==="invalid" &&
+            <div className="daily-edit-conflicts" role="alert">
+              <strong>Alteração com conflitos</strong>
+              <p>A posição foi mantida para poderes corrigir o horário.
+                A gravação está bloqueada enquanto existirem violações obrigatórias.</p>
+              <ul>
+                {report.issues.filter(issue=>
+                  issue.date===selectedDate).slice(0,5).map((issue,index)=>
+                  <li key={issue.code+"-"+index}>{issue.message}
+                    {issue.gapStart&&issue.gapEnd
+                      ?" ("+issue.gapStart+"–"+issue.gapEnd+")":""}</li>)}
+              </ul>
+            </div>}
           {selectedDate
             ?dayAssignments.length>0
               ?<details className="daily-shift-details" open={dayAssignments.length<=8}>
