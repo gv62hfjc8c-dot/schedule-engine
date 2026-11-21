@@ -83,3 +83,32 @@ test("dia encerrado apresenta estado explícito em vez de eixo fictício",()=>{
   assert.match(body,/A empresa está encerrada neste dia/);
   assert.doesNotMatch(body,/daily-timeline-axis-track/);
 });
+
+test("turno e pausa têm controlos arrastáveis acessíveis sem botões aninhados",()=>{
+  const shifts:WorkAssignment[]=[
+    {date:day,memberId:ANA,start:"08:30",end:"17:30",
+      mealBreak:{start:"12:00",end:"13:00"}},
+    {date:day,memberId:RUI,start:"10:00",end:"19:00",
+      mealBreak:{start:"13:00",end:"14:00"}},
+  ];
+  const timeline=buildDailyTimeline(day,shifts,[ANA,RUI],config());
+  const callbacks={
+    onPreviewMove:()=>{},
+    onCommitMove:()=>{},
+  };
+  const enabled=renderToStaticMarkup(createElement(DayScheduleTimeline,{
+    timeline,names,selectedMemberId:ANA,hasProposal:true,editable:true,
+    ...callbacks,
+  }));
+  assert.match(enabled,/Mover turno de Teste 1/);
+  assert.match(enabled,/Mover pausa de Teste 1/);
+  assert.match(enabled,/Arrasta a barra verde/);
+  assert.match(enabled,/is-highlighted/);
+  // The movable meal is a SIBLING of its shift, not a nested button.
+  assert.doesNotMatch(enabled,/<button[^>]*>[^<]*<button/);
+  const readOnly=renderToStaticMarkup(createElement(DayScheduleTimeline,{
+    timeline,names,selectedMemberId:null,hasProposal:true,
+  }));
+  assert.match(readOnly,/disabled=""/);
+  assert.doesNotMatch(readOnly,/Arrasta a barra verde/);
+});

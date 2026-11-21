@@ -486,3 +486,73 @@ A nova linha temporal representa todos os colaboradores ativos (incluindo os sem
 - **Testes:** tests/dailyTimeline.test.ts, tests/dayTimelineInterface.test.ts e tests/dayTimelineRender.test.ts verificam geometria, escala dinâmica, refeições, cobertura, filtros e marcação visual.
 
 **Teste manual no Safari:** atualizar a branch v2/day-timeline-full-width, abrir Horários, gerar/consultar uma proposta, escolher uma segunda-feira e um domingo e comparar as escalas. Filtrar Teste 1 e confirmar que Teste 2 continua visível no gráfico. Confirmar cobertura nos intervalos de refeição e verificar o comportamento no telemóvel. A PR só deve ser integrada depois dessa confirmação visual.
+
+## PR87 — Edição manual de turnos e pausas diretamente no gráfico
+
+Esta alteração continua o PR86 e **não altera o algoritmo de geração**. O detalhe
+inferior do dia torna-se editável para propostas V2, inclusive as já guardadas,
+sem que o calendário filtrado oculte colaboradores da equipa.
+
+### Comportamento aprovado
+
+- **Barra verde do turno:** arrastar horizontalmente altera a entrada e saída
+  em conjunto. A duração efetiva e a duração da presença não mudam. A pausa
+  integrada acompanha a deslocação e conserva a mesma posição relativa.
+- **Barra amarela da refeição:** arrastar horizontalmente altera só a pausa.
+  A entrada, saída, duração da pausa e horas efetivas do turno mantêm-se.
+- Os movimentos são quantizados a **15 minutos**. O deslocamento em píxeis
+  é convertido proporcionalmente à escala real do dia (primeira abertura a
+  último fecho). Podem usar-se as setas esquerda/direita com o controlo focado.
+- Turnos não podem sair da amplitude visível do funcionamento; pausas ficam
+  estritamente dentro do turno. A posição pode, contudo, violar cobertura,
+  antecedência mínima da refeição, divisão de abertura ou outras regras
+  implementadas: **os conflitos não provocam reversão automática**.
+- Enquanto se arrasta, os turnos e a cobertura usam uma **cópia transitória**
+  e a certificação é apresentada como provisória. Ao soltar, a edição passa
+  para um **rascunho de alterações manuais**, e o certificador independente
+  avalia a proposta mensal completa. Os problemas ficam visíveis.
+- **Desfazer alteração** reverte um gesto de cada vez; **Descartar edições**
+  restaura a última proposta gerada/guardada sem a modificar.
+- **Guardar proposta** permanece bloqueado com violações obrigatórias.
+  Antes de gravar, o motor certifica de novo **todos os turnos editados**
+  com o contexto atual e confirma que os dados de origem não foram alterados.
+  A gravação usa o controlo de revisão já existente; nenhuma alteração
+  é escrita durante o arrastamento.
+- Propostas antigas de pausas separadas (modelo V1) mantêm-se **só de
+  leitura**. Regenerar uma proposta enquanto existirem edições por guardar
+  exige confirmação.
+
+### Separação técnica e validação
+
+- src/timelineEditing.ts: transformação imutável de uma única atribuição e
+  conversão determinística de píxeis em 15 minutos.
+- src/TimelineDraggableBar.tsx: eventos de ponteiro com captura e operação
+  equivalente por teclado. A barra do turno e a pausa são controlos irmãos,
+  nunca botões aninhados.
+- src/DayScheduleTimeline.tsx: controles interativos no gráfico do PR86,
+  mantendo a linha de cobertura de toda a equipa.
+- src/CalendarScheduler.tsx: buffer manual, pré-visualização transitória,
+  certificação após cada gesto, desfazer, descarte e proteção da gravação.
+- tests/timelineEditing.test.ts: deslocação de turnos/pausas, conservação da
+  duração, escala variável, limites, imutabilidade e conflitos aceites mas
+  rejeitados pelo certificador. Testes de interface e renderização atualizados.
+
+### Aceitação visual no Safari
+
+1. Abrir a branch v2/interactive-timeline-drag, gerar proposta e clicar num
+   dia normal. Arrastar o turno do Teste 1 e confirmar entrada/saída + pausa.
+2. Arrastar só a pausa de refeição. Confirmar entrada/saída inalteradas,
+   enquanto a cobertura responde.
+3. Criar duas pausas simultâneas e confirmar que a lacuna de cobertura aparece,
+   que a posição fica visível ao largar e que **Guardar proposta** fica
+   indisponível. Corrigir a pausa e confirmar nova certificação.
+4. Usar **Desfazer alteração**, **Descartar edições** e as setas do teclado.
+5. Editar um horário V2 já guardado; confirmar que uma atualização/reload sem
+   guardar recupera o estado anterior e que **Guardar proposta**, após
+   certificar, conserva o estado editado.
+6. Testar o eixo curto de domingo 14:00–19:00. Um turno que já ocupa toda a
+   abertura não pode ser deslocado para fora do funcionamento.
+7. Confirmar o arrastamento e o scroll horizontal num ecrã reduzido.
+
+**Integração:** PR87 depende de PR86, que permanece em Draft. Não integrar a
+edição antes de verificar visualmente ambos em Safari.

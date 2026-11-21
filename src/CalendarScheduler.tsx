@@ -1,4 +1,4 @@
-import {useState} from "react";
+import {useEffect,useMemo,useState} from "react";
 import {monthCells,monthLabel,selectedDayLabel} from "./calendar";
 import {generateSchedule,type GenerationResult} from "./generateSchedule";
 import {certifySchedule,type CertificationReport} from "./certifySchedule";
@@ -17,6 +17,7 @@ import {enumerateCivilDays,resolvePlanningPeriod} from "./schedulePeriods";
 import {buildDailyTimeline} from "./dailyTimeline";
 import {DayScheduleTimeline} from "./DayScheduleTimeline";
 import type {WeeklyOpeningHours} from "./operatingHours";
+import {moveTimelineAssignment,type TimelineMove} from "./timelineEditing";
 
 const WEEKDAYS=["Seg","Ter","Qua","Qui","Sex","Sáb","Dom"];
 
@@ -27,6 +28,13 @@ interface SourceSnapshot {
   opening:ReturnType<typeof loadOpeningHoursDraftFromBrowser>;
   context:ReturnType<typeof readExternalMonthlyContextFromBrowser>;
   hoursHistory:ReturnType<typeof readPriorRollingHistoryFromBrowser>;
+}
+interface ManualEdit {
+  assignments:WorkAssignment[];
+  history:WorkAssignment[][];
+  sources:SourceSnapshot;
+  sourceSignature:string;
+  hoursPolicy:"rolling28"|undefined;
 }
 function loadSources(year:number,month:number):SourceSnapshot {
   return {
@@ -76,11 +84,12 @@ function memberLabel(memberId:string,names:Map<string,string>):string {
 }
 
 function MonthWorkspace({
-  year,month,todayString,selectedMemberId,onSelectMember,
+  year,month,todayString,selectedMemberId,onSelectMember,onPendingEditsChange,
 }:{
   year:number;month:number;todayString:string;
   selectedMemberId:string|null;
   onSelectMember:(id:string|null)=>void;
+  onPendingEditsChange:(pending:boolean)=>void;
 }) {
   const [initial]=useState(()=>loadMonthlyDraftFromBrowser(year,month));
   const [saved,setSaved]=useState<WorkAssignment[]|null>(
@@ -102,6 +111,23 @@ function MonthWorkspace({
     ()=>initial.status==="loaded"?initial.revision:null
   );
   const [preview,setPreview]=useState<GenerationResult|null>(null);
+  const [manualEdit,setManualEdit]=useState<ManualEdit|null>(null);
+  // A moving pointer can temporarily alter coverage without certifying the
+  // entire month for every pixel. Only the released position is committed.
+  const [dragCandidate,setDragCandidate]=useState<WorkAssignment[]|null>(null);
+  useEffect(()=>{
+    onPendingEditsChange(manualEdit!==null);
+    return ()=>onPendingEditsChange(false);
+  },[onPendingEditsChange,manualEdit!==null]);
+  useEffect(()=>{
+    if(!manualEdit)return;
+    const onBeforeUnload=(event:BeforeUnloadEvent)=>{
+      event.preventDefault();
+      event.returnValue="";
+    };
+    window.addEventListener("beforeunload",onBeforeUnload);
+    return ()=>window.removeEventListener("beforeunload",onBeforeUnload);
+  },[manualEdit!==null]);
   const [sourceSignature,setSourceSignature]=useState<string|null>(null);
   const [selectedDate,setSelectedDate]=useState<string|null>(null);
   const [feedback,setFeedback]=useState<Feedback|null>(null);
@@ -125,16 +151,23 @@ function MonthWorkspace({
       initial.assignments,initial.mealBreaks,
       initial.mealBreakPolicy,initial.hoursPolicy);
   });
-  const data=preview?.candidateAssignments??saved??[];
+  const data=dragCandidate??manualEdit?.assignments??
+    preview?.candidateAssignments??saved??[];
   // Legacy PR84 v1 drafts may still carry separate meal records.
   // New v2 shifts contain their own pause, never a second work shift.
   const legacyMealBreaks=preview?[]:savedMealBreaks;
   const legacyDraft=saved!==null&&preview===null&&savedPolicy!=="v2";
-  const report=preview?.certification??(legacyDraft?null:savedReport);
+  const manualReport=useMemo(()=>manualEdit
+    ?certificationForSaved(manualEdit.sources,year,month,
+      manualEdit.assignments,[],"v2",manualEdit.hoursPolicy)
+    :null,[manualEdit,year,month]);
+  const report=manualEdit?manualReport:
+    preview?.certification??(legacyDraft?null:savedReport);
   // A display-only projection: certification and saving ALWAYS use full data.
   const view=calendarScheduleView(data,selectedMemberId);
   const byDay=view.byDay;
-  const activeHoursPolicy=preview?"rolling28":savedHoursPolicy;
+  const activeHoursPolicy=manualEdit?manualEdit.hoursPolicy:
+    preview?"rolling28":savedHoursPolicy;
   const period=resolvePlanningPeriod({mode:"monthly",year,month});
   const throughDate=selectedDate??
     enumerateCivilDays(period).at(-1)!;
@@ -178,8 +211,68 @@ function MonthWorkspace({
   ].sort((a,b)=>a.start.localeCompare(b.start)||
     a.memberId.localeCompare(b.memberId));
   const isBlocked=initial.status==="invalid"||initial.status==="unavailable";
+  const timelineEditable=!isBlocked && dailyOpening!==null &&
+    ((preview!==null&&preview.status!=="invalid_input") ||
+      (saved!==null&&savedPolicy==="v2"));
+
+  function previewTimelineMove(move:TimelineMove|null){
+    if(!move){setDragCandidate(null);return;}
+    const base=manualEdit?.assignments??preview?.candidateAssignments??saved??[];
+    const changed=moveTimelineAssignment(base,move);
+    setDragCandidate(changed.changed?changed.assignments:null);
+  }
+
+  function commitTimelineMove(move:TimelineMove){
+    setDragCandidate(null);
+    if(!timelineEditable)return;
+    const base=manualEdit?.assignments??preview?.candidateAssignments??saved??[];
+    if(!moveTimelineAssignment(base,move).changed)return;
+    const sources=loadSources(year,month);
+    const problem=sourceError(sources);
+    if(problem){setFeedback({kind:"error",message:problem});return;}
+    const signature=JSON.stringify(sources);
+    const expected=manualEdit?.sourceSignature??(preview?sourceSignature:null);
+    if(expected!==null && signature!==expected){
+      setFeedback({kind:"error",message:
+        "Os dados usados no horário foram alterados. Reabre ou regenera a proposta antes de editar."});
+      return;
+    }
+    setManualEdit(previous=>{
+      const before=previous?.assignments??preview?.candidateAssignments??saved??[];
+      const changed=moveTimelineAssignment(before,move);
+      if(!changed.changed)return previous;
+      return {
+        assignments:changed.assignments,
+        history:[...(previous?.history??[]),[...before]],
+        sources:previous?.sources??sources,
+        sourceSignature:previous?.sourceSignature??signature,
+        hoursPolicy:previous?previous.hoursPolicy:
+          preview?"rolling28":savedHoursPolicy,
+      };
+    });
+    setFeedback(null);
+  }
+
+  function undoTimelineEdit(){
+    setDragCandidate(null);
+    setManualEdit(previous=>{
+      if(!previous || previous.history.length===0)return previous;
+      const before=previous.history[previous.history.length-1];
+      const history=previous.history.slice(0,-1);
+      return history.length===0?null:{...previous,assignments:before,history};
+    });
+    setFeedback(null);
+  }
+
+  function discardTimelineEdits(){
+    setDragCandidate(null);
+    setManualEdit(null);
+    setFeedback(null);
+  }
 
   function generate(){
+    if(manualEdit && !window.confirm(
+      "Descartar as alterações manuais e gerar um novo horário mensal?"))return;
     if(isBlocked){
       setFeedback({kind:"error",message:"O registo deste mês não pode ser lido. Não será substituído automaticamente."});
       return;
@@ -201,6 +294,8 @@ function MonthWorkspace({
       hoursHistory:sources.hoursHistory.context,
     });
     setPreview(result);
+    setManualEdit(null);
+    setDragCandidate(null);
     setHoursHistory(sources.hoursHistory);
     setSourceSignature(JSON.stringify(sources));
     setNames(new Map(sources.team.value.members.map(member=>[member.id,member.name])));
@@ -219,29 +314,38 @@ function MonthWorkspace({
   }
 
   function save(){
-    if(isBlocked || !preview || sourceSignature===null ||
-       preview.status==="invalid"||preview.status==="invalid_input")return;
+    if(isBlocked || dragCandidate!==null)return;
+    const candidates=manualEdit?.assignments??preview?.candidateAssignments;
+    const hoursPolicy=manualEdit?manualEdit.hoursPolicy:
+      preview?"rolling28" as const:undefined;
+    const expected=manualEdit?.sourceSignature??sourceSignature;
+    if(!candidates || expected===null ||
+       (!manualEdit && (preview?.status==="invalid" ||
+         preview?.status==="invalid_input")))return;
     const currentSources=loadSources(year,month);
     const problem=sourceError(currentSources);
     if(problem){
       setFeedback({kind:"error",message:problem});
       return;
     }
-    if(JSON.stringify(currentSources)!==sourceSignature){
-      setFeedback({kind:"error",message:"Os dados da empresa, da equipa ou dos outros meses mudaram. Gera novamente antes de guardar."});
+    if(JSON.stringify(currentSources)!==expected){
+      setFeedback({kind:"error",message:
+        "Os dados da empresa, da equipa ou dos outros meses mudaram. Reabre ou regenera antes de guardar."});
       return;
     }
+    // Always certify the FULL edited month again, not only the selected day.
     const currentReport=certificationForSaved(currentSources,year,month,
-      preview.candidateAssignments,[],"v2","rolling28");
+      candidates,[],"v2",hoursPolicy);
     if(!currentReport || currentReport.status==="invalid"){
-      setFeedback({kind:"error",message:"A proposta não passa a certificação atual. Não foi guardada."});
+      setFeedback({kind:"error",message:
+        "A edição contém conflitos obrigatórios. Corrige-os antes de guardar a proposta."});
       return;
     }
     if(saved!==null &&
       !window.confirm("Substituir a proposta guardada deste mês? Os horários dos outros meses não serão alterados."))return;
     const result=saveMonthlyDraftToBrowser(
-      year,month,preview.candidateAssignments,revision,
-      undefined,"v2","rolling28"
+      year,month,candidates,revision,
+      undefined,"v2",hoursPolicy
     );
     if(!result.ok){
       setFeedback({kind:"error",message:result.message});
@@ -254,6 +358,8 @@ function MonthWorkspace({
     setRevision(result.revision);
     setSavedReport(currentReport);
     setPreview(null);
+    setManualEdit(null);
+    setDragCandidate(null);
     setSourceSignature(null);
     setFeedback({kind:"success",message:"Proposta de "+monthLabel(year,month-1)+
       " guardada neste navegador. Não foi aprovada nem sincronizada com outros dispositivos."});
@@ -278,10 +384,19 @@ function MonthWorkspace({
           <div className="schedule-buttons">
             <button type="button" className="button button-primary"
               disabled={isBlocked} onClick={generate}>Gerar horário</button>
-            {preview && (preview.status==="valid"||preview.status==="insufficient_context") &&
-              <button type="button" className="button schedule-save" onClick={save}>
+            {(manualEdit!==null || (preview!==null &&
+              (preview.status==="valid"||preview.status==="insufficient_context"))) &&
+              <button type="button" className="button schedule-save" onClick={save}
+                disabled={dragCandidate!==null || (manualEdit!==null &&
+                  report?.status==="invalid")}>
                 Guardar proposta
               </button>}
+            {manualEdit&&<>
+              <button type="button" className="button schedule-undo"
+                onClick={undoTimelineEdit}>Desfazer alteração</button>
+              <button type="button" className="button schedule-discard"
+                onClick={discardTimelineEdits}>Descartar edições</button>
+            </>}
           </div>
         </div>
         <p className="schedule-storage-note">
@@ -289,6 +404,18 @@ function MonthWorkspace({
             "Existe uma proposta guardada neste dispositivo para este mês."}
           {" "}A geração não altera os horários dos outros meses.
         </p>
+        {manualEdit&&<p className="schedule-edit-banner" role="status">
+          Alterações manuais por guardar — {manualEdit.history.length}
+          {" "}{manualEdit.history.length===1?"movimento":"movimentos"}.
+          {report?.status==="invalid"
+            ?" Existem conflitos a corrigir antes da gravação."
+            :report?.status==="insufficient_context"
+              ?" Falta contexto histórico para certificar totalmente."
+              :" Regras implementadas verificadas nesta versão."}
+        </p>}
+        {dragCandidate&&<p className="schedule-edit-banner" role="status">
+          Movimento em curso: a cobertura é provisória até largares a barra.
+        </p>}
         {legacyDraft&&
           <p className="schedule-storage-note" role="status">
             Este rascunho utiliza o modelo anterior de horários.
@@ -306,16 +433,19 @@ function MonthWorkspace({
           {feedback.message}
         </p>}
         {(preview||saved)&&<div className="schedule-certification" aria-live="polite">
-          <span className={"schedule-status schedule-status-"+(report?.status??"unknown")}>
-            {legacyDraft?"Modelo anterior":
+          <span className={"schedule-status schedule-status-"+
+            (dragCandidate?"unknown":report?.status??"unknown")}>
+            {dragCandidate?"Movimento em curso":legacyDraft?"Modelo anterior":
               report?.status==="valid"?"Regras verificadas":
               report?.status==="insufficient_context"?"Contexto incompleto":
               report?.status==="invalid"?"Com problemas":"Não verificado"}
           </span>
-          <p>{legacyDraft
-            ?"Este rascunho não foi certificado pelas regras novas de pausas e cobertura."
-            :stateText(report,activeHoursPolicy)}</p>
-          {report&&report.issues.length>0&&<div className="schedule-issues">
+          <p>{dragCandidate
+            ?"A cobertura é provisória. A certificação será atualizada ao largar a barra."
+            :legacyDraft
+              ?"Este rascunho não foi certificado pelas regras novas de pausas e cobertura."
+              :stateText(report,activeHoursPolicy)}</p>
+          {!dragCandidate&&report&&report.issues.length>0&&<div className="schedule-issues">
             <strong>Problemas encontrados</strong>
             <ul>
               {report.issues.slice(0,5).map((issue,index)=>
@@ -431,7 +561,23 @@ function MonthWorkspace({
           {selectedDate&&dailyTimeline&&
             <DayScheduleTimeline timeline={dailyTimeline}
               names={names} selectedMemberId={selectedMemberId}
-              hasProposal={hasMonthProposal}/>}
+              hasProposal={hasMonthProposal}
+              editable={timelineEditable}
+              onPreviewMove={previewTimelineMove}
+              onCommitMove={commitTimelineMove}/>}
+          {manualEdit && !dragCandidate && report?.status==="invalid" &&
+            <div className="daily-edit-conflicts" role="alert">
+              <strong>Alteração com conflitos</strong>
+              <p>A posição foi mantida para poderes corrigir o horário.
+                A gravação está bloqueada enquanto existirem violações obrigatórias.</p>
+              <ul>
+                {report.issues.filter(issue=>
+                  issue.date===selectedDate).slice(0,5).map((issue,index)=>
+                  <li key={issue.code+"-"+index}>{issue.message}
+                    {issue.gapStart&&issue.gapEnd
+                      ?" ("+issue.gapStart+"–"+issue.gapEnd+")":""}</li>)}
+              </ul>
+            </div>}
           {selectedDate
             ?dayAssignments.length>0
               ?<details className="daily-shift-details" open={dayAssignments.length<=8}>
@@ -479,6 +625,7 @@ function MonthWorkspace({
 
 export function CalendarScheduler(){
   const [selectedMemberId,setSelectedMemberId]=useState<string|null>(null);
+  const [hasPendingEdits,setHasPendingEdits]=useState(false);
   const [visible,setVisible]=useState<MonthView>(()=>{
     const date=new Date();
     return {year:date.getFullYear(),month:date.getMonth()+1};
@@ -488,7 +635,13 @@ export function CalendarScheduler(){
     String(now.getMonth()+1).padStart(2,"0")+"-"+
     String(now.getDate()).padStart(2,"0");
 
+  function mayLeaveMonth():boolean {
+    return !hasPendingEdits || window.confirm(
+      "Existem alterações manuais por guardar. Mudar de mês irá descartá-las. Continuar?");
+  }
   function navigate(direction:number){
+    if(!mayLeaveMonth())return;
+    setHasPendingEdits(false);
     setVisible(previous=>{
       const next=new Date(previous.year,previous.month-1+direction,1);
       return {year:next.getFullYear(),month:next.getMonth()+1};
@@ -501,6 +654,9 @@ export function CalendarScheduler(){
           aria-label="Mês anterior">‹</button>
         <button type="button" className="today-button" onClick={()=>{
           const date=new Date();
+          if((visible.year!==date.getFullYear() ||
+              visible.month!==date.getMonth()+1) && !mayLeaveMonth())return;
+          setHasPendingEdits(false);
           setVisible({year:date.getFullYear(),month:date.getMonth()+1});
         }}>Hoje</button>
         <button type="button" className="icon-button" onClick={()=>navigate(1)}
@@ -508,7 +664,8 @@ export function CalendarScheduler(){
       </div>
       <MonthWorkspace key={visible.year+"-"+visible.month}
         year={visible.year} month={visible.month} todayString={todayString}
-        selectedMemberId={selectedMemberId} onSelectMember={setSelectedMemberId}/>
+        selectedMemberId={selectedMemberId} onSelectMember={setSelectedMemberId}
+        onPendingEditsChange={setHasPendingEdits}/>
     </>
   );
 }

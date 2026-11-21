@@ -92,17 +92,21 @@ test("O calendário pode filtrar por colaborador sem alterar geração ou grava�
   assert.match(calendarScheduler,/view\.workingDays/);
   assert.match(calendarScheduler,/O filtro mostra apenas este colaborador/);
   // Both certification and persistence must still receive ALL assignments.
-  assert.match(calendarScheduler,/preview\.candidateAssignments,revision/);
-  assert.match(calendarScheduler,/certificationForSaved\(currentSources,year,month,\s*preview\.candidateAssignments,\[\],"v2","rolling28"\)/);
+  assert.match(calendarScheduler,/year,month,candidates,revision/);
+  assert.match(calendarScheduler,/certificationForSaved\(currentSources,year,month,\s*candidates,\[\],"v2",hoursPolicy\)/);
   assert.match(calendarScheduler,/hoursPolicy:"rolling28"/);
   assert.match(calendarScheduler,/calculateRolling28Day\(/);
+  assert.match(calendarScheduler,/manualEdit\?\.assignments\?\?preview\?\.candidateAssignments/);
+  assert.match(calendarScheduler,/moveTimelineAssignment\(/);
+  assert.match(calendarScheduler,/undoTimelineEdit\(/);
+  assert.match(calendarScheduler,/currentReport\.status==="invalid"/);
   assert.doesNotMatch(calendarScheduler,/saveMonthlyDraftToBrowser\(\s*year,month,view/);
 });
 
 
 test("Um único turno contém a pausa, sem criar dois turnos de trabalho",()=>{
   assert.match(calendarScheduler,/mealBreakPolicy:"v2"/);
-  assert.match(calendarScheduler,/preview\.candidateAssignments,revision/);
+  assert.match(calendarScheduler,/year,month,candidates,revision/);
   assert.match(calendarScheduler,/undefined,"v2"/);
   assert.match(calendarScheduler,/item\.assignment\.mealBreak/);
   assert.match(calendarScheduler,/Turno \{item\.assignment\.start\}/);
