@@ -113,6 +113,11 @@ export function requiredRestDayCount(
   let mask=mandatoryMask(member,new Set(closedWeekdays));
   if(fullWeekendOff)mask|=WEEKEND_MASK;
   if(!fullWeekendOff)return member.weeklyDaysOff;
+  // A company that is permanently closed on both weekend days already
+  // gives that rest structurally. It is not a specially awarded weekend
+  // and must not trigger an artificial third day off midweek.
+  if(closedWeekdays.includes("saturday")&&
+    closedWeekdays.includes("sunday"))return member.weeklyDaysOff;
   const alreadyMidweek=bits(mask&WEEKDAYS_MASK);
   const extraMidweek=Math.max(
     0,member.minimumWeekdayDaysOffOnFullWeekend-alreadyMidweek);
@@ -218,7 +223,9 @@ function findRestPatterns(
       if((mask&mandatory)!==mandatory||bits(mask)!==required)continue;
       if(weekends.has(member.id)){
         if((mask&WEEKEND_MASK)!==WEEKEND_MASK)continue;
-        if(bits(mask&WEEKDAYS_MASK)<
+        const naturallyClosed=closures.has("saturday")&&
+          closures.has("sunday");
+        if(!naturallyClosed && bits(mask&WEEKDAYS_MASK)<
           member.minimumWeekdayDaysOffOnFullWeekend)continue;
       }else if((mask&WEEKEND_MASK)===WEEKEND_MASK)continue;
       options.push(mask);
