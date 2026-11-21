@@ -676,11 +676,48 @@ certificador continuam inalterados nesta fase experimental.
   empresa encerrada ao fim de semana, mudança de mês, histórico, validação
   de entradas e limite máximo de 38 horas numa semana de quatro dias.
 
-**Muito importante:** estes resultados **não certificam** cobertura
-minuto a minuto, duração da refeição, compatibilidade com todas as
-restrições legais, nem os totais pretendidos de 28 dias. Antes de ligar
-esta política ao gerador V2, haverá que integrar o descanso na seleção
-de dias de trabalho, considerar ausências/exceções e atualizar o
-certificador independente para distinguir semanas habituais de semanas
-com fim de semana completo atribuído. Até lá, este módulo não altera
-a interface, os horários existentes ou a persistência.
+### Integração do PR89: gerador, certificador, interface e persistência
+
+- `src/team.ts` e `src/TeamEditor.tsx`: configuração individual
+  **opt-in** da rotação, folga fixa semanal e mínimo de descanso
+  segunda–sexta se sábado e domingo forem atribuídos como descanso.
+  As equipas anteriores continuam legíveis e mantêm o algoritmo anterior
+  enquanto não ativarem a rotação.
+- `src/rotationIntegration.ts`: planeia **apenas semanas civis completas
+  dentro do mês editável**, com um mínimo de pessoas derivado da capacidade
+  necessária à cobertura. Este limite inferior por dia NÃO substitui
+  necessidades de cobertura horária configuráveis por empresa.
+- `src/generateSchedule.ts`: aplica os dias sem trabalho escolhidos
+  ANTES de distribuir turnos e refeições. Em blocos de quatro semanas
+  completas, procura 160h de referência total (SOFT), distribuindo
+  excessos/deficiências até à capacidade de cada dia; não inventa horas
+  para cumprir um objetivo inviável. Noutras semanas continua a política
+  histórica móvel de 28 dias.
+- `src/certifySchedule.ts`: certifica de forma **independente** as folgas
+  fixas e a diferença entre descanso semanal normal e fim de semana
+  completo com folga(s) adicional(is). O descanso extra não reinterpreta
+  fins de semana inteiramente fora do mês editável.
+- `src/plannedRest.ts` e `src/monthlyScheduleDraftRepository.ts`:
+  guardam com a proposta mensal (local) os dias EXPLICITAMENTE planeados
+  sem trabalho, verificando que não coincidem com turnos. O histórico
+  de equidade futuro lê apenas fins de semana explicitamente guardados:
+  **um dia sem turno NÃO é tratado como folga**.
+  Propostas V1 e V2 antigas sem metadados de descanso mantêm-se legíveis.
+- `src/CalendarScheduler.tsx`: mostra a rotação proposta por semana,
+  os descansos planeados ao filtrar um colaborador e a rotação guardada
+  após reabrir o mês. Não são automaticamente criadas aprovações.
+- `tests/rotationIntegration.test.ts` e `tests/plannedRest.test.ts`:
+  validação fim-a-fim com quatro pessoas, semanas de três dias livres,
+  160h de referência, folgas fixas, cobertura, fronteiras de meses,
+  imutabilidade e histórico explícito guardado/reaberto.
+
+**Limitações ainda declaradas:** o motor não certifica a legislação laboral;
+o pré-planeamento garante um limite inferior de pessoas **por dia** e o
+certificador final verifica a existência de cobertura de pelo menos
+uma pessoa **a cada minuto de funcionamento** (não mínimos configuráveis
+por intervalo). A escolha inicial de folgas usa pesquisa determinística
+limitada, sem provar a melhor rotação global em todos os cenários.
+Nas semanas parciais nas fronteiras de meses preserva-se a lógica
+conservadora e o contexto externo. Períodos aprovados, exceções,
+presenças reais e futuras necessidades de cobertura por posto continuam
+fora deste PR. Não fazer merge antes do teste real na interface.
