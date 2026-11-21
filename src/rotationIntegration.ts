@@ -117,6 +117,13 @@ export function prepareRotation(
     closedWeekdays:closed,
     maximumEffectiveMinutesByWeekday:Object.fromEntries(
       WEEKDAYS.map((d,index)=>[d.id,capacities[index]])) as WeekdayNumbers,
+    // 160h/28d is a SOFT reference; 9h is a workload-quality threshold,
+    // NOT a hard daily limit. Weekend frequency follows from both.
+    workloadPreference:{
+      cycleReferenceMinutes:9600,
+      preferredUpperDailyMinutes:540,
+      cycleWeeks:4,
+    },
     ...(previousFullWeekends.length>0?{previousFullWeekends}:{}),
   });
 
