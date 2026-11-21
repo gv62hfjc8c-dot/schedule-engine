@@ -556,3 +556,67 @@ sem que o calendário filtrado oculte colaboradores da equipa.
 
 **Integração:** PR87 depende de PR86, que permanece em Draft. Não integrar a
 edição antes de verificar visualmente ambos em Safari.
+
+
+## PR88 — Evitar jornadas de presença excessivamente longas
+
+**Decisão operacional:** preferir **8 horas de trabalho efetivo por dia**
+(ex.: 08:30–17:30 com uma hora de refeição), sem transformar esse valor
+num limite obrigatório. Uma jornada até 9h efetivas pode ser necessária;
+acima de 9h deve ser fortemente evitada quando há alternativa.
+O objetivo é melhorar a experiência real da equipa sem perder cobertura.
+
+### Otimização implementada
+
+- O cálculo é sobre **trabalho efetivo**, não mera presença entre entrada
+  e saída. A regra de pontuação distingue excesso acima de 8h e acima de 9h;
+  este último tem maior prioridade. Com todas as jornadas abaixo de 8h,
+  continuam a prevalecer as preferências existentes de consistência.
+- A redistribuição local transfere carga em **blocos de 15 minutos**
+  apenas entre dias normais **já trabalhados** pelo mesmo colaborador.
+  Não cria nem elimina folgas, não altera as horas semanais, não mexe nos
+  turnos de outros colaboradores e não fragmenta turnos.
+- As **jornadas curtas** (ex.: domingo de funcionamento 14:00–19:00)
+  continuam indivisíveis e prioritárias para garantir que o estabelecimento
+  não fica descoberto. Se forem escaladas, são feitas por inteiro.
+- Com domingo de 5h e quatro outros dias para completar 40h, o motor
+  pode distribuir as 35h restantes em **4 × 8h45**, em vez de concentrar
+  o trabalho em jornadas de 9h30 evitáveis.
+- Para colocar um turno de 8h45 com saída às 19h, o motor passa a
+  considerar **entradas às 09h15** quando necessário. Turnos de duração
+  compatível continuam a usar os pontos de meia hora habituais.
+  A seleção de entradas em horas certas passou a contar **horas de
+  início distintas**, nunca várias opções de almoço para a mesma entrada.
+- A cobertura efetiva e todas as hard constraints continuam a ser
+  verificadas pelo **certificador independente**; não é um banco de horas
+  nem uma certificação de legalidade.
+
+### Validação
+
+- src/dailyWorkloadBalance.ts — métrica pura da carga diária e
+  redistribuição determinística de 15 minutos.
+- src/generateSchedule.ts — inclui a prioridade diária no seletor de
+  dias de trabalho e nas propostas de carga semanal.
+- src/mealBreaks.ts e src/mealCoveragePlanner.ts — horários de início
+  com precisão suficiente para cobrir o fecho de dias com 8h45 efetivas.
+- tests/dailyWorkloadBalance.test.ts — semanas de 40h, dias de 5h,
+  folgas, dias de 8h45, situações inevitáveis acima de 9h,
+  cobertura, imutabilidade e saída às 19h.
+- Testes de regressão existentes protegem semanas que atravessam meses,
+  dias curtos completos e o comportamento mensal.
+
+### Aceitação no Safari
+
+1. Na branch `v2/daily-workload-balance`, configurar uma loja de segunda a
+   sábado das 08h30 às 19h00 e domingo das 14h00 às 19h00.
+2. Gerar novamente novembro com colaboradores reais e comparar o número
+   de dias com mais de 8h/9h efetivas com a versão anterior.
+3. Confirmar cobertura ininterrupta, pausas internas, folgas e turnos
+   dominicais completos; observar saídas às 19h sem exigir entrada às 08h30.
+4. Confirmar que o histórico guardado não foi modificado pela geração.
+   Não fazer merge sem validação funcional.
+
+**Limite conhecido:** esta é uma otimização local da carga diária, não
+uma pesquisa global de todas as distribuições de domingos entre
+colaboradores. Esse tema pode ser desenvolvido depois de observarmos o
+comportamento real da equipa.
