@@ -1,5 +1,5 @@
 import {useRef,type CSSProperties,type KeyboardEvent,type PointerEvent} from "react";
-import {TIMELINE_SNAP_MINUTES,type TimelineMove,type TimelineMoveKind} from "./timelineEditing";
+import {TIMELINE_SNAP_MINUTES,dragMinutesForPixels,type TimelineMove,type TimelineMoveKind} from "./timelineEditing";
 import {type TimelineInterval} from "./dailyTimeline";
 import type {WorkAssignment} from "./workAssignments";
 
@@ -41,8 +41,7 @@ export function TimelineDraggableBar({
   }
   function readDelta(e:PointerEvent<HTMLButtonElement>,g:Gesture){
     const duration=g.target.bounds.end-g.target.bounds.start;
-    const raw=(e.clientX-g.startX)*duration/g.trackWidth;
-    return Math.round(raw/TIMELINE_SNAP_MINUTES)*TIMELINE_SNAP_MINUTES;
+    return dragMinutesForPixels(e.clientX-g.startX,duration,g.trackWidth);
   }
   function start(e:PointerEvent<HTMLButtonElement>){
     if(!editable || (e.pointerType==="mouse" && e.button!==0))return;
