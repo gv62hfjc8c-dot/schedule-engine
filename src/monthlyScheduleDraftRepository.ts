@@ -7,6 +7,9 @@ import {
 } from "./workAssignments";
 import type {ExternalScheduleContext} from "./certifySchedule";
 import {validateMealBreak,type MealBreak} from "./mealBreaks";
+import {
+  validatePlannedRest,type PlannedRestWeekMember,
+} from "./plannedRest";
 
 /**
  * Local, unapproved proposals. One complete civil month per key.
@@ -21,12 +24,14 @@ type WriteStorage=Pick<Storage,"getItem"|"setItem">;
 
 export type MonthlyDraftLoad=
   | {status:"loaded";assignments:WorkAssignment[];
-    mealBreaks:MealBreak[];mealBreakPolicy?:"v1"|"v2";hoursPolicy?:"rolling28";revision:string}
+    mealBreaks:MealBreak[];mealBreakPolicy?:"v1"|"v2";hoursPolicy?:"rolling28";
+    rotationRest?:PlannedRestWeekMember[];revision:string}
   | {status:"empty";assignments:null;revision:null}
   | {status:"invalid"|"unavailable";assignments:null;revision:null};
 export type MonthlyDraftSave=
   | {ok:true;revision:string;assignments:WorkAssignment[];
-    mealBreaks:MealBreak[];mealBreakPolicy?:"v1"|"v2";hoursPolicy?:"rolling28"}
+    mealBreaks:MealBreak[];mealBreakPolicy?:"v1"|"v2";hoursPolicy?:"rolling28";
+    rotationRest?:PlannedRestWeekMember[]}
   | {ok:false;code:"invalid"|"unavailable"|"conflict";message:string};
 export type ExternalContextLoad=
   | {ok:true;context:ExternalScheduleContext}
@@ -113,6 +118,7 @@ export function loadMonthlyDraft(
     const document=value as {
       version?:unknown;year?:unknown;month?:unknown;assignments?:unknown;
       mealBreakPolicy?:unknown;mealBreaks?:unknown;hoursPolicy?:unknown;
+      rotationRest?:unknown;
     };
     if(document.version!==VERSION||document.year!==year||document.month!==month)
       return {status:"invalid",assignments:null,revision:null};
@@ -123,6 +129,12 @@ export function loadMonthlyDraft(
       ?{hoursPolicy:"rolling28" as const}:{};
     const assignments=validatedAssignments(document.assignments,year,month);
     if(assignments===null)return {status:"invalid",assignments:null,revision:null};
+    const rotationRest=document.rotationRest===undefined?undefined:
+      validatePlannedRest(document.rotationRest,year,month,assignments);
+    if(rotationRest===null || (rotationRest!==undefined &&
+      document.mealBreakPolicy!=="v2"))
+      return {status:"invalid",assignments:null,revision:null};
+    const restFields=rotationRest===undefined?{}:{rotationRest};
     if(document.mealBreakPolicy===undefined && document.mealBreaks===undefined)
       return {status:"loaded",assignments,mealBreaks:[],revision:raw};
     if(document.mealBreakPolicy==="v2" &&
@@ -130,7 +142,7 @@ export function loadMonthlyDraft(
       if(!validSingleShiftMeals(assignments))
         return {status:"invalid",assignments:null,revision:null};
       return {status:"loaded",assignments,mealBreaks:[],
-        mealBreakPolicy:"v2",...hoursPolicy,revision:raw};
+        mealBreakPolicy:"v2",...hoursPolicy,...restFields,revision:raw};
     }
     if(document.mealBreakPolicy!=="v1")
       return {status:"invalid",assignments:null,revision:null};
@@ -150,11 +162,20 @@ export function saveMonthlyDraft(
   input:unknown,expectedRevision:string|null,
   mealBreaksInput:unknown=undefined,mealBreakPolicy:"v1"|"v2"|undefined=undefined,
   hoursPolicy:"rolling28"|undefined=undefined,
+  rotationRestInput:unknown=undefined,
 ):MonthlyDraftSave {
   const key=monthlyDraftKey(year,month);
   const assignments=validatedAssignments(input,year,month);
   if(assignments===null)
     return {ok:false,code:"invalid",message:"O horário contém turnos inválidos ou fora do mês selecionado."};
+  if(rotationRestInput!==undefined && mealBreakPolicy!=="v2")
+    return {ok:false,code:"invalid",message:
+      "O descanso explícito só é suportado nas propostas com turnos V2."};
+  const rotationRest=rotationRestInput===undefined?undefined:
+    validatePlannedRest(rotationRestInput,year,month,assignments);
+  if(rotationRest===null)
+    return {ok:false,code:"invalid",message:
+      "A proposta contém descansos planeados inconsistentes com os turnos."};
   if(hoursPolicy!==undefined &&
     (hoursPolicy!=="rolling28" || mealBreakPolicy!=="v2"))
     return {ok:false,code:"invalid",message:"A política de horas da proposta é inválida."};
@@ -179,12 +200,14 @@ export function saveMonthlyDraft(
     ...(mealBreakPolicy==="v1"?{mealBreakPolicy,mealBreaks}:{}),
     ...(mealBreakPolicy==="v2"?{mealBreakPolicy}:{}),
     ...(hoursPolicy?{hoursPolicy}:{}),
+    ...(rotationRest===undefined?{}:{rotationRest}),
   });
   try{
     storage.setItem(key,revision);
     return {ok:true,revision,assignments,mealBreaks,
       ...(mealBreakPolicy?{mealBreakPolicy}:{}),
       ...(hoursPolicy?{hoursPolicy}:{}),
+      ...(rotationRest===undefined?{}:{rotationRest}),
     };
   }catch{return {ok:false,code:"unavailable",message:"Não foi possível guardar a proposta neste dispositivo."};}
 }
@@ -235,11 +258,11 @@ export function loadMonthlyDraftFromBrowser(year:number,month:number):MonthlyDra
 export function saveMonthlyDraftToBrowser(
   year:number,month:number,assignments:unknown,expectedRevision:string|null,
   mealBreaks?:unknown,mealBreakPolicy?:"v1"|"v2",
-  hoursPolicy?:"rolling28"
+  hoursPolicy?:"rolling28",rotationRest?:unknown
 ):MonthlyDraftSave {
   try{return saveMonthlyDraft(
     window.localStorage,year,month,assignments,expectedRevision,
-    mealBreaks,mealBreakPolicy,hoursPolicy
+    mealBreaks,mealBreakPolicy,hoursPolicy,rotationRest
   );}
   catch{return {ok:false,code:"unavailable",message:"Não foi possível guardar neste dispositivo."};}
 }
