@@ -55,9 +55,15 @@ export function dailyWorkloadQuality(
 export function compareDailyWorkload(
   a:DailyWorkloadQuality,b:DailyWorkloadQuality,
 ):number {
-  return a.beyondNineMinutes-b.beyondNineMinutes ||
-    a.beyondEightMinutes-b.beyondEightMinutes ||
-    a.excessConcentration-b.excessConcentration ||
+  if(a.beyondNineMinutes!==b.beyondNineMinutes)
+    return a.beyondNineMinutes-b.beyondNineMinutes;
+  if(a.beyondEightMinutes!==b.beyondEightMinutes)
+    return a.beyondEightMinutes-b.beyondEightMinutes;
+  // If BOTH proposals have no overtime, do not replace the existing
+  // preference for repeatable shifts with an unnecessary preference for
+  // flatter sub-8h days.
+  if(a.beyondEightMinutes===0)return 0;
+  return a.excessConcentration-b.excessConcentration ||
     a.longestMinutes-b.longestMinutes;
 }
 
