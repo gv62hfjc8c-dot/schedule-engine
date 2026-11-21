@@ -302,12 +302,25 @@ export function readPriorRollingHistory(
     if(draft.status==="loaded")known.push(date);
   }
   const knownSet=new Set(known);
-  const assignments=[...loaded.values()]
+  const savedDrafts=[...loaded.values()]
     .filter((draft):draft is Extract<MonthlyDraftLoad,{status:"loaded"}>=>
-      draft.status==="loaded")
-    .flatMap(draft=>draft.assignments)
+      draft.status==="loaded");
+  const assignments=savedDrafts.flatMap(draft=>draft.assignments)
     .filter(shift=>knownSet.has(shift.date));
-  return {ok:true,context:{assignments,completeDates:known}};
+  // Historical fairness is based only on EXPLICIT saved rest decisions.
+  // An empty day in a schedule is not automatically a legitimate folga.
+  const confirmedFullWeekends=savedDrafts
+    .flatMap(draft=>draft.rotationRest??[])
+    .filter(record=>record.fullWeekendOff &&
+      addCivilDays(record.weekStart,6)<period.start)
+    .map(record=>({
+      memberId:record.memberId,weekStart:record.weekStart,
+    }));
+  return {ok:true,context:{
+    assignments,completeDates:known,
+    ...(confirmedFullWeekends.length>0
+      ?{plannedFullWeekends:confirmedFullWeekends}:{}),
+  }};
 }
 
 export function readPriorRollingHistoryFromBrowser(
