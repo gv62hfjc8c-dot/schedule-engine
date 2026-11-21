@@ -15,6 +15,7 @@ export interface TimelineShift {
 export interface TimelineMember {
   memberId:string;
   shifts:TimelineShift[];
+  legacyMeals:TimelineInterval[];
   /** Effective minutes as recorded in the assignments (meals excluded). */
   workMinutes:number;
 }
@@ -94,17 +95,18 @@ export function buildDailyTimeline(
           end:clockMinutes(assignment.mealBreak.end),
         }]:[],
       })).sort((a,b)=>a.start-b.start||a.end-b.end);
+    const legacyMeals=meals.filter(m=>m.memberId.toLowerCase()===memberId)
+      .map(m=>({start:clockMinutes(m.start),end:clockMinutes(m.end)}));
     const workMinutes=shifts.reduce((sum,shift)=>
       sum+assignmentMinutes(shift.assignment),0);
-    return {memberId,shifts,workMinutes};
+    return {memberId,shifts,legacyMeals,workMinutes};
   });
 
   const scheduledMinutes=members.reduce((sum,row)=>sum+row.workMinutes,0);
   const workingMembers=members.filter(row=>row.shifts.length>0).length;
   const intervalsByMember=new Map<string,TimelineInterval[]>();
   for(const row of members){
-    const legacy=meals.filter(m=>m.memberId.toLowerCase()===row.memberId)
-      .map(m=>({start:clockMinutes(m.start),end:clockMinutes(m.end)}));
+    const legacy=row.legacyMeals;
     const workIntervals=row.shifts.flatMap(s=>
       effectiveWorkIntervals(s.assignment));
     // In historical drafts, pauses were separate records. Count those
