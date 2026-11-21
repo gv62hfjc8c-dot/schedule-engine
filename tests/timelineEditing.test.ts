@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {moveTimelineAssignment} from "../src/timelineEditing";
+import {dragMinutesForPixels,moveTimelineAssignment} from "../src/timelineEditing";
 import {certifySchedule} from "../src/certifySchedule";
 import {suggestedWeeklyOpeningHours} from "../src/operatingHours";
 import type {WorkAssignment} from "../src/workAssignments";
@@ -133,4 +133,15 @@ test("o movimento pode produzir conflito, identificado pelo certificador indepen
   assert.equal(result.status,"invalid");
   assert.ok(result.issues.some(issue=>issue.code==="OPENING_UNCOVERED" &&
     issue.date===date && issue.gapStart==="12:00" && issue.gapEnd==="13:00"));
+});
+
+test("a distância física do ponteiro respeita a escala dinâmica do dia",()=>{
+  // Normal day: 630 minutes mapped onto 630 rendered pixels.
+  assert.equal(dragMinutesForPixels(30,630,630),30);
+  assert.equal(dragMinutesForPixels(-18,630,630),-15);
+  // Short Sunday: 300 minutes mapped onto 600 pixels.
+  assert.equal(dragMinutesForPixels(30,300,600),15);
+  assert.equal(dragMinutesForPixels(90,300,600),45);
+  assert.equal(dragMinutesForPixels(30,300,0),0);
+  assert.equal(dragMinutesForPixels(NaN,300,600),0);
 });
