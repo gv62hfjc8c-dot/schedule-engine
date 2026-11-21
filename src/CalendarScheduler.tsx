@@ -460,6 +460,36 @@ function MonthWorkspace({
               Existem mais {report.issues.length-5} problemas no resultado.</p>}
           </div>}
         </div>}
+        {preview?.rotation&&<div className="schedule-rotation-overview"
+          aria-label="Rotação de fins de semana na proposta">
+          <h3>Fins de semana completos — rotação proposta</h3>
+          <p>O motor procura distribuir os descansos de forma equilibrada.
+            A frequência depende das folgas fixas e da cobertura, não de
+            um ciclo obrigatório de quatro semanas.</p>
+          {preview.rotation.issues.length>0&&<p role="alert" className="form-error">
+            {preview.rotation.issues.map(issue=>issue.message).join(" ")}
+          </p>}
+          {preview.rotation.weeks.length>0&&<div className="schedule-rotation-weeks">
+            {preview.rotation.weeks.map(week=><div key={week.weekStart}
+              className="schedule-rotation-week">
+              <span>Semana de {week.weekStart}</span>
+              <strong>{week.fullWeekendOffMemberIds.length===0
+                ? "Sem fim de semana completo atribuído"
+                :week.fullWeekendOffMemberIds.map(id=>memberLabel(id,names))
+                  .join(" · ")}</strong>
+            </div>)}
+          </div>}
+          {preview.rotationTargetShortfalls?.length?(
+            <p className="schedule-rotation-warning" role="status">
+              A capacidade disponível não permite atingir a referência de
+              160 horas em todos os blocos de quatro semanas. O motor não
+              cria horas fictícias para compensar a diferença.
+            </p>
+          ):null}
+          <small>Esta vista descreve a proposta ainda não guardada.
+            A cobertura minuto a minuto e as pausas são verificadas
+            separadamente pelo certificador.</small>
+        </div>}
       </section>
       <div className="calendar-layout">
         <section className="surface calendar-panel" aria-label="Calendário mensal">
