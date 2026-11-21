@@ -222,7 +222,12 @@ export function TeamEditor() {
             <select id="team-weekly-days-off" name="weeklyDaysOff"
               value={weeklyDaysOff===null?"":weeklyDaysOff}
               onChange={event=>{
-                setWeeklyDaysOff(event.target.value===""?null:Number(event.target.value));
+                const next=event.target.value===""?null:Number(event.target.value);
+                setWeeklyDaysOff(next);
+                if(next===null){
+                  setFixedDayOff(null);
+                  setWeekendRotation(false);
+                }else if(next===0)setFixedDayOff(null);
                 setFeedback(null);
               }}>
               <option value="">Por definir (sem regra adicional)</option>
