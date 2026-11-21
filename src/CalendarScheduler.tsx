@@ -181,6 +181,14 @@ function MonthWorkspace({
     }):null;
   const formatHours=(minutes:number)=>
     (minutes/60).toLocaleString("pt-PT",{maximumFractionDigits:2})+" h";
+  const previewRestDays=new Set<string>(
+    selectedMemberId!==null && preview?.rotation?.status==="planned" &&
+    !manualEdit
+      ?preview.rotation.weeks.flatMap(week=>week.members
+        .filter(member=>member.memberId===selectedMemberId)
+        .flatMap(member=>member.daysWithoutWork))
+      :[]
+  );
   const memberOptions=new Map(names);
   for(const entry of data){
     if(!memberOptions.has(entry.memberId))
@@ -571,7 +579,10 @@ function MonthWorkspace({
                       {byDay.get(cell.date!)!.length} turnos
                     </span>)
                   :selectedMemberId!==null && data.length>0 &&
-                    <span className="calendar-member-empty">Sem turno</span>}
+                    <span className="calendar-member-empty">
+                      {previewRestDays.has(cell.date!)
+                        ?"Descanso planeado":"Sem turno"}
+                    </span>}
               </button>)}
           </div>
           <p className="calendar-footnote">
