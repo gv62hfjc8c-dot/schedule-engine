@@ -194,3 +194,37 @@ test("certificador rejeita de forma independente fim de semana sem folga obrigat
     issue.memberId===rest.memberId &&
     issue.requiredDaysOff===3 && issue.actualDaysOff===2));
 });
+
+test("oito pessoas não recebem seis fins de semana livres simultâneos, deixando falhas de abertura",()=>{
+  const config=shop();
+  const roster=config.team as {members:{
+    id:string;name:string;active:boolean;weeklyDaysOff:number;
+    weekendRest:{minimumWeekdayDaysOffOnFullWeekend:number}
+  }[]};
+  for(let i=4;i<8;i++)
+    roster.members.push({
+      id:"00000000-0000-4000-8000-"+String(i+1).padStart(12,"0"),
+      name:"Pessoa "+i,active:true,weeklyDaysOff:2,
+      weekendRest:{minimumWeekdayDaysOffOnFullWeekend:1},
+    });
+  const result=generateSchedule(config);
+  assert.equal(result.rotation?.status,"planned",
+    JSON.stringify(result.rotation?.issues));
+  assert.ok(result.rotation!.weeks.every(week=>
+    week.fullWeekendOffMemberIds.length<=4),
+    "os dias de descanso devem preservar capacidade para as 160h/28d");
+  assert.ok(result.rotation!.weeks.every(week=>
+    week.presentByWeekday.saturday>=4),
+    "sábado não pode ficar artificialmente reduzido a duas pessoas");
+  assert.ok(result.rotation!.weekendCounts.every(member=>
+    member.planned<=2),
+    "a frequência resulta de 160h e das jornadas preferidas, não de 4 semanas fixas");
+  assert.equal(result.rotationTargetShortfalls?.length,0);
+  assert.equal(result.status,"valid",
+    JSON.stringify(result.certification.issues.slice(0,15)));
+  for(const date of ["2026-11-14","2026-11-21"]){
+    assert.ok(result.candidateAssignments.some(shift=>
+      shift.date===date&&shift.start==="08:30"),
+      "o período inicial 08h30–08h45 tem de ficar coberto");
+  }
+});
