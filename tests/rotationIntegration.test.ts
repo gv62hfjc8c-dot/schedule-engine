@@ -169,3 +169,28 @@ test("rotação não inventa datas desconhecidas nas fronteiras mensais",()=>{
   assert.ok(result.candidateAssignments.every(s=>
     s.date>="2026-11-01"&&s.date<"2026-12-01"));
 });
+
+test("certificador rejeita de forma independente fim de semana sem folga obrigatória a meio da semana",()=>{
+  const input=shop();
+  const generated=generateSchedule(input);
+  assert.equal(generated.status,"valid");
+  const week=generated.rotation!.weeks[0];
+  const rest=week.members.find(m=>m.fullWeekendOff)!;
+  const weekdayRest=rest.daysWithoutWork.find(date=>
+    civilDayOfWeek(date)<5)!;
+  const forbidden:WorkAssignment={
+    memberId:rest.memberId,date:weekdayRest,
+    start:"08:30",end:"17:30",
+    mealBreak:{start:"12:00",end:"13:00"},
+  };
+  const report=certifySchedule({
+    ...input,candidateAssignments:[...generated.candidateAssignments,forbidden],
+  });
+  assert.equal(report.status,"invalid");
+  assert.ok(report.issues.some(issue=>
+    issue.code==="WEEKEND_WEEKDAY_REST_MISSING"));
+  assert.ok(report.issues.some(issue=>
+    issue.code==="WEEKLY_DAYS_OFF_MISMATCH" &&
+    issue.memberId===rest.memberId &&
+    issue.requiredDaysOff===3 && issue.actualDaysOff===2));
+});
