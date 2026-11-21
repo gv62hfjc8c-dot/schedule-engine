@@ -1,4 +1,4 @@
-import {useMemo,useState} from "react";
+import {useEffect,useMemo,useState} from "react";
 import {monthCells,monthLabel,selectedDayLabel} from "./calendar";
 import {generateSchedule,type GenerationResult} from "./generateSchedule";
 import {certifySchedule,type CertificationReport} from "./certifySchedule";
@@ -84,11 +84,12 @@ function memberLabel(memberId:string,names:Map<string,string>):string {
 }
 
 function MonthWorkspace({
-  year,month,todayString,selectedMemberId,onSelectMember,
+  year,month,todayString,selectedMemberId,onSelectMember,onPendingEditsChange,
 }:{
   year:number;month:number;todayString:string;
   selectedMemberId:string|null;
   onSelectMember:(id:string|null)=>void;
+  onPendingEditsChange:(pending:boolean)=>void;
 }) {
   const [initial]=useState(()=>loadMonthlyDraftFromBrowser(year,month));
   const [saved,setSaved]=useState<WorkAssignment[]|null>(
@@ -114,6 +115,19 @@ function MonthWorkspace({
   // A moving pointer can temporarily alter coverage without certifying the
   // entire month for every pixel. Only the released position is committed.
   const [dragCandidate,setDragCandidate]=useState<WorkAssignment[]|null>(null);
+  useEffect(()=>{
+    onPendingEditsChange(manualEdit!==null);
+    return ()=>onPendingEditsChange(false);
+  },[onPendingEditsChange,manualEdit!==null]);
+  useEffect(()=>{
+    if(!manualEdit)return;
+    const onBeforeUnload=(event:BeforeUnloadEvent)=>{
+      event.preventDefault();
+      event.returnValue="";
+    };
+    window.addEventListener("beforeunload",onBeforeUnload);
+    return ()=>window.removeEventListener("beforeunload",onBeforeUnload);
+  },[manualEdit!==null]);
   const [sourceSignature,setSourceSignature]=useState<string|null>(null);
   const [selectedDate,setSelectedDate]=useState<string|null>(null);
   const [feedback,setFeedback]=useState<Feedback|null>(null);
@@ -611,6 +625,7 @@ function MonthWorkspace({
 
 export function CalendarScheduler(){
   const [selectedMemberId,setSelectedMemberId]=useState<string|null>(null);
+  const [hasPendingEdits,setHasPendingEdits]=useState(false);
   const [visible,setVisible]=useState<MonthView>(()=>{
     const date=new Date();
     return {year:date.getFullYear(),month:date.getMonth()+1};
@@ -620,7 +635,13 @@ export function CalendarScheduler(){
     String(now.getMonth()+1).padStart(2,"0")+"-"+
     String(now.getDate()).padStart(2,"0");
 
+  function mayLeaveMonth():boolean {
+    return !hasPendingEdits || window.confirm(
+      "Existem alterações manuais por guardar. Mudar de mês irá descartá-las. Continuar?");
+  }
   function navigate(direction:number){
+    if(!mayLeaveMonth())return;
+    setHasPendingEdits(false);
     setVisible(previous=>{
       const next=new Date(previous.year,previous.month-1+direction,1);
       return {year:next.getFullYear(),month:next.getMonth()+1};
@@ -633,6 +654,9 @@ export function CalendarScheduler(){
           aria-label="Mês anterior">‹</button>
         <button type="button" className="today-button" onClick={()=>{
           const date=new Date();
+          if((visible.year!==date.getFullYear() ||
+              visible.month!==date.getMonth()+1) && !mayLeaveMonth())return;
+          setHasPendingEdits(false);
           setVisible({year:date.getFullYear(),month:date.getMonth()+1});
         }}>Hoje</button>
         <button type="button" className="icon-button" onClick={()=>navigate(1)}
@@ -640,7 +664,8 @@ export function CalendarScheduler(){
       </div>
       <MonthWorkspace key={visible.year+"-"+visible.month}
         year={visible.year} month={visible.month} todayString={todayString}
-        selectedMemberId={selectedMemberId} onSelectMember={setSelectedMemberId}/>
+        selectedMemberId={selectedMemberId} onSelectMember={setSelectedMemberId}
+        onPendingEditsChange={setHasPendingEdits}/>
     </>
   );
 }
