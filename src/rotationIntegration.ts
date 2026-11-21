@@ -1,8 +1,5 @@
-import {
-  addCivilDays,civilDayOfWeek,enumerateCivilDays,inRange,
-  type PlanningPeriod,
-} from "./schedulePeriods";
-import {clockMinutes,assignmentMinutes,type WorkAssignment} from "./workAssignments";
+import {addCivilDays,inRange,type PlanningPeriod} from "./schedulePeriods";
+import {clockMinutes} from "./workAssignments";
 import type {TeamRoster} from "./team";
 import {WEEKDAYS,type WeeklyOpeningHours,type Weekday} from "./operatingHours";
 import {effectiveMealDayCapacity} from "./mealBreaks";
@@ -69,14 +66,13 @@ export function fourWeekSoftTargets(
 /**
  * Pre-plan full civil weeks only. Weeks crossing the editable-month boundary
  * keep their historic, read-only context and use the legacy cautious path.
- * Known historical weekends require all seven dates to be present.
+ * Historical rest requires an explicit prior decision, never just no shift.
  */
 export function prepareRotation(
   period:PlanningPeriod,
   team:TeamRoster,
   opening:WeeklyOpeningHours,
-  completeHistoryDates:ReadonlySet<string>,
-  historicalAssignments:readonly WorkAssignment[],
+  confirmedFullWeekends:readonly RotationHistoryEntry[]=[],
 ):RotationPreparation|null {
   const active=team.members.filter(person=>person.active);
   if(!active.some(person=>person.weekendRest))return null;
@@ -102,25 +98,11 @@ export function prepareRotation(
     capacities.push(max);
     minima.push(provisionalDailyCoverageLowerBound(open,max));
   }
-  const previousFullWeekends:RotationHistoryEntry[]=[];
-  const historicalByMemberDate=new Set(historicalAssignments.map(shift=>
-    shift.memberId.toLowerCase()+"|"+shift.date));
-  const datesBefore=new Set([...completeHistoryDates].filter(date=>date<first));
-  for(let n=1;n<=4;n++){
-    const monday=addCivilDays(first,-7*n);
-    const wholeWeek=enumerateCivilDays({
-      start:monday,endExclusive:addCivilDays(monday,7),
-    });
-    if(!wholeWeek.every(day=>datesBefore.has(day)))continue;
-    if(closed.includes("saturday")&&closed.includes("sunday"))continue;
-    const sat=addCivilDays(monday,5),sun=addCivilDays(monday,6);
-    for(const member of active){
-      if(!member.weekendRest)continue;
-      if(!historicalByMemberDate.has(member.id+"|"+sat) &&
-        !historicalByMemberDate.has(member.id+"|"+sun))
-        previousFullWeekends.push({memberId:member.id,weekStart:monday});
-    }
-  }
+  // Missing a shift in a saved period is NOT evidence of a planned rest day.
+  // Only explicit records from previously saved rotation decisions count.
+  const previousFullWeekends=[...confirmedFullWeekends].filter(item=>
+    item.weekStart<first && active.some(person=>
+      person.id===item.memberId && person.weekendRest!==undefined));
   const rotation=planWeekendRotation({
     startWeek:first,weeks:weeks.length,
     members:active.map(person=>({
