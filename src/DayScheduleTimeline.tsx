@@ -1,12 +1,17 @@
 import {
   minuteLabel,timelinePosition,type DailyTimeline,type TimelineInterval,
 } from "./dailyTimeline";
+import {TimelineDraggableBar} from "./TimelineDraggableBar";
+import type {TimelineMove} from "./timelineEditing";
 
 interface DayScheduleTimelineProps {
   timeline:DailyTimeline;
   names:ReadonlyMap<string,string>;
   selectedMemberId:string|null;
   hasProposal:boolean;
+  editable?:boolean;
+  onPreviewMove?:(move:TimelineMove|null)=>void;
+  onCommitMove?:(move:TimelineMove)=>void;
 }
 
 const hours=(minutes:number)=>
@@ -23,11 +28,15 @@ function position(interval:TimelineInterval,bounds:TimelineInterval){
  */
 export function DayScheduleTimeline({
   timeline,names,selectedMemberId,hasProposal,
+  editable=false,onPreviewMove,onCommitMove,
 }:DayScheduleTimelineProps){
   const {bounds,opening,openingStatus,coverage,members,ticks}=timeline;
   const selected=selectedMemberId?.toLowerCase()??null;
   const span=bounds?bounds.end-bounds.start:0;
   const trackWidth=Math.max(540,Math.ceil(span/60)*64);
+  const canEdit=editable && !!onPreviewMove && !!onCommitMove;
+  const previewMove=(move:TimelineMove|null)=>onPreviewMove?.(move);
+  const commitMove=(move:TimelineMove)=>onCommitMove?.(move);
   return (
     <div className="daily-operational-view">
       <div className="daily-operational-heading">
@@ -74,6 +83,11 @@ export function DayScheduleTimeline({
             Ainda não há uma proposta mensal para avaliar a cobertura.
             O gráfico utiliza apenas as horas de funcionamento configuradas.
           </p>}
+          {canEdit&&<p className="daily-timeline-edit-hint">
+            Arrasta a barra verde para mover o turno completo ou a zona amarela
+            para mudar apenas a refeição. Usa as setas esquerda/direita ao selecionar
+            uma barra para ajustes de 15 minutos.
+          </p>}
           <div className="daily-timeline-scroll" role="region"
             aria-label="Linha temporal dos horários da equipa"
             tabIndex={0}>
@@ -114,27 +128,29 @@ export function DayScheduleTimeline({
                         style={{left:(tick-bounds.start)/span*100+"%"}}/>)}
                     {row.shifts.map((shift,i)=>{
                       const placed=position(shift,bounds);
-                      return placed?
-                        <span className="daily-timeline-shift" key={"shift-"+i}
-                          style={placed}
-                          role="img"
-                          aria-label={"Turno "+minuteLabel(shift.start)+
-                            "–"+minuteLabel(shift.end)+
-                            (shift.meals.length?" com pausa para refeição":"")}
+                      return placed? <div key={"shift-"+i} className="daily-timeline-shift-group">
+                        <TimelineDraggableBar
+                          assignment={shift.assignment} kind="shift" bounds={bounds}
+                          className="daily-timeline-shift" style={placed}
+                          editable={canEdit && shift.end-shift.start<span}
+                          onPreviewMove={previewMove} onCommitMove={commitMove}
+                          label={"Mover turno de "+(names.get(row.memberId)??row.memberId)+
+                            ", "+minuteLabel(shift.start)+" a "+minuteLabel(shift.end)}
                           title={"Turno "+minuteLabel(shift.start)+"–"+
                             minuteLabel(shift.end)+
                             (shift.meals.length?" · Pausa "+shift.meals.map(m=>
-                              minuteLabel(m.start)+"–"+minuteLabel(m.end)).join(", "):"")}>
-                          {shift.meals.map((meal,j)=>
-                            <span className="daily-timeline-meal" key={j}
-                              style={{
-                                left:(meal.start-shift.start)/
-                                  (shift.end-shift.start)*100+"%",
-                                width:(meal.end-meal.start)/
-                                  (shift.end-shift.start)*100+"%",
-                              }} title={"Pausa "+minuteLabel(meal.start)+
-                                "–"+minuteLabel(meal.end)}/>)}
-                        </span>:null;
+                              minuteLabel(m.start)+"–"+minuteLabel(m.end)).join(", "):"")}/>
+                        {shift.meals.map((meal,j)=>
+                          <TimelineDraggableBar key={"meal-"+j}
+                            assignment={shift.assignment} kind="meal" bounds={bounds}
+                            className="daily-timeline-meal" style={position(meal,bounds)??{}}
+                            editable={canEdit}
+                            onPreviewMove={previewMove} onCommitMove={commitMove}
+                            label={"Mover pausa de "+(names.get(row.memberId)??row.memberId)+
+                              ", "+minuteLabel(meal.start)+" a "+minuteLabel(meal.end)}
+                            title={"Pausa "+minuteLabel(meal.start)+
+                              "–"+minuteLabel(meal.end)}/>)}
+                      </div>:null;
                     })}
                     {row.legacyMeals.map((meal,i)=>
                       <span className="daily-timeline-meal-legacy" key={"legacy-"+i}
