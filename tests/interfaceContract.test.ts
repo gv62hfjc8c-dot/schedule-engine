@@ -66,12 +66,15 @@ test("O calendário gera automaticamente, sem seletor de intervalos de entradas"
 });
 
 
-test("Folgas semanais configuram só a quantidade na página Equipa",()=>{
+test("Folgas semanais e rotação opcional configuram-se na mesma página Equipa",()=>{
   assert.match(teamEditor,/id="team-weekly-days-off"/);
   assert.match(teamEditor,/name="weeklyDaysOff"/);
   assert.match(teamEditor,/Por definir \(sem regra adicional\)/);
-  assert.match(teamEditor,/O motor escolhe os dias/);
-  assert.doesNotMatch(teamEditor,/name="dayOffWeekday"/);
+  assert.match(teamEditor,/id="team-fixed-rest"/);
+  assert.match(teamEditor,/name="fixedRest"/);
+  assert.match(teamEditor,/id="team-weekend-rotation"/);
+  assert.match(teamEditor,/name="weekendRotation"/);
+  assert.match(teamEditor,/team-weekend-weekday-rest/);
   assert.doesNotMatch(teamEditor,/type="date"/);
   assert.doesNotMatch(calendarScheduler,/Adicionar folga/);
   assert.match(calendarScheduler,
