@@ -234,3 +234,255 @@
   background: rgba(158, 121, 67, .09);
 }
 .day-meal-item strong { color: #f1d4a9; }
+
+/* Full-width daily operational overview. All bars share the same wall-clock axis. */
+.daily-operational-view { margin-top: 22px; }
+.daily-operational-heading {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px 20px;
+  margin-bottom: 15px;
+}
+.daily-operational-heading h3 { margin: 0 0 5px; font-size: 17px; color: var(--text); }
+.daily-operational-heading p { margin: 0 !important; font-size: 12px !important; color: #b1c9d9 !important; }
+.daily-coverage-status {
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 11px;
+  border-radius: 9px;
+  font-size: 12px;
+  font-weight: 750;
+  line-height: 1.35;
+}
+.daily-coverage-status.is-covered { color: #c9eee7; background: #214b46; border: 1px solid #447e70; }
+.daily-coverage-status.is-uncovered { color: #ffe5dd; background: #553b3b; border: 1px solid #93615f; }
+.daily-overview-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 9px;
+  margin: 0 0 20px;
+}
+.daily-overview-stats > div {
+  display: grid;
+  gap: 6px;
+  padding: 12px 15px;
+  border: 1px solid #3b5367;
+  border-radius: 10px;
+  background: #1a3043;
+}
+.daily-overview-stats span { color: #b0c6d7; font-size: 11px; line-height: 1.4; }
+.daily-overview-stats strong { color: #ecf8fd; font-size: 18px; font-variant-numeric: tabular-nums; }
+.daily-timeline-notice {
+  padding: 11px 13px;
+  border: 1px solid #4c6578;
+  border-radius: 10px;
+  background: #233748;
+  color: #c6d9e7 !important;
+  font-size: 12px !important;
+  margin: 8px 0 15px !important;
+  line-height: 1.6 !important;
+}
+.daily-timeline-scroll {
+  overflow: auto;
+  max-width: 100%;
+  max-height: min(72vh, 720px);
+  padding: 0 0 7px;
+  border: 1px solid #395266;
+  border-radius: 11px;
+  background: #1b2d40;
+  scrollbar-color: #517c87 #1b2d40;
+}
+.daily-timeline-scroll:focus-visible {
+  outline: 3px solid #85d9de;
+  outline-offset: 2px;
+}
+.daily-timeline-table {
+  display: grid;
+  gap: 0;
+  padding: 8px 12px 11px;
+}
+.daily-timeline-row {
+  display: grid;
+  grid-template-columns: 151px minmax(540px, 1fr) 70px;
+  gap: 9px;
+  align-items: center;
+  min-height: 52px;
+  border-bottom: 1px solid rgba(142, 171, 190, .11);
+}
+.daily-timeline-row:last-child { border-bottom: 0; }
+.daily-timeline-person {
+  position: sticky;
+  left: -12px;
+  display: grid;
+  align-content: center;
+  gap: 3px;
+  min-height: 49px;
+  padding: 5px 7px;
+  background: #1b2d40;
+  min-width: 0;
+  z-index: 6;
+  font-size: 12px;
+  color: #dbe9f3;
+  overflow-wrap: anywhere;
+}
+.daily-timeline-person strong { font-weight: 700; font-size: 12px; }
+.daily-timeline-person small { color: #97acbe; font-size: 10px; }
+.daily-timeline-member.is-highlighted { background: rgba(64, 144, 148, .13); }
+.daily-timeline-member.is-highlighted .daily-timeline-person {
+  background: #234b58; border-left: 3px solid #71c8c9;
+}
+.daily-timeline-track {
+  position: relative;
+  min-width: 0;
+}
+.daily-timeline-axis {
+  position: sticky;
+  top: 0;
+  min-height: 45px;
+  z-index: 8;
+  background: #233a4d;
+}
+.daily-timeline-axis .daily-timeline-person { background: #233a4d; font-size: 11px; font-weight: 750; }
+.daily-timeline-axis .daily-timeline-track { height: 34px; }
+.daily-timeline-tick-label {
+  position: absolute;
+  top: 11px;
+  transform: translateX(-50%);
+  color: #c7deec;
+  font-size: 11px;
+  font-weight: 650;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.daily-timeline-tick-label.is-first { transform: none; }
+.daily-timeline-tick-label.is-last { transform: translateX(-100%); }
+.daily-timeline-lane, .daily-coverage-lane {
+  height: 31px;
+  border: 1px solid #365165;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #142638;
+}
+.daily-timeline-open-window {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: rgba(79, 108, 124, .22);
+}
+.daily-timeline-guide {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  border-left: 1px dashed rgba(195, 226, 233, .16);
+  pointer-events: none;
+  z-index: 4;
+}
+.daily-timeline-shift {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  border-radius: 4px;
+  background: #3c9da2;
+  box-shadow: inset 0 0 0 1px rgba(198, 244, 241, .25);
+  z-index: 3;
+  overflow: hidden;
+}
+.daily-timeline-meal {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: #e4b368;
+  box-shadow: inset 1px 0 0 rgba(65, 45, 23, .38);
+}
+.daily-timeline-meal-legacy {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  border-radius: 3px;
+  background: #e4b368;
+  z-index: 3;
+}
+.daily-timeline-total {
+  justify-self: end;
+  color: #d3e8f1;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+  font-weight: 750;
+  font-size: 12px;
+}
+.daily-timeline-axis .daily-timeline-total { font-size: 11px; }
+.daily-timeline-coverage-row {
+  min-height: 60px;
+  background: rgba(64, 113, 132, .12);
+}
+.daily-timeline-coverage-row .daily-timeline-person { background: #203648; }
+.daily-coverage-lane { height: 34px; }
+.daily-coverage-bar {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 850;
+  z-index: 3;
+  color: #e4fbf7;
+}
+.daily-coverage-bar.is-one { background: #397f80; }
+.daily-coverage-bar.is-multiple { background: #3c9b96; }
+.daily-coverage-bar.is-empty { background: #b45b59; color: #fff2f0; }
+.daily-timeline-legend {
+  display: flex;
+  gap: 9px 17px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin: 12px 0 0;
+}
+.daily-timeline-legend span { display: inline-flex; gap: 7px; align-items: center; font-size: 11px; color: #c5d9e7; }
+.daily-timeline-legend i { display: inline-block; width: 17px; height: 9px; border-radius: 2px; }
+.daily-legend-work { background: #3c9da2; }
+.daily-legend-meal { background: #e4b368; }
+.daily-legend-coverage { background: #3c9b96; }
+.daily-legend-gap { background: #b45b59; }
+.daily-timeline-footnote {
+  margin: 11px 0 0 !important;
+  font-size: 11px !important;
+  color: #aebfd0 !important;
+  line-height: 1.6 !important;
+}
+.daily-shift-details {
+  margin-top: 22px;
+  border-top: 1px solid #3f576c;
+  padding-top: 17px;
+}
+.daily-shift-details summary {
+  cursor: pointer;
+  width: fit-content;
+  color: #e4f4f8;
+  font-weight: 750;
+  font-size: 13px;
+  padding: 6px 3px;
+}
+.daily-shift-details summary:focus-visible { outline: 3px solid #85d9de; }
+.daily-shift-details .day-work-list {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  margin-top: 12px;
+}
+@media (max-width: 700px) {
+  .daily-overview-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .daily-timeline-row { grid-template-columns: 130px minmax(540px, 1fr) 62px; }
+  .daily-timeline-table { padding-inline: 9px; }
+  .daily-timeline-person { left: -9px; }
+}
+@media (max-width: 460px) {
+  .daily-overview-stats > div { padding: 10px 11px; }
+  .daily-overview-stats strong { font-size: 16px; }
+  .daily-timeline-row { grid-template-columns: 120px minmax(540px, 1fr) 58px; }
+  .daily-timeline-tick-label { font-size: 10px; }
+}

@@ -470,3 +470,19 @@ Novo modo experimental no calendário da V2: cada data é avaliada com os 27 dia
 6. Recarregar a página e confirmar que turnos e política persistem; testar cobertura e domingo curto.
 
 **Limite:** trata-se de planeamento experimental de rascunhos, não de banco de horas, aprovação ou certificação legal integral. Descansos e limites laborais específicos ainda não estão completamente modelados e exigem definição antes de uso profissional.
+
+## PR86 — Calendário em largura total e visão operacional do dia
+
+**Decisão visual:** a página Horários mantém o painel de proposta mensal e o calendário com filtro individual. O calendário passa a ocupar a largura da página e o detalhe do dia deixa de ser uma barra lateral: aparece **por baixo** do calendário, também em largura total.
+
+A nova linha temporal representa todos os colaboradores ativos (incluindo os sem turno), mesmo quando o calendário está filtrado por uma única pessoa. O colaborador filtrado é destacado, sem ocultar os restantes.
+
+- **Escala temporal por dia:** o início corresponde à primeira abertura e o fim ao último fecho definidos para o dia da semana. Segunda-feira 08:30–19:00 e domingo 14:00–19:00 têm eixos diferentes automaticamente. A escala é em tempo civil real; aberturas repartidas preservam a distância do intervalo fechado, sem o considerar falta de cobertura.
+- **Um turno = uma barra**, com as pausas internas assinaladas dentro da barra. Propostas antigas com pausas separadas continuam representadas sem modificar os dados.
+- **Cobertura da empresa:** uma linha calcula o número de colaboradores realmente a trabalhar em cada intervalo, descontando pausas e contando cada pessoa no máximo uma vez em cada instante. Lacunas durante a abertura surgem a vermelho, com minutos em falta. Fora da abertura não há "falha".
+- **Resumo:** pessoas escaladas, horas efetivas previstas, duração total do funcionamento e pico simultâneo. Sem uma proposta ou sem configuração válida, as informações não são inventadas. Num dia encerrado não se cria um eixo fictício.
+- **Responsividade:** em ecrãs estreitos a linha temporal tem deslocação horizontal, com cabeçalho do tempo e nomes dos colaboradores fixos dentro da região percorrível. Os detalhes textuais dos turnos permanecem consultáveis abaixo do gráfico.
+- **Separação de responsabilidades:** src/dailyTimeline.ts é uma projeção pura com escala, sobreposições e cobertura; src/DayScheduleTimeline.tsx apresenta os dados. Nenhuma alteração foi feita ao motor de geração, certificação ou persistência.
+- **Testes:** tests/dailyTimeline.test.ts, tests/dayTimelineInterface.test.ts e tests/dayTimelineRender.test.ts verificam geometria, escala dinâmica, refeições, cobertura, filtros e marcação visual.
+
+**Teste manual no Safari:** atualizar a branch v2/day-timeline-full-width, abrir Horários, gerar/consultar uma proposta, escolher uma segunda-feira e um domingo e comparar as escalas. Filtrar Teste 1 e confirmar que Teste 2 continua visível no gráfico. Confirmar cobertura nos intervalos de refeição e verificar o comportamento no telemóvel. A PR só deve ser integrada depois dessa confirmação visual.
