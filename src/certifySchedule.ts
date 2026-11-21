@@ -479,12 +479,18 @@ export function certifySchedule(input:CertificationInput):CertificationReport {
       ).map(entry=>entry.date));
       const knownWorkedDays=workedDates.size;
       const knownDaysOff=7-knownWorkedDays;
-      const weekendComplete=!workedDates.has(addCivilDays(week.start,5)) &&
-        !workedDates.has(addCivilDays(week.start,6));
+      const saturday=addCivilDays(week.start,5);
+      const sunday=addCivilDays(week.start,6);
+      const weekendComplete=!workedDates.has(saturday) &&
+        !workedDates.has(sunday);
+      // A newly enabled rotation rule must not retroactively reinterpret a
+      // weekend belonging entirely to another, immutable saved month.
+      const weekendInEditable=inRange(saturday,period)||
+        inRange(sunday,period);
       const closedWeekdays=validatedOpeningHours.days.filter(d=>
         d.intervals.length===0).map(day=>day.day);
       const requiredDaysOff=member.weekendRest!==undefined &&
-        absent.length===0 && weekendComplete &&
+        absent.length===0 && weekendComplete && weekendInEditable &&
         member.weeklyDaysOff!==undefined
         ?requiredRestDayCount({
           id:member.id,weeklyDaysOff:member.weeklyDaysOff,
@@ -522,6 +528,7 @@ export function certifySchedule(input:CertificationInput):CertificationReport {
         continue;
       }
       if(member.weekendRest!==undefined && weekendComplete &&
+        weekendInEditable &&
         !closedWeekdays.includes("saturday") &&
         !closedWeekdays.includes("sunday")){
         const actualWeekdayRest=5-[...workedDates].filter(date=>
