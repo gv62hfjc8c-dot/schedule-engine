@@ -7,6 +7,7 @@ import {generateSchedule} from "../src/generateSchedule";
 import {assignmentMinutes,type WorkAssignment} from "../src/workAssignments";
 import {suggestedWeeklyOpeningHours} from "../src/operatingHours";
 import {certifySchedule} from "../src/certifySchedule";
+import {candidateDayStarts,mealDayOptions} from "../src/mealBreaks";
 
 const IDS=Array.from({length:4},(_,i)=>
   "00000000-0000-4000-8000-"+String(i+1).padStart(12,"0"));
@@ -141,4 +142,25 @@ test("jornadas acima de 8h continuam possíveis se o total necessário o exigir"
     assignmentMinutes(s)>480);
   assert.equal(mustHaveOver8,true,
     "o objetivo é negociável, não uma restrição inflexível");
+});
+
+test("8h45 efetivas podem acabar exatamente às 19h com entrada 09h15",()=>{
+  const opening=[{start:510,end:1140}];
+  const defaultStarts=candidateDayStarts(opening);
+  assert.ok(!defaultStarts.includes(555),
+    "os horários de duração normal continuam a usar posições de meia hora");
+  assert.ok(candidateDayStarts(opening,15).includes(555));
+  const options=mealDayOptions(IDS[0],"2026-11-16",opening,525);
+  const closing=options.filter(shift=>shift.start==="09:15"&&shift.end==="19:00");
+  assert.ok(closing.length>0,
+    "um dia de 8h45 deve poder cobrir o fecho da loja");
+  assert.ok(closing.every(shift=>assignmentMinutes(shift)===525));
+});
+test("quando a carga de trabalho exige 9h30, o soft objective não elimina o turno",()=>{
+  const one=[{shortOpening:false,capacity:570,allocated:570}];
+  balanceLongWorkdays(one);
+  assert.equal(one[0].allocated,570);
+  const quality=dailyWorkloadQuality([570]);
+  assert.equal(quality.beyondNineMinutes,30);
+  assert.equal(quality.beyondEightMinutes,90);
 });
