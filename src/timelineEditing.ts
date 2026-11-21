@@ -11,6 +11,16 @@ import {minuteLabel,type TimelineInterval} from "./dailyTimeline";
  * shift, or a shift outside the displayed daily axis) is not allowed.
  */
 export const TIMELINE_SNAP_MINUTES=15;
+/** Convert real pointer travel using this day's rendered axis width. */
+export function dragMinutesForPixels(
+  distancePixels:number,axisMinutes:number,trackPixels:number,
+):number {
+  if(!Number.isFinite(distancePixels) || !Number.isFinite(axisMinutes) ||
+     !Number.isFinite(trackPixels) || axisMinutes<=0 || trackPixels<=0)
+    return 0;
+  return Math.round(distancePixels*axisMinutes/trackPixels/
+    TIMELINE_SNAP_MINUTES)*TIMELINE_SNAP_MINUTES;
+}
 export type TimelineMoveKind="shift"|"meal";
 export interface TimelineMove {
   kind:TimelineMoveKind;
