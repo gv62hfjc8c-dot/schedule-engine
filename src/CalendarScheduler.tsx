@@ -419,16 +419,19 @@ function MonthWorkspace({
           {feedback.message}
         </p>}
         {(preview||saved)&&<div className="schedule-certification" aria-live="polite">
-          <span className={"schedule-status schedule-status-"+(report?.status??"unknown")}>
-            {legacyDraft?"Modelo anterior":
+          <span className={"schedule-status schedule-status-"+
+            (dragCandidate?"unknown":report?.status??"unknown")}>
+            {dragCandidate?"Movimento em curso":legacyDraft?"Modelo anterior":
               report?.status==="valid"?"Regras verificadas":
               report?.status==="insufficient_context"?"Contexto incompleto":
               report?.status==="invalid"?"Com problemas":"Não verificado"}
           </span>
-          <p>{legacyDraft
-            ?"Este rascunho não foi certificado pelas regras novas de pausas e cobertura."
-            :stateText(report,activeHoursPolicy)}</p>
-          {report&&report.issues.length>0&&<div className="schedule-issues">
+          <p>{dragCandidate
+            ?"A cobertura é provisória. A certificação será atualizada ao largar a barra."
+            :legacyDraft
+              ?"Este rascunho não foi certificado pelas regras novas de pausas e cobertura."
+              :stateText(report,activeHoursPolicy)}</p>
+          {!dragCandidate&&report&&report.issues.length>0&&<div className="schedule-issues">
             <strong>Problemas encontrados</strong>
             <ul>
               {report.issues.slice(0,5).map((issue,index)=>
