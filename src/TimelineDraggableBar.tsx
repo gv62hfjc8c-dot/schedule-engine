@@ -46,7 +46,7 @@ export function TimelineDraggableBar({
   }
   function start(e:PointerEvent<HTMLButtonElement>){
     if(!editable || (e.pointerType==="mouse" && e.button!==0))return;
-    const lane=e.currentTarget.parentElement;
+    const lane=e.currentTarget.closest(".daily-timeline-track");
     const width=lane?.getBoundingClientRect().width??0;
     if(width<=0)return;
     e.preventDefault();
