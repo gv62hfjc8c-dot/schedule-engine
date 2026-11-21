@@ -203,7 +203,7 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 .surface { min-width: 0; background: var(--panel); border: 1px solid var(--border); border-radius: 17px; }
 .calendar-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1.8fr) minmax(290px, .86fr);
+  grid-template-columns: minmax(0, 1fr);
   align-items: start;
   gap: clamp(14px, 2vw, 22px);
 }
@@ -239,7 +239,7 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   font-size: 12px; font-weight: 700; white-space: nowrap;
 }
 .calendar-day, .empty-day {
-  display: block; min-width: 0; aspect-ratio: 1 / .93;
+  display: block; min-width: 0; min-height: clamp(82px, 8vw, 120px);
   border: 1px solid transparent; border-radius: 10px;
 }
 .calendar-day {
