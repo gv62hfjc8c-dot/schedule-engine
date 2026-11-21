@@ -17,6 +17,7 @@ import {scheduleMealDay,type MealDayRequest} from "./mealCoveragePlanner";
 import {shortOpeningDays} from "./shortOpenings";
 import {rollingWeekGuidance} from "./rollingHoursPlan";
 import {prepareRotation} from "./rotationIntegration";
+import {validateFullWeekendHistory} from "./plannedRest";
 import type {WeekendRotationResult} from "./weekendRotation";
 import {
   balanceLongWorkdays,compareDailyWorkload,dailyWorkloadQuality,
@@ -605,6 +606,17 @@ export function generateSchedule(input:GenerationInput):GenerationResult {
       ]},
     };
   }
+  const confirmedRestHistory=historyRaw?.plannedFullWeekends===undefined?[]:
+    validateFullWeekendHistory(historyRaw.plannedFullWeekends);
+  if(confirmedRestHistory===null){
+    return {
+      status:"invalid_input",candidateAssignments:[],shortfalls:[],
+      certification:{...emptyCertification,status:"invalid",issues:[
+        ...emptyCertification.issues,{code:"INVALID_REST_POLICY",
+          message:"O histórico de fins de semana contém dados inválidos."},
+      ]},
+    };
+  }
   const knownHourDates=new Set<string>([
     ...completeDates,...(historyRaw?.completeDates as string[]|undefined??[]),
   ]);
@@ -629,8 +641,7 @@ export function generateSchedule(input:GenerationInput):GenerationResult {
   const shortDays=shortOpeningDays(hours.value);
   const activeMembers=team.value.members.filter(member=>member.active);
   const rotationPlan=prepareRotation(
-    period,team.value,hours.value,knownHourDates,
-    [...externalAssignments,...historicAssignments as WorkAssignment[]],
+    period,team.value,hours.value,confirmedRestHistory,
   );
   if(rotationPlan?.rotation.status &&
     rotationPlan.rotation.status!=="planned"){
