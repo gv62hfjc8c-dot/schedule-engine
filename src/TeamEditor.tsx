@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { countActiveMembers, type TeamRoster } from "./team";
+import {WEEKDAYS,type Weekday} from "./operatingHours";
 import {
   loadTeamDraftFromBrowser, saveTeamDraftToBrowser,
 } from "./teamDraftRepository";
@@ -16,6 +17,9 @@ export function TeamEditor() {
   );
   const [name,setName] = useState("");
   const [weeklyDaysOff,setWeeklyDaysOff] = useState<number|null>(null);
+  const [fixedDayOff,setFixedDayOff] = useState<Weekday|null>(null);
+  const [weekendRotation,setWeekendRotation] = useState(false);
+  const [weekendWeekdayRest,setWeekendWeekdayRest] = useState(1);
   const [editingId,setEditingId] = useState<string|null>(null);
   const [feedback,setFeedback] = useState<Feedback|null>(()=>
     initial.status==="unavailable"
@@ -62,6 +66,10 @@ export function TeamEditor() {
       name,
       active:current?.active??true,
       ...(weeklyDaysOff===null?{}:{weeklyDaysOff}),
+      ...(fixedDayOff===null?{}:{fixedDaysOff:[fixedDayOff]}),
+      ...(weekendRotation?{weekendRest:{
+        minimumWeekdayDaysOffOnFullWeekend:weekendWeekdayRest,
+      }}:{}),
     };
     const next:TeamRoster={
       members:editingId
@@ -71,6 +79,9 @@ export function TeamEditor() {
     if(persist(next,editingId ? "Dados do colaborador atualizados." : "Colaborador adicionado.")){
       setName("");
       setWeeklyDaysOff(null);
+      setFixedDayOff(null);
+      setWeekendRotation(false);
+      setWeekendWeekdayRest(1);
       setEditingId(null);
     }
   }
@@ -81,6 +92,10 @@ export function TeamEditor() {
     setEditingId(id);
     setName(member.name);
     setWeeklyDaysOff(member.weeklyDaysOff??null);
+    setFixedDayOff(member.fixedDaysOff?.[0]??null);
+    setWeekendRotation(member.weekendRest!==undefined);
+    setWeekendWeekdayRest(
+      member.weekendRest?.minimumWeekdayDaysOffOnFullWeekend??1);
     setFeedback(null);
     document.getElementById("team-name")?.focus();
   }
@@ -89,6 +104,9 @@ export function TeamEditor() {
     setEditingId(null);
     setName("");
     setWeeklyDaysOff(null);
+    setFixedDayOff(null);
+    setWeekendRotation(false);
+    setWeekendWeekdayRest(1);
     setFeedback(null);
   }
 
@@ -166,6 +184,15 @@ export function TeamEditor() {
                           (member.weeklyDaysOff===1?"dia sem trabalho/semana":
                             "dias sem trabalho/semana")}
                     </span>
+                    {member.fixedDaysOff?.length?(
+                      <span className="team-days-off-summary">
+                        Folga fixa: {member.fixedDaysOff.map(day=>
+                          WEEKDAYS.find(d=>d.id===day)?.label??day).join(", ")}
+                      </span>
+                    ):null}
+                    {member.weekendRest&&<span className="team-days-off-summary">
+                      Rotação de fins de semana completos ativa
+                    </span>}
                   </div>
                   <div className="team-person-actions">
                     <button type="button" className="team-action"
@@ -205,10 +232,50 @@ export function TeamEditor() {
                 </option>
               ))}
             </select>
+            <label htmlFor="team-fixed-rest">Folga fixa semanal (opcional)</label>
+            <select id="team-fixed-rest" name="fixedRest" value={fixedDayOff??""}
+              disabled={weeklyDaysOff===null||weeklyDaysOff===0}
+              onChange={event=>{
+                setFixedDayOff(event.target.value===""?null:event.target.value as Weekday);
+                setFeedback(null);
+              }}>
+              <option value="">Sem dia fixo</option>
+              {WEEKDAYS.map(weekday=><option key={weekday.id} value={weekday.id}>
+                {weekday.label}
+              </option>)}
+            </select>
+            <label className="team-rotation-toggle" htmlFor="team-weekend-rotation">
+              <input id="team-weekend-rotation" name="weekendRotation"
+                type="checkbox" checked={weekendRotation}
+                disabled={weeklyDaysOff===null}
+                onChange={event=>{
+                  setWeekendRotation(event.target.checked);
+                  setFeedback(null);
+                }}/>
+              <span>Participa na rotação de fins de semana completos</span>
+            </label>
+            {weekendRotation&&<>
+              <label htmlFor="team-weekend-weekday-rest">
+                Dias de descanso a preservar de segunda a sexta
+                quando tiver sábado e domingo livres
+              </label>
+              <select id="team-weekend-weekday-rest" name="weekendWeekdayRest"
+                value={weekendWeekdayRest}
+                onChange={event=>{
+                  setWeekendWeekdayRest(Number(event.target.value));
+                  setFeedback(null);
+                }}>
+                {Array.from({length:6},(_,days)=><option key={days} value={days}>
+                  {days} {days===1?"dia":"dias"}
+                </option>)}
+              </select>
+            </>}
             <p className="team-field-help">
-              Define apenas a quantidade semanal. O motor escolhe os dias
-              sem trabalho conforme o funcionamento da empresa e as 40 horas
-              obrigatórias. Não são definidas folgas em dias específicos.
+              A folga fixa é obrigatória. A rotação tenta distribuir fins de
+              semana completos sem uma frequência fixa; normalmente mantém
+              pelo menos uma folga de segunda a sexta mesmo nessa semana.
+              Esta opção exige que as folgas habituais de todos os colaboradores
+              ativos estejam configuradas. As horas são equilibradas em 28 dias.
             </p>
             <div className="team-form-actions">
               <button type="submit" className="button button-primary">
