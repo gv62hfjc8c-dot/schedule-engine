@@ -3,7 +3,7 @@ import {
   resolvePlanningPeriod,
 } from "./schedulePeriods";
 import type {WorkAssignment} from "./workAssignments";
-import type {WeekendRotationResult} from "./weekendRotation";
+import type {WeekendRotationResult,RotationHistoryEntry} from "./weekendRotation";
 
 /**
  * Explicit rest decisions made at generation time. Unlike the mere absence
@@ -83,4 +83,33 @@ export function validatePlannedRest(
     }catch{return null;}
   }
   return records;
+}
+
+/**
+ * Validate historical rest decisions without inferring them from time gaps.
+ * Invalid or duplicate entries must never silently influence fairness.
+ */
+export function validateFullWeekendHistory(
+  raw:unknown,
+):RotationHistoryEntry[]|null {
+  if(!Array.isArray(raw)||raw.length>52*500)return null;
+  const seen=new Set<string>();
+  const result:RotationHistoryEntry[]=[];
+  for(const item of raw){
+    if(!item||typeof item!=="object"||Array.isArray(item))return null;
+    const value=item as Partial<RotationHistoryEntry>;
+    if(typeof value.memberId!=="string"||
+       !UUID_V4.test(value.memberId)||typeof value.weekStart!=="string")
+      return null;
+    try{
+      parseCivilDate(value.weekStart);
+      if(civilDayOfWeek(value.weekStart)!==0)return null;
+    }catch{return null;}
+    const memberId=value.memberId.toLowerCase();
+    const key=memberId+"|"+value.weekStart;
+    if(seen.has(key))return null;
+    seen.add(key);
+    result.push({memberId,weekStart:value.weekStart});
+  }
+  return result;
 }
