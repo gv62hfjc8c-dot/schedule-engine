@@ -1070,7 +1070,7 @@ produção e preview manuais; não publicar o PR92 sem autorização.
 - 171 turnos, **8 jornadas >9h**; por pessoa, contagem agregada
   **0, 0, 0, 0, 2, 2, 2, 2** (máximo 2). As oito jornadas têm 570
   minutos efetivos; não há uma jornada acima de 9h30.
-- Em cada uma das quatro semanas completas 02–29/11, todas as pessoas
+- No conjunto das quatro semanas completas 02–29/11, todas as pessoas
   somam **160h em 28 dias**. As semanas individuais variam de 36h a 44h,
   dentro da tolerância de otimização existente. Os totais por mês
   variam de 165h a 173h, pois 01/11 e 30/11 estão fora desse ciclo.
