@@ -212,7 +212,7 @@ test("PR91: ciclo de 28 dias reduz jornadas >9h sem prejudicar a cobertura real"
   assert.ok(result.certification.issues.every(issue=>
     issue.code==="CONTEXT_INCOMPLETE"),"nunca inserir hard conflicts");
   const cycle=result.candidateAssignments.filter(a=>
-    a.date>="2026-11-02"&&a.date<="2026-11-30");
+    a.date>="2026-11-02"&&a.date<="2026-11-29");
   for(const member of config.team.members){
     const person=cycle.filter(a=>a.memberId===member.id);
     assert.equal(person.reduce((sum,a)=>sum+assignmentMinutes(a),0),
