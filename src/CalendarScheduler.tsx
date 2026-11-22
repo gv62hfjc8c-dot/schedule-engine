@@ -358,6 +358,8 @@ function MonthWorkspace({
       const monthAssignments=[...data];
       const sourceMatches=manualEdit?.sourceSignature??
         (preview!==null?sourceSignature:null);
+      const originalSources:SourceSnapshot|null=manualEdit?.sources??
+        (sourceMatches!==null?JSON.parse(sourceMatches) as SourceSnapshot:null);
       const currentSignature=JSON.stringify(currentSources);
       const mode:DiagnosticMode=manualEdit!==null
         ?"manual_edits":preview!==null
@@ -402,6 +404,16 @@ function MonthWorkspace({
         currentConfigurationCertification:currentReport,
         settingsMatchGeneratedPreview:sourceMatches===null?null:
           sourceMatches===currentSignature,
+        generationInputSnapshot:originalSources?{
+          team:originalSources.team.status==="loaded"
+            ?originalSources.team.value:null,
+          openingHours:originalSources.opening.status==="loaded"
+            ?originalSources.opening.value:null,
+          externalContext:originalSources.context.ok
+            ?originalSources.context.context:null,
+          rollingHoursHistory:originalSources.hoursHistory.ok
+            ?originalSources.hoursHistory.context:null,
+        }:null,
       });
       const contents=JSON.stringify(snapshot,null,2);
       const blob=new Blob([contents],{
