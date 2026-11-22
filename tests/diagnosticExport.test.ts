@@ -205,7 +205,8 @@ test("PR94: exportação mensal separa falta global de horas e falhas nos postos
   assert.ok(capacity.periodCapacityDeficitMinutes>0);
   assert.ok(capacity.observedRoleGapMinutes>0);
   assert.equal(typeof capacity.simultaneousDeficitMinutes,"number");
-  assert.equal(file.interpretation.capacity.includes("não corresponde automaticamente"),true);
+  assert.equal(file.interpretation.capacity.includes("META SOFT"),true);
+  assert.equal(file.interpretation.functions.includes("não invalida horários"),true);
   assert.equal(JSON.stringify(input),before);
 });
 
