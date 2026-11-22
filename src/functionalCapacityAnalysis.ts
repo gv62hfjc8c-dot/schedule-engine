@@ -25,11 +25,11 @@ export interface FunctionalCapacityDay {
   openingMinutes:number;
   requiredMinutes:number;
   scheduledInsideOpeningMinutes:number;
-  /** Lower bound given the effective work minutes in THIS date. */
+  /** Shortfall against the SOFT goal if this day's work is fixed. */
   dailyCapacityDeficitMinutes:number;
-  /** Lower bound with existing clock positions, before considering skills. */
+  /** SOFT target shortfall with clock positions fixed, before skills. */
   simultaneousDeficitMinutes:number;
-  /** Exact shortfalls of this proposal, assuming every post is valid. */
+  /** Exact SOFT-target deviations of this proposal if posts are valid. */
   observedRoleGapMinutes:number;
 }
 export interface FunctionalCapacityAnalysis {
@@ -41,13 +41,13 @@ export interface FunctionalCapacityAnalysis {
   openingMinutes:number;
   requiredMinutes:number;
   scheduledInsideOpeningMinutes:number;
-  /** Absolute lower bound for these scheduled hours across the period. */
+  /** Gap to the SOFT monthly target with the currently scheduled hours. */
   periodCapacityDeficitMinutes:number;
-  /** Stronger bound if each day's effective hours remain on that day. */
+  /** SOFT goal gap if the same effective hours stay on each date. */
   dayLockedCapacityDeficitMinutes:number;
-  /** Bound with all starts/ends and meal breaks unchanged. */
+  /** SOFT goal gap with positions and meal breaks unchanged. */
   simultaneousDeficitMinutes:number;
-  /** Observed role shortages for the existing allocation. */
+  /** SOFT goal deviation for the existing assignment of functions. */
   observedRoleGapMinutes:number;
   /** Observed minus unavoidable active-headcount deficit at those times.
    * Not necessarily recoverable: skill scarcity/fixed role prevents it.
@@ -91,14 +91,13 @@ function simultaneousMinimumGap(
   return total;
 }
 
-/** Read-only, independently computed explanation of FUNCTIONAL deficits.
+/** Read-only, independently computed explanation of deviation from
+ * the aspirational 50% role-distribution target (SOFT).
  *
- * Three bounds have different meanings: total worker-hours shortage,
- * daily-capacity shortage given chosen days, and instantaneous shortage
- * given the actual clock positions. Only the last two depend on how
- * the current proposal distributes work. None proves an alternative
- * allocation exists or that adding staff fixes the policy (new employees
- * can also raise the 50%-of-qualified denominator).
+ * Historic field names contain "Deficit" for schema compatibility. These
+ * figures are NOT mandatory staffing shortages or HARD violations.
+ * They quantify opportunity against a GOAL only. Actual operational
+ * safety is certified independently by certifySchedule.
  *
  * This never certifies or changes a schedule.
  */
