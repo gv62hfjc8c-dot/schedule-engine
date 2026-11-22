@@ -765,3 +765,55 @@ O PR89 mantém-se em Draft até o caso real ser novamente confirmado
 no Safari. A proposta guardada anteriormente não é automaticamente
 alterada nem substituída; requer **Gerar horário** e a opção explícita
 de guardar quando a certificação o permitir.
+
+
+### PR89 — Daily Staffing Balance (presença desejada)
+
+**Decisão:** a organização pode configurar uma **percentagem opcional de
+colaboradores ativos escalados em cada dia aberto**. Ex.: com 8 pessoas,
+60% exige `ceil(8 × 0,6) = 5` pessoas com turno atribuído no dia.
+A preferência não é um mínimo obrigatório, não conta colaboradores
+simultaneamente a trabalhar a cada minuto e não altera a certificação
+de cobertura efetiva/pausas.
+
+- `src/operatingHours.ts`, `src/openingHoursDraftRepository.ts` e
+  `src/App.tsx`: configuração empresarial opcional junto dos horários
+  de funcionamento. Ausente = comportamento antigo. Quando ativada,
+  a percentagem inicial sugerida é 60% mas **não é imposta a nenhuma
+  empresa**; aceita inteiros de 1% a 100%. Compatibilidade preservada
+  com documentos de funcionamento guardados anteriormente.
+- `src/dailyStaffingBalance.ts`: pontuação pura de cobertura diária
+  (faltas em relação ao objetivo e concentração excessiva) e
+  diagnósticos de pessoas **efetivamente escaladas** em dias abertos.
+  Nunca calcula uma pseudo-legalidade ou horas de trabalho.
+- `src/weekendRotation.ts`: o objetivo influencia a escolha dos
+  conjuntos de descanso antes da criação dos turnos. Limita
+  preferencialmente o número de fins de semana simultâneos para
+  permitir a presença diária desejada e melhora os padrões de folgas
+  por trocas locais estritamente favoráveis, preservando os descansos
+  fixos, o número de folgas da semana e a cobertura mínima HARD.
+  Se as folgas obrigatórias tornam o objetivo impossível, este fica
+  por cumprir e é reportado — **não se violam restrições**.
+- `src/rotationIntegration.ts`: também beneficia equipas sem rotação
+  de fins de semana, desde que tenham regras completas de folgas
+  habituais. Se não tiverem, o motor mantém o algoritmo conservador
+  e pode ainda apresentar o diagnóstico, sem inventar folgas.
+- `src/generateSchedule.ts` e `src/CalendarScheduler.tsx`: análise
+  dos turnos reais gerados (distinta das pessoas apenas
+  disponibilizadas pela pré-rotação) e painel compacto com objetivo,
+  total de dias abaixo e datas com falta de presença. Os mesmos
+  indicadores são calculados para propostas já guardadas.
+- `tests/dailyStaffingBalance.test.ts`: vários tamanhos de equipas,
+  percentagens válidas/inválidas, configuração guardada, 60% com oito
+  colaboradores, sem rotação, com dias fixos, empresa encerrada ao
+  domingo, 100% inviável e uma equipa de quatro pessoas que não pode
+  atingir 60% nos sete dias sem violar as folgas. Os testes de
+  interface e regressão confirmam que a opção não se torna uma hard
+  constraint.
+
+**Limites:** atualmente a mesma percentagem é aplicada a todos os
+dias de funcionamento; objetivos por dia/intervalo/função poderão ser
+acrescentados quando houver necessidades concretas. O planeamento
+continua a utilizar pesquisa determinística limitada, não um ótimo
+global certificado. O certificador independente continua a ter
+prioridade absoluta. Sem merge do PR89 antes da validação no Safari.
