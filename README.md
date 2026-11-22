@@ -980,3 +980,49 @@ melhorar artificialmente o ciclo.
 
 **PR91:** manter Draft e sem merge até a suite final passar e a
 proposta do Safari confirmar as métricas no cenário verdadeiro.
+
+
+### PR91 — Correção da referência interna de 60% com folga fixa de sábado (22/11/2026)
+
+**Problema reproduzido com diagnóstico real do Safari:** oito pessoas,
+uma com sábado fixo sem trabalhar; a rotação permitia três pessoas
+adicionais com sábado e domingo livres e deixava só quatro pessoas
+no sábado em 07, 14 e 28/11. O diagnóstico marcava 3 dias abaixo
+da referência SOFT de cinco pessoas. A contagem de pessoas presentes
+é por dia, não simultaneidade ao minuto.
+
+**Correção:** em `src/weekendRotation.ts`, ao testar uma nova
+atribuição opcional de fim de semana completo, comparar também
+o défice de pessoas de sábado e domingo da solução já admissível.
+Quando há folga fixa em dia de fim de semana, recusar uma atribuição
+opcional que agrave esse défice. Folgas fixas, descanso semanal
+configurado e cobertura HARD mantêm prioridade. Esta é uma
+heurística interna, não um mínimo legal, uma obrigação global de
+60% ou uma opção configurável. Em equipas sem folga fixa ao
+fim de semana, conservar o comportamento anterior.
+
+**Regressão reproduzível:** em `tests/weekendRotation.test.ts`
+e `tests/workloadPauseQuality.test.ts`, cenário anonimizado de
+novembro com oito colaboradores, regimes mistos, sábado fixo e
+quatro semanas completas. Depois da correção, todos os quatro
+sábados têm cinco pessoas escaladas e domingos 5/5/6/6.
+Mantêm-se 160h efetivas por pessoa em 02–29/11, jornadas
+>9h: 30 → 20, zero minutos sem cobertura e zero minutos
+com apenas uma pessoa a trabalhar nos sábados. O total mensal
+passa de 169 para 172 turnos porque são alterados dias escalados,
+sem alterar folgas fixas nem transformar ausências de turno em
+folgas oficiais. A reprodução é sintética e anonimizada, não
+substitui a validação real no Safari.
+
+**CI:** 315/315 testes e build PASS, GitHub Actions
+https://github.com/gv62hfjc8c-dot/schedule-engine/actions/runs/45016408292 .
+Na primeira tentativa, uma aplicação excessivamente geral
+originou regressões em equipas pequenas. Foi corrigida antes
+desta validação, restringindo a guarda adicional a cenários
+com folgas fixas ao fim de semana.
+
+**Pendente:** confirmar novamente novembro no Safari e exportar
+diagnóstico com `settingsMatchGeneratedPreview=true`. Verificar
+as oito datas de fim de semana, 160h por pessoa, jornadas >9h,
+cobertura e `CONTEXT_INCOMPLETE` nas fronteiras sem histórico.
+PR91 continua Draft; não integrar sem aceite funcional.
