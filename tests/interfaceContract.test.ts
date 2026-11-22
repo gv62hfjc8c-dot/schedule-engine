@@ -128,3 +128,16 @@ test("O equilíbrio diário é interno e não aumenta a configuração empresari
   assert.match(calendarScheduler,/referência interna, não obrigatória/);
   assert.match(calendarScheduler,/staffingReport\.daysBelowTarget/);
 });
+
+test("Exportação de diagnóstico fica no calendário e nunca altera a proposta",()=>{
+  assert.match(calendarScheduler,/Exportar diagnóstico/);
+  assert.match(calendarScheduler,/onClick=\{exportDiagnostic\}/);
+  assert.match(calendarScheduler,/buildScheduleDiagnostic\(/);
+  assert.match(calendarScheduler,/diagnosticFileName\(year,month\)/);
+  assert.match(calendarScheduler,/URL\.createObjectURL\(blob\)/);
+  assert.match(calendarScheduler,/link\.download=/);
+  assert.match(calendarScheduler,/const currentSources=loadSources\(year,month\)/);
+  assert.match(calendarScheduler,/generationInputSnapshot:/);
+  assert.match(calendarScheduler,/Inclui nomes e horários/);
+  assert.doesNotMatch(app,/exportDiagnostic/);
+});
