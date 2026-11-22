@@ -75,7 +75,12 @@ export function prepareRotation(
   confirmedFullWeekends:readonly RotationHistoryEntry[]=[],
 ):RotationPreparation|null {
   const active=team.members.filter(person=>person.active);
-  if(!active.some(person=>person.weekendRest))return null;
+  // A daily staffing preference is a separate, optional objective.
+  // It can improve ordinary weekly rest patterns even if nobody opted
+  // into full-weekend rotation. Never assume missing weekly rest rules.
+  if(!active.some(person=>person.weekendRest) &&
+    opening.dailyStaffingTargetPercent===undefined)return null;
+  if(active.some(person=>person.weeklyDaysOff===undefined))return null;
 
   const weeks=period.weeks.filter(week=>
     inRange(week.start,period) &&
