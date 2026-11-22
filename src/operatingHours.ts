@@ -21,6 +21,12 @@ export interface DayOpeningHours {
 }
 export interface WeeklyOpeningHours {
   days:DayOpeningHours[];
+  /**
+   * Optional SOFT target of active employees scheduled per OPEN day.
+   * E.g. 60 means ceil(0.6 * active team size), not simultaneous coverage
+   * and never an obligatory certification minimum. Absent = legacy.
+   */
+  dailyStaffingTargetPercent?:number;
 }
 export type OpeningHoursValidation =
   | {valid:true; value:WeeklyOpeningHours; issues:[]}
@@ -37,7 +43,13 @@ export function validateWeeklyOpeningHours(input:unknown):OpeningHoursValidation
   const errors:string[]=[];
   if (!input || typeof input!=="object" || Array.isArray(input))
     return {valid:false,value:null,issues:["Indica os dias de funcionamento."]};
-  const days=(input as {days?:unknown}).days;
+  const {days,dailyStaffingTargetPercent}=
+    input as {days?:unknown;dailyStaffingTargetPercent?:unknown};
+  if(dailyStaffingTargetPercent!==undefined &&
+    (typeof dailyStaffingTargetPercent!=="number" ||
+     !Number.isInteger(dailyStaffingTargetPercent)||
+     dailyStaffingTargetPercent<1||dailyStaffingTargetPercent>100))
+    errors.push("O objetivo de presença deve ser uma percentagem inteira entre 1 e 100.");
   if (!Array.isArray(days) || days.length!==WEEKDAYS.length)
     return {valid:false,value:null,issues:["É necessário indicar os sete dias da semana."]};
 
@@ -90,7 +102,11 @@ export function validateWeeklyOpeningHours(input:unknown):OpeningHoursValidation
     errors.push("Seleciona pelo menos um dia de funcionamento.");
   if (errors.length>0)return {valid:false,value:null,issues:[...new Set(errors)]};
 
-  return {valid:true,value:{days:WEEKDAYS.map(d=>values.get(d.id)!)},issues:[]};
+  return {valid:true,value:{
+    days:WEEKDAYS.map(d=>values.get(d.id)!),
+    ...(dailyStaffingTargetPercent===undefined?{}:
+      {dailyStaffingTargetPercent:dailyStaffingTargetPercent as number}),
+  },issues:[]};
 }
 
 /** Values shown in a new form are suggestions, never a saved configuration. */
