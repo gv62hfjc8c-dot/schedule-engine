@@ -5,6 +5,7 @@ import type {TeamRoster} from "./team";
 import type {WorkAssignment} from "./workAssignments";
 import {assignmentMinutes,clockMinutes} from "./workAssignments";
 import {measureSimultaneousCoverage} from "./simultaneousCoverage";
+import {analyzeFunctionalCapacity} from "./functionalCapacityAnalysis";
 import type {MealBreak} from "./mealBreaks";
 import type {PlannedRestWeekMember} from "./plannedRest";
 import {enumerateCivilDays,resolvePlanningPeriod,civilDayOfWeek} from "./schedulePeriods";
@@ -155,6 +156,13 @@ function workdaySummary(
  */
 export function buildScheduleDiagnostic(input:ScheduleDiagnosticInput) {
   const {byDay,byMember}=workdaySummary(input);
+  const functionalCapacity=input.functionalCoveragePolicy==="qualified50"&&
+    input.team&&input.openingHours
+    ?analyzeFunctionalCapacity({
+      period:{mode:"monthly",year:input.year,month:input.month},
+      team:input.team,openingHours:input.openingHours,
+      assignments:input.assignments,minimumPercent:50,
+    }):null;
   return {
     schema:"schedule-engine-diagnostic",
     schemaVersion:DIAGNOSTIC_SCHEMA_VERSION,
@@ -195,7 +203,7 @@ export function buildScheduleDiagnostic(input:ScheduleDiagnosticInput) {
       rollingHoursHistory:input.rollingHistory,
     },
     analysis:{
-      byDay,byMember,
+      byDay,byMember,functionalCapacity,
       quality:{
         shiftsOverNineHours:byMember.reduce((sum,member)=>
           sum+member.shiftsOverNineHours,0),
@@ -211,6 +219,7 @@ export function buildScheduleDiagnostic(input:ScheduleDiagnosticInput) {
       hours:"minutos de trabalho efetivo, excluindo pausa de refeição",
       staffing:"pessoas distintas com turno em cada dia, não presença simultânea",
       functions:"um posto por pessoa e turno; cobertura por função só verificada em propostas com política functionalCoveragePolicy=qualified50",
+      capacity:"défice global de minutos é um limite inferior do horário escalado; não corresponde automaticamente a número de novas contratações, e os 50% podem aumentar com mais habilitados",
       rest:"somente descanso explicitamente planeado, nunca ausência de turno",
       context:"datas sem histórico confirmado permanecem desconhecidas",
     },
