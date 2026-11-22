@@ -190,6 +190,12 @@ test("regressão real anonimizada: 8 pessoas, 160h em 28 dias, sem novos conflit
   },0);
   assert.ok(solos<210,
     "otimizar em relação aos 210 minutos de presença solitária no diagnóstico: "+solos);
+  console.log("PR90_ANONYMOUS_NOVEMBER_QUALITY "+JSON.stringify({
+    cycle:"2026-11-02..2026-11-29",
+    baselineLongShifts:64,generatedLongShifts:long,
+    baselineSoloSaturdayMinutes:210,generatedSoloSaturdayMinutes:solos,
+    shifts:result.candidateAssignments.length,
+  }));
   assert.deepEqual(result,generateSchedule(config),"determinismo");
   assert.equal(JSON.stringify(config),original,"não pode alterar dados de entrada");
   const independently=certifySchedule({...config,
