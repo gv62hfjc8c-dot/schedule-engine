@@ -1148,101 +1148,109 @@ https://github.com/gv62hfjc8c-dot/schedule-engine/actions/runs/45021264014
 — 320/320 testes PASS e build PASS.
 
 
-### PR94 — Qualificações operacionais: Caixa e Vendas (22/11/2026)
+### PR94 — Equipas funcionais genéricas integradas no horário mensal (22/11/2026)
 
-O motor distingue colaboradores de funções para as quais estão
-qualificados, sem fragmentar a equipa nem duplicar turnos.
+**Estado:** implementação integrada na branch `feature/operational-role-qualifications`,
+PR https://github.com/gv62hfjc8c-dot/schedule-engine/pull/94, **OPEN/DRAFT,
+não integrado na main**. O PR93 da interface responsiva permanece independente.
+Cloudflare Pages mantém a versão pública anterior e publicações automáticas
+desativadas.
 
-- `TeamMember.qualifiedRoles?: ("checkout"|"sales")[]` representa
-  competências explicitamente confirmadas: só Caixa, só Vendas
-  ou ambas. Ausência do campo em registos antigos significa
-  DESCONHECIDO, nunca se presume polivalência.
-- O validador rejeita funções desconhecidas, duplicações e listas
-  vazias; o armazenamento não substitui dados válidos em caso
-  de erro. O campo é opcional e preserva os rascunhos `team:v1`.
-- `isQualifiedForRole` é uma consulta pura de habilitação;
-  não representa trabalho ativo, atribuição de função ou
-  cobertura simultânea.
-- Em Configuração → Equipa existe um seletor de qualificação
-  `Por definir` / `Caixa` / `Vendas` /
-  `Caixa e Vendas`, com resumo no cartão do colaborador.
-- Regressão comprova que os horários e a certificação são
-  idênticos com e sem o novo campo, até existirem requisitos
-  operacionais de cobertura por função. Não alteramos o
-  gerador, a repartição dos turnos, as folgas ou as pausas.
+**Modelo independente de retalho:**
+- Uma única equipa de pessoas, com qualificações por **função operacional**;
+  cada colaborador pode estar habilitado para uma, várias ou nenhuma
+  (campo desconhecido em fichas antigas). Nunca se duplica a pessoa.
+- `TeamRoster.roles` define um catálogo opcional de funções por ID/nome.
+  Sem catálogo, existem as referências iniciais Caixa e Vendas. O núcleo
+  aceita funções genéricas, como Cozinha, Receção e Armazém; o formulário
+  permite adicionar/remover funções e selecionar múltiplas qualificações
+  por colaborador. Os dados antigos mantêm-se válidos e não são
+  polivalentes por suposição. Não guardar alterações destrutivas.
+- `WorkAssignment.role?` regista **um posto exclusivo por turno**,
+  mantendo um único turno e pausa integrada; não permite mudança
+  de posto a meio do turno nesta iteração.
+- Quando existe alguma qualificação funcional, a geração exige funções
+  explícitas em **todos** os membros ativos. Rascunhos anteriores sem
+  funções preservam semântica legacy, **sem falsa certificação funcional**.
 
-**Próxima decisão:** quantos colaboradores devem estar
-EFETIVAMENTE a trabalhar em cada função ao longo da abertura?
-A exigência poderá variar por dia e intervalo quando demonstrado
-pelo cenário real. Só depois implementar atribuição funcional
-por segmentos DENTRO de um turno único, sem contar um
-polivalente simultaneamente em Caixa e Vendas. Qualificação
-e cobertura exigida são HARD; preferências de repartição
-e de mudança de função poderão ser SOFT.
+**Hard constraints de cobertura funcional:**
+- Para cada função do catálogo, mínimo simultâneo = `ceil(0.50 *
+  total de colaboradores ATIVOS QUALIFICADOS na função)`.
+  Polivalentes integram ambos os denominadores de qualificação,
+  mas **contam apenas numa função de cada vez** na cobertura real.
+- A regra aplica-se **a cada intervalo de funcionamento de cada data
+  do mês**, descontando as pausas e limites de entrada/saída;
+  é independente da referência SOFT de 60% escalados por dia.
+- O certificador mensal `certifySchedule` invoca o verificador puro
+  `certifyFunctionalCoverage` de forma independente do planeador.
+  Exige qualificação, posto válido, exclusividade, pausas e mínimo
+  simultâneo; assinala `FUNCTIONAL_COVERAGE_GAP`,
+  `FUNCTIONAL_ASSIGNMENT_INVALID` ou
+  `FUNCTIONAL_CAPACITY_SHORTFALL` com minutos necessários/disponíveis.
+  Uma proposta inviável fica **INVALID**, nunca validada só por ter
+  pessoas qualificadas.
+- Política `functionalCoveragePolicy: "qualified50"` persiste
+  explicitamente nos rascunhos locais V2, atravessa edição,
+  leitura, recertificação e exportação do diagnóstico.
+  Horários legacy não são retroativamente sujeitos à política.
 
-O primeiro conjunto Caixa/Vendas é um preset operacional
-de teste; a arquitetura de longo prazo deve permitir um
-catálogo de funções sem dependência exclusiva de retalho.
-Não foi criado qualquer parâmetro empresarial adicional.
+**Geração e otimização:**
+- `generateSchedule` integra a distribuição funcional no mês inteiro;
+  na escolha flexível de dias de trabalho considera previamente a
+  pressão de cobertura por competências. Na fase de posicionamento
+  `allocateFunctionalMonth` atribui um posto a cada turno e procura
+  corrigir horas de entrada e pausas em dias com lacunas quando existe
+  margem, sem alterar minutos efetivos, número de dias de trabalho,
+  folgas ou um turno por pessoa. Continua a ser uma heurística
+  determinística, **não um solver de ótimo global**.
+- 1 Caixa + 3 Vendas + 2 polivalentes => 3 Caixa / 3 Vendas;
+  no exemplo inverso 3 Caixa + 1 Vendas + 2 polivalentes,
+  ambos reforçam Vendas. A generalização também foi testada com
+  três funções e com catálogo alternativo.
+- O calendário agora mostra uma secção de **cobertura funcional do mês**,
+  com conflitos por data/intervalo, e o **posto de cada pessoa nos turnos**.
+  Não existe uma simulação apenas de um dia. Exportação inclui funções,
+  política, configuração e violações.
 
-PR: https://github.com/gv62hfjc8c-dot/schedule-engine/pull/94
-(OPEN/DRAFT, sem merge). Primeiro CI:
-https://github.com/gv62hfjc8c-dot/schedule-engine/actions/runs/45029002133
-— 326/326 testes PASS e build PASS. PR93 responsivo
-ainda aberto separadamente. Cloudflare não publicado.
+**Limites matemáticos importantes:** não presumir que 50% de
+cada função possam ser mantidos simultaneamente em qualquer empresa.
+Exemplo de oito pessoas (2 Caixa, 2 Vendas e 4 polivalentes):
+cada função possui seis qualificados e exige três ativos,
+ou seja, **seis pessoas simultâneas**. Uma empresa aberta
+68 horas/semana precisaria de 408 horas de trabalho efetivo
+semanais para os dois postos; oito pessoas a 40h fornecem
+320 horas/semana. Neste caso o horário é matematicamente
+insuficiente, independentemente da heurística. A aplicação
+exibe o conflito e o défice, sem inventar jornadas. Não alegar
+viabilidade global só porque a tentativa de distribuição falhou;
+a certificação prova apenas se a proposta gerada é ou não válida.
 
+**Regressões verificadas (CI):** validação de 28, 30 e 31 dias;
+polivalência 1/3/2 e 3/1/2; mínimo 50% e arredondamento;
+um trabalhador nunca em duas funções; pausas alternadas pelo
+otimizador; períodos parciais e totais; rejeição de registos
+sem função, entradas inválidas, persistência e recertificação;
+cenário real de novembro anonimizando oito pessoas com
+**160 horas efetivas/pessoa em 28 dias preservadas**, sem
+alterações às folgas/rotação, e sinalização explícita de
+capacidade insuficiente se os mínimos funcionais forem impossíveis.
+CI mais recente deve ser verificada após a documentação; versão
+de implementação antes de documentação passou
+**349/349 testes e build** na execução
+https://github.com/gv62hfjc8c-dot/schedule-engine/actions/runs/45073916549 .
 
-### PR94 — Alocação genérica diária dos polivalentes (22/11/2026)
-
-O cenário real clarificou o significado de uma pessoa qualificada
-para várias funções. O colaborador pertence a todos os conjuntos
-de **competências**, mas é escalado numa **única função** para
-todo o turno. A regra inicial de cobertura por função é de pelo
-menos **50% dos colaboradores ATIVOS QUALIFICADOS** nessa
-função, arredondados para cima; os polivalentes entram em
-ambos os denominadores, mas contam como uma só pessoa
-ativa na função escolhida.
-
-Casos de aceitação:
-- 1 Caixa + 3 Vendas + 2 polivalentes → 3 Caixa / 3 Vendas:
-  ambos os polivalentes reforçam Caixa.
-- 3 Caixa + 1 Vendas + 2 polivalentes → 3 Caixa / 3 Vendas:
-  ambos reforçam Vendas.
-
-**Módulo novo e independente:**
-`src/functionalCoverage.ts`. Aceita identificadores
-GENÉRICOS de funções, pessoas qualificadas, turnos com
-pausas, janelas de abertura e percentagem-alvo.
-`allocateFunctionalCoverage` primeiro coloca especialistas
-na sua única função e depois distribui polivalentes,
-dando prioridade à redução de lacunas de cobertura e
-depois ao equilíbrio das equipas. É uma heurística
-determinística, não um solver de ótimo global.
-`certifyFunctionalCoverage` verifica a distribuição
-INDEPENDENTEMENTE do planeador, em cada intervalo
-efetivo durante a abertura. Assinala falta de cobertura,
-pessoas sem função conhecida, função sem qualificação
-e dupla afetação. Pausas não são tempo de cobertura.
-
-**Sem falsas garantias:** as novas regras estão testadas
-como domínio puro, mas ainda NÃO ligadas à geração
-mensal `generateSchedule` nem ao certificador de
-horários `certifySchedule`. A geração atualmente publicada
-continua sem departamentos funcionais. Uma proposta
-marcada válida pelo motor antigo NÃO prova cobertura
-de Caixa/Vendas. A futura integração deverá reajustar
-dias, turnos e pausas ANTES de otimizar horas; não basta
-atribuir uma etiqueta após gerar um horário.
-
-**Regressões:** `tests/functionalCoverage.test.ts` cobre
-os dois exemplos, 50% arredondados, polivalência sem
-dupla contagem, dias com apenas cinco pessoas quando
-são precisas seis, entradas/saídas, pausas, competências
-desconhecidas do legado, validação independente,
-três funções genéricas, determinismo e inputs inválidos.
-CI https://github.com/gv62hfjc8c-dot/schedule-engine/actions/runs/45071826475
-— **339/339 testes PASS; build PASS** antes da última
-atualização documental.
-
-PR94 continua **OPEN/DRAFT**, separado do PR93 de
-responsividade. Nenhum merge ou deploy Cloudflare.
+**Aceitação do utilizador, ANTES do merge:**
+1. Atualizar a branch PR94 no Safari do Mac, sem mexer na `main`.
+2. Em Configuração → Equipa, ajustar as funções e qualificar
+   todas as pessoas ativas (Caixa, Vendas ou ambas; opcionalmente
+   criar outros departamentos no catálogo).
+3. Gerar novembro de 2026 como **mês completo**; rever funções
+   nos turnos e a secção de cobertura funcional mensal.
+4. Verificar 160h/28 dias, número de jornadas >9h,
+   folgas e fins de semana, pausas e distribuição de polivalentes.
+   Se houver falhas de 50% simultâneos, comparar o défice
+   real de capacidade e não aceitar como horário certificado.
+5. Exportar o diagnóstico mensal e enviar apenas após
+   verificar os dados pessoais que contém. Corrigir divergências
+   antes de autorizar o merge. Publicação Cloudflare sempre
+   manual e separada.
