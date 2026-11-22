@@ -2,6 +2,7 @@ import {
   assignmentMinutes,clockMinutes,effectiveWorkIntervals,type WorkAssignment,
 } from "./workAssignments";
 import {mealDayOptions,type NumericOpening} from "./mealBreaks";
+import {improveSimultaneousCoverage} from "./simultaneousCoverage";
 
 export interface MealDayRequest {
   memberId:string;
@@ -160,10 +161,15 @@ export function scheduleMealDay(
     for(let t=0;t<1440;t++)
       covered[t]=presence[t]>0?1:0;
   }
-  return {
-    assignments:chosen,
-    covered:open.every((isOpen,t)=>!isOpen || covered[t]===1),
-  };
+  const fullyCovered=open.every((isOpen,t)=>!isOpen || covered[t]===1);
+  // Improve breaks first, then edge coverage only when it strictly reduces
+  // time with a lone worker. Preserve exact weekly work minutes and all
+  // mandatory opening coverage. Infeasible coverage still belongs to the
+  // independent certifier, never to a soft staffing target.
+  const improved=fullyCovered
+    ?improveSimultaneousCoverage(chosen,chosenOptions,opening)
+    :chosen;
+  return {assignments:improved,covered:fullyCovered};
 }
 
 export function totalEffectiveWork(
