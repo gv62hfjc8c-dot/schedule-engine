@@ -19,6 +19,7 @@ import {DayScheduleTimeline} from "./DayScheduleTimeline";
 import type {WeeklyOpeningHours} from "./operatingHours";
 import {moveTimelineAssignment,type TimelineMove} from "./timelineEditing";
 import {restRecordsFromRotation,type PlannedRestWeekMember} from "./plannedRest";
+import {evaluateDailyStaffing} from "./dailyStaffingBalance";
 
 const WEEKDAYS=["Seg","Ter","Qua","Qui","Sex","Sáb","Dom"];
 
@@ -174,6 +175,14 @@ function MonthWorkspace({
   const activeHoursPolicy=manualEdit?manualEdit.hoursPolicy:
     preview?"rolling28":savedHoursPolicy;
   const period=resolvePlanningPeriod({mode:"monthly",year,month});
+  const staffingReport=useMemo(()=>{
+    if(!dailyOpening || dailyOpening.dailyStaffingTargetPercent===undefined ||
+      (preview===null&&saved===null))return null;
+    return preview?.dailyStaffing??evaluateDailyStaffing(
+      data,period,dailyOpening,activeMemberIds,
+      dailyOpening.dailyStaffingTargetPercent,
+    );
+  },[preview,data,period.start,dailyOpening,activeMemberIds,saved]);
   const throughDate=selectedDate??
     enumerateCivilDays(period).at(-1)!;
   const hasMonthProposal=preview!==null||saved!==null;
@@ -535,6 +544,34 @@ function MonthWorkspace({
             <small>Descansos explicitamente planeados, não inferidos
               de dias sem turno. A proposta continua a ser um rascunho local.</small>
           </div>}
+        {staffingReport&&<section className="schedule-staffing-overview"
+          aria-label="Equilíbrio da presença diária">
+          <div className="schedule-staffing-heading">
+            <h3>Presença diária desejada — objetivo não obrigatório</h3>
+            <strong>{staffingReport.desired} de {staffingReport.activeCount}
+              {" "}colaboradores ({staffingReport.targetPercent}%)</strong>
+          </div>
+          <p>São contabilizadas pessoas com turno atribuído nesse dia;
+            não a presença simultânea durante cada minuto. O objetivo
+            não altera as regras obrigatórias de folgas nem a certificação.</p>
+          <p role="status">
+            <strong>{staffingReport.daysBelowTarget} de
+              {" "}{staffingReport.days.length} dias abertos</strong>
+            {" "}abaixo do objetivo na proposta apresentada.
+          </p>
+          {staffingReport.daysBelowTarget>0&&
+            <div className="schedule-staffing-gaps">
+              {staffingReport.days.filter(day=>day.missing>0)
+                .slice(0,10).map(day=>
+                  <span key={day.date}>
+                    {day.date}: {day.present}/{day.desired}
+                  </span>)}
+              {staffingReport.daysBelowTarget>10&&
+                <span>+{staffingReport.daysBelowTarget-10} dias</span>}
+            </div>}
+          <small>Os dias abaixo do objetivo são oportunidades de
+            melhoria, não violações automáticas de regras.</small>
+        </section>}
       </section>
       <div className="calendar-layout">
         <section className="surface calendar-panel" aria-label="Calendário mensal">
