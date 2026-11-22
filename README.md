@@ -1254,3 +1254,52 @@ https://github.com/gv62hfjc8c-dot/schedule-engine/actions/runs/45073916549 .
    verificar os dados pessoais que contém. Corrigir divergências
    antes de autorizar o merge. Publicação Cloudflare sempre
    manual e separada.
+
+
+### PR94 — Viabilidade estrutural versus distribuição dos postos (22/11/2026)
+
+A validação real revelou um problema de interpretação: centenas de
+lacunas funcionais podem ser consequência de **horas de trabalho
+insuficientes para o mínimo simultâneo de 50%**, e não centenas de
+defeitos corrigíveis da heurística. Para manter a regra HARD e não
+inventar capacidade, foi acrescentado `src/functionalCapacityAnalysis.ts`,
+um diagnóstico puro e independente da geração e da certificação.
+
+O relatório agregado do **mês completo** calcula:
+- Pessoas ativas habilitadas e mínimo simultâneo por função, arredondado
+  para cima; polivalentes em ambos os universos de competências, mas
+  apenas um posto atribuído de cada vez.
+- Horas-pessoa necessárias para cobrir todas as funções durante a
+  abertura e horas efetivas realmente escaladas DENTRO da abertura
+  (as pausas não contam).
+- Défice **global mínimo de capacidade**: horas-pessoa que não
+  existem no horário, independentemente do posto atribuído.
+- Défice mínimo por data mantendo os dias de trabalho atuais,
+  e défice mínimo de simultaneidade com entradas, saídas e pausas
+  nas posições atualmente geradas.
+- Lacunas efetivas por função e a diferença face ao limite de
+  simultaneidade. **Essa diferença NÃO é garantidamente recuperável**
+  mudando a afetação: competências e folgas podem impedir a correção.
+- Um estado `incomplete_assignments` quando há postos sem atribuição
+  ou inválidos; não apresentar somas de lacunas incompletas como prova
+  de ausência de conflitos.
+
+Esta análise aparece na secção MENSAL de cobertura funcional de
+`/horarios` e na exportação `analysis.functionalCapacity` do
+diagnóstico JSON. Não existe botão nem simulador exclusivo de um dia.
+
+**Nota importante sobre decisões de capacidade:** com 50% do total
+de pessoas habilitadas como denominador, contratar pessoas pode
+**aumentar também o mínimo exigido**. O défice de horas-pessoa é
+um limite inferior para esta proposta e esta política, NÃO uma
+recomendação automática de número de contratações. Não alterar a
+regra de 50% sem decisão expressa; a comparação entre mínimo
+operacional obrigatório e objetivo de distribuição fica para decisão
+posterior, com base nos resultados concretos.
+
+Testes em `tests/functionalCapacityAnalysis.test.ts`, bem como
+regressões de exportação e contrato visual, verificam cenários
+viáveis, falta real de pessoas, horas suficientes mal distribuídas
+no tempo, pausas simultâneas, posto incompatível, três funções
+genéricas e inputs inválidos. PR94 continua Draft, sem merge ou
+publicação Cloudflare.
