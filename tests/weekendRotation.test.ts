@@ -130,6 +130,48 @@ test("frequência resulta da capacidade: duas pessoas livres por fim de semana n
     w.presentByWeekday.saturday>=4 && w.presentByWeekday.sunday>=4));
 });
 
+test("60% ao fim de semana considera sábado fixo antes de atribuir descansos completos",()=>{
+  // Regressão estrutural anonimizada: 8 pessoas, 3 com uma folga e
+  // 5 com duas, incluindo uma folga fixa ao sábado.
+  const fixed:Weekday[]=[
+    "wednesday","saturday","monday","friday",
+    "tuesday","monday","friday","tuesday",
+  ];
+  const scenario:WeekendRotationInput={
+    startWeek:"2026-11-02",weeks:4,
+    members:fixed.map((day,index)=>({
+      id:"P"+(index+1),weeklyDaysOff:index<3?1:2,
+      fixedDaysOff:[day],
+      minimumWeekdayDaysOffOnFullWeekend:1,
+    })),
+    minimumPresentByWeekday:minimums(2,2,1),
+    maximumEffectiveMinutesByWeekday:cap(570,570,300),
+    workloadPreference:{
+      cycleReferenceMinutes:9600,preferredUpperDailyMinutes:540,
+      cycleWeeks:4,
+    },
+  };
+  const original=JSON.stringify(scenario);
+  const result=planWeekendRotation(scenario);
+  assert.equal(result.status,"planned",JSON.stringify(result.issues));
+  assert.equal(result.weeks.length,4);
+  for(const week of result.weeks){
+    assert.ok(week.presentByWeekday.saturday>=5,
+      "o descanso fixo de sábado não pode ser esquecido: "+week.weekStart);
+    assert.ok(week.presentByWeekday.sunday>=5,
+      "não sacrificar o domingo: "+week.weekStart);
+    const saturdayFixed=week.members.find(m=>m.memberId==="P2")!;
+    assert.ok(saturdayFixed.daysWithoutWork.includes(week.saturday));
+    for(const member of week.members.filter(m=>m.fullWeekendOff))
+      assert.equal(member.daysWithoutWork.filter(date=>
+        civilDayOfWeek(date)<5).length,1);
+  }
+  assert.ok(result.weekendCounts.every(m=>m.planned<=2),
+    "a meta diária não deve impor quatro fins de semana ao mesmo membro");
+  assert.deepEqual(planWeekendRotation(scenario),result,"determinismo");
+  assert.equal(JSON.stringify(scenario),original,"imutabilidade");
+});
+
 test("exigir toda a equipa ao domingo impede fins de semana completos",()=>{
   const scenario=input(4,minimums(2,3,4));
   const result=planWeekendRotation(scenario);
