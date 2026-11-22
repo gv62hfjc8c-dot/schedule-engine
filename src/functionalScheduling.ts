@@ -101,8 +101,13 @@ function optimizeDay(
       const tryVariant=(candidate:WorkAssignment)=>{
         shifts[index]=candidate;
         const hard=measureSimultaneousCoverage(shifts,numericOpen);
+        // HARD uncovered minutes dominate the SOFT solo metric:
+        // turning an entirely uncovered hour into a solo hour is an
+        // improvement, not a regression. When HARD is tied, never
+        // worsen single-person presence just to pursue 50%.
         if(hard.uncoveredMinutes>hardBaseline.uncoveredMinutes ||
-          hard.soloMinutes>hardBaseline.soloMinutes)return;
+          (hard.uncoveredMinutes===hardBaseline.uncoveredMinutes &&
+            hard.soloMinutes>hardBaseline.soloMinutes))return;
         const trial=allocateFunctionalCoverage(roleInput(
           date,shifts,members,opening,roles));
         const trialLoss=functionalLoss(trial.certification);
