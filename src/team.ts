@@ -92,14 +92,17 @@ export function validateTeamRoster(input:unknown):TeamValidation {
         "As folgas semanais devem ser um número inteiro entre 0 e 6.",
       ]};
     const roles=member.qualifiedRoles;
-    if(roles!==undefined && (
-      !Array.isArray(roles) || roles.length<1 ||
-      roles.length>OPERATIONAL_ROLES.length ||
-      roles.some(role=>!OPERATIONAL_ROLES.some(allowed=>allowed===role)) ||
-      new Set(roles).size!==roles.length
-    ))return {valid:false,value:null,issues:[
-      "As funções devem ser Caixa, Vendas ou ambas, sem repetições.",
-    ]};
+    let qualifiedRoles:OperationalRole[]|undefined;
+    if(roles!==undefined){
+      if(!Array.isArray(roles) || roles.length<1 ||
+        roles.length>OPERATIONAL_ROLES.length ||
+        roles.some(role=>!OPERATIONAL_ROLES.some(allowed=>allowed===role)) ||
+        new Set(roles).size!==roles.length)
+        return {valid:false,value:null,issues:[
+          "As funções devem ser Caixa, Vendas ou ambas, sem repetições.",
+        ]};
+      qualifiedRoles=OPERATIONAL_ROLES.filter(role=>roles.includes(role));
+    }
     const fixedDays=member.fixedDaysOff??[];
     if(!Array.isArray(fixedDays) ||
       fixedDays.some(day=>!WEEKDAYS.some(weekday=>weekday.id===day)) ||
@@ -129,9 +132,7 @@ export function validateTeamRoster(input:unknown):TeamValidation {
     seen.add(id);
     checked.push({
       id,name,active:member.active,
-      ...(roles===undefined?{}:{qualifiedRoles:OPERATIONAL_ROLES.filter(
-        role=>roles.includes(role),
-      )}),
+      ...(qualifiedRoles===undefined?{}:{qualifiedRoles}),
       ...(member.weeklyDaysOff===undefined ? {} :
         {weeklyDaysOff:member.weeklyDaysOff}),
       ...(member.fixedDaysOff===undefined?{}:{fixedDaysOff:[...fixedDays] as Weekday[]}),
