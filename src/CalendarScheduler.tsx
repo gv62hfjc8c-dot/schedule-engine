@@ -3,7 +3,8 @@ import {monthCells,monthLabel,selectedDayLabel} from "./calendar";
 import {generateSchedule,type GenerationResult} from "./generateSchedule";
 import {certifySchedule,type CertificationReport} from "./certifySchedule";
 import {loadTeamDraftFromBrowser} from "./teamDraftRepository";
-import {DEFAULT_OPERATIONAL_ROLE_DEFINITIONS} from "./team";
+import {DEFAULT_OPERATIONAL_ROLE_DEFINITIONS,type TeamRoster} from "./team";
+import {analyzeFunctionalCapacity} from "./functionalCapacityAnalysis";
 import {loadOpeningHoursDraftFromBrowser} from "./openingHoursDraftRepository";
 import {
   loadMonthlyDraftFromBrowser,saveMonthlyDraftToBrowser,
@@ -168,6 +169,10 @@ function MonthWorkspace({
     return new Map(team.status==="loaded"?
       team.value.members.map(member=>[member.id,member.name]):[]);
   });
+  const [capacityTeam,setCapacityTeam]=useState<TeamRoster|null>(()=>{
+    const team=loadTeamDraftFromBrowser();
+    return team.status==="loaded"?team.value:null;
+  });
   const [roleLabels,setRoleLabels]=useState<Map<string,string>>(()=>{
     const team=loadTeamDraftFromBrowser();
     const roles=team.status==="loaded"
@@ -216,6 +221,13 @@ function MonthWorkspace({
   const throughDate=selectedDate??
     enumerateCivilDays(period).at(-1)!;
   const hasMonthProposal=preview!==null||saved!==null;
+  const capacityAnalysis=useMemo(()=>activeFunctionalPolicy==="qualified50"&&
+    hasMonthProposal&&capacityTeam&&dailyOpening
+    ?analyzeFunctionalCapacity({
+      period:{mode:"monthly",year,month},team:capacityTeam,
+      openingHours:dailyOpening,assignments:data,minimumPercent:50,
+    }):null,[activeFunctionalPolicy,hasMonthProposal,capacityTeam,dailyOpening,
+      data,year,month]);
   const rolling=selectedMemberId!==null&&hasMonthProposal&&hoursHistory.ok
     ?calculateRolling28Day({
       memberId:selectedMemberId,throughDate,
@@ -362,6 +374,7 @@ function MonthWorkspace({
     setHoursHistory(sources.hoursHistory);
     setSourceSignature(JSON.stringify(sources));
     setNames(new Map(sources.team.value.members.map(member=>[member.id,member.name])));
+    setCapacityTeam(sources.team.value);
     setRoleLabels(new Map(
       (sources.team.value.roles??DEFAULT_OPERATIONAL_ROLE_DEFINITIONS)
         .map(role=>[role.id,role.label]),
@@ -639,6 +652,58 @@ function MonthWorkspace({
           aria-label="Cobertura funcional do mês">
           <h3>Caixa e Vendas — distribuição mensal</h3>
           {activeFunctionalPolicy==="qualified50"?<>
+            {capacityAnalysis&&<div className="schedule-functional-capacity"
+              aria-label="Viabilidade da cobertura por função">
+              <h4>Viabilidade matemática do mês</h4>
+              <div className="schedule-functional-capacity-stats">
+                <div><span>Horas-pessoa necessárias</span>
+                  <strong>{formatHours(capacityAnalysis.requiredMinutes)}</strong></div>
+                <div><span>Horas-pessoa escaladas na abertura</span>
+                  <strong>{formatHours(capacityAnalysis.scheduledInsideOpeningMinutes)}</strong></div>
+                <div><span>Défice global mínimo de capacidade</span>
+                  <strong>{formatHours(capacityAnalysis.periodCapacityDeficitMinutes)}</strong></div>
+                <div><span>Falta com dias de trabalho inalterados</span>
+                  <strong>{formatHours(capacityAnalysis.dayLockedCapacityDeficitMinutes)}</strong></div>
+              </div>
+              {capacityAnalysis.periodCapacityDeficitMinutes>0
+                ?<p className="schedule-functional-warning">
+                  O mínimo de 50% por função exige mais horas de trabalho
+                  do que as disponíveis neste horário. Só mudar postos ou
+                  pausas NÃO resolve esta diferença estrutural.
+                </p>
+                :<p>As horas totais são suficientes em teoria.
+                  Isso não garante que a cobertura seja possível com
+                  as competências, folgas e turnos existentes.</p>}
+              <p>Com os turnos e pausas nas posições atuais, existem pelo
+                menos {formatHours(capacityAnalysis.simultaneousDeficitMinutes)}
+                {" "}de cobertura em falta por falta de pessoas simultâneas.
+                As lacunas efetivamente verificadas nas funções somam
+                {" "}{formatHours(capacityAnalysis.observedRoleGapMinutes)}.</p>
+              {capacityAnalysis.status==="complete"
+                ?<p>A diferença restante entre estas duas medidas é
+                  {" "}{formatHours(capacityAnalysis.roleAndAllocationGapMinutes??0)}.
+                  Pode dever-se às qualificações ou à escolha de postos;
+                  <strong> não é uma quantidade garantidamente recuperável
+                    por otimização.</strong></p>
+                :<p className="schedule-functional-warning">Existem postos
+                  sem atribuição válida. Os totais de lacunas por função
+                  podem estar incompletos.</p>}
+              <div className="schedule-functional-capacity-roles">
+                {capacityAnalysis.roleTargets.map(role=>
+                  <div key={role.role}>
+                    <strong>{functionalRoleLabel(role.role,roleLabels)}</strong>
+                    <span>{role.qualifiedPeople} habilitados</span>
+                    <span>Mínimo: {role.minimumConcurrent} simultâneos</span>
+                    <span>Falhas: {formatHours(role.observedGapMinutes)}</span>
+                  </div>)}
+              </div>
+              <p className="schedule-functional-capacity-note">
+                Acrescentar colaboradores pode aumentar também o mínimo
+                exigido, pois os 50% são calculados sobre os habilitados.
+                Este relatório não calcula automaticamente contratações
+                necessárias e não altera nenhuma regra.
+              </p>
+            </div>}
             <p>Funções atribuídas nos turnos do mês. O mínimo de 50%
               aplica-se a colaboradores ativos habilitados para cada
               função, efetivamente a trabalhar em simultâneo, incluindo
