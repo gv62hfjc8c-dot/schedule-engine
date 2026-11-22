@@ -544,7 +544,11 @@ export function planWeekendRotation(
         // A third full weekend may take Saturday from five to four
         // workers if another member already has Saturday fixed off.
         // Prefer fewer grants instead of silently missing the soft goal.
-        if(pref && weekendOpen && accepted.status==="feasible" &&
+        if(pref && weekendOpen &&
+          input.members.some(member=>member.fixedDaysOff.some(day=>
+            (day==="saturday"&&!closures.has(day)) ||
+            (day==="sunday"&&!closures.has(day)))) &&
+          accepted.status==="feasible" &&
           weekendShortfall(trial)>weekendShortfall(accepted))
           continue;
         forced.add(candidate.id);
