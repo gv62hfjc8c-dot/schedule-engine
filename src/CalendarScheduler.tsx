@@ -194,6 +194,7 @@ function MonthWorkspace({
   const functionalProblems=(report?.issues??[]).filter(issue=>
     issue.code==="FUNCTIONAL_COVERAGE_GAP" ||
     issue.code==="FUNCTIONAL_ASSIGNMENT_INVALID" ||
+    issue.code==="FUNCTIONAL_CAPACITY_SHORTFALL" ||
     issue.code==="INVALID_FUNCTIONAL_POLICY");
   const period=resolvePlanningPeriod({mode:"monthly",year,month});
   // Read-only quality diagnostic; no staffing preference in company settings.
@@ -643,6 +644,13 @@ function MonthWorkspace({
                   {problem.gapStart&&problem.gapEnd
                     ?" ("+problem.gapStart+"–"+problem.gapEnd+")":""}
                   {problem.missing?" · faltam "+problem.missing:""}
+                  {problem.code==="FUNCTIONAL_CAPACITY_SHORTFALL" &&
+                    problem.requiredMinutes!==undefined &&
+                    problem.actualMinutes!==undefined
+                    ?" · necessários "+
+                      (problem.requiredMinutes/60).toLocaleString("pt-PT")+
+                      " h; escalados "+
+                      (problem.actualMinutes/60).toLocaleString("pt-PT")+" h":""}
                 </li>)}
               </ul>
               {functionalProblems.length>70&&<p>
