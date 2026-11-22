@@ -80,10 +80,9 @@ function optimizeDay(
   // Preserve the existing HARD minimum of at least one worker actively
   // covering the business opening. A soft percentage improvement must
   // never create new uncovered opening minutes.
-  const hardBaseline=measureSimultaneousCoverage(shifts,numericOpen);
-  // Both zero-person gaps (HARD) and one-person gaps (existing SOFT
-  // presence priority) may only improve, not worsen for a functional
-  // improvement. No new operational minimum per function is introduced.
+  // Re-evaluate the HARD baseline after each accepted improvement:
+  // a later move may not re-introduce an already eliminated gap.
+  // No new operational minimum per function is introduced.
   const ordered=[...shifts.keys()].sort((a,b)=>
     shifts[a].memberId.localeCompare(shifts[b].memberId));
   // Bounded deterministic coordinate descent: preserves each person's
@@ -92,6 +91,7 @@ function optimizeDay(
   for(let pass=0;pass<(limited?1:3)&&hasGap(loss);pass++){
     let improved=false;
     for(const index of ordered){
+      const referenceHard=measureSimultaneousCoverage(shifts,numericOpen);
       const original=shifts[index];
       const span=clockMinutes(original.end)-clockMinutes(original.start);
       const bestAtStart=clockMinutes(original.start);
@@ -105,9 +105,9 @@ function optimizeDay(
         // turning an entirely uncovered hour into a solo hour is an
         // improvement, not a regression. When HARD is tied, never
         // worsen single-person presence just to pursue 50%.
-        if(hard.uncoveredMinutes>hardBaseline.uncoveredMinutes ||
-          (hard.uncoveredMinutes===hardBaseline.uncoveredMinutes &&
-            hard.soloMinutes>hardBaseline.soloMinutes))return;
+        if(hard.uncoveredMinutes>referenceHard.uncoveredMinutes ||
+          (hard.uncoveredMinutes===referenceHard.uncoveredMinutes &&
+            hard.soloMinutes>referenceHard.soloMinutes))return;
         const trial=allocateFunctionalCoverage(roleInput(
           date,shifts,members,opening,roles));
         const trialLoss=functionalLoss(trial.certification);
