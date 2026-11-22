@@ -32,7 +32,7 @@ export interface FunctionalRoleAssignment {
   role:string;
 }
 export type FunctionalIssueCode=
-  |"INVALID_INPUT"|"DUPLICATE_SHIFT"|"UNASSIGNED_MEMBER"
+  |"INVALID_INPUT"|"UNASSIGNED_MEMBER"
   |"UNQUALIFIED_MEMBER"|"DUPLICATE_ROLE_ASSIGNMENT"
   |"NO_QUALIFIED_MEMBERS"|"ROLE_COVERAGE_GAP";
 export interface FunctionalIssue {
@@ -122,8 +122,10 @@ function read(input:FunctionalCoverageInput):Validated|null {
     if(!person || !person.active || work.has(shift.memberId))return null;
     work.set(shift.memberId,effectiveWorkIntervals(shift));
   }
-  const qualified:Record<string,number>={};
-  const targets:Record<string,number>={};
+  // Object.fromEntries creates own data properties even for edge-case
+  // identifiers; never treat user-supplied role IDs as prototype keys.
+  const qualified=Object.fromEntries(roles.map(role=>[role,0])) as Record<string,number>;
+  const targets=Object.fromEntries(roles.map(role=>[role,0])) as Record<string,number>;
   for(const role of roles){
     qualified[role]=[...members.values()].filter(m=>m.active &&
       m.qualifiedRoles?.includes(role)).length;
@@ -144,8 +146,9 @@ function coverageSlots(
   for(let i=0;i<model.cuts.length-1;i++){
     const start=model.cuts[i],end=model.cuts[i+1];
     if(!model.opening.some(w=>w.start<=start&&w.end>=end))continue;
-    const counts:Record<string,number>={};
-    for(const role of model.roles)counts[role]=0;
+    const counts=Object.fromEntries(
+      model.roles.map(role=>[role,0]),
+    ) as Record<string,number>;
     for(const [id,role] of allocations){
       const intervals=model.work.get(id);
       if(counts[role]===undefined || !intervals)continue;
