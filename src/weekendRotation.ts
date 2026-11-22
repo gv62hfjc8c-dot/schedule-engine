@@ -1,6 +1,7 @@
 import {WEEKDAYS,type Weekday} from "./operatingHours";
 import {
-  desiredDailyHeadcount,compareDailyStaffing,scoreDailyStaffing,
+  DAILY_STAFFING_REFERENCE_PERCENT,desiredDailyHeadcount,
+  compareDailyStaffing,scoreDailyStaffing,
 } from "./dailyStaffingBalance";
 import {
   addCivilDays,civilDayOfWeek,parseCivilDate,
@@ -50,8 +51,6 @@ export interface WeekendRotationInput {
   closedWeekdays?:readonly Weekday[];
   /** Optional V2 effective work capacity per weekday (not a target). */
   maximumEffectiveMinutesByWeekday?:WeekdayNumbers;
-  /** SOFT target for people scheduled per OPEN day, not per minute. */
-  dailyStaffingTargetPercent?:number;
   /**
    * SOFT optimization budget. Unlike minimum staffing, this does NOT
    * certify hours or set a contractual daily maximum. With all three
@@ -205,11 +204,6 @@ function validate(input:WeekendRotationInput):RotationIssue[] {
         invalid("A capacidade de trabalho de "+day+" é inválida.");
     }
   }
-  if(input.dailyStaffingTargetPercent!==undefined &&
-    (!Number.isInteger(input.dailyStaffingTargetPercent) ||
-      input.dailyStaffingTargetPercent<1 ||
-      input.dailyStaffingTargetPercent>100))
-    invalid("O objetivo diário de presença deve ser entre 1% e 100%.");
   if(input.workloadPreference!==undefined){
     const pref=input.workloadPreference;
     if(!pref || !Number.isSafeInteger(pref.cycleReferenceMinutes) ||
@@ -346,9 +340,9 @@ function findRestPatterns(
     // necessarily staffing. Improve it with strict, deterministic local
     // swaps of a single person's off-days, preserving each person's
     // mandatory/fixed days and total rest exactly.
-    if(input.dailyStaffingTargetPercent!==undefined){
+    if(input.workloadPreference!==undefined){
       const target=desiredDailyHeadcount(input.members.length,
-        input.dailyStaffingTargetPercent);
+        DAILY_STAFFING_REFERENCE_PERCENT);
       const targets=IDS.map(day=>closures.has(day)?0:target);
       const open=IDS.map(day=>!closures.has(day));
       const rank=()=>scoreDailyStaffing(present,targets,open);
@@ -510,14 +504,11 @@ export function planWeekendRotation(
     // Reserving at least the desired number of people on BOTH weekend
     // days is a soft preference. If fixed rest already leaves fewer,
     // we preserve the hard rules and report the remaining shortfall.
-    const weekendTarget=input.dailyStaffingTargetPercent===undefined
-      ?input.members.length
-      :desiredDailyHeadcount(input.members.length,
-        input.dailyStaffingTargetPercent);
+    const weekendTarget=desiredDailyHeadcount(input.members.length,
+      DAILY_STAFFING_REFERENCE_PERCENT);
     const weekendOpen=!closures.has("saturday")||
       !closures.has("sunday");
-    const optionalWeekendBudget=weekendOpen &&
-      input.dailyStaffingTargetPercent!==undefined
+    const optionalWeekendBudget=weekendOpen && pref
       ?Math.max(forced.size,input.members.length-weekendTarget)
       :input.members.length;
     const weeklyGrantBudget=Math.min(perWeekBudget,optionalWeekendBudget);
