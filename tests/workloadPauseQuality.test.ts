@@ -220,6 +220,15 @@ test("PR92: rotação sensível à carga reduz e reparte jornadas longas antes d
     "a nova rotação deve superar as 20 jornadas longas do PR91: "+totalLong);
   assert.ok(Math.max(...longs.values())<12,
     "não concentrar novamente doze jornadas numa pessoa: "+JSON.stringify([...longs]));
+  const weeks=result.rotation?.weeks??[];
+  assert.equal(weeks.length,4);
+  for(let i=1;i<weeks.length;i++){
+    const before=new Set(weeks[i-1].fullWeekendOffMemberIds);
+    assert.ok(weeks[i].fullWeekendOffMemberIds.every(id=>!before.has(id)),
+      "não repetir descansos completos em semanas consecutivas: "+weeks[i].weekStart);
+  }
+  assert.ok(result.rotation?.weekendCounts.every(m=>m.planned>=1),
+    "nenhuma pessoa deve ser excluída do descanso de fim de semana");
   for(const member of config.team.members)
     assert.equal(cycle.filter(a=>a.memberId===member.id)
       .reduce((sum,a)=>sum+assignmentMinutes(a),0),9600);
