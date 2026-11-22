@@ -25,12 +25,14 @@ type WriteStorage=Pick<Storage,"getItem"|"setItem">;
 export type MonthlyDraftLoad=
   | {status:"loaded";assignments:WorkAssignment[];
     mealBreaks:MealBreak[];mealBreakPolicy?:"v1"|"v2";hoursPolicy?:"rolling28";
+    functionalCoveragePolicy?:"qualified50";
     rotationRest?:PlannedRestWeekMember[];revision:string}
   | {status:"empty";assignments:null;revision:null}
   | {status:"invalid"|"unavailable";assignments:null;revision:null};
 export type MonthlyDraftSave=
   | {ok:true;revision:string;assignments:WorkAssignment[];
     mealBreaks:MealBreak[];mealBreakPolicy?:"v1"|"v2";hoursPolicy?:"rolling28";
+    functionalCoveragePolicy?:"qualified50";
     rotationRest?:PlannedRestWeekMember[]}
   | {ok:false;code:"invalid"|"unavailable"|"conflict";message:string};
 export type ExternalContextLoad=
@@ -118,7 +120,7 @@ export function loadMonthlyDraft(
     const document=value as {
       version?:unknown;year?:unknown;month?:unknown;assignments?:unknown;
       mealBreakPolicy?:unknown;mealBreaks?:unknown;hoursPolicy?:unknown;
-      rotationRest?:unknown;
+      functionalCoveragePolicy?:unknown;rotationRest?:unknown;
     };
     if(document.version!==VERSION||document.year!==year||document.month!==month)
       return {status:"invalid",assignments:null,revision:null};
@@ -127,8 +129,18 @@ export function loadMonthlyDraft(
       return {status:"invalid",assignments:null,revision:null};
     const hoursPolicy=document.hoursPolicy==="rolling28"
       ?{hoursPolicy:"rolling28" as const}:{};
+    if(document.functionalCoveragePolicy!==undefined &&
+      (document.functionalCoveragePolicy!=="qualified50" ||
+      document.mealBreakPolicy!=="v2"))
+      return {status:"invalid",assignments:null,revision:null};
+    const functionalCoveragePolicy=document.functionalCoveragePolicy==="qualified50"
+      ?{functionalCoveragePolicy:"qualified50" as const}:{};
     const assignments=validatedAssignments(document.assignments,year,month);
-    if(assignments===null)return {status:"invalid",assignments:null,revision:null};
+    if(assignments===null ||
+      (document.functionalCoveragePolicy==="qualified50"
+        ?assignments.some(s=>s.role===undefined)
+        :assignments.some(s=>s.role!==undefined)))
+      return {status:"invalid",assignments:null,revision:null};
     const rotationRest=document.rotationRest===undefined?undefined:
       validatePlannedRest(document.rotationRest,year,month,assignments);
     if(rotationRest===null || (rotationRest!==undefined &&
@@ -142,7 +154,8 @@ export function loadMonthlyDraft(
       if(!validSingleShiftMeals(assignments))
         return {status:"invalid",assignments:null,revision:null};
       return {status:"loaded",assignments,mealBreaks:[],
-        mealBreakPolicy:"v2",...hoursPolicy,...restFields,revision:raw};
+        mealBreakPolicy:"v2",...hoursPolicy,...functionalCoveragePolicy,
+        ...restFields,revision:raw};
     }
     if(document.mealBreakPolicy!=="v1")
       return {status:"invalid",assignments:null,revision:null};
@@ -163,11 +176,19 @@ export function saveMonthlyDraft(
   mealBreaksInput:unknown=undefined,mealBreakPolicy:"v1"|"v2"|undefined=undefined,
   hoursPolicy:"rolling28"|undefined=undefined,
   rotationRestInput:unknown=undefined,
+  functionalCoveragePolicy:"qualified50"|undefined=undefined,
 ):MonthlyDraftSave {
   const key=monthlyDraftKey(year,month);
   const assignments=validatedAssignments(input,year,month);
   if(assignments===null)
     return {ok:false,code:"invalid",message:"O horário contém turnos inválidos ou fora do mês selecionado."};
+  if((functionalCoveragePolicy!==undefined &&
+      (functionalCoveragePolicy!=="qualified50"||mealBreakPolicy!=="v2"||
+        assignments.some(s=>s.role===undefined))) ||
+    (functionalCoveragePolicy===undefined &&
+      assignments.some(s=>s.role!==undefined)))
+    return {ok:false,code:"invalid",message:
+      "A proposta tem funções sem política de cobertura válida ou turnos sem função atribuída."};
   if(rotationRestInput!==undefined && mealBreakPolicy!=="v2")
     return {ok:false,code:"invalid",message:
       "O descanso explícito só é suportado nas propostas com turnos V2."};
@@ -200,6 +221,7 @@ export function saveMonthlyDraft(
     ...(mealBreakPolicy==="v1"?{mealBreakPolicy,mealBreaks}:{}),
     ...(mealBreakPolicy==="v2"?{mealBreakPolicy}:{}),
     ...(hoursPolicy?{hoursPolicy}:{}),
+    ...(functionalCoveragePolicy?{functionalCoveragePolicy}:{}),
     ...(rotationRest===undefined?{}:{rotationRest}),
   });
   try{
@@ -207,6 +229,7 @@ export function saveMonthlyDraft(
     return {ok:true,revision,assignments,mealBreaks,
       ...(mealBreakPolicy?{mealBreakPolicy}:{}),
       ...(hoursPolicy?{hoursPolicy}:{}),
+      ...(functionalCoveragePolicy?{functionalCoveragePolicy}:{}),
       ...(rotationRest===undefined?{}:{rotationRest}),
     };
   }catch{return {ok:false,code:"unavailable",message:"Não foi possível guardar a proposta neste dispositivo."};}
@@ -258,11 +281,13 @@ export function loadMonthlyDraftFromBrowser(year:number,month:number):MonthlyDra
 export function saveMonthlyDraftToBrowser(
   year:number,month:number,assignments:unknown,expectedRevision:string|null,
   mealBreaks?:unknown,mealBreakPolicy?:"v1"|"v2",
-  hoursPolicy?:"rolling28",rotationRest?:unknown
+  hoursPolicy?:"rolling28",rotationRest?:unknown,
+  functionalCoveragePolicy?:"qualified50"
 ):MonthlyDraftSave {
   try{return saveMonthlyDraft(
     window.localStorage,year,month,assignments,expectedRevision,
-    mealBreaks,mealBreakPolicy,hoursPolicy,rotationRest
+    mealBreaks,mealBreakPolicy,hoursPolicy,rotationRest,
+    functionalCoveragePolicy
   );}
   catch{return {ok:false,code:"unavailable",message:"Não foi possível guardar neste dispositivo."};}
 }
