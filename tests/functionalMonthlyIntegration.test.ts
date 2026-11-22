@@ -7,6 +7,7 @@ import {enumerateCivilDays,resolvePlanningPeriod} from "../src/schedulePeriods";
 import {saveMonthlyDraft,loadMonthlyDraft} from "../src/monthlyScheduleDraftRepository";
 import {allocateFunctionalMonth} from "../src/functionalScheduling";
 import {certifyFunctionalCoverage} from "../src/functionalCoverage";
+import {analyzeFunctionalCapacity} from "../src/functionalCapacityAnalysis";
 import {assignmentMinutes} from "../src/workAssignments";
 import type {WorkAssignment} from "../src/workAssignments";
 
@@ -94,19 +95,27 @@ test("PR94: calendário de 31 dias mantém um único posto por turno",()=>{
     i.code==="FUNCTIONAL_ASSIGNMENT_INVALID"));
 });
 
-test("PR94: quando é impossível cumprir 50% das duas funções, nunca declara válido",()=>{
+test("PR94: meta de 50% impossível não invalida um horário operacionalmente válido",()=>{
   const input=sample(2,2,4,"28d");
   input.team={
     members:input.team.members.map(person=>({...person,weeklyDaysOff:2})),
   };
   const result=generateSchedule(input);
   assert.equal(result.functionalCoveragePolicy,"qualified50");
-  assert.equal(result.certification.status,"invalid");
-  assert.ok(result.certification.issues.some(i=>
-    i.code==="FUNCTIONAL_COVERAGE_GAP"),
+  assert.equal(result.certification.status,"valid",
     JSON.stringify(result.certification.issues.slice(0,10)));
-  assert.equal(result.status,"invalid");
+  assert.equal(result.status,"valid");
   assert.ok(result.candidateAssignments.every(shift=>shift.role));
+  assert.ok(!result.certification.issues.some(i=>
+    i.code==="FUNCTIONAL_COVERAGE_GAP"||
+    i.code==="FUNCTIONAL_CAPACITY_SHORTFALL"));
+  const quality=analyzeFunctionalCapacity({
+    period:input.period,team:input.team,openingHours:input.openingHours,
+    assignments:result.candidateAssignments,minimumPercent:50,
+  });
+  assert.ok(quality);
+  assert.ok(quality.observedRoleGapMinutes>0,
+    "a diferença à meta permanece visível, mas nunca é um HARD issue");
 });
 
 test("PR94: a ausência ou falsificação de postos invalida a proposta funcional",()=>{
