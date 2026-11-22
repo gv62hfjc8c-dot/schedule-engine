@@ -10,7 +10,7 @@ import {
 import {generateSchedule} from "../src/generateSchedule";
 import {certifySchedule} from "../src/certifySchedule";
 import {suggestedWeeklyOpeningHours} from "../src/operatingHours";
-import {balanceLongWorkdays,compareDailyWorkload,dailyWorkloadQuality}
+import {balanceLongWorkdays,compareDailyWorkloadWithLongDayCount,dailyWorkloadQuality}
   from "../src/dailyWorkloadBalance";
 
 const IDS=Array.from({length:8},(_,i)=>
@@ -124,16 +124,16 @@ test("quatro turnos normais + domingo curto: menos dias >9h sem acrescentar minu
   const original=dailyWorkloadQuality(plans.map(p=>p.allocated));
   assert.equal(original.daysBeyondNine,4);
   const before=plans.reduce((sum,p)=>sum+p.allocated,0);
-  balanceLongWorkdays(plans);
+  balanceLongWorkdays(plans,true);
   const quality=dailyWorkloadQuality(plans.map(p=>p.allocated));
   assert.equal(quality.daysBeyondNine,2);
   assert.equal(quality.beyondNineMinutes,original.beyondNineMinutes);
-  assert.ok(compareDailyWorkload(quality,original)<0);
+  assert.ok(compareDailyWorkloadWithLongDayCount(quality,original)<0);
   assert.equal(plans.reduce((sum,p)=>sum+p.allocated,0),before);
   assert.ok(plans.every(p=>p.allocated<=p.capacity));
   assert.equal(plans[4].allocated,300,"domingo curto integral");
   const after=JSON.stringify(plans);
-  balanceLongWorkdays(plans);
+  balanceLongWorkdays(plans,true);
   assert.equal(JSON.stringify(plans),after);
 });
 
