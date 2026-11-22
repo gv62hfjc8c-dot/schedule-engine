@@ -47,6 +47,7 @@ export interface ScheduleDiagnosticInput {
   mealBreaks:readonly MealBreak[];
   mealBreakPolicy:"v1"|"v2"|null;
   hoursPolicy:"rolling28"|null;
+  functionalCoveragePolicy:"qualified50"|null;
   plannedRest:readonly PlannedRestWeekMember[];
   externalContext:ExternalScheduleContext|null;
   rollingHistory:ExternalScheduleContext|null;
@@ -172,6 +173,7 @@ export function buildScheduleDiagnostic(input:ScheduleDiagnosticInput) {
       mealBreaks:input.mealBreaks,
       mealBreakPolicy:input.mealBreakPolicy,
       hoursPolicy:input.hoursPolicy,
+      functionalCoveragePolicy:input.functionalCoveragePolicy,
       explicitlyPlannedRest:input.plannedRest,
       savedAssignmentsForComparison:input.savedAssignments,
     },
@@ -208,6 +210,7 @@ export function buildScheduleDiagnostic(input:ScheduleDiagnosticInput) {
       scheduleType:"proposta, não trabalho realizado nem aprovação",
       hours:"minutos de trabalho efetivo, excluindo pausa de refeição",
       staffing:"pessoas distintas com turno em cada dia, não presença simultânea",
+      functions:"um posto por pessoa e turno; cobertura por função só verificada em propostas com política functionalCoveragePolicy=qualified50",
       rest:"somente descanso explicitamente planeado, nunca ausência de turno",
       context:"datas sem histórico confirmado permanecem desconhecidas",
     },
