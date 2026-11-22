@@ -41,8 +41,9 @@ function optimizeDay(
   let chosen=baseline;
   let loss=functionalLoss(chosen.certification);
   if(loss===0)return applyRoles(shifts,chosen.allocations);
-  // There are not enough effective worker-minutes EVEN IF every minute were
-  // perfectly placed. Retiming cannot fix a mathematically short day.
+  // The soft 50% goal exceeds available worker-minutes in this day.
+  // Retiming cannot reach the goal; preserve all HARD constraints and
+  // return the best deterministic role allocation without inventing hours.
   const demand=Object.values(chosen.certification.targets)
     .reduce((sum,n)=>sum+n,0)*
     opening.reduce((sum,w)=>sum+clockMinutes(w.end)-clockMinutes(w.start),0);
@@ -126,8 +127,9 @@ function applyRoles(
   });
 }
 /** Monthly output includes a single functional post for each scheduled person.
- * All open dates are considered; requirements are recomputed independently
- * by the external certifier. Never changes the number of workdays or minutes.
+ * All open dates are considered; the 50% presence GOAL is SOFT.
+ * Role qualification/integrity is checked separately as HARD.
+ * Never changes the number of workdays or effective work minutes.
  */
 export function allocateFunctionalMonth(
   assignments:readonly WorkAssignment[],
