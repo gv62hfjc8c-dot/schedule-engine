@@ -78,13 +78,12 @@ export function TeamEditor() {
       setFeedback({kind:"error",message:"O colaborador já não está disponível para edição."});
       return;
     }
+    const qualifiedRoles=qualifiedRolesFor(roleChoice);
     const changed={
       id,
       name,
       active:current?.active??true,
-      ...(qualifiedRolesFor(roleChoice)===undefined?{}:{
-        qualifiedRoles:qualifiedRolesFor(roleChoice)!,
-      }),
+      ...(qualifiedRoles===undefined?{}:{qualifiedRoles}),
       ...(weeklyDaysOff===null?{}:{weeklyDaysOff}),
       ...(fixedDayOff===null?{}:{fixedDaysOff:[fixedDayOff]}),
       ...(weekendRotation?{weekendRest:{
