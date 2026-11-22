@@ -1224,3 +1224,58 @@ com o JSON exportado. Não criar simuladores isolados
 por dia. PR94 permanece OPEN/DRAFT, sem merge; o PR93
 de UI responsiva é separado. Não publicar no Cloudflare
 sem autorização posterior.
+
+
+### PR94 — Regressão real novembro: ausência completa temporária de uma função
+
+No diagnóstico de teste `schedule-engine-diagnostico-2026-11-9.json`
+(exportado em 22/11/2026, 22:23 UTC, não armazenar no GitHub por
+conter dados pessoais), a geração mensal passou corretamente a
+`insufficient_context`, com **apenas dois CONTEXT_INCOMPLETE**
+referentes a 26–31 de outubro e 1–6 de dezembro. Não existem
+`FUNCTIONAL_COVERAGE_GAP` como violações HARD; os 50% são SOFT.
+Mantêm-se 160h efetivas por cada pessoa no ciclo 2–29/11, 8
+jornadas acima de 9h, 0 minutos de abertura sem trabalhadores ou
+com apenas um, e pelo menos 5 escalados/dia.
+
+A análise independente dos postos revelou uma falha SOFT mais
+importante do que a distância global aos 50%: **300 minutos sem
+qualquer Caixa efetivamente ao serviço e 150 minutos sem
+qualquer pessoa em Vendas**, distribuídos por 10 dias.
+A empresa não fica sem pessoas no total, mas uma função fica
+temporalmente deserta. Exemplos: 03/11 Caixa 08:30–09:00 e
+12:30–13:00; 20/11 Vendas 08:30–09:00 e 12:30–13:00.
+Não converter esta ocorrência em HARD sem requisito explícito.
+
+**Causa técnica identificada:** `src/functionalScheduling.ts`
+interrompia a otimização de pausas de um dia assim que a
+capacidade efetiva total era inferior à meta teórica de 50%.
+Isto confundia «não é possível satisfazer integralmente a
+meta SOFT» com «não vale a pena melhorar parcialmente».
+Correção no PR94: continuar uma busca local determinística e
+LIMITADA mesmo quando o total da meta é impossível,
+privilegiando primeiro minutos sem ninguém numa função
+(SOFT prioritária), depois a distância agregada aos 50%
+(SOFT), e por último a menor alteração de horários. Respeitar
+sempre a prioridade HARD: não piorar minutos sem qualquer
+trabalhador a operar, e não reintroduzir faltas já resolvidas.
+Com empate na cobertura HARD, não piorar minutos com apenas
+uma pessoa em operação. As jornadas, horas efetivas e
+dias de descanso mantêm-se intocados.
+
+**Observabilidade:** a análise/exportação adiciona os campos
+`emptyRoleMinutes` por função, por dia e no total mensal.
+O calendário apresenta alerta SOFT e dias concretos com
+funções desertas, separado dos erros obrigatórios e da meta
+global dos 50%. Os campos existentes mantêm-se para
+compatibilidade. Há regressão automática com uma meta
+de 36 horas-pessoa e apenas 32 disponíveis, mas pausas
+que podem ser alternadas para evitar ausência total
+de uma função, sem acrescentar horas nem afetar a
+cobertura geral.
+
+**Estado:** melhorias implementadas e sujeitas a CI; não
+declarar que os 450 minutos do JSON anterior já foram
+eliminados sem **nova geração real no Safari e exportação
+de novo diagnóstico**. PR94 permanece Draft, sem merge
+nem publicação Cloudflare.
