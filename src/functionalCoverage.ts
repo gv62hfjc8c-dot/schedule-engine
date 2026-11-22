@@ -79,7 +79,8 @@ function read(input:FunctionalCoverageInput):Validated|null {
   if(!input || !Number.isFinite(input.minimumPercent) ||
     input.minimumPercent<0 || input.minimumPercent>100 ||
     !Array.isArray(input.roles) || !input.roles.length ||
-    input.roles.some(role=>typeof role!=="string" || !role.trim()) ||
+    input.roles.some(role=>typeof role!=="string" ||
+      !/^[a-z][a-z0-9_-]*$/.test(role)) ||
     new Set(input.roles).size!==input.roles.length ||
     !Array.isArray(input.members) ||
     !Array.isArray(input.assignments) ||
@@ -96,7 +97,8 @@ function read(input:FunctionalCoverageInput):Validated|null {
       members.has(person.id) ||
       (person.qualifiedRoles!==undefined &&
         (!Array.isArray(person.qualifiedRoles) ||
-          person.qualifiedRoles.some(role=>typeof role!=="string") ||
+          person.qualifiedRoles.some((role:unknown)=>
+            typeof role!=="string" || !/^[a-z][a-z0-9_-]*$/.test(role)) ||
           new Set(person.qualifiedRoles).size!==person.qualifiedRoles.length)))
       return null;
     members.set(person.id,person);
