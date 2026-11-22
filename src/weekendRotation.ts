@@ -245,13 +245,15 @@ function bestPreferredWeekCapacity(
   closures:ReadonlySet<Weekday>,
   dailyCap:WeekdayNumbers,
   preferredUpperDailyMinutes:number,
+  requireWorkingSunday=false,
 ):number {
   const required=requiredRestDayCount(member,awarded,[...closures]);
   const mandatory=mandatoryMask(member,closures)|
     (awarded?WEEKEND_MASK:0);
   let best=-1;
   for(let mask=0;mask<128;mask++){
-    if((mask&mandatory)!==mandatory||bits(mask)!==required)continue;
+    if((mask&mandatory)!==mandatory||bits(mask)!==required ||
+      (requireWorkingSunday && has(mask,6)))continue;
     const fullyClosed=closures.has("saturday")&&closures.has("sunday");
     if(awarded && !fullyClosed &&
       bits(mask&WEEKDAYS_MASK)<
@@ -445,10 +447,31 @@ export function planWeekendRotation(
   let cycleStart=-1;
   let quota=new Map<string,number>();
   let used=new Map<string,number>();
+  let preferredForecast=new Map<string,{normal:number;awarded:number}>();
   function startCycle(index:number):void {
     cycleStart=index;
     used=new Map(input.members.map(member=>[member.id,0]));
     const length=Math.min(cycleLength,input.weeks-index);
+    // A Sunday opening shorter than the normal 9h threshold has a real
+    // opportunity cost. Forecast an ordinary week with Sunday worked
+    // when possible; otherwise "rest Sunday" can make two weekly-rest
+    // policies look equally affordable even when Sunday coverage forces
+    // most members to work a five-hour shift.
+    preferredForecast=new Map(input.members.map(member=>{
+      if(!pref || !dailyMax)return [member.id,{normal:0,awarded:0}] as const;
+      const requiresSunday=dailyMax.sunday>0 &&
+        dailyMax.sunday<pref.preferredUpperDailyMinutes &&
+        !member.fixedDaysOff.includes("sunday") &&
+        !closures.has("sunday");
+      const realistic=requiresSunday?bestPreferredWeekCapacity(
+        member,false,closures,dailyMax,
+        pref.preferredUpperDailyMinutes,true):-1;
+      const normal=realistic>=0?realistic:bestPreferredWeekCapacity(
+        member,false,closures,dailyMax,pref.preferredUpperDailyMinutes);
+      const awarded=bestPreferredWeekCapacity(
+        member,true,closures,dailyMax,pref.preferredUpperDailyMinutes);
+      return [member.id,{normal,awarded}] as const;
+    }));
     quota=new Map(input.members.map(member=>{
       if(!pref || !dailyMax || member.eligibleFullWeekend===false)
         return [member.id,length] as const;
@@ -529,6 +552,24 @@ export function planWeekendRotation(
         const totalDiff=(left.prior+left.planned)-
           (right.prior+right.planned);
         if(totalDiff!==0)return totalDiff;
+        // Within the same FULL-weekend fairness tier, prioritize those
+        // whose 28-day preferred-capacity forecast remains healthier after
+        // another award. This is SOFT and never overrides fixed rest,
+        // feasibility, or the historical count of awarded weekends.
+        // Respect explicit prior-weekend history as a first tie-breaker.
+        if(pref && dailyMax && !historyProvided &&
+          Math.min(cycleLength,input.weeks-cycleStart)===cycleLength){
+          const forecast=(member:RotationMember)=>{
+            const values=preferredForecast.get(member.id);
+            if(!values || values.normal<0 || values.awarded<0)return -Infinity;
+            const awarded=(used.get(member.id)??0)+1;
+            return values.normal*(cycleLength-awarded)+
+              values.awarded*awarded;
+          };
+          const difference=forecast(b)-forecast(a);
+          if(Number.isFinite(difference) && difference!==0)
+            return difference;
+        }
         if(left.last!==right.last){
           if(left.last===null)return -1;
           if(right.last===null)return 1;
