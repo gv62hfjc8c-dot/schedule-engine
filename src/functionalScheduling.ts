@@ -132,10 +132,9 @@ function applyRoles(
 export function allocateFunctionalMonth(
   assignments:readonly WorkAssignment[],
   period:PlanningPeriod,members:readonly TeamMember[],
-  hours:WeeklyOpeningHours,
+  hours:WeeklyOpeningHours,roleCatalog:readonly string[],
 ):WorkAssignment[] {
-  const roles=[...new Set(members.filter(m=>m.active)
-    .flatMap(m=>m.qualifiedRoles??[]))].sort();
+  const roles=[...roleCatalog];
   const byDate=new Map<string,WorkAssignment[]>();
   for(const shift of assignments){
     const day=byDate.get(shift.date)??[];
