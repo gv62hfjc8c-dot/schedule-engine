@@ -10,6 +10,7 @@ import {
 import {generateSchedule} from "../src/generateSchedule";
 import {certifySchedule} from "../src/certifySchedule";
 import {suggestedWeeklyOpeningHours} from "../src/operatingHours";
+import {civilDayOfWeek} from "../src/schedulePeriods";
 import {balanceLongWorkdays,compareDailyWorkloadWithLongDayCount,dailyWorkloadQuality}
   from "../src/dailyWorkloadBalance";
 
@@ -223,6 +224,19 @@ test("PR92: rotação sensível à carga reduz e reparte jornadas longas antes d
     assert.equal(cycle.filter(a=>a.memberId===member.id)
       .reduce((sum,a)=>sum+assignmentMinutes(a),0),9600);
   assert.equal(result.dailyStaffing?.daysBelowTarget,0);
+  // Recheck minute-by-minute presence across the WHOLE month, not only
+  // the four Saturdays that prompted the preceding regressions.
+  for(const date of new Set(result.candidateAssignments.map(a=>a.date))){
+    const intervals=config.openingHours.days[civilDayOfWeek(date)].intervals
+      .map(window=>({
+        start:clockMinutes(window.start),end:clockMinutes(window.end),
+      }));
+    if(intervals.length===0)continue;
+    const quality=measureSimultaneousCoverage(
+      result.candidateAssignments.filter(a=>a.date===date),intervals);
+    assert.deepEqual(quality,{uncoveredMinutes:0,soloMinutes:0},
+      "presença simultânea insuficiente em "+date);
+  }
   assert.equal(result.status,"insufficient_context");
   assert.ok(result.certification.issues.every(i=>i.code==="CONTEXT_INCOMPLETE"));
   for(const date of ["2026-11-07","2026-11-14",
