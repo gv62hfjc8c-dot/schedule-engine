@@ -807,3 +807,50 @@ simultaneamente em todos os minutos. Não se promete que a referência
 seja sempre viável nem que a solução seja um ótimo global. O
 certificador independente continua a validar as hard constraints.
 Não fazer merge antes da aceitação no Safari.
+
+
+### PR89 — Exportação de diagnóstico reprodutível (22/11/2026)
+
+Decisão: acrescentar **um único botão "Exportar diagnóstico" ao calendário**,
+sem nova configuração, separador, conta, API ou base de dados.
+
+- O botão guarda um ficheiro JSON local
+  `schedule-engine-diagnostico-AAAA-MM.json`. A exportação não cria,
+  recalcula, modifica, aprova nem substitui o horário; também funciona
+  com uma proposta gerada ainda não guardada, com edições manuais e com
+  um mês apenas configurado.
+- `src/diagnosticExport.ts`: constrói um snapshot de versão 1 com a
+  equipa e regras individuais, horários de funcionamento, **todos os
+  turnos visíveis** (sem aplicar o filtro de colaborador), pausas,
+  descanso explicitamente planeado, proposta guardada para comparação,
+  rotação, resultado do algoritmo, certificação e conflitos, contexto
+  das semanas de fronteira e histórico para as horas móveis de 28 dias.
+  Inclui resumos por dia e por colaborador: trabalho efetivo, domingos,
+  jornadas acima de 8h/9h, fins de semana livres e dias escalados.
+- `src/CalendarScheduler.tsx`: obtém sempre a configuração e o contexto
+  atuais do navegador. Se a configuração tiver mudado desde a geração,
+  identifica essa diferença e inclui **a cópia exata dos dados usados
+  originalmente** para a geração, preservada no snapshot da proposta.
+  O download usa `Blob` e `a.download` sem enviar dados a serviços.
+- São exportados somente campos explícitos e validados; **não são
+  exportados tokens de autenticação, palavras-passe, cookies, chaves
+  ou todo o `localStorage`**. O JSON **contém dados pessoais** como
+  nomes e horários. A pessoa que o descarrega decide se o partilha.
+  Nunca é carregado automaticamente para uma conversa.
+- A estrutura indica que um dia sem turno **não é uma folga automática**,
+  que as horas são de trabalho efetivo planeado e que o diagnóstico
+  de colaboradores por dia **não representa presenças simultâneas**.
+  Se faltarem dados de contexto, preserva-se o aviso — não se inventam
+  aprovações nem se converte incerteza em horário válido.
+- `tests/diagnosticExport.test.ts` e `tests/interfaceContract.test.ts`:
+  cobertura de exportação sem horário guardado, coerência com turnos,
+  totais por pessoa, feriados/descansos explícitos, imutabilidade,
+  compatibilidade de cenários anteriores, dados de entrada originais
+  quando a configuração mudou e ausência de campos sensíveis de sessão.
+
+**Teste funcional no Safari:** atualizar a branch do PR89, gerar
+novembro na configuração atual e carregar em "Exportar diagnóstico".
+Abrir o ficheiro JSON, verificar que contém os colaboradores, folgas,
+turnos e eventuais alertas esperados. Enviar esse JSON para a
+conversa apenas se for apropriado partilhar os dados da equipa.
+**Não é necessário guardar nem aprovar a proposta** para exportar.
