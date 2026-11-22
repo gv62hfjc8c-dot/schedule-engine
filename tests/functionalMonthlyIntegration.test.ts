@@ -5,6 +5,9 @@ import {certifySchedule} from "../src/certifySchedule";
 import {suggestedWeeklyOpeningHours} from "../src/operatingHours";
 import {enumerateCivilDays,resolvePlanningPeriod} from "../src/schedulePeriods";
 import {saveMonthlyDraft,loadMonthlyDraft} from "../src/monthlyScheduleDraftRepository";
+import {allocateFunctionalMonth} from "../src/functionalScheduling";
+import {certifyFunctionalCoverage} from "../src/functionalCoverage";
+import {assignmentMinutes} from "../src/workAssignments";
 import type {WorkAssignment} from "../src/workAssignments";
 
 function sample(checkouts:number,sales:number,flexible:number,mode:"monthly"|"28d"="monthly"){
@@ -169,4 +172,35 @@ test("PR94: gravação/leitura preserva funções e política e os legados conti
     assert.equal(legacy.functionalCoveragePolicy,undefined);
     assert.deepEqual(legacy.assignments,[]);
   }
+});
+
+
+test("PR94: o planeador corrige pausas simultâneas em ambos os postos sem mudar horas",()=>{
+  const input=sample(2,2,0,"28d");
+  const date="2026-11-02";
+  const members=input.team.members;
+  const shifts=members.map(m=>({
+    memberId:m.id,date,start:"09:00",end:"18:00",
+    mealBreak:{start:"12:00",end:"13:00"},
+  }));
+  for(const day of input.openingHours.days)day.intervals=[
+    {start:"09:00",end:"18:00"},
+  ];
+  const period=resolvePlanningPeriod(input.period);
+  const plan=allocateFunctionalMonth(shifts,period,members,input.openingHours);
+  assert.equal(plan.length,4);
+  assert.deepEqual(plan.map(a=>assignmentMinutes(a)),
+    shifts.map(a=>assignmentMinutes(a)),
+    "o ajuste não pode inventar ou retirar minutos efetivos");
+  const functional=certifyFunctionalCoverage({
+    date,assignments:plan,members,opening:[{start:"09:00",end:"18:00"}],
+    roles:["checkout","sales"],minimumPercent:50,
+  },plan.map(a=>({memberId:a.memberId,role:a.role!})));
+  assert.equal(functional.status,"covered",JSON.stringify(functional.issues));
+  assert.ok(plan.some(a=>a.mealBreak?.start!=="12:00"),
+    "o escalonador deve separar pausas coincidentes por função");
+  for(const role of ["checkout","sales"])assert.ok(
+    functional.slots.every(slot=>slot.counts[role]>=1));
+  assert.deepEqual(allocateFunctionalMonth(shifts,period,members,input.openingHours),
+    plan,"determinismo");
 });
