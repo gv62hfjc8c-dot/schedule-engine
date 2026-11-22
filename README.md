@@ -900,3 +900,22 @@ caso real, que não é atualizado automaticamente.
 **Estado:** PR90 em Draft, não integrado. Reexecutar novembro no Safari
 e exportar o novo JSON; comparar `analysis.quality` com o diagnóstico
 anterior. Se o resultado real piorar noutra dimensão, não fazer merge.
+
+**Validação funcional adicional com o diagnóstico real do Safari
+(22/11/2026, exportado às 10:30:05 UTC):** confirmado o mesmo
+resultado de **56** jornadas acima de 9h, **0 minutos** com apenas
+uma pessoa em trabalho efetivo, **0 minutos** sem cobertura em
+**todo o mês**, **169** turnos, oito colaboradores e **160h efetivas
+por pessoa entre 2 e 29/11**. Verificação independente minuto a
+minuto confirmou o mínimo de **duas** pessoas a trabalhar durante
+todos os intervalos abertos, sem turnos duplicados, pausas inválidas
+ou trabalho em folgas fixas. A melhoria do número de jornadas longas
+ocorre especialmente em duas pessoas, com 16 → 12 jornadas acima
+de 9h cada. As restantes distribuições mantiveram-se.
+
+**Limitação preservada:** o certificador sinaliza
+`insufficient_context` exclusivamente para a falta de histórico
+confirmado de 26–31/10 e 1–6/12. Não declarar novembro
+globalmente certificado até existirem dados das semanas vizinhas;
+não converter ausência de histórico em folga ou aprovação. A
+pré-visualização testada não alterou a proposta anteriormente guardada.
