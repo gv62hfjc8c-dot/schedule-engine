@@ -577,8 +577,22 @@ export function planWeekendRotation(
         }
         return a.id.localeCompare(b.id);
       });
+    // Spacing is SOFT: a voluntary second consecutive full weekend is
+    // less fair than leaving that award unused when another eligible
+    // colleague can be considered. Do not modify mandatory weekend rest,
+    // and allow repetition if literally nobody else is eligible.
+    //
+    // The last award may come from verified pre-period history, so this
+    // comparison also works across month and 28-day cycle boundaries.
+    // Missing history remains UNKNOWN, never reconstructed from "no shift".
+    const previousWeek=addCivilDays(weekStart,-7);
+    const alternativeEligible=candidates.some(member=>
+      counts.get(member.id)!.last!==previousWeek);
     for(const candidate of candidates){
       if(pref && forced.size>=weeklyGrantBudget)break;
+      if(alternativeEligible &&
+        counts.get(candidate.id)!.last===previousWeek)
+        continue;
       const proposed=new Set([...forced,candidate.id]);
       const trial=findRestPatterns(input,proposed,closures);
       if(trial.status==="feasible"){
