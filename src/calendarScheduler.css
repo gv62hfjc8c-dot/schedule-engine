@@ -618,46 +618,9 @@
   color: #f1d6a8;
 }
 
-
-.schedule-staffing-overview {
-  margin-top: 14px;
-  padding: 16px;
-  border: 1px solid #425c70;
-  background: #1d3448;
-  border-radius: 11px;
-}
-.schedule-staffing-heading {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px 18px;
-}
-.schedule-staffing-heading h3 {
-  font-size: 15px;
-  margin: 0;
-  color: #e0f3f4;
-}
-.schedule-staffing-heading strong {
-  color: #c1e8e8;
-  font-size: 14px;
-}
-.schedule-staffing-overview p, .schedule-staffing-overview small {
-  color: #adc6d7;
+.schedule-rotation-staffing-summary {
+  margin: 10px 0 8px;
+  color: #b7d5dc;
   font-size: 12px;
-  line-height: 1.6;
-}
-.schedule-staffing-gaps {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 7px;
-  margin: 10px 0;
-}
-.schedule-staffing-gaps span {
-  border: 1px solid #785e54;
-  background: #3c3338;
-  border-radius: 7px;
-  padding: 6px 9px;
-  color: #f3dbce;
-  font-size: 12px;
+  line-height: 1.5;
 }
