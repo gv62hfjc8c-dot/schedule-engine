@@ -355,7 +355,7 @@ function OperatingHoursPage() {
             </p>
           </div>
           {feedback && (
-            <p className={feedback.type==="error" ? "form-error" : "form-success"
+            <p className={feedback.type==="error" ? "form-error" : "form-success"}
               role={feedback.type==="error" ? "alert" : "status"}>
               {feedback.message}
             </p>
