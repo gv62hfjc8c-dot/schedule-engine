@@ -1089,3 +1089,20 @@ test("PR83: a proteção da janela curta é genérica, sem nome de dia",()=>{
     assert.ok(out.candidateAssignments.every(a=>a.date!==dates[closedIndex]));
   }
 });
+
+
+test("PR94: qualificação em Caixa/Vendas não altera turnos sem regras por função",()=>{
+  const baseline=week();
+  baseline.team={members:[
+    {id:ANA,name:"Ana",active:true},
+    {id:RUI,name:"Rui",active:true},
+  ]};
+  const qualified=structuredClone(baseline);
+  qualified.team.members[0].qualifiedRoles=["checkout"];
+  qualified.team.members[1].qualifiedRoles=["checkout","sales"];
+  const oldResult=generateSchedule(baseline);
+  const newResult=generateSchedule(qualified);
+  assert.deepEqual(newResult.candidateAssignments,oldResult.candidateAssignments);
+  assert.deepEqual(newResult.certification,oldResult.certification);
+  assert.equal(newResult.status,oldResult.status);
+});
