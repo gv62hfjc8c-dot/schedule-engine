@@ -316,3 +316,47 @@ test("PR91: ciclo de 28 dias reduz jornadas >9h sem prejudicar a cobertura real"
   assert.equal(JSON.stringify(config),initial,"configuração não é mutada");
   assert.deepEqual(generateSchedule(config),result,"repetibilidade");
 });
+
+
+test("PR94: novembro real anonimizado preserva 160h e expõe limite funcional impossível",()=>{
+  const old=realScenarioAnonymized();
+  const input={
+    ...old,
+    team:{members:old.team.members.map((m,i)=>({
+      ...m,qualifiedRoles:i<2?["checkout"]:
+        i<4?["sales"]:["checkout","sales"],
+    }))},
+  };
+  const before=JSON.stringify(input);
+  const baseline=generateSchedule(old);
+  const result=generateSchedule(input);
+  assert.equal(result.functionalCoveragePolicy,"qualified50");
+  assert.equal(result.certification.status,"invalid",
+    "50% de ambas as equipas durante toda a abertura não cabe em 8x160h");
+  const shortage=result.certification.issues.find(i=>
+    i.code==="FUNCTIONAL_CAPACITY_SHORTFALL");
+  assert.ok(shortage);
+  assert.ok(shortage.requiredMinutes!>shortage.actualMinutes!);
+  assert.ok(result.certification.issues.some(i=>
+    i.code==="FUNCTIONAL_COVERAGE_GAP"));
+  assert.equal(result.candidateAssignments.length,
+    baseline.candidateAssignments.length);
+  assert.deepEqual(
+    result.candidateAssignments.map(a=>[
+      a.memberId,a.date,assignmentMinutes(a),
+    ]),
+    baseline.candidateAssignments.map(a=>[
+      a.memberId,a.date,assignmentMinutes(a),
+    ]),"não inventa dias nem horas para cobrir funções");
+  const cycle=result.candidateAssignments.filter(a=>
+    a.date>="2026-11-02"&&a.date<="2026-11-29");
+  for(const member of input.team.members)assert.equal(
+    cycle.filter(a=>a.memberId===member.id)
+      .reduce((sum,a)=>sum+assignmentMinutes(a),0),9600);
+  assert.deepEqual(result.rotation,baseline.rotation,
+    "preserva folgas, rotação e fins de semana não consecutivos");
+  assert.ok(result.candidateAssignments.every(a=>
+    a.role==="checkout"||a.role==="sales"));
+  assert.equal(JSON.stringify(input),before);
+  assert.deepEqual(generateSchedule(input),result,"determinismo");
+});
