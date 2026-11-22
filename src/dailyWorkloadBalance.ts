@@ -6,7 +6,8 @@
  * Use lexicographic comparisons rather than arbitrary multipliers:
  * 1. avoid time above 9h;
  * 2. reduce the total time above 8h;
- * 3. spread unavoidable excess instead of concentrating it on one day.
+ * 3. reduce the number of >9h days when the excess is unavoidable;
+ * 4. spread any remaining excess without increasing its total.
  *
  * This module must not alter active workdays, short-opening assignments,
  * weekly hours or other workers' schedules.
@@ -18,6 +19,7 @@ export const DAILY_BALANCING_STEP_MINUTES=15;
 export interface DailyWorkloadQuality {
   beyondNineMinutes:number;
   beyondEightMinutes:number;
+  daysBeyondNine:number;
   excessConcentration:number;
   longestMinutes:number;
 }
@@ -34,6 +36,7 @@ export function dailyWorkloadQuality(
 ):DailyWorkloadQuality {
   let beyondNineMinutes=0;
   let beyondEightMinutes=0;
+  let daysBeyondNine=0;
   let excessConcentration=0;
   let longestMinutes=0;
   for(const minutes of durations){
@@ -42,11 +45,12 @@ export function dailyWorkloadQuality(
     const extra=Math.max(0,minutes-DAILY_PREFERRED_WORK_MINUTES);
     beyondEightMinutes+=extra;
     beyondNineMinutes+=Math.max(0,minutes-DAILY_STRONG_AVOID_MINUTES);
+    if(minutes>DAILY_STRONG_AVOID_MINUTES)daysBeyondNine++;
     excessConcentration+=extra*extra;
     longestMinutes=Math.max(longestMinutes,minutes);
   }
   return {
-    beyondNineMinutes,beyondEightMinutes,
+    beyondNineMinutes,beyondEightMinutes,daysBeyondNine,
     excessConcentration,longestMinutes,
   };
 }
@@ -63,6 +67,11 @@ export function compareDailyWorkload(
   // preference for repeatable shifts with an unnecessary preference for
   // flatter sub-8h days.
   if(a.beyondEightMinutes===0)return 0;
+  // If the SAME unavoidable excess minutes can be contained in fewer
+  // long shifts (without adding hours), prefer more days <=9h. This
+  // is still soft and cannot raise the legal/contractual workload.
+  if(a.daysBeyondNine!==b.daysBeyondNine)
+    return a.daysBeyondNine-b.daysBeyondNine;
   return a.excessConcentration-b.excessConcentration ||
     a.longestMinutes-b.longestMinutes;
 }
