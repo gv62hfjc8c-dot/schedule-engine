@@ -6,6 +6,8 @@ import type {WorkAssignment} from "./workAssignments";
 import {assignmentMinutes,clockMinutes} from "./workAssignments";
 import {measureSimultaneousCoverage} from "./simultaneousCoverage";
 import {analyzeFunctionalCapacity} from "./functionalCapacityAnalysis";
+import {analyzeMonthlyFixedWorkdayLongDayFloor}
+  from "./cycleLongDayFeasibility";
 import type {MealBreak} from "./mealBreaks";
 import type {PlannedRestWeekMember} from "./plannedRest";
 import {enumerateCivilDays,resolvePlanningPeriod,civilDayOfWeek} from "./schedulePeriods";
@@ -156,6 +158,13 @@ function workdaySummary(
  */
 export function buildScheduleDiagnostic(input:ScheduleDiagnosticInput) {
   const {byDay,byMember}=workdaySummary(input);
+  const cycleLongDays=input.hoursPolicy==="rolling28" &&
+    input.mealBreakPolicy==="v2" && input.team && input.openingHours
+    ?analyzeMonthlyFixedWorkdayLongDayFloor({
+      year:input.year,month:input.month,
+      team:input.team,openingHours:input.openingHours,
+      assignments:input.assignments,
+    }):null;
   const functionalCapacity=input.functionalCoveragePolicy==="qualified50"&&
     input.team&&input.openingHours
     ?analyzeFunctionalCapacity({
@@ -203,7 +212,7 @@ export function buildScheduleDiagnostic(input:ScheduleDiagnosticInput) {
       rollingHoursHistory:input.rollingHistory,
     },
     analysis:{
-      byDay,byMember,functionalCapacity,
+      byDay,byMember,functionalCapacity,cycleLongDays,
       quality:{
         shiftsOverNineHours:byMember.reduce((sum,member)=>
           sum+member.shiftsOverNineHours,0),
@@ -222,6 +231,7 @@ export function buildScheduleDiagnostic(input:ScheduleDiagnosticInput) {
       capacity:"valores de horas necessárias e défices referem-se EXCLUSIVAMENTE à META SOFT de 50% e NÃO representam falta obrigatória de pessoal nem invalidam a proposta; o alvo pode aumentar com mais pessoas habilitadas",
       rest:"somente descanso explicitamente planeado, nunca ausência de turno",
       context:"datas sem histórico confirmado permanecem desconhecidas",
+      cycleLongDays:"limite inferior MATEMÁTICO de jornadas >9h conservando as datas já escaladas e a capacidade diária; não prova que os descansos possam ser redistribuídos nem garante melhoria possível sem alterar os dias de trabalho",
     },
     privacy:{
       includesEmployeeNamesAndSchedules:true,
