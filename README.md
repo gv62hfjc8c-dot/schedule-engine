@@ -721,3 +721,47 @@ Nas semanas parciais nas fronteiras de meses preserva-se a lógica
 conservadora e o contexto externo. Períodos aprovados, exceções,
 presenças reais e futuras necessidades de cobertura por posto continuam
 fora deste PR. Não fazer merge antes do teste real na interface.
+
+
+### PR89 — Correção após teste visual de 21/11/2026 (equipa real)
+
+Foi observado no Safari que o pré-planeador atribuía até **seis**
+fins de semana completos aos mesmos sábados/domingos e, em dois
+sábados, deixava o estabelecimento sem cobertura entre
+**08h30 e 08h45**. O erro era um excesso de otimização da quantidade
+de descansos, ignorando a capacidade de trabalho disponível para
+manter a referência de **160h em 28 dias** com jornadas de qualidade.
+
+- `src/weekendRotation.ts`: a rotação opcional aceita um orçamento
+  SOFT de trabalho do ciclo, derivado das aberturas, capacidade efetiva
+  e descanso obrigatório de cada colaborador. Atribuir mais fins de
+  semana completos passa a ter um custo objetivo: pode exigir
+  jornadas superiores a 9h ou tornar 160h inviáveis. As atribuições
+  são espalhadas pelas semanas e pessoas em vez de concentradas num
+  só fim de semana. **Não há frequência de 4 semanas codificada.**
+- `src/rotationIntegration.ts`: o gerador passa a utilizar a
+  referência existente de 160h/28d e a penalização de jornadas acima
+  de 9h no cálculo do orçamento de descanso. **O objetivo de horas e
+  as 9h continuam SOFT**, não limites legais nem 40h obrigatórias
+  em todas as semanas.
+- `src/mealCoveragePlanner.ts`: depois da escolha inicial de turnos
+  e pausas, se existir uma lacuna de cobertura, testa
+  reposicionamentos dos próprios turnos que reduzam estritamente os
+  minutos sem cobertura; não cria turnos nem altera folgas, horas,
+  pausas ou as entradas/saídas fora do funcionamento. O certificador
+  continua a rejeitar lacunas que não sejam reparáveis.
+- `tests/rotationIntegration.test.ts`: regressões com **oito
+  colaboradores** em 28 dias, horários 08h30–19h00 de segunda a
+  sábado e domingo curto 14h00–19h00, incluindo folgas fixas
+  e colaboradores com uma ou duas folgas habituais. Verifica que
+  não se atribuem seis descansos simultâneos e que os sábados
+  14 e 21 de novembro têm abertura e fecho cobertos.
+- **Contexto de fronteira:** ausência de dados verificados das semanas
+  de 26/10 e 30/11 continua a produzir `CONTEXT_INCOMPLETE` — não
+  se deve ocultar esse diagnóstico nem assumir que uma folga/ausência
+  de turno é um facto confirmado.
+
+O PR89 mantém-se em Draft até o caso real ser novamente confirmado
+no Safari. A proposta guardada anteriormente não é automaticamente
+alterada nem substituída; requer **Gerar horário** e a opção explícita
+de guardar quando a certificação o permitir.
