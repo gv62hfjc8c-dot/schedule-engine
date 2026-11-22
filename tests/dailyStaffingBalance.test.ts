@@ -195,3 +195,19 @@ test("percentagem opcional sem regras de descanso completas não inventa folgas"
   assert.equal(result.dailyStaffing?.desired,5);
   assert.ok(result.dailyStaffing!.days.length>0);
 });
+
+test("quatro pessoas não podem cumprir 60% em sete dias com duas folgas; objetivo permanece SOFT",()=>{
+  const config=scenario(60);
+  config.team.members=config.team.members.slice(0,4);
+  const result=generateSchedule(config);
+  assert.equal(result.dailyStaffing?.desired,3);
+  assert.equal(result.status,"valid",
+    JSON.stringify(result.certification.issues.slice(0,12)));
+  assert.ok(result.dailyStaffing!.daysBelowTarget>0,
+    "não deve inventar jornadas nem eliminar dias de descanso");
+  for(const week of result.rotation!.weeks){
+    for(const person of week.members)
+      assert.equal(person.daysWithoutWork.length,
+        person.fullWeekendOff?3:2);
+  }
+});
