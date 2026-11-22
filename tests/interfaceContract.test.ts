@@ -119,13 +119,12 @@ test("Um único turno contém a pausa, sem criar dois turnos de trabalho",()=>{
   assert.doesNotMatch(calendarScheduler,/name="mealDuration"/);
 });
 
-test("Objetivo de presença diária opcional é transparente e não substitui certificação",()=>{
-  assert.match(app,/id="opening-staffing-enabled"/);
-  assert.match(app,/id="opening-staffing-percent"/);
-  assert.match(app,/dailyStaffingTargetPercent:staffingPercent/);
-  assert.match(app,/Objetivo opcional e negociável/);
-  assert.match(calendarScheduler,/schedule-staffing-overview/);
+test("O equilíbrio diário é interno e não aumenta a configuração empresarial",()=>{
+  assert.doesNotMatch(app,/opening-staffing-enabled/);
+  assert.doesNotMatch(app,/opening-staffing-percent/);
+  assert.doesNotMatch(app,/dailyStaffingTargetPercent/);
+  assert.doesNotMatch(calendarScheduler,/schedule-staffing-overview/);
+  assert.match(calendarScheduler,/schedule-rotation-staffing-summary/);
+  assert.match(calendarScheduler,/referência interna, não obrigatória/);
   assert.match(calendarScheduler,/staffingReport\.daysBelowTarget/);
-  assert.match(calendarScheduler,/não a presença simultânea/);
-  assert.match(calendarScheduler,/não violações automáticas/);
 });
