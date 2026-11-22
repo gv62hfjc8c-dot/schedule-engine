@@ -257,3 +257,48 @@ test("PR94: funções desconhecidas, vazias e duplicadas não corrompem a equipa
   assert.equal(loaded.status,"loaded");
   if(loaded.status==="loaded")assert.deepEqual(loaded.value.members[0],original);
 });
+
+
+test("PR94: catálogo personalizado mantém o engine independente de Caixa e Vendas",()=>{
+  const team={
+    roles:[
+      {id:"kitchen",label:"Cozinha"},
+      {id:"frontdesk",label:"Receção"},
+      {id:"maintenance",label:"Manutenção"},
+    ],
+    members:[
+      {...person(ID_A,"Ana"),qualifiedRoles:["kitchen","frontdesk"]},
+      {...person(ID_B,"Rui"),qualifiedRoles:["maintenance"]},
+    ],
+  };
+  const validated=validateTeamRoster(team);
+  assert.equal(validated.valid,true,JSON.stringify(validated));
+  if(!validated.valid)return;
+  assert.deepEqual(validated.value,team);
+  assert.equal(isQualifiedForRole(validated.value.members[0],"frontdesk"),true);
+  assert.equal(isQualifiedForRole(validated.value.members[0],"maintenance"),false);
+  const storage=store();
+  assert.equal(saveTeamDraft(storage,team).ok,true);
+  assert.deepEqual(loadTeamDraft(storage),{status:"loaded",value:team});
+});
+
+test("PR94: funções desconhecidas e catálogo inválido não substituem a equipa",()=>{
+  const storage=store();
+  const valid={roles:[{id:"kitchen",label:"Cozinha"}],
+    members:[{...person(ID_A,"Ana"),qualifiedRoles:["kitchen"]}]};
+  assert.equal(saveTeamDraft(storage,valid).ok,true);
+  const attacks=[
+    {roles:[],members:valid.members},
+    {roles:[{id:"kitchen",label:"Cozinha"},{id:"kitchen",label:"Duplicado"}],
+      members:valid.members},
+    {roles:[{id:"__proto__",label:"Insegura"}],members:valid.members},
+    {roles:[{id:"room service",label:"Serviço"}],members:valid.members},
+    {roles:valid.roles,members:[{...person(ID_A,"Ana"),
+      qualifiedRoles:["checkout"]}]},
+    {roles:valid.roles,members:[{...person(ID_A,"Ana"),
+      qualifiedRoles:["kitchen","kitchen"]}]},
+  ];
+  for(const attack of attacks)
+    assert.equal(saveTeamDraft(storage,attack).ok,false,JSON.stringify(attack));
+  assert.deepEqual(loadTeamDraft(storage),{status:"loaded",value:valid});
+});
