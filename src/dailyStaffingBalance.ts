@@ -7,10 +7,12 @@ import {
 import type {WorkAssignment} from "./workAssignments";
 
 /**
- * A SOFT objective, NEVER a legal or mandatory minimum. 60% of 8 active
- * people means ceil(4.8) = 5 people with at least one scheduled shift.
- * It does not mean five people working simultaneously every minute.
+ * Internal V1 scheduling heuristic, NOT a company setting or a hard rule.
+ * 60% is an experimental reference for spreading workdays; if it cannot
+ * be reached, preserve hard coverage, days off and workload feasibility.
+ * This must be evaluated against other configurations before tuning.
  */
+export const DAILY_STAFFING_REFERENCE_PERCENT=60;
 export function desiredDailyHeadcount(activeCount:number,percent:number):number {
   if(!Number.isSafeInteger(activeCount)||activeCount<0 ||
     !Number.isInteger(percent)||percent<1||percent>100)
@@ -80,7 +82,7 @@ export function evaluateDailyStaffing(
   period:PlanningPeriod,
   opening:WeeklyOpeningHours,
   activeMemberIds:readonly string[],
-  targetPercent:number,
+  targetPercent=DAILY_STAFFING_REFERENCE_PERCENT,
 ):DailyStaffingReport {
   const desired=desiredDailyHeadcount(activeMemberIds.length,targetPercent);
   const active=new Set(activeMemberIds);
