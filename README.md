@@ -1148,158 +1148,79 @@ https://github.com/gv62hfjc8c-dot/schedule-engine/actions/runs/45021264014
 — 320/320 testes PASS e build PASS.
 
 
-### PR94 — Equipas funcionais genéricas integradas no horário mensal (22/11/2026)
+### PR94 — Equipas funcionais e meta de 50% SOFT (22/11/2026)
 
-**Estado:** implementação integrada na branch `feature/operational-role-qualifications`,
-PR https://github.com/gv62hfjc8c-dot/schedule-engine/pull/94, **OPEN/DRAFT,
-não integrado na main**. O PR93 da interface responsiva permanece independente.
-Cloudflare Pages mantém a versão pública anterior e publicações automáticas
-desativadas.
+**Correção de requisito após validação real:** os **50% por equipa
+funcional sempre foram um objetivo de otimização (SOFT)**. Não são
+nem nunca deveriam ter sido um mínimo obrigatório de presença
+simultânea (HARD). A primeira implementação do PR94 tratou
+incorretamente essa meta como regra obrigatória, criando falsos
+`FUNCTIONAL_COVERAGE_GAP` e `FUNCTIONAL_CAPACITY_SHORTFALL` no
+certificador. Este erro de interpretação foi corrigido no PR94
+ANTES de qualquer merge. Nunca converter um objetivo SOFT em HARD
+sem decisão explícita.
 
-**Modelo independente de retalho:**
-- Uma única equipa de pessoas, com qualificações por **função operacional**;
-  cada colaborador pode estar habilitado para uma, várias ou nenhuma
-  (campo desconhecido em fichas antigas). Nunca se duplica a pessoa.
-- `TeamRoster.roles` define um catálogo opcional de funções por ID/nome.
-  Sem catálogo, existem as referências iniciais Caixa e Vendas. O núcleo
-  aceita funções genéricas, como Cozinha, Receção e Armazém; o formulário
-  permite adicionar/remover funções e selecionar múltiplas qualificações
-  por colaborador. Os dados antigos mantêm-se válidos e não são
-  polivalentes por suposição. Não guardar alterações destrutivas.
-- `WorkAssignment.role?` regista **um posto exclusivo por turno**,
-  mantendo um único turno e pausa integrada; não permite mudança
-  de posto a meio do turno nesta iteração.
-- Quando existe alguma qualificação funcional, a geração exige funções
-  explícitas em **todos** os membros ativos. Rascunhos anteriores sem
-  funções preservam semântica legacy, **sem falsa certificação funcional**.
+**Regras que permanecem obrigatórias (HARD):**
+- Cada colaborador tem uma única pessoa/identidade, um turno por dia,
+  pausa integrada e uma única função por turno.
+- Função escolhida deve constar das qualificações explícitas da pessoa.
+  A política funcional em horários novos exige qualificações
+  definidas para todos os membros ativos; não presumir polivalência
+  em registos legados.
+- O certificador mensal independente preserva integralmente as
+  regras anteriores: cobertura global durante abertura, folgas fixas,
+  descanso, turnos e pausas válidos e as demais regras de horas
+  e contexto. Não é introduzido qualquer mínimo HARD novo por função:
+  esse mínimo **não foi especificado** pelo utilizador.
+- A falta de qualificação ou a dupla/ausente atribuição de função
+  invalida um horário; não atingir 50% **não invalida**.
 
-**Hard constraints de cobertura funcional:**
-- Para cada função do catálogo, mínimo simultâneo = `ceil(0.50 *
-  total de colaboradores ATIVOS QUALIFICADOS na função)`.
-  Polivalentes integram ambos os denominadores de qualificação,
-  mas **contam apenas numa função de cada vez** na cobertura real.
-- A regra aplica-se **a cada intervalo de funcionamento de cada data
-  do mês**, descontando as pausas e limites de entrada/saída;
-  é independente da referência SOFT de 60% escalados por dia.
-- O certificador mensal `certifySchedule` invoca o verificador puro
-  `certifyFunctionalCoverage` de forma independente do planeador.
-  Exige qualificação, posto válido, exclusividade, pausas e mínimo
-  simultâneo; assinala `FUNCTIONAL_COVERAGE_GAP`,
-  `FUNCTIONAL_ASSIGNMENT_INVALID` ou
-  `FUNCTIONAL_CAPACITY_SHORTFALL` com minutos necessários/disponíveis.
-  Uma proposta inviável fica **INVALID**, nunca validada só por ter
-  pessoas qualificadas.
-- Política `functionalCoveragePolicy: "qualified50"` persiste
-  explicitamente nos rascunhos locais V2, atravessa edição,
-  leitura, recertificação e exportação do diagnóstico.
-  Horários legacy não são retroativamente sujeitos à política.
+**Otimização SOFT:**
+- Para cada equipa funcional, a meta é que pelo menos
+  `ceil(0.5 × número de pessoas ativas habilitadas na função)`
+  estejam nessa função efetivamente ao mesmo tempo, dentro da
+  abertura e excluindo pausas. Polivalentes contam na população
+  habilitada de todas as funções que desempenham, mas só cobrem
+  uma função durante cada turno.
+- `allocateFunctionalMonth` integra atribuição de funções em
+  todos os dias do mês, favorece postos mais carenciados e
+  tenta reajustar horas e pausas quando viável. É heurístico,
+  determinístico e não é solver global. Uma melhoria SOFT
+  nunca pode aumentar os minutos sem cobertura global HARD.
+- Os cenários 1 Caixa/3 Vendas/2 polivalentes e o inverso
+  continuam testes de aceitação: os dois polivalentes reforçam
+  a equipa com menos pessoas (3 Caixa / 3 Vendas).
+- O catálogo de funções do `TeamRoster` é genérico e editável;
+  Caixa e Vendas são presets, não condições do core.
 
-**Geração e otimização:**
-- `generateSchedule` integra a distribuição funcional no mês inteiro;
-  na escolha flexível de dias de trabalho considera previamente a
-  pressão de cobertura por competências. Na fase de posicionamento
-  `allocateFunctionalMonth` atribui um posto a cada turno e procura
-  corrigir horas de entrada e pausas em dias com lacunas quando existe
-  margem, sem alterar minutos efetivos, número de dias de trabalho,
-  folgas ou um turno por pessoa. Continua a ser uma heurística
-  determinística, **não um solver de ótimo global**.
-- 1 Caixa + 3 Vendas + 2 polivalentes => 3 Caixa / 3 Vendas;
-  no exemplo inverso 3 Caixa + 1 Vendas + 2 polivalentes,
-  ambos reforçam Vendas. A generalização também foi testada com
-  três funções e com catálogo alternativo.
-- O calendário agora mostra uma secção de **cobertura funcional do mês**,
-  com conflitos por data/intervalo, e o **posto de cada pessoa nos turnos**.
-  Não existe uma simulação apenas de um dia. Exportação inclui funções,
-  política, configuração e violações.
+**Mês e diagnóstico:**
+- `/horarios` apresenta **Distribuição por funções — objetivo
+  de 50%** com distância à meta em horas-pessoa ao longo do
+  mês inteiro, por função e por dia. As diferenças NÃO são
+  apresentadas como violações obrigatórias nem inferem
+  necessidade automática de contratações.
+- `analysis.functionalCapacity` do diagnóstico mantém os nomes
+  de campos históricos para compatibilidade, mas os minutos
+  `*DeficitMinutes` e `observedRoleGapMinutes` dizem respeito
+  **exclusivamente à meta SOFT**. `validation.displayed.issues`
+  só inclui violações HARD e lacunas de contexto independente.
+- `functionalCoveragePolicy:"qualified50"` persiste por
+  retrocompatibilidade nos rascunhos V2. Identifica a meta SOFT
+  e a verificação HARD de integridade de funções; o identificador
+  não passa a significar mínimo operacional obrigatório.
+- No teste real de novembro de 2026, 357h de distância matemática
+  ao objetivo global e 367h de distância com dias/horas fixos
+  **NÃO provam falta obrigatória de pessoal**. Os 50% não
+  são uma obrigação. Os 160h por pessoa no ciclo 28 dias,
+  8 jornadas >9h, fins de semana/folgas e cobertura geral
+  devem continuar a ser verificados nos regressions.
 
-**Limites matemáticos importantes:** não presumir que 50% de
-cada função possam ser mantidos simultaneamente em qualquer empresa.
-Exemplo de oito pessoas (2 Caixa, 2 Vendas e 4 polivalentes):
-cada função possui seis qualificados e exige três ativos,
-ou seja, **seis pessoas simultâneas**. Uma empresa aberta
-68 horas/semana precisaria de 408 horas de trabalho efetivo
-semanais para os dois postos; oito pessoas a 40h fornecem
-320 horas/semana. Neste caso o horário é matematicamente
-insuficiente, independentemente da heurística. A aplicação
-exibe o conflito e o défice, sem inventar jornadas. Não alegar
-viabilidade global só porque a tentativa de distribuição falhou;
-a certificação prova apenas se a proposta gerada é ou não válida.
-
-**Regressões verificadas (CI):** validação de 28, 30 e 31 dias;
-polivalência 1/3/2 e 3/1/2; mínimo 50% e arredondamento;
-um trabalhador nunca em duas funções; pausas alternadas pelo
-otimizador; períodos parciais e totais; rejeição de registos
-sem função, entradas inválidas, persistência e recertificação;
-cenário real de novembro anonimizando oito pessoas com
-**160 horas efetivas/pessoa em 28 dias preservadas**, sem
-alterações às folgas/rotação, e sinalização explícita de
-capacidade insuficiente se os mínimos funcionais forem impossíveis.
-CI mais recente deve ser verificada após a documentação; versão
-de implementação antes de documentação passou
-**349/349 testes e build** na execução
-https://github.com/gv62hfjc8c-dot/schedule-engine/actions/runs/45073916549 .
-
-**Aceitação do utilizador, ANTES do merge:**
-1. Atualizar a branch PR94 no Safari do Mac, sem mexer na `main`.
-2. Em Configuração → Equipa, ajustar as funções e qualificar
-   todas as pessoas ativas (Caixa, Vendas ou ambas; opcionalmente
-   criar outros departamentos no catálogo).
-3. Gerar novembro de 2026 como **mês completo**; rever funções
-   nos turnos e a secção de cobertura funcional mensal.
-4. Verificar 160h/28 dias, número de jornadas >9h,
-   folgas e fins de semana, pausas e distribuição de polivalentes.
-   Se houver falhas de 50% simultâneos, comparar o défice
-   real de capacidade e não aceitar como horário certificado.
-5. Exportar o diagnóstico mensal e enviar apenas após
-   verificar os dados pessoais que contém. Corrigir divergências
-   antes de autorizar o merge. Publicação Cloudflare sempre
-   manual e separada.
-
-
-### PR94 — Viabilidade estrutural versus distribuição dos postos (22/11/2026)
-
-A validação real revelou um problema de interpretação: centenas de
-lacunas funcionais podem ser consequência de **horas de trabalho
-insuficientes para o mínimo simultâneo de 50%**, e não centenas de
-defeitos corrigíveis da heurística. Para manter a regra HARD e não
-inventar capacidade, foi acrescentado `src/functionalCapacityAnalysis.ts`,
-um diagnóstico puro e independente da geração e da certificação.
-
-O relatório agregado do **mês completo** calcula:
-- Pessoas ativas habilitadas e mínimo simultâneo por função, arredondado
-  para cima; polivalentes em ambos os universos de competências, mas
-  apenas um posto atribuído de cada vez.
-- Horas-pessoa necessárias para cobrir todas as funções durante a
-  abertura e horas efetivas realmente escaladas DENTRO da abertura
-  (as pausas não contam).
-- Défice **global mínimo de capacidade**: horas-pessoa que não
-  existem no horário, independentemente do posto atribuído.
-- Défice mínimo por data mantendo os dias de trabalho atuais,
-  e défice mínimo de simultaneidade com entradas, saídas e pausas
-  nas posições atualmente geradas.
-- Lacunas efetivas por função e a diferença face ao limite de
-  simultaneidade. **Essa diferença NÃO é garantidamente recuperável**
-  mudando a afetação: competências e folgas podem impedir a correção.
-- Um estado `incomplete_assignments` quando há postos sem atribuição
-  ou inválidos; não apresentar somas de lacunas incompletas como prova
-  de ausência de conflitos.
-
-Esta análise aparece na secção MENSAL de cobertura funcional de
-`/horarios` e na exportação `analysis.functionalCapacity` do
-diagnóstico JSON. Não existe botão nem simulador exclusivo de um dia.
-
-**Nota importante sobre decisões de capacidade:** com 50% do total
-de pessoas habilitadas como denominador, contratar pessoas pode
-**aumentar também o mínimo exigido**. O défice de horas-pessoa é
-um limite inferior para esta proposta e esta política, NÃO uma
-recomendação automática de número de contratações. Não alterar a
-regra de 50% sem decisão expressa; a comparação entre mínimo
-operacional obrigatório e objetivo de distribuição fica para decisão
-posterior, com base nos resultados concretos.
-
-Testes em `tests/functionalCapacityAnalysis.test.ts`, bem como
-regressões de exportação e contrato visual, verificam cenários
-viáveis, falta real de pessoas, horas suficientes mal distribuídas
-no tempo, pausas simultâneas, posto incompatível, três funções
-genéricas e inputs inválidos. PR94 continua Draft, sem merge ou
-publicação Cloudflare.
+**Regressões e aceitação:** testes de 28/30/31 dias,
+polivalência, pausas, qualificação/duplicações HARD,
+qualidade funcional SOFT e preservação de cobertura
+global obrigatória. Depois de CI verde, o utilizador
+volta a gerar e analisar o **mês completo no Safari**
+com o JSON exportado. Não criar simuladores isolados
+por dia. PR94 permanece OPEN/DRAFT, sem merge; o PR93
+de UI responsiva é separado. Não publicar no Cloudflare
+sem autorização posterior.
