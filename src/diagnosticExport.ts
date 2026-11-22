@@ -27,6 +27,13 @@ export interface DiagnosticSourceStatuses {
  * Includes employee identities and shifts intentionally to reproduce a
  * real scenario: the user decides whether to share the downloaded file.
  */
+export interface ReproductionSources {
+  team:TeamRoster|null;
+  openingHours:WeeklyOpeningHours|null;
+  externalContext:ExternalScheduleContext|null;
+  rollingHoursHistory:ExternalScheduleContext|null;
+}
+
 export interface ScheduleDiagnosticInput {
   exportedAt:string;
   year:number;
@@ -47,6 +54,8 @@ export interface ScheduleDiagnosticInput {
   displayedCertification:CertificationReport|null;
   currentConfigurationCertification:CertificationReport|null;
   settingsMatchGeneratedPreview:boolean|null;
+  /** Exact, originally loaded source data, even if settings have since changed. */
+  generationInputSnapshot?:ReproductionSources|null;
 }
 
 function workdaySummary(
@@ -140,6 +149,7 @@ export function buildScheduleDiagnostic(input:ScheduleDiagnosticInput) {
     origin:input.mode,
     sourceStatuses:input.sourceStatuses,
     settingsMatchGeneratedPreview:input.settingsMatchGeneratedPreview,
+    generationInputsAtCreation:input.generationInputSnapshot??null,
     configuration:{
       team:input.team,
       openingHours:input.openingHours,
