@@ -1146,3 +1146,59 @@ PR92 permanece DRAFT, sem merge nem publicação Cloudflare.
 Última CI verificada:
 https://github.com/gv62hfjc8c-dot/schedule-engine/actions/runs/45021264014
 — 320/320 testes PASS e build PASS.
+
+
+### PR93 — Layout responsivo nas seis páginas do Schedule Engine (22/11/2026)
+
+**Âmbito: apresentação e navegação apenas.** Branch
+`ui/responsive-all-pages`, PR
+https://github.com/gv62hfjc8c-dot/schedule-engine/pull/93,
+aberto em **Draft** a partir da `main` (com PR92 integrado).
+Não há mudanças no motor de geração, horas, folgas, constraints,
+persistência, Supabase ou certificador.
+
+**Páginas abrangidas:** entrada `/`, horários `/horarios`,
+configuração `/configuracao`, empresa
+`/configuracao/inicial`, funcionamento
+`/configuracao/funcionamento`, equipa
+`/configuracao/equipa`.
+
+**Principais alterações:**
+- Estrutura fluida nos pontos de quebra 360, 460, 620 e 880px,
+  com adaptação a tablets e orientação horizontal; cabeçalho
+  e navegação não dependem de uma largura fixa.
+- Áreas seguras de ecrãs com recortes e controlos de toque
+  mais acessíveis. Campos de formulário com fonte >=16px
+  em dispositivos táteis para evitar o zoom do Safari iOS.
+- Calendário de sete colunas legível no telemóvel: indicadores
+  compactos de número de turnos, turno/folga sem reduzir texto
+  a 7px. Horas exatas e pausas mantidas no detalhe do dia
+  e no conteúdo acessível. Selecionar um dia em ecrãs
+  estreitos desloca para o detalhe, com regresso ao calendário;
+  respeita a preferência de movimento reduzido.
+- Linha temporal completa com escala e scroll horizontal
+  confinado ao gráfico, mantendo nomes fixos. Indicação de
+  como consultar a escala em dispositivos móveis.
+- Cartões da equipa, ações e formulário de funcionamento
+  adaptáveis a telemóveis estreitos; Configuração permanece
+  visualmente ativa nas subpáginas.
+- Novas regressões de contrato estático em
+  `tests/responsiveLayout.test.ts`. Verificam estrutura,
+  acessibilidade/semântica, breakpoints e preservação
+  de comportamentos existentes, mas **não substituem
+  testes visuais em navegadores reais**.
+
+**Matriz visual a verificar antes do merge:** 320/360/375/390/
+430px (iPhone e Android), 620/768/820/1024px (tablet),
+1280/1440px (desktop); portrait e landscape, navegação,
+formulários, calendário, detalhe e linha temporal,
+ausência de overflow horizontal da PÁGINA (a timeline
+pode rolar internamente), comportamento de toque/drag,
+acessibilidade e dados locais preservados.
+Não considerar o trabalho visualmente aceite sem
+verificação Safari/Chrome em dispositivos reais.
+
+**Infraestrutura:** Cloudflare Pages permanece com
+deploy automático de produção e previews desativados
+pelo utilizador. Não realizar merge nem publicação
+sem aceite separado.
