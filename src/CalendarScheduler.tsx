@@ -759,6 +759,12 @@ function MonthWorkspace({
         <section className="surface detail-panel" aria-label="Detalhe do dia" aria-live="polite">
           <p className="surface-kicker">Detalhe do dia</p>
           <h2>{selectedDate?selectedDayLabel(selectedDate):"Seleciona uma data"}</h2>
+          {selectedDate&&hasMonthProposal&&
+            <FunctionalCoveragePreview key={selectedDate}
+              date={selectedDate}
+              assignments={dayAssignments}
+              opening={dailyOpening}
+              legacy={legacyDraft}/>}
           {selectedDate&&dailyTimeline&&
             <DayScheduleTimeline timeline={dailyTimeline}
               names={names} selectedMemberId={selectedMemberId}
@@ -766,12 +772,6 @@ function MonthWorkspace({
               editable={timelineEditable}
               onPreviewMove={previewTimelineMove}
               onCommitMove={commitTimelineMove}/>}
-          {selectedDate&&hasMonthProposal&&
-            <FunctionalCoveragePreview key={selectedDate}
-              date={selectedDate}
-              assignments={dayAssignments}
-              opening={dailyOpening}
-              legacy={legacyDraft}/>}
           {manualEdit && !dragCandidate && report?.status==="invalid" &&
             <div className="daily-edit-conflicts" role="alert">
               <strong>Alteração com conflitos</strong>
