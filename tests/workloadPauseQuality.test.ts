@@ -178,8 +178,8 @@ test("regressão real anonimizada: 8 pessoas, 160h em 28 dias, sem novos conflit
     w.fullWeekendOffMemberIds.length<=3));
   const long=result.candidateAssignments.filter(a=>
     assignmentMinutes(a)>540).length;
-  assert.ok(long<=64,
-    "a nova distribuição não pode ultrapassar as 64 jornadas >9h do diagnóstico anterior: "+long);
+  assert.ok(long<=56,
+    "a regressão deve preservar a melhoria de 64 para no máximo 56 jornadas >9h: "+long);
   const saturdays=["2026-11-07","2026-11-14",
     "2026-11-21","2026-11-28"];
   const solos=saturdays.reduce((sum,date)=>{
@@ -188,8 +188,8 @@ test("regressão real anonimizada: 8 pessoas, 160h em 28 dias, sem novos conflit
     assert.equal(quality.uncoveredMinutes,0);
     return sum+quality.soloMinutes;
   },0);
-  assert.ok(solos<210,
-    "otimizar em relação aos 210 minutos de presença solitária no diagnóstico: "+solos);
+  assert.equal(solos,0,
+    "a regressão deve preservar 0 minutos com uma pessoa nos quatro sábados; baseline eram 210");
   console.log("PR90_ANONYMOUS_NOVEMBER_QUALITY "+JSON.stringify({
     cycle:"2026-11-02..2026-11-29",
     baselineLongShifts:64,generatedLongShifts:long,
