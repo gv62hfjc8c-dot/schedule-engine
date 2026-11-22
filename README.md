@@ -1125,8 +1125,24 @@ no cenário de teste. CI final após implementação:
 https://github.com/gv62hfjc8c-dot/schedule-engine/actions/runs/45021165252
 — **320/320 testes PASS; build PASS**.
 
-**Pendente:** gerar novo horário em Safari REAL com a branch atual,
-exportar diagnóstico e verificar todos os fins de semana, equidade
-e métricas. O ficheiro real anterior de 12:06 UTC foi produzido
-ANTES desta correção, e não comprova o novo espaçamento.
-PR92 permanece DRAFT, sem merge ou publicação Cloudflare.
+**Validação Safari REAL confirmada (22/11/2026 12:16 UTC):**
+exportação `generated_preview`, `settingsMatchGeneratedPreview=true`;
+8 pessoas, 171 turnos. Nas semanas 02–29/11, **zero fins de semana
+completos consecutivos**: dois membros recebem dois descansos
+completos não consecutivos, seis recebem um; 3/2/3/2 descansos
+completos nas quatro semanas. **8 jornadas >9h**, todas com 9h30
+efetivas, máximo 2 por membro; 160h/pessoa em 28 dias. Todos os dias
+têm pelo menos 5/8 escalados (sábados 5/5/5/5; domingos 5/6/5/5).
+Recontagem independente minuto a minuto de todo o mês: zero minutos
+descobertos ou com somente uma pessoa. Verificados 32/32 descansos
+explícitos semanais sem divergências entre planeamento e turnos,
+e nenhuma violação de folgas fixas. O estado `insufficient_context`
+continua a dever-se exclusivamente ao histórico incompleto das
+semanas de fronteira, sem certificação do mês completo. O
+`historyProvided=false` deste teste não permite validar justiça de
+rotação para períodos anteriores, desconhecidos. O diagnóstico real
+contém dados pessoais e NÃO foi guardado no repositório.
+PR92 permanece DRAFT, sem merge nem publicação Cloudflare.
+Última CI verificada:
+https://github.com/gv62hfjc8c-dot/schedule-engine/actions/runs/45021264014
+— 320/320 testes PASS e build PASS.
