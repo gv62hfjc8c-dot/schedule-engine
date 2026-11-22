@@ -753,3 +753,24 @@
   .daily-overview-stats { gap: 6px; }
   .daily-overview-stats > div { padding: 8px; }
 }
+
+
+/* Selecting a day on a small screen should reveal the detail below,
+ * without requiring a lengthy manual scroll back to the month grid. */
+.calendar-back-link { display: none; }
+#schedule-month-calendar,
+#schedule-day-details { scroll-margin-top: 12px; }
+@media (max-width: 620px) {
+  .calendar-back-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 8px 0;
+    margin: -5px 0 7px;
+    color: #b9e6eb;
+    font-size: 13px;
+    font-weight: 700;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+}
