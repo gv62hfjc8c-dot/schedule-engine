@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   buildScheduleDiagnostic,diagnosticFileName,DIAGNOSTIC_SCHEMA_VERSION,
+  type ScheduleDiagnosticInput,
 } from "../src/diagnosticExport";
 import {certifySchedule} from "../src/certifySchedule";
 import {suggestedWeeklyOpeningHours} from "../src/operatingHours";
@@ -11,7 +12,7 @@ import type {WorkAssignment} from "../src/workAssignments";
 const A="00000000-0000-4000-8000-000000000001";
 const B="00000000-0000-4000-8000-000000000002";
 
-function example() {
+function example():ScheduleDiagnosticInput {
   const team={members:[
     {id:A,name:"Pessoa A",active:true,weeklyDaysOff:2,
       fixedDaysOff:["wednesday" as const],
@@ -103,8 +104,8 @@ test("os totais por pessoa distinguem trabalho efetivo, domingos e folgas planea
 test("mudanças de configuração e ausência de histórico são explicitadas, sem simular sucesso",()=>{
   const input=example();
   input.settingsMatchGeneratedPreview=false;
-  input.externalContext=null as never;
-  input.rollingHistory=null as never;
+  input.externalContext=null;
+  input.rollingHistory=null;
   input.sourceStatuses.adjacentMonths="invalid";
   input.sourceStatuses.rollingHistory="unavailable";
   const diagnostic=buildScheduleDiagnostic(input);
