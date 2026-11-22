@@ -7,12 +7,25 @@ import {WEEKDAYS,type Weekday} from "./operatingHours";
  *
  * A weekly days-off COUNT is optional until configured. No weekday is fixed;
  * a day without a shift is not automatically labeled an official day off.
- * No contract, role, personal contact or legal identifiers at this stage.
+ * No contract, personal contact or legal identifiers at this stage.
+ * Explicit role qualifications are capabilities, never simultaneous work
+ * assignments or an implicit guarantee of functional coverage.
  */
+/** Current retail role presets; other business role catalogs belong in a
+ * later, data-driven configuration stage, not in the core scheduler.
+ */
+export const OPERATIONAL_ROLES=["checkout","sales"] as const;
+export type OperationalRole=typeof OPERATIONAL_ROLES[number];
+
 export interface TeamMember {
   id: string;
   name: string;
   active: boolean;
+  /** Which functions this person is qualified to cover.
+   * Omitted means UNKNOWN on legacy rosters, never "both".
+   * A dual-qualified person still counts as ONE person at any instant.
+   */
+  qualifiedRoles?: OperationalRole[];
   /** Exact number of non-working calendar days per Monday-Sunday week (0..6).
    * Omitted for legacy rosters: no days-off constraint is implied. */
   weeklyDaysOff?: number;
@@ -58,7 +71,8 @@ export function validateTeamRoster(input:unknown):TeamValidation {
     if(!item || typeof item!=="object" || Array.isArray(item))
       return {valid:false,value:null,issues:["Existe um colaborador com dados inválidos."]};
     const member=item as {id?:unknown;name?:unknown;active?:unknown;
-      weeklyDaysOff?:unknown;fixedDaysOff?:unknown;weekendRest?:unknown};
+      weeklyDaysOff?:unknown;fixedDaysOff?:unknown;weekendRest?:unknown;
+      qualifiedRoles?:unknown};
     const name=validateTeamName(member.name);
     if(!name)return {valid:false,value:null,
       issues:["O nome deve conter entre 2 e 120 caracteres válidos."]};
@@ -77,6 +91,15 @@ export function validateTeamRoster(input:unknown):TeamValidation {
       return {valid:false,value:null,issues:[
         "As folgas semanais devem ser um número inteiro entre 0 e 6.",
       ]};
+    const roles=member.qualifiedRoles;
+    if(roles!==undefined && (
+      !Array.isArray(roles) || roles.length<1 ||
+      roles.length>OPERATIONAL_ROLES.length ||
+      roles.some(role=>!OPERATIONAL_ROLES.some(allowed=>allowed===role)) ||
+      new Set(roles).size!==roles.length
+    ))return {valid:false,value:null,issues:[
+      "As funções devem ser Caixa, Vendas ou ambas, sem repetições.",
+    ]};
     const fixedDays=member.fixedDaysOff??[];
     if(!Array.isArray(fixedDays) ||
       fixedDays.some(day=>!WEEKDAYS.some(weekday=>weekday.id===day)) ||
@@ -106,6 +129,9 @@ export function validateTeamRoster(input:unknown):TeamValidation {
     seen.add(id);
     checked.push({
       id,name,active:member.active,
+      ...(roles===undefined?{}:{qualifiedRoles:OPERATIONAL_ROLES.filter(
+        role=>roles.includes(role),
+      )}),
       ...(member.weeklyDaysOff===undefined ? {} :
         {weeklyDaysOff:member.weeklyDaysOff}),
       ...(member.fixedDaysOff===undefined?{}:{fixedDaysOff:[...fixedDays] as Weekday[]}),
@@ -113,6 +139,16 @@ export function validateTeamRoster(input:unknown):TeamValidation {
     });
   }
   return {valid:true,value:{members:checked},issues:[]};
+}
+
+/** Unknown roles do not imply qualification, even for legacy staff.
+ * This is NOT a function-level coverage report: assignments are still
+ * unlabelled until the functional allocation phase is implemented.
+ */
+export function isQualifiedForRole(
+  member:TeamMember,role:OperationalRole,
+):boolean {
+  return member.qualifiedRoles?.includes(role)??false;
 }
 
 /** Distinct names can be identical; only the stable ID must be unique. */
