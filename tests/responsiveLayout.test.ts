@@ -84,3 +84,15 @@ test("PR93: equipa e funcionamento quebram colunas antes de transbordar",()=>{
   assert.match(base,/\.settings-panel\s*\{[^}]*max-width:\s*100%/s);
   assert.match(base,/@media \(hover: none\) and \(pointer: coarse\)/);
 });
+
+
+test("PR93: ao tocar numa data a versão móvel mostra detalhe e regresso",()=>{
+  assert.match(calendar,/id="schedule-month-calendar"/);
+  assert.match(calendar,/id="schedule-day-details"/);
+  assert.match(calendar,/aria-controls="schedule-day-details"/);
+  assert.match(calendar,/href="#schedule-month-calendar"/);
+  assert.match(calendar,/scrollIntoView\(\{behavior:reduced\?"auto":"smooth",block:"start"\}\)/);
+  assert.match(calendar,/prefers-reduced-motion: reduce/);
+  assert.match(calendarCss,/\.calendar-back-link\s*\{\s*display:\s*none/);
+  assert.match(calendarCss,/#schedule-day-details\s*\{\s*scroll-margin-top:\s*12px/);
+});
