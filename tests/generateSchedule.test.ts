@@ -1091,20 +1091,42 @@ test("PR83: a proteção da janela curta é genérica, sem nome de dia",()=>{
 });
 
 
-test("PR94: qualificação em Caixa/Vendas não altera turnos sem regras por função",()=>{
+test("PR94: dados legados não ativam regras funcionais; equipas classificadas ativam HARD coverage",()=>{
   const baseline=week();
   baseline.team={members:[
     {id:ANA,name:"Ana",active:true},
     {id:RUI,name:"Rui",active:true},
   ]};
+  const original=generateSchedule(baseline);
+  assert.equal(original.status,"valid");
+  assert.equal(original.functionalCoveragePolicy,undefined);
+  assert.ok(original.candidateAssignments.every(shift=>shift.role===undefined));
+
+  const incomplete=structuredClone(baseline);
+  incomplete.team={members:[
+    {id:ANA,name:"Ana",active:true,qualifiedRoles:["checkout"]},
+    {id:RUI,name:"Rui",active:true},
+  ]};
+  incomplete.mealBreakPolicy="v2";
+  const refused=generateSchedule(incomplete);
+  assert.equal(refused.status,"invalid_input");
+  assert.ok(refused.certification.issues.some(i=>
+    i.code==="INVALID_FUNCTIONAL_POLICY"));
+
   const qualified=structuredClone(baseline);
   qualified.team={members:[
     {id:ANA,name:"Ana",active:true,qualifiedRoles:["checkout"]},
     {id:RUI,name:"Rui",active:true,qualifiedRoles:["checkout","sales"]},
   ]};
-  const oldResult=generateSchedule(baseline);
-  const newResult=generateSchedule(qualified);
-  assert.deepEqual(newResult.candidateAssignments,oldResult.candidateAssignments);
-  assert.deepEqual(newResult.certification,oldResult.certification);
-  assert.equal(newResult.status,oldResult.status);
+  qualified.mealBreakPolicy="v2";
+  const enabled=generateSchedule(qualified);
+  assert.equal(enabled.functionalCoveragePolicy,"qualified50");
+  assert.ok(enabled.candidateAssignments.length>0);
+  assert.ok(enabled.candidateAssignments.every(shift=>
+    shift.role==="checkout"||shift.role==="sales"));
+  assert.equal(enabled.certification.status,"invalid",
+    "dois trabalhadores não podem cobrir duas funções durante 13h de abertura");
+  assert.ok(enabled.certification.issues.some(i=>
+    i.code==="FUNCTIONAL_COVERAGE_GAP"));
+  assert.deepEqual(enabled,generateSchedule(qualified),"determinismo");
 });
