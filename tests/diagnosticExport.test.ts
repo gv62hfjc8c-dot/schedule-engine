@@ -141,3 +141,29 @@ test("sem turnos ainda se podem exportar a equipa e o funcionamento para diagnó
   assert.equal(doc.analysis.byDay.every(day=>day.employeesWithShifts===0),true);
   assert.equal(doc.configuration.team?.members.length,2);
 });
+
+test("diagnóstico preserva as entradas de geração quando configuração atual mudou",()=>{
+  const input=example();
+  input.settingsMatchGeneratedPreview=false;
+  input.generationInputSnapshot={
+    team:example().team,
+    openingHours:example().openingHours,
+    externalContext:{assignments:[],completeDates:["2026-10-26"]},
+    rollingHoursHistory:{assignments:[],completeDates:["2026-10-25"]},
+  };
+  input.openingHours!.days[0].intervals=[
+    {start:"10:00",end:"18:00"},
+  ];
+  const diagnostic=buildScheduleDiagnostic(input);
+  assert.equal(diagnostic.settingsMatchGeneratedPreview,false);
+  assert.equal(
+    diagnostic.generationInputsAtCreation?.openingHours?.days[0].intervals[0].start,
+    "08:30",
+    "guardam-se as entradas originais, não a configuração atual do Safari");
+  assert.equal(
+    diagnostic.configuration.openingHours?.days[0].intervals[0].start,
+    "10:00");
+  assert.deepEqual(
+    diagnostic.generationInputsAtCreation?.rollingHoursHistory?.completeDates,
+    ["2026-10-25"]);
+});
