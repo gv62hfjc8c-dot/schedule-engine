@@ -88,8 +88,13 @@ export function DayScheduleTimeline({
             para mudar apenas a refeição. Usa as setas esquerda/direita ao selecionar
             uma barra para ajustes de 15 minutos.
           </p>}
+          <p className="daily-timeline-mobile-hint" id="daily-timeline-scroll-hint">
+            Desliza a linha temporal para os lados para consultar todas as horas.
+            Os turnos e as pausas também estão detalhados abaixo do gráfico.
+          </p>
           <div className="daily-timeline-scroll" role="region"
             aria-label="Linha temporal dos horários da equipa"
+            aria-describedby="daily-timeline-scroll-hint"
             tabIndex={0}>
             <div className="daily-timeline-table"
               style={{minWidth:trackWidth+235+"px"}}>
