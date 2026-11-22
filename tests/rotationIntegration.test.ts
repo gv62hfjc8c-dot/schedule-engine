@@ -228,3 +228,42 @@ test("oito pessoas não recebem seis fins de semana livres simultâneos, deixand
       "o período inicial 08h30–08h45 tem de ficar coberto");
   }
 });
+
+test("oito colaboradores com folgas fixas e regimes de 1/2 dias mantêm sábado completo",()=>{
+  const config=shop();
+  const members=(config.team as {members:{
+    id:string;name:string;active:boolean;weeklyDaysOff:number;
+    fixedDaysOff?:("monday"|"tuesday"|"wednesday"|"thursday")[];
+    weekendRest:{minimumWeekdayDaysOffOnFullWeekend:number}
+  }[]}).members;
+  for(let i=4;i<8;i++)
+    members.push({
+      id:"00000000-0000-4000-8000-"+String(i+1).padStart(12,"0"),
+      name:"Pessoa "+i,active:true,weeklyDaysOff:2,
+      weekendRest:{minimumWeekdayDaysOffOnFullWeekend:1},
+    });
+  members[0].weeklyDaysOff=1;
+  members[0].fixedDaysOff=["wednesday"];
+  members[1].weeklyDaysOff=1;
+  members[1].fixedDaysOff=["monday"];
+  members[2].fixedDaysOff=["tuesday"];
+  members[3].fixedDaysOff=["thursday"];
+  const result=generateSchedule(config);
+  assert.equal(result.status,"valid",
+    JSON.stringify(result.certification.issues.slice(0,15)));
+  assert.equal(result.rotation?.status,"planned");
+  assert.ok(result.rotation!.weeks.every(week=>
+    week.fullWeekendOffMemberIds.length<=4));
+  assert.ok(result.rotation!.weekendCounts.every(m=>m.planned<=2));
+  for(const member of members.filter(m=>m.fixedDaysOff)){
+    const weekday=member.fixedDaysOff![0];
+    const index=["monday","tuesday","wednesday","thursday"].indexOf(weekday);
+    assert.ok(result.candidateAssignments.every(shift=>
+      shift.memberId!==member.id||civilDayOfWeek(shift.date)!==index));
+  }
+  for(const date of ["2026-11-14","2026-11-21"]){
+    const opening=result.candidateAssignments.filter(a=>a.date===date);
+    assert.ok(opening.some(a=>a.start==="08:30"));
+    assert.ok(opening.some(a=>a.end==="19:00"));
+  }
+});
