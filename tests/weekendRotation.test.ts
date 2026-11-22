@@ -172,6 +172,37 @@ test("60% ao fim de semana considera sábado fixo antes de atribuir descansos co
   assert.equal(JSON.stringify(scenario),original,"imutabilidade");
 });
 
+test("PR92: o ciclo atribui as folgas completas extra a quem tem mais margem horária",()=>{
+  const fixed:Weekday[]=[
+    "wednesday","saturday","monday","friday",
+    "tuesday","monday","friday","tuesday",
+  ];
+  const scenario:WeekendRotationInput={
+    startWeek:"2026-11-02",weeks:4,
+    members:fixed.map((day,i)=>({
+      id:"P"+(i+1),weeklyDaysOff:i<3?1:2,fixedDaysOff:[day],
+      minimumWeekdayDaysOffOnFullWeekend:1,
+    })),
+    minimumPresentByWeekday:minimums(2,2,1),
+    maximumEffectiveMinutesByWeekday:cap(570,570,300),
+    workloadPreference:{
+      cycleReferenceMinutes:9600,preferredUpperDailyMinutes:540,cycleWeeks:4,
+    },
+  };
+  const result=planWeekendRotation(scenario);
+  assert.equal(result.status,"planned",JSON.stringify(result.issues));
+  const counts=new Map(result.weekendCounts.map(x=>[x.memberId,x.planned]));
+  const oneRest=Array.from({length:3},(_,i)=>counts.get("P"+(i+1))!);
+  const twoRest=Array.from({length:5},(_,i)=>counts.get("P"+(i+4))!);
+  assert.ok(oneRest.every(n=>n===2),
+    "os colaboradores com seis dias potenciais absorvem duas folgas completas: "+oneRest);
+  assert.ok(twoRest.every(n=>n<=1),
+    "ninguém com dois dias normais de descanso deve concentrar dois fins de semana: "+twoRest);
+  assert.ok(result.weeks.every(w=>w.presentByWeekday.saturday>=5 &&
+    w.presentByWeekday.sunday>=5),"presença SOFT continua acima de 60%");
+  assert.deepEqual(planWeekendRotation(scenario),result,"previsibilidade");
+});
+
 test("exigir toda a equipa ao domingo impede fins de semana completos",()=>{
   const scenario=input(4,minimums(2,3,4));
   const result=planWeekendRotation(scenario);
