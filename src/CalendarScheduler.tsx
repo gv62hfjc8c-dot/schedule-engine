@@ -619,6 +619,42 @@ function MonthWorkspace({
               Existem mais {report.issues.length-5} problemas no resultado.</p>}
           </div>}
         </div>}
+        {hasMonthProposal&&<section className="schedule-functional-overview"
+          aria-label="Cobertura funcional do mês">
+          <h3>Caixa e Vendas — distribuição mensal</h3>
+          {activeFunctionalPolicy==="qualified50"?<>
+            <p>Funções atribuídas nos turnos do mês. O mínimo de 50%
+              aplica-se a colaboradores ativos habilitados para cada
+              função, efetivamente a trabalhar em simultâneo, incluindo
+              os períodos das refeições.</p>
+            <p className={functionalProblems.length
+              ?"schedule-functional-warning":"schedule-functional-success"}>
+              {functionalProblems.length
+                ?functionalProblems.length+
+                  " conflitos funcionais detetados. O horário NÃO cumpre ainda a cobertura por função."
+                :"Sem lacunas funcionais detetadas na proposta mensal."}
+            </p>
+            {functionalProblems.length>0&&<details>
+              <summary>Consultar lacunas por função ({functionalProblems.length})</summary>
+              <ul>
+                {functionalProblems.slice(0,70).map((problem,i)=><li
+                  key={problem.code+"-"+i}>
+                  {problem.date??"Mês"} — {functionalRoleLabel(problem.role)}
+                  {problem.gapStart&&problem.gapEnd
+                    ?" ("+problem.gapStart+"–"+problem.gapEnd+")":""}
+                  {problem.missing?" · faltam "+problem.missing:""}
+                </li>)}
+              </ul>
+              {functionalProblems.length>70&&<p>
+                Existem mais {functionalProblems.length-70} ocorrências
+                no diagnóstico exportável.</p>}
+            </details>}
+          </>:<p>Esta proposta não inclui certificação funcional.
+            Para a ativar, define Caixa, Vendas ou ambas para todos os
+            colaboradores ativos em Configuração → Equipa e gera
+            novamente o horário mensal. Horários anteriores mantêm-se
+            sem validação de cobertura por função.</p>}
+        </section>}
         {preview?.rotation&&<div className="schedule-rotation-overview"
           aria-label="Rotação de fins de semana na proposta">
           <h3>Fins de semana completos — rotação proposta</h3>
@@ -745,6 +781,9 @@ function MonthWorkspace({
                       {byDay.get(cell.date!)!.map((shift,index)=>
                         <span key={shift.memberId+"-"+index}>
                           {shift.start}–{shift.end}
+                          {shift.role&&<span className="calendar-meal-time">
+                            {functionalRoleLabel(shift.role)}
+                          </span>}
                           {shift.mealBreak&&
                             <span className="calendar-meal-time">
                               Pausa {shift.mealBreak.start}–{shift.mealBreak.end}
@@ -812,6 +851,9 @@ function MonthWorkspace({
 
                     <strong>{memberLabel(item.memberId,names)}</strong>
                     <span>Turno {item.assignment.start}–{item.assignment.end}</span>
+                    {item.assignment.role&&<span className="schedule-functional-role">
+                      Função: {functionalRoleLabel(item.assignment.role)}
+                    </span>}
                     {item.assignment.mealBreak&&
                       <span className="meal-inline">
                         Pausa para refeição:
