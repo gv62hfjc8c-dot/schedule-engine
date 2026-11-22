@@ -1098,8 +1098,10 @@ test("PR94: qualificação em Caixa/Vendas não altera turnos sem regras por fun
     {id:RUI,name:"Rui",active:true},
   ]};
   const qualified=structuredClone(baseline);
-  qualified.team.members[0].qualifiedRoles=["checkout"];
-  qualified.team.members[1].qualifiedRoles=["checkout","sales"];
+  qualified.team={members:[
+    {id:ANA,name:"Ana",active:true,qualifiedRoles:["checkout"]},
+    {id:RUI,name:"Rui",active:true,qualifiedRoles:["checkout","sales"]},
+  ]};
   const oldResult=generateSchedule(baseline);
   const newResult=generateSchedule(qualified);
   assert.deepEqual(newResult.candidateAssignments,oldResult.candidateAssignments);
