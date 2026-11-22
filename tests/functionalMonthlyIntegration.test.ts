@@ -282,3 +282,48 @@ test("PR94: meta SOFT inalcançável não bloqueia melhoria parcial das pausas",
       input.team.members,input.openingHours,roles),
     optimized,"resultado determinístico");
 });
+
+
+test("PR94: sábado mantém almoço plausível quando a função já está coberta",()=>{
+  // Synthetic, anonymized reproduction of the five-worker Saturday.
+  // A specialist's 11:30 meal must not be moved to 17:00 merely
+  // to reach a SOFT target that remains unattainable.
+  const input=sample(3,3,2,"28d");
+  const roster=input.team.members;
+  const date="2026-11-28";
+  for(const day of input.openingHours.days)
+    day.intervals=[{start:"08:30",end:"19:00"}];
+  const shifts:WorkAssignment[]=[
+    {memberId:roster[6].id,date,start:"09:00",end:"19:00",
+      mealBreak:{start:"13:00",end:"14:00"}},
+    {memberId:roster[0].id,date,start:"08:30",end:"18:30",
+      mealBreak:{start:"11:30",end:"12:30"}},
+    {memberId:roster[7].id,date,start:"08:30",end:"17:00",
+      mealBreak:{start:"11:30",end:"12:30"}},
+    {memberId:roster[3].id,date,start:"09:00",end:"19:00",
+      mealBreak:{start:"12:30",end:"13:30"}},
+    {memberId:roster[1].id,date,start:"09:00",end:"18:15",
+      mealBreak:{start:"12:00",end:"13:00"}},
+  ];
+  const result=allocateFunctionalMonth(shifts,
+    resolvePlanningPeriod(input.period),roster,input.openingHours,
+    ["checkout","sales"]);
+  assert.equal(result.length,5);
+  const report=certifyFunctionalCoverage({
+    date,members:roster,assignments:result,
+    opening:[{start:"08:30",end:"19:00"}],
+    roles:["checkout","sales"],minimumPercent:50,
+  },result.map(a=>({memberId:a.memberId,role:a.role!})));
+  assert.notEqual(report.status,"invalid_input");
+  assert.ok(report.slots.every(slot=>
+    slot.counts.checkout>0 && slot.counts.sales>0),
+    "no role may remain entirely deserted during the opening");
+  assert.equal(result.find(a=>a.memberId===roster[0].id)!
+    .mealBreak?.start,"11:30",
+    "do not push a midday lunch to 17:00 for an unchanged SOFT score");
+  assert.deepEqual(result.map(assignmentMinutes),
+    shifts.map(assignmentMinutes),"preserve everyone's effective hours");
+  assert.deepEqual(allocateFunctionalMonth(shifts,
+    resolvePlanningPeriod(input.period),roster,input.openingHours,
+    ["checkout","sales"]),result,"deterministic cleanup");
+});
