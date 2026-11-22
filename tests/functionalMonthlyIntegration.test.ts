@@ -187,7 +187,7 @@ test("PR94: o planeador corrige pausas simultâneas em ambos os postos sem mudar
     {start:"09:00",end:"18:00"},
   ];
   const period=resolvePlanningPeriod(input.period);
-  const plan=allocateFunctionalMonth(shifts,period,members,input.openingHours);
+  const plan=allocateFunctionalMonth(shifts,period,members,input.openingHours,["checkout","sales"]);
   assert.equal(plan.length,4);
   assert.deepEqual(plan.map(a=>assignmentMinutes(a)),
     shifts.map(a=>assignmentMinutes(a)),
@@ -201,6 +201,6 @@ test("PR94: o planeador corrige pausas simultâneas em ambos os postos sem mudar
     "o escalonador deve separar pausas coincidentes por função");
   for(const role of ["checkout","sales"])assert.ok(
     functional.slots.every(slot=>slot.counts[role]>=1));
-  assert.deepEqual(allocateFunctionalMonth(shifts,period,members,input.openingHours),
+  assert.deepEqual(allocateFunctionalMonth(shifts,period,members,input.openingHours,["checkout","sales"]),
     plan,"determinismo");
 });
