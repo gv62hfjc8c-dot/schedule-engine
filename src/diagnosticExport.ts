@@ -3,7 +3,8 @@ import type {GenerationResult} from "./generateSchedule";
 import type {WeeklyOpeningHours} from "./operatingHours";
 import type {TeamRoster} from "./team";
 import type {WorkAssignment} from "./workAssignments";
-import {assignmentMinutes} from "./workAssignments";
+import {assignmentMinutes,clockMinutes} from "./workAssignments";
+import {measureSimultaneousCoverage} from "./simultaneousCoverage";
 import type {MealBreak} from "./mealBreaks";
 import type {PlannedRestWeekMember} from "./plannedRest";
 import {enumerateCivilDays,resolvePlanningPeriod,civilDayOfWeek} from "./schedulePeriods";
@@ -64,6 +65,10 @@ function workdaySummary(
   byDay:{
     date:string;open:boolean;employeesWithShifts:number;
     effectiveWorkMinutes:number;memberIds:string[];
+    /** Minutes with exactly 1 active worker; null if opening unknown. */
+    soloMinutes:number|null;
+    /** True hard coverage gaps; null if opening unknown. */
+    uncoveredMinutes:number|null;
   }[];
   byMember:{
     memberId:string;name:string;active:boolean;
@@ -106,10 +111,18 @@ function workdaySummary(
   }
   const byDay=enumerateCivilDays(period).map(date=>{
     const shifts=dayAssignments.get(date)??[];
+    const opening=input.openingHours?.days[civilDayOfWeek(date)]
+      ?.intervals??null;
+    const simultaneous=opening===null?null:measureSimultaneousCoverage(
+      shifts,opening.map(span=>({
+        start:clockMinutes(span.start),end:clockMinutes(span.end),
+      })),
+    );
     return {
       date,
-      open:(input.openingHours?.days[civilDayOfWeek(date)]
-        ?.intervals.length??0)>0,
+      open:(opening?.length??0)>0,
+      soloMinutes:simultaneous?.soloMinutes??null,
+      uncoveredMinutes:simultaneous?.uncoveredMinutes??null,
       employeesWithShifts:new Set(shifts.map(shift=>shift.memberId)).size,
       effectiveWorkMinutes:shifts.reduce((sum,shift)=>
         sum+assignmentMinutes(shift),0),
@@ -179,7 +192,18 @@ export function buildScheduleDiagnostic(input:ScheduleDiagnosticInput) {
       adjacentMonths:input.externalContext,
       rollingHoursHistory:input.rollingHistory,
     },
-    analysis:{byDay,byMember},
+    analysis:{
+      byDay,byMember,
+      quality:{
+        shiftsOverNineHours:byMember.reduce((sum,member)=>
+          sum+member.shiftsOverNineHours,0),
+        soloMinutes:byDay.some(day=>day.soloMinutes===null)
+          ?null:byDay.reduce((sum,day)=>sum+(day.soloMinutes??0),0),
+        uncoveredMinutes:byDay.some(day=>day.uncoveredMinutes===null)
+          ?null:byDay.reduce((sum,day)=>
+            sum+(day.uncoveredMinutes??0),0),
+      },
+    },
     interpretation:{
       scheduleType:"proposta, não trabalho realizado nem aprovação",
       hours:"minutos de trabalho efetivo, excluindo pausa de refeição",
