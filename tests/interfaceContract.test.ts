@@ -66,12 +66,15 @@ test("O calendário gera automaticamente, sem seletor de intervalos de entradas"
 });
 
 
-test("Folgas semanais configuram só a quantidade na página Equipa",()=>{
+test("Folgas semanais e rotação opcional configuram-se na mesma página Equipa",()=>{
   assert.match(teamEditor,/id="team-weekly-days-off"/);
   assert.match(teamEditor,/name="weeklyDaysOff"/);
   assert.match(teamEditor,/Por definir \(sem regra adicional\)/);
-  assert.match(teamEditor,/O motor escolhe os dias/);
-  assert.doesNotMatch(teamEditor,/name="dayOffWeekday"/);
+  assert.match(teamEditor,/id="team-fixed-rest"/);
+  assert.match(teamEditor,/name="fixedRest"/);
+  assert.match(teamEditor,/id="team-weekend-rotation"/);
+  assert.match(teamEditor,/name="weekendRotation"/);
+  assert.match(teamEditor,/team-weekend-weekday-rest/);
   assert.doesNotMatch(teamEditor,/type="date"/);
   assert.doesNotMatch(calendarScheduler,/Adicionar folga/);
   assert.match(calendarScheduler,
@@ -114,4 +117,27 @@ test("Um único turno contém a pausa, sem criar dois turnos de trabalho",()=>{
   assert.match(calendarScheduler,/Pausa para refeição/);
   assert.match(calendarScheduler,/gapStart/);
   assert.doesNotMatch(calendarScheduler,/name="mealDuration"/);
+});
+
+test("O equilíbrio diário é interno e não aumenta a configuração empresarial",()=>{
+  assert.doesNotMatch(app,/opening-staffing-enabled/);
+  assert.doesNotMatch(app,/opening-staffing-percent/);
+  assert.doesNotMatch(app,/dailyStaffingTargetPercent/);
+  assert.doesNotMatch(calendarScheduler,/schedule-staffing-overview/);
+  assert.match(calendarScheduler,/schedule-rotation-staffing-summary/);
+  assert.match(calendarScheduler,/referência interna, não obrigatória/);
+  assert.match(calendarScheduler,/staffingReport\.daysBelowTarget/);
+});
+
+test("Exportação de diagnóstico fica no calendário e nunca altera a proposta",()=>{
+  assert.match(calendarScheduler,/Exportar diagnóstico/);
+  assert.match(calendarScheduler,/onClick=\{exportDiagnostic\}/);
+  assert.match(calendarScheduler,/buildScheduleDiagnostic\(/);
+  assert.match(calendarScheduler,/diagnosticFileName\(year,month\)/);
+  assert.match(calendarScheduler,/URL\.createObjectURL\(blob\)/);
+  assert.match(calendarScheduler,/link\.download=/);
+  assert.match(calendarScheduler,/const currentSources=loadSources\(year,month\)/);
+  assert.match(calendarScheduler,/generationInputSnapshot:/);
+  assert.match(calendarScheduler,/Inclui nomes e horários/);
+  assert.doesNotMatch(app,/exportDiagnostic/);
 });

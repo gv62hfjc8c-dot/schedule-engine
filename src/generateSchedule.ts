@@ -16,6 +16,12 @@ import {effectiveMealDayCapacity} from "./mealBreaks";
 import {scheduleMealDay,type MealDayRequest} from "./mealCoveragePlanner";
 import {shortOpeningDays} from "./shortOpenings";
 import {rollingWeekGuidance} from "./rollingHoursPlan";
+import {prepareRotation} from "./rotationIntegration";
+import {validateFullWeekendHistory} from "./plannedRest";
+import {
+  evaluateDailyStaffing,type DailyStaffingReport,
+} from "./dailyStaffingBalance";
+import type {WeekendRotationResult} from "./weekendRotation";
 import {
   balanceLongWorkdays,compareDailyWorkload,dailyWorkloadQuality,
   type DailyWorkloadQuality,
@@ -48,10 +54,18 @@ export interface GenerationResult {
   /** "invalid_input" means the generator refused to plan from corrupt input. */
   status:"valid"|"invalid"|"insufficient_context"|"invalid_input";
   shortfalls:GenerationShortfall[];
+  /** Present only when the roster has opted into complete-weekend rotation. */
+  rotation?:WeekendRotationResult;
+  /** Soft diagnostic from actual assigned workdays, not promised rest. */
+  dailyStaffing?:DailyStaffingReport;
+  rotationTargetShortfalls?:readonly {
+    memberId:string;startWeek:string;missingMinutes:number;
+  }[];
 }
 
 const FATAL_INPUT_CODES=new Set<CertificationIssueCode>([
   "INVALID_PERIOD","INVALID_TEAM","NO_ACTIVE_MEMBERS",
+  "INVALID_REST_POLICY",
   "INVALID_OPENING_HOURS","INVALID_ASSIGNMENT","UNKNOWN_MEMBER",
   "INACTIVE_MEMBER","OUTSIDE_EDITABLE_PERIOD","OUTSIDE_CONTEXT_RANGE",
   "CONTEXT_IN_EDITABLE_PERIOD","INVALID_CONTEXT_DAY",
@@ -597,6 +611,17 @@ export function generateSchedule(input:GenerationInput):GenerationResult {
       ]},
     };
   }
+  const confirmedRestHistory=historyRaw?.plannedFullWeekends===undefined?[]:
+    validateFullWeekendHistory(historyRaw.plannedFullWeekends);
+  if(confirmedRestHistory===null){
+    return {
+      status:"invalid_input",candidateAssignments:[],shortfalls:[],
+      certification:{...emptyCertification,status:"invalid",issues:[
+        ...emptyCertification.issues,{code:"INVALID_REST_POLICY",
+          message:"O histórico de fins de semana contém dados inválidos."},
+      ]},
+    };
+  }
   const knownHourDates=new Set<string>([
     ...completeDates,...(historyRaw?.completeDates as string[]|undefined??[]),
   ]);
@@ -620,6 +645,21 @@ export function generateSchedule(input:GenerationInput):GenerationResult {
 
   const shortDays=shortOpeningDays(hours.value);
   const activeMembers=team.value.members.filter(member=>member.active);
+  const rotationPlan=prepareRotation(
+    period,team.value,hours.value,confirmedRestHistory,
+  );
+  if(rotationPlan?.rotation.status &&
+    rotationPlan.rotation.status!=="planned"){
+    return {
+      status:"invalid_input",candidateAssignments:[],shortfalls:[],
+      rotation:rotationPlan.rotation,
+      certification:{...emptyCertification,status:"invalid",issues:[
+        ...emptyCertification.issues,
+        {code:"INVALID_REST_POLICY",message:
+          "Não foi possível demonstrar uma rotação que cumpra as folgas e a cobertura diária configuradas."},
+      ]},
+    };
+  }
   for(const week of period.weeks){
     // Only this civil week's editable, open days participate in the soft
     // distribution. Adjacent-month assignments remain read-only context.
@@ -631,16 +671,31 @@ export function generateSchedule(input:GenerationInput):GenerationResult {
       const externalMinutes=externalAssignments.reduce((sum,entry)=>
         entry.memberId.toLowerCase()===member.id && inRange(entry.date,week)
           ? sum+assignmentMinutes(entry):sum,0);
-      const weeklyReference=input.hoursPolicy==="rolling28" && contextComplete
-        ?rollingWeekGuidance(week.start,member.id,
-          knownHourDates,historicHours).targetMinutes
-        :REQUIRED_WEEKLY_MINUTES;
+      const targetOverride=input.hoursPolicy==="rolling28"
+        ?rotationPlan?.weeklySoftTargets.get(member.id+"|"+week.start)
+        :undefined;
+      const weeklyReference=targetOverride??(
+        input.hoursPolicy==="rolling28" && contextComplete
+          ?rollingWeekGuidance(week.start,member.id,
+            knownHourDates,historicHours).targetMinutes
+          :REQUIRED_WEEKLY_MINUTES);
       const target=Math.max(0,weeklyReference-externalMinutes);
       const plans=availableDays(
         week,period,hours.value,input.mealBreakPolicy,mealCapacityCache,
         shortDays
       );
-      if(member.weeklyDaysOff!==undefined && contextComplete){
+      for(const plan of plans)
+        if(member.fixedDaysOff?.includes(hours.value.days[civilDayOfWeek(plan.date)].day))
+          plan.capacity=0;
+      const plannedOffDates=rotationPlan?.daysWithoutWorkByMemberWeek.get(
+        member.id+"|"+week.start);
+      if(plannedOffDates!==undefined){
+        for(const plan of plans)
+          if(plannedOffDates.has(plan.date))plan.capacity=0;
+        const eligible=plans.filter(plan=>plan.capacity>0);
+        const feasibleCapacity=eligible.reduce((sum,plan)=>sum+plan.capacity,0);
+        allocateBalancedWeek(eligible,Math.min(target,feasibleCapacity));
+      }else if(member.weeklyDaysOff!==undefined && contextComplete){
         const knownWorkedDates=new Set(externalAssignments
           .filter(entry=>entry.memberId.toLowerCase()===member.id &&
             inRange(entry.date,week)).map(entry=>entry.date));
@@ -754,5 +809,15 @@ export function generateSchedule(input:GenerationInput):GenerationResult {
   return {
     status:certification.status,
     candidateAssignments:candidates,certification,shortfalls,
+    ...(rotationPlan?{
+      dailyStaffing:evaluateDailyStaffing(
+        candidates,period,hours.value,
+        activeMembers.map(member=>member.id),
+      ),
+    }:{}),
+    ...(rotationPlan?{
+      rotation:rotationPlan.rotation,
+      rotationTargetShortfalls:rotationPlan.fourWeekTargetShortfalls,
+    }:{}),
   };
 }

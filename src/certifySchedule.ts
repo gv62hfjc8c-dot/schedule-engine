@@ -14,6 +14,8 @@ import {validateMealBreak,SHORT_SHIFT_MAX_WORK_MINUTES,
   type MealBreak} from "./mealBreaks";
 import {clockMinutes} from "./workAssignments";
 import {shortOpeningDays} from "./shortOpenings";
+import {requiredRestDayCount} from "./weekendRotation";
+import {addCivilDays,civilDayOfWeek} from "./schedulePeriods";
 
 export type CertificationStatus="valid"|"invalid"|"insufficient_context";
 export type CertificationIssueCode=
@@ -28,7 +30,9 @@ export type CertificationIssueCode=
   | "INVALID_MEAL_BREAK"|"INVALID_MEAL_POLICY"|"MEAL_BREAK_MISSING"
   | "MEAL_BREAK_UNNECESSARY"|"MEAL_BREAK_TOO_EARLY"
   | "MEAL_BREAK_OVERLAP"|"MULTIPLE_SHIFTS_SAME_DAY"|"OPENING_UNCOVERED"
-  | "SHORT_OPENING_INCOMPLETE" | "INVALID_HOURS_POLICY";
+  | "SHORT_OPENING_INCOMPLETE" | "INVALID_HOURS_POLICY"
+  | "FIXED_DAY_OFF_VIOLATED"|"WEEKEND_WEEKDAY_REST_MISSING"
+  | "INVALID_REST_POLICY";
 
 export interface CertificationIssue {
   code:CertificationIssueCode;
@@ -67,6 +71,8 @@ export interface ExternalScheduleContext {
    * Absence is UNKNOWN, never interpreted as a day off.
    */
   completeDates:unknown;
+  /** Confirmed full-weekend rest decisions from prior saved proposals only. */
+  plannedFullWeekends?:unknown;
 }
 export interface CertificationInput {
   period:PeriodRequest;
@@ -133,6 +139,12 @@ export function certifySchedule(input:CertificationInput):CertificationReport {
   if(active.length===0)
     return report("invalid",period,[
       issue("NO_ACTIVE_MEMBERS","A equipa não tem colaboradores ativos."),
+    ]);
+  if(active.some(member=>member.weekendRest) &&
+    active.some(member=>member.weeklyDaysOff===undefined))
+    return report("invalid",period,[
+      issue("INVALID_REST_POLICY",
+        "Para planear a rotação, configura os dias habituais de descanso de toda a equipa ativa."),
     ]);
 
   const hours=validateWeeklyOpeningHours(input.openingHours);
@@ -228,6 +240,19 @@ export function certifySchedule(input:CertificationInput):CertificationReport {
   }
   rawCandidate.forEach(value=>consume(value,"candidate"));
   rawExternal.forEach(value=>consume(value,"external"));
+
+  // Fixed weekly rest is independent of the particular rotation selected.
+  // Never reinterpret immutable external assignments against new team rules.
+  for(const entry of assignments){
+    if(!inRange(entry.date,period))continue;
+    const member=members.get(entry.memberId);
+    const weekday=validatedOpeningHours.days[civilDayOfWeek(entry.date)].day;
+    if(member?.fixedDaysOff?.includes(weekday))
+      problems.push(issue("FIXED_DAY_OFF_VIOLATED",
+        "Foi atribuído trabalho num dia de folga fixa.",{
+          memberId:entry.memberId,date:entry.date,
+        }));
+  }
 
   const completeDates=new Set<string>();
   for(const value of rawDates){
@@ -451,10 +476,31 @@ export function certifySchedule(input:CertificationInput):CertificationReport {
         entry.memberId===member.id && inRange(entry.date,week)
           ? sum+assignmentMinutes(entry):sum,0);
       const complete=absent.length===0;
-      const knownWorkedDays=new Set(assignments.filter(entry=>
+      const workedDates=new Set(assignments.filter(entry=>
         entry.memberId===member.id && inRange(entry.date,week)
-      ).map(entry=>entry.date)).size;
+      ).map(entry=>entry.date));
+      const knownWorkedDays=workedDates.size;
       const knownDaysOff=7-knownWorkedDays;
+      const saturday=addCivilDays(week.start,5);
+      const sunday=addCivilDays(week.start,6);
+      const weekendComplete=!workedDates.has(saturday) &&
+        !workedDates.has(sunday);
+      // A newly enabled rotation rule must not retroactively reinterpret a
+      // weekend belonging entirely to another, immutable saved month.
+      const weekendInEditable=inRange(saturday,period)||
+        inRange(sunday,period);
+      const closedWeekdays=validatedOpeningHours.days.filter(d=>
+        d.intervals.length===0).map(day=>day.day);
+      const requiredDaysOff=member.weekendRest!==undefined &&
+        absent.length===0 && weekendComplete && weekendInEditable &&
+        member.weeklyDaysOff!==undefined
+        ?requiredRestDayCount({
+          id:member.id,weeklyDaysOff:member.weeklyDaysOff,
+          fixedDaysOff:member.fixedDaysOff??[],
+          minimumWeekdayDaysOffOnFullWeekend:
+            member.weekendRest.minimumWeekdayDaysOffOnFullWeekend,
+        },true,closedWeekdays)
+        :member.weeklyDaysOff;
       const summary:WeeklyWorkSummary={
         memberId:member.id,weekStart:week.start,
         weekEndExclusive:week.endExclusive,
@@ -483,12 +529,25 @@ export function certifySchedule(input:CertificationInput):CertificationReport {
             }));
         continue;
       }
-      if(member.weeklyDaysOff!==undefined &&
-        knownDaysOff!==member.weeklyDaysOff)
+      if(member.weekendRest!==undefined && weekendComplete &&
+        weekendInEditable &&
+        !closedWeekdays.includes("saturday") &&
+        !closedWeekdays.includes("sunday")){
+        const actualWeekdayRest=5-[...workedDates].filter(date=>
+          civilDayOfWeek(date)<5).length;
+        if(actualWeekdayRest<member.weekendRest.minimumWeekdayDaysOffOnFullWeekend)
+          problems.push(issue("WEEKEND_WEEKDAY_REST_MISSING",
+            "O fim de semana completo exige descanso adicional durante a semana.",{
+              memberId:member.id,weekStart:week.start,
+              requiredDaysOff,actualDaysOff:knownDaysOff,
+            }));
+      }
+      if(requiredDaysOff!==undefined &&
+        knownDaysOff!==requiredDaysOff)
         problems.push(issue("WEEKLY_DAYS_OFF_MISMATCH",
-          "O número de dias sem trabalho não corresponde à configuração semanal.",{
+          "O número de dias sem trabalho não corresponde à política de descanso desta semana.",{
             memberId:member.id,weekStart:week.start,
-            requiredDaysOff:member.weeklyDaysOff,actualDaysOff:knownDaysOff,
+            requiredDaysOff,actualDaysOff:knownDaysOff,
           }));
       // Rolling 28-day hours are a SOFT reference. No arbitrary payroll
       // credit or legal compliance is inferred from this certification.

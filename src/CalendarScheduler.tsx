@@ -18,6 +18,11 @@ import {buildDailyTimeline} from "./dailyTimeline";
 import {DayScheduleTimeline} from "./DayScheduleTimeline";
 import type {WeeklyOpeningHours} from "./operatingHours";
 import {moveTimelineAssignment,type TimelineMove} from "./timelineEditing";
+import {restRecordsFromRotation,type PlannedRestWeekMember} from "./plannedRest";
+import {evaluateDailyStaffing} from "./dailyStaffingBalance";
+import {
+  buildScheduleDiagnostic,diagnosticFileName,type DiagnosticMode,
+} from "./diagnosticExport";
 
 const WEEKDAYS=["Seg","Ter","Qua","Qui","Sex","Sáb","Dom"];
 
@@ -104,6 +109,10 @@ function MonthWorkspace({
   const [savedHoursPolicy,setSavedHoursPolicy]=useState<"rolling28"|undefined>(
     ()=>initial.status==="loaded"?initial.hoursPolicy:undefined
   );
+  const [savedRotationRest,setSavedRotationRest]=useState<PlannedRestWeekMember[]|null>(
+    ()=>initial.status==="loaded"&&initial.rotationRest!==undefined
+      ?initial.rotationRest:null
+  );
   const [hoursHistory,setHoursHistory]=useState(
     ()=>readPriorRollingHistoryFromBrowser(year,month)
   );
@@ -169,6 +178,11 @@ function MonthWorkspace({
   const activeHoursPolicy=manualEdit?manualEdit.hoursPolicy:
     preview?"rolling28":savedHoursPolicy;
   const period=resolvePlanningPeriod({mode:"monthly",year,month});
+  // Read-only quality diagnostic; no staffing preference in company settings.
+  const staffingReport=dailyOpening &&
+    (preview?.rotation!==undefined||savedRotationRest?.length)
+      ?evaluateDailyStaffing(data,period,dailyOpening,activeMemberIds)
+      :null;
   const throughDate=selectedDate??
     enumerateCivilDays(period).at(-1)!;
   const hasMonthProposal=preview!==null||saved!==null;
@@ -181,6 +195,23 @@ function MonthWorkspace({
     }):null;
   const formatHours=(minutes:number)=>
     (minutes/60).toLocaleString("pt-PT",{maximumFractionDigits:2})+" h";
+  const visibleRestRecords=preview?.rotation?.status==="planned"
+    ?restRecordsFromRotation(preview.rotation)
+    :preview===null?savedRotationRest??[]:[];
+  const previewRestDays=new Set<string>(
+    selectedMemberId!==null && hasMonthProposal
+      ?visibleRestRecords.filter(member=>member.memberId===selectedMemberId)
+        .flatMap(member=>member.daysWithoutWork)
+      :[]
+  );
+  const savedWeekendOverview=new Map<string,string[]>();
+  if(preview===null)
+    for(const record of savedRotationRest??[]){
+      if(!record.fullWeekendOff)continue;
+      const colleagues=savedWeekendOverview.get(record.weekStart)??[];
+      colleagues.push(record.memberId);
+      savedWeekendOverview.set(record.weekStart,colleagues);
+    }
   const memberOptions=new Map(names);
   for(const entry of data){
     if(!memberOptions.has(entry.memberId))
@@ -313,6 +344,101 @@ function MonthWorkspace({
       {kind:"success",message:"Proposta gerada. Revê o resultado e guarda-a apenas se estiver correta."});
   }
 
+  function exportDiagnostic(){
+    // Export is read-only: never generate, approve, save or alter a proposal.
+    // Always capture the current company sources, not an old React snapshot.
+    if(dragCandidate!==null){
+      setFeedback({kind:"error",message:
+        "Termina o movimento do turno antes de exportar o diagnóstico."});
+      return;
+    }
+    try {
+      const currentSources=loadSources(year,month);
+      const currentSaved=loadMonthlyDraftFromBrowser(year,month);
+      const monthAssignments=[...data];
+      const sourceMatches=manualEdit?.sourceSignature??
+        (preview!==null?sourceSignature:null);
+      const originalSources:SourceSnapshot|null=manualEdit?.sources??
+        (sourceMatches!==null?JSON.parse(sourceMatches) as SourceSnapshot:null);
+      const currentSignature=JSON.stringify(currentSources);
+      const mode:DiagnosticMode=manualEdit!==null
+        ?"manual_edits":preview!==null
+          ?"generated_preview":saved!==null
+            ?"saved_proposal":"configuration_only";
+      const hoursPolicy=activeHoursPolicy??null;
+      const mealBreakPolicy=manualEdit!==null||preview!==null
+        ?"v2":savedPolicy??null;
+      const currentReport=monthAssignments.length>0
+        ?certificationForSaved(currentSources,year,month,
+          monthAssignments,legacyMealBreaks,
+          mealBreakPolicy??undefined,hoursPolicy??undefined)
+        :null;
+      const snapshot=buildScheduleDiagnostic({
+        exportedAt:new Date().toISOString(),
+        year,month,mode,
+        team:currentSources.team.status==="loaded"
+          ?currentSources.team.value:null,
+        openingHours:currentSources.opening.status==="loaded"
+          ?currentSources.opening.value:null,
+        assignments:monthAssignments,
+        savedAssignments:currentSaved.status==="loaded"
+          ?currentSaved.assignments:null,
+        mealBreaks:legacyMealBreaks,
+        mealBreakPolicy,hoursPolicy,
+        plannedRest:visibleRestRecords,
+        externalContext:currentSources.context.ok
+          ?currentSources.context.context:null,
+        rollingHistory:currentSources.hoursHistory.ok
+          ?currentSources.hoursHistory.context:null,
+        sourceStatuses:{
+          team:currentSources.team.status,
+          openingHours:currentSources.opening.status,
+          adjacentMonths:currentSources.context.ok
+            ?"loaded":currentSources.context.status,
+          rollingHistory:currentSources.hoursHistory.ok
+            ?"loaded":currentSources.hoursHistory.status,
+          savedMonth:currentSaved.status,
+        },
+        generation:preview,
+        displayedCertification:report,
+        currentConfigurationCertification:currentReport,
+        settingsMatchGeneratedPreview:sourceMatches===null?null:
+          sourceMatches===currentSignature,
+        generationInputSnapshot:originalSources?{
+          team:originalSources.team.status==="loaded"
+            ?originalSources.team.value:null,
+          openingHours:originalSources.opening.status==="loaded"
+            ?originalSources.opening.value:null,
+          externalContext:originalSources.context.ok
+            ?originalSources.context.context:null,
+          rollingHoursHistory:originalSources.hoursHistory.ok
+            ?originalSources.hoursHistory.context:null,
+        }:null,
+      });
+      const contents=JSON.stringify(snapshot,null,2);
+      const blob=new Blob([contents],{
+        type:"application/json;charset=utf-8",
+      });
+      const url=URL.createObjectURL(blob);
+      try {
+        const link=document.createElement("a");
+        link.href=url;
+        link.download=diagnosticFileName(year,month);
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+      }finally{
+        // Revoking synchronously can cancel downloads on some Safari builds.
+        window.setTimeout(()=>URL.revokeObjectURL(url),1000);
+      }
+      setFeedback({kind:"success",message:
+        "Exportação de diagnóstico solicitada. O ficheiro JSON contém nomes, regras, turnos e resultados de certificação; revê-o antes de o partilhares."});
+    }catch{
+      setFeedback({kind:"error",message:
+        "Não foi possível preparar o diagnóstico. Os horários e os dados guardados não foram alterados."});
+    }
+  }
+
   function save(){
     if(isBlocked || dragCandidate!==null)return;
     const candidates=manualEdit?.assignments??preview?.candidateAssignments;
@@ -343,9 +469,12 @@ function MonthWorkspace({
     }
     if(saved!==null &&
       !window.confirm("Substituir a proposta guardada deste mês? Os horários dos outros meses não serão alterados."))return;
+    const rest=preview?.rotation?.status==="planned"
+      ?restRecordsFromRotation(preview.rotation)
+      :preview===null?savedRotationRest??undefined:undefined;
     const result=saveMonthlyDraftToBrowser(
       year,month,candidates,revision,
-      undefined,"v2",hoursPolicy
+      undefined,"v2",hoursPolicy,rest
     );
     if(!result.ok){
       setFeedback({kind:"error",message:result.message});
@@ -355,6 +484,7 @@ function MonthWorkspace({
     setSavedMealBreaks(result.mealBreaks);
     setSavedPolicy(result.mealBreakPolicy);
     setSavedHoursPolicy(result.hoursPolicy);
+    setSavedRotationRest(result.rotationRest??null);
     setRevision(result.revision);
     setSavedReport(currentReport);
     setPreview(null);
@@ -384,6 +514,12 @@ function MonthWorkspace({
           <div className="schedule-buttons">
             <button type="button" className="button button-primary"
               disabled={isBlocked} onClick={generate}>Gerar horário</button>
+            <button type="button" className="button schedule-diagnostic"
+              disabled={dragCandidate!==null}
+              onClick={exportDiagnostic}
+              title="Exporta a configuração, a equipa, a proposta visível e os resultados de validação. Inclui nomes e horários, nunca palavras-passe.">
+              Exportar diagnóstico
+            </button>
             {(manualEdit!==null || (preview!==null &&
               (preview.status==="valid"||preview.status==="insufficient_context"))) &&
               <button type="button" className="button schedule-save" onClick={save}
@@ -460,6 +596,67 @@ function MonthWorkspace({
               Existem mais {report.issues.length-5} problemas no resultado.</p>}
           </div>}
         </div>}
+        {preview?.rotation&&<div className="schedule-rotation-overview"
+          aria-label="Rotação de fins de semana na proposta">
+          <h3>Fins de semana completos — rotação proposta</h3>
+          <p>O motor procura distribuir os descansos de forma equilibrada.
+            A frequência depende das folgas fixas e da cobertura, não de
+            um ciclo obrigatório de quatro semanas.</p>
+          {preview.rotation.issues.length>0&&<p role="alert" className="form-error">
+            {preview.rotation.issues.map(issue=>issue.message).join(" ")}
+          </p>}
+          {preview.rotation.weeks.length>0&&<div className="schedule-rotation-weeks">
+            {preview.rotation.weeks.map(week=><div key={week.weekStart}
+              className="schedule-rotation-week">
+              <span>Semana de {week.weekStart}</span>
+              <strong>{week.fullWeekendOffMemberIds.length===0
+                ? "Sem fim de semana completo atribuído"
+                :week.fullWeekendOffMemberIds.map(id=>memberLabel(id,names))
+                  .join(" · ")}</strong>
+            </div>)}
+          </div>}
+          {preview.rotationTargetShortfalls?.length?(
+            <p className="schedule-rotation-warning" role="status">
+              A capacidade disponível não permite atingir a referência de
+              160 horas em todos os blocos de quatro semanas. O motor não
+              cria horas fictícias para compensar a diferença.
+            </p>
+          ):null}
+          {staffingReport&&<p className="schedule-rotation-staffing-summary">
+            Equilíbrio diário (referência interna, não obrigatória):
+            {" "}{staffingReport.daysBelowTarget} de
+            {" "}{staffingReport.days.length} dias abertos abaixo
+            do objetivo indicativo de presença.
+          </p>}
+          <small>O descanso planeado é guardado com a proposta.
+            A cobertura minuto a minuto e as pausas são verificadas
+            separadamente pelo certificador.</small>
+        </div>}
+        {preview===null&&savedRotationRest!==null&&
+          savedRotationRest.length>0&&
+          <div className="schedule-rotation-overview"
+            aria-label="Rotação de fins de semana guardada">
+            <h3>Fins de semana completos — proposta guardada</h3>
+            <div className="schedule-rotation-weeks">
+              {[...new Set(savedRotationRest.map(record=>record.weekStart))]
+                .sort().map(weekStart=><div key={weekStart}
+                  className="schedule-rotation-week">
+                  <span>Semana de {weekStart}</span>
+                  <strong>{(savedWeekendOverview.get(weekStart)??[]).length===0
+                    ?"Sem fim de semana completo atribuído"
+                    :savedWeekendOverview.get(weekStart)!.map(id=>
+                      memberLabel(id,names)).join(" · ")}</strong>
+                </div>)}
+            </div>
+            {staffingReport&&<p className="schedule-rotation-staffing-summary">
+              Equilíbrio diário (indicador interno):
+              {" "}{staffingReport.daysBelowTarget} de
+              {" "}{staffingReport.days.length} dias abertos abaixo
+              da referência indicativa de presença.
+            </p>}
+            <small>Descansos explicitamente planeados, não inferidos
+              de dias sem turno. A proposta continua a ser um rascunho local.</small>
+          </div>}
       </section>
       <div className="calendar-layout">
         <section className="surface calendar-panel" aria-label="Calendário mensal">
@@ -541,7 +738,10 @@ function MonthWorkspace({
                       {byDay.get(cell.date!)!.length} turnos
                     </span>)
                   :selectedMemberId!==null && data.length>0 &&
-                    <span className="calendar-member-empty">Sem turno</span>}
+                    <span className="calendar-member-empty">
+                      {previewRestDays.has(cell.date!)
+                        ?"Descanso planeado":"Sem turno"}
+                    </span>}
               </button>)}
           </div>
           <p className="calendar-footnote">

@@ -46,6 +46,7 @@ export function scheduleMealDay(
     b.request.workMinutes-a.request.workMinutes ||
     a.request.memberIndex-b.request.memberIndex);
   const chosen:WorkAssignment[]=[];
+  const chosenOptions:WorkAssignment[][]=[];
   for(const {request,options} of candidates){
     if(options.length===0)continue;
     const uncovered=new Uint16Array(1441);
@@ -90,8 +91,74 @@ export function scheduleMealDay(
       }
     }
     chosen.push(best);
+    chosenOptions.push(options);
     for(const portion of effectiveWorkIntervals(best))
       for(let t=portion.start;t<portion.end;t++)covered[t]=1;
+  }
+  // A greedy placement may leave a short gap despite a feasible coverage
+  // pattern. Reposition an ALREADY SELECTED shift if it strictly reduces
+  // uncovered opening minutes. No work hours, meal duration, days or people
+  // are changed. The independent certifier remains the final authority.
+  let remaining=open.reduce((sum,isOpen,t)=>
+    sum+(isOpen&&!covered[t]?1:0),0);
+  if(remaining>0 && chosen.length>0){
+    const presence=new Uint16Array(1440);
+    function adjust(shift:WorkAssignment,delta:1|-1){
+      for(const interval of effectiveWorkIntervals(shift))
+        for(let t=interval.start;t<interval.end;t++)
+          presence[t]+=delta;
+    }
+    for(const shift of chosen)adjust(shift,1);
+    const limit=Math.min(20,chosen.length*2);
+    for(let iteration=0;iteration<limit&&remaining>0;iteration++){
+      const missingPrefix=new Uint16Array(1441);
+      for(let t=0;t<1440;t++)
+        missingPrefix[t+1]=missingPrefix[t]+
+          (open[t]&&presence[t]===0?1:0);
+      let winner:{index:number;option:WorkAssignment;gain:number;
+        movement:number}|null=null;
+      for(let index=0;index<chosen.length;index++){
+        const old=chosen[index];
+        const oldIntervals=effectiveWorkIntervals(old);
+        const uniquePrefix=new Uint16Array(1441);
+        for(let t=0;t<1440;t++){
+          const insideOld=oldIntervals.some(part=>
+            part.start<=t&&t<part.end);
+          uniquePrefix[t+1]=uniquePrefix[t]+
+            (open[t]&&insideOld&&presence[t]===1?1:0);
+        }
+        const uniqueTotal=oldIntervals.reduce((sum,part)=>
+          sum+uniquePrefix[part.end]-uniquePrefix[part.start],0);
+        for(const option of chosenOptions[index]){
+          if(option===old)continue;
+          const next=effectiveWorkIntervals(option);
+          const restored=next.reduce((sum,part)=>
+            sum+missingPrefix[part.end]-missingPrefix[part.start],0);
+          let uniqueStillCovered=0;
+          for(const oldPart of oldIntervals)
+            for(const newPart of next){
+              const start=Math.max(oldPart.start,newPart.start);
+              const end=Math.min(oldPart.end,newPart.end);
+              if(end>start)
+                uniqueStillCovered+=uniquePrefix[end]-uniquePrefix[start];
+            }
+          const gained=restored-uniqueTotal+uniqueStillCovered;
+          if(gained<=0)continue;
+          const movement=Math.abs(clockMinutes(option.start)-
+            clockMinutes(old.start));
+          if(!winner||gained>winner.gain||
+            (gained===winner.gain&&movement<winner.movement))
+            winner={index,option,gain:gained,movement};
+        }
+      }
+      if(!winner)break;
+      adjust(chosen[winner.index],-1);
+      chosen[winner.index]=winner.option;
+      adjust(winner.option,1);
+      remaining-=winner.gain;
+    }
+    for(let t=0;t<1440;t++)
+      covered[t]=presence[t]>0?1:0;
   }
   return {
     assignments:chosen,

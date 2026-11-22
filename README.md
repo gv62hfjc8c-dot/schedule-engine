@@ -554,8 +554,8 @@ sem que o calendário filtrado oculte colaboradores da equipa.
    abertura não pode ser deslocado para fora do funcionamento.
 7. Confirmar o arrastamento e o scroll horizontal num ecrã reduzido.
 
-**Integração:** PR87 depende de PR86, que permanece em Draft. Não integrar a
-edição antes de verificar visualmente ambos em Safari.
+**Estado atual:** PR86 e PR87 já foram validados e integrados na `main`.
+Esta secção mantém os critérios históricos de aceitação.
 
 
 ## PR88 — Evitar jornadas de presença excessivamente longas
@@ -614,9 +614,243 @@ O objetivo é melhorar a experiência real da equipa sem perder cobertura.
 3. Confirmar cobertura ininterrupta, pausas internas, folgas e turnos
    dominicais completos; observar saídas às 19h sem exigir entrada às 08h30.
 4. Confirmar que o histórico guardado não foi modificado pela geração.
-   Não fazer merge sem validação funcional.
+   O PR88 já foi validado e integrado na `main`.
 
 **Limite conhecido:** esta é uma otimização local da carga diária, não
 uma pesquisa global de todas as distribuições de domingos entre
 colaboradores. Esse tema pode ser desenvolvido depois de observarmos o
 comportamento real da equipa.
+
+
+## PR89 — Política genérica de folgas e rotação de fins de semana (fundação)
+
+**Objetivo:** testar a rotação de sábados/domingos em diferentes empresas,
+sem codificar uma frequência fixa, uma equipa de quatro pessoas, um setor
+ou uma necessidade de cobertura específica. O algoritmo de turnos e o
+certificador continuam inalterados nesta fase experimental.
+
+### Contrato do novo modelo
+
+- **Descanso habitual (HARD):** cada pessoa tem um número configurado de
+  dias sem trabalho numa semana normal, e pode ter dias de descanso
+  explicitamente fixos. Um dia sem turno no calendário **não é por si só**
+  considerado uma folga oficial.
+- **Semana com fim de semana completo (HARD quando atribuída):** a política
+  individual define quantos dias sem trabalho se devem preservar de
+  segunda a sexta. Por exemplo, com mínimo 1: sábado + domingo + um dia
+  útil = **3 dias sem trabalho**. Isso aplica-se quer a pessoa tenha uma
+  ou duas folgas semanais habituais; a sua folga fixa continua protegida.
+  Uma empresa que esteja *naturalmente fechada* sábado e domingo não
+  concede automaticamente um dia extra de descanso a meio da semana.
+- **Cobertura mínima diária (HARD no pré-planeamento):** a organização
+  configura o número mínimo de pessoas presentes para **cada dia**.
+  Fechos são declarados explicitamente; cobertura zero não significa
+  necessariamente encerramento. O módulo procura conjuntos completos
+  de dias com/sem trabalho que respeitem esta cobertura.
+- **Frequência de fins de semana (SOFT):** não existe um intervalo universal
+  de quatro semanas. O módulo tenta atribuir o máximo de fins de semana
+  completos compatíveis com a configuração e prioriza quem recebeu menos
+  fins de semana, considerando também o histórico fornecido e o tempo de
+  espera. O algoritmo é determinístico, mas esta primeira fase **não
+  certifica um ótimo global de rotação**.
+- **Capacidade de horas (ANÁLISE, não horas atribuídas):** se receber a
+  capacidade efetiva máxima de cada dia, o módulo calcula o limite superior
+  do trabalho possível após os descansos. Quatro jornadas de 9h30 dão no
+  máximo **38h**; nunca se inventam duas horas para atingir as 40h.
+  A referência móvel de 160h em 28 dias permanece fora deste módulo.
+- **Contexto:** o histórico anterior é opcional, mas a sua ausência é
+  declarada na resposta. O ciclo prossegue entre meses e não reinicia
+  automaticamente no primeiro dia do mês.
+- **Limites da pesquisa:** se a pesquisa exaustiva atingir o orçamento
+  determinístico de exploração, devolve **not_proven**, nunca uma
+  alegação infundada de impossibilidade.
+
+### Implementação e fronteira de responsabilidade
+
+- `src/weekendRotation.ts`: política de descanso, escolha de fins de
+  semana, atribuição explícita de dias sem trabalho, verificação de
+  cobertura por **número de pessoas/dia**, capacidade horária máxima
+  e continuação a partir de histórico.
+- `tests/weekendRotation.test.ts`: rotação de 4/6 colaboradores, diferentes
+  mínimos de cobertura, ausência de fins de semana viáveis, descanso fixo,
+  empresa encerrada ao fim de semana, mudança de mês, histórico, validação
+  de entradas e limite máximo de 38 horas numa semana de quatro dias.
+
+### Integração do PR89: gerador, certificador, interface e persistência
+
+- `src/team.ts` e `src/TeamEditor.tsx`: configuração individual
+  **opt-in** da rotação, folga fixa semanal e mínimo de descanso
+  segunda–sexta se sábado e domingo forem atribuídos como descanso.
+  As equipas anteriores continuam legíveis e mantêm o algoritmo anterior
+  enquanto não ativarem a rotação.
+- `src/rotationIntegration.ts`: planeia **apenas semanas civis completas
+  dentro do mês editável**, com um mínimo de pessoas derivado da capacidade
+  necessária à cobertura. Este limite inferior por dia NÃO substitui
+  necessidades de cobertura horária configuráveis por empresa.
+- `src/generateSchedule.ts`: aplica os dias sem trabalho escolhidos
+  ANTES de distribuir turnos e refeições. Em blocos de quatro semanas
+  completas, procura 160h de referência total (SOFT), distribuindo
+  excessos/deficiências até à capacidade de cada dia; não inventa horas
+  para cumprir um objetivo inviável. Noutras semanas continua a política
+  histórica móvel de 28 dias.
+- `src/certifySchedule.ts`: certifica de forma **independente** as folgas
+  fixas e a diferença entre descanso semanal normal e fim de semana
+  completo com folga(s) adicional(is). O descanso extra não reinterpreta
+  fins de semana inteiramente fora do mês editável.
+- `src/plannedRest.ts` e `src/monthlyScheduleDraftRepository.ts`:
+  guardam com a proposta mensal (local) os dias EXPLICITAMENTE planeados
+  sem trabalho, verificando que não coincidem com turnos. O histórico
+  de equidade futuro lê apenas fins de semana explicitamente guardados:
+  **um dia sem turno NÃO é tratado como folga**.
+  Propostas V1 e V2 antigas sem metadados de descanso mantêm-se legíveis.
+- `src/CalendarScheduler.tsx`: mostra a rotação proposta por semana,
+  os descansos planeados ao filtrar um colaborador e a rotação guardada
+  após reabrir o mês. Não são automaticamente criadas aprovações.
+- `tests/rotationIntegration.test.ts` e `tests/plannedRest.test.ts`:
+  validação fim-a-fim com quatro pessoas, semanas de três dias livres,
+  160h de referência, folgas fixas, cobertura, fronteiras de meses,
+  imutabilidade e histórico explícito guardado/reaberto.
+
+**Limitações ainda declaradas:** o motor não certifica a legislação laboral;
+o pré-planeamento garante um limite inferior de pessoas **por dia** e o
+certificador final verifica a existência de cobertura de pelo menos
+uma pessoa **a cada minuto de funcionamento** (não mínimos configuráveis
+por intervalo). A escolha inicial de folgas usa pesquisa determinística
+limitada, sem provar a melhor rotação global em todos os cenários.
+Nas semanas parciais nas fronteiras de meses preserva-se a lógica
+conservadora e o contexto externo. Períodos aprovados, exceções,
+presenças reais e futuras necessidades de cobertura por posto continuam
+fora deste PR. Não fazer merge antes do teste real na interface.
+
+
+### PR89 — Correção após teste visual de 21/11/2026 (equipa real)
+
+Foi observado no Safari que o pré-planeador atribuía até **seis**
+fins de semana completos aos mesmos sábados/domingos e, em dois
+sábados, deixava o estabelecimento sem cobertura entre
+**08h30 e 08h45**. O erro era um excesso de otimização da quantidade
+de descansos, ignorando a capacidade de trabalho disponível para
+manter a referência de **160h em 28 dias** com jornadas de qualidade.
+
+- `src/weekendRotation.ts`: a rotação opcional aceita um orçamento
+  SOFT de trabalho do ciclo, derivado das aberturas, capacidade efetiva
+  e descanso obrigatório de cada colaborador. Atribuir mais fins de
+  semana completos passa a ter um custo objetivo: pode exigir
+  jornadas superiores a 9h ou tornar 160h inviáveis. As atribuições
+  são espalhadas pelas semanas e pessoas em vez de concentradas num
+  só fim de semana. **Não há frequência de 4 semanas codificada.**
+- `src/rotationIntegration.ts`: o gerador passa a utilizar a
+  referência existente de 160h/28d e a penalização de jornadas acima
+  de 9h no cálculo do orçamento de descanso. **O objetivo de horas e
+  as 9h continuam SOFT**, não limites legais nem 40h obrigatórias
+  em todas as semanas.
+- `src/mealCoveragePlanner.ts`: depois da escolha inicial de turnos
+  e pausas, se existir uma lacuna de cobertura, testa
+  reposicionamentos dos próprios turnos que reduzam estritamente os
+  minutos sem cobertura; não cria turnos nem altera folgas, horas,
+  pausas ou as entradas/saídas fora do funcionamento. O certificador
+  continua a rejeitar lacunas que não sejam reparáveis.
+- `tests/rotationIntegration.test.ts`: regressões com **oito
+  colaboradores** em 28 dias, horários 08h30–19h00 de segunda a
+  sábado e domingo curto 14h00–19h00, incluindo folgas fixas
+  e colaboradores com uma ou duas folgas habituais. Verifica que
+  não se atribuem seis descansos simultâneos e que os sábados
+  14 e 21 de novembro têm abertura e fecho cobertos.
+- **Contexto de fronteira:** ausência de dados verificados das semanas
+  de 26/10 e 30/11 continua a produzir `CONTEXT_INCOMPLETE` — não
+  se deve ocultar esse diagnóstico nem assumir que uma folga/ausência
+  de turno é um facto confirmado.
+
+O PR89 mantém-se em Draft até o caso real ser novamente confirmado
+no Safari. A proposta guardada anteriormente não é automaticamente
+alterada nem substituída; requer **Gerar horário** e a opção explícita
+de guardar quando a certificação o permitir.
+
+### PR89 — Equilíbrio diário como qualidade INTERNA do motor (V1)
+
+**Decisão corrigida após validação do produto (22/11/2026):** o objetivo
+indicativo de aproximadamente **60% da equipa escalada em dias abertos
+NÃO é configurável**. Não existe campo, toggle, separador nem requisito
+adicional na definição da empresa. O propósito é ajudar o algoritmo
+a distribuir pessoas e folgas com maior equilíbrio, não criar um
+novo compromisso operacional para quem utiliza a aplicação.
+
+- `src/dailyStaffingBalance.ts`: a referência de 60% é uma heurística
+  SOFT **interna**, experimental e modificável à luz de testes futuros,
+  não uma hard constraint, contrato de configuração ou valor legal.
+  Ex.: 8 colaboradores => 5 por dia de funcionamento, quando a equipa,
+  as folgas e as necessidades de cobertura o permitirem.
+- `src/weekendRotation.ts`: utiliza automaticamente essa referência
+  para reduzir concentração de folgas e de fins de semana simultâneos,
+  após verificar as hard constraints e a viabilidade do objetivo de
+  horas do ciclo. Trocas locais de dias de descanso não modificam o
+  número de folgas semanais, as folgas fixas nem a cobertura obrigatória.
+- `src/rotationIntegration.ts`: mantém a integração condicionada à
+  existência de uma rotação explícita de fins de semana no módulo atual.
+  Equipas antigas sem essa política conservam a distribuição anterior.
+- `src/operatingHours.ts` e `src/App.tsx`: nenhum campo de presença
+  mínima/desejada é guardado ou apresentado na configuração. Registos
+  experimentais que já tenham a antiga percentagem são carregados sem
+  perder os horários de funcionamento; o campo obsoleto é descartado
+  pelo validador, não se altera nem apaga o draft original na leitura.
+- `src/generateSchedule.ts` e `src/CalendarScheduler.tsx`: o diagnóstico
+  da distribuição é calculado com os **turnos efetivamente gerados**,
+  e apresentado apenas como uma frase de contexto dentro da própria
+  rotação. Não existe um novo painel/aba/opção de configuração.
+- `tests/dailyStaffingBalance.test.ts` e testes de contrato da UI:
+  verificam o comportamento automático com oito e quatro colaboradores,
+  a preservação de dias fixos, o respeito por empresas encerradas ao
+  domingo, a ausência de configuração e a manutenção dos dados antigos.
+
+**Nota:** 60% por dia não significa 60% de pessoas a trabalhar
+simultaneamente em todos os minutos. Não se promete que a referência
+seja sempre viável nem que a solução seja um ótimo global. O
+certificador independente continua a validar as hard constraints.
+Não fazer merge antes da aceitação no Safari.
+
+
+### PR89 — Exportação de diagnóstico reprodutível (22/11/2026)
+
+Decisão: acrescentar **um único botão "Exportar diagnóstico" ao calendário**,
+sem nova configuração, separador, conta, API ou base de dados.
+
+- O botão guarda um ficheiro JSON local
+  `schedule-engine-diagnostico-AAAA-MM.json`. A exportação não cria,
+  recalcula, modifica, aprova nem substitui o horário; também funciona
+  com uma proposta gerada ainda não guardada, com edições manuais e com
+  um mês apenas configurado.
+- `src/diagnosticExport.ts`: constrói um snapshot de versão 1 com a
+  equipa e regras individuais, horários de funcionamento, **todos os
+  turnos visíveis** (sem aplicar o filtro de colaborador), pausas,
+  descanso explicitamente planeado, proposta guardada para comparação,
+  rotação, resultado do algoritmo, certificação e conflitos, contexto
+  das semanas de fronteira e histórico para as horas móveis de 28 dias.
+  Inclui resumos por dia e por colaborador: trabalho efetivo, domingos,
+  jornadas acima de 8h/9h, fins de semana livres e dias escalados.
+- `src/CalendarScheduler.tsx`: obtém sempre a configuração e o contexto
+  atuais do navegador. Se a configuração tiver mudado desde a geração,
+  identifica essa diferença e inclui **a cópia exata dos dados usados
+  originalmente** para a geração, preservada no snapshot da proposta.
+  O download usa `Blob` e `a.download` sem enviar dados a serviços.
+- São exportados somente campos explícitos e validados; **não são
+  exportados tokens de autenticação, palavras-passe, cookies, chaves
+  ou todo o `localStorage`**. O JSON **contém dados pessoais** como
+  nomes e horários. A pessoa que o descarrega decide se o partilha.
+  Nunca é carregado automaticamente para uma conversa.
+- A estrutura indica que um dia sem turno **não é uma folga automática**,
+  que as horas são de trabalho efetivo planeado e que o diagnóstico
+  de colaboradores por dia **não representa presenças simultâneas**.
+  Se faltarem dados de contexto, preserva-se o aviso — não se inventam
+  aprovações nem se converte incerteza em horário válido.
+- `tests/diagnosticExport.test.ts` e `tests/interfaceContract.test.ts`:
+  cobertura de exportação sem horário guardado, coerência com turnos,
+  totais por pessoa, feriados/descansos explícitos, imutabilidade,
+  compatibilidade de cenários anteriores, dados de entrada originais
+  quando a configuração mudou e ausência de campos sensíveis de sessão.
+
+**Teste funcional no Safari:** atualizar a branch do PR89, gerar
+novembro na configuração atual e carregar em "Exportar diagnóstico".
+Abrir o ficheiro JSON, verificar que contém os colaboradores, folgas,
+turnos e eventuais alertas esperados. Enviar esse JSON para a
+conversa apenas se for apropriado partilhar os dados da equipa.
+**Não é necessário guardar nem aprovar a proposta** para exportar.

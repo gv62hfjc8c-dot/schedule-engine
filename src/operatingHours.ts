@@ -90,6 +90,9 @@ export function validateWeeklyOpeningHours(input:unknown):OpeningHoursValidation
     errors.push("Seleciona pelo menos um dia de funcionamento.");
   if (errors.length>0)return {valid:false,value:null,issues:[...new Set(errors)]};
 
+  // Any experimental percentage saved by a prior development build is
+  // ignored. The algorithm chooses its own soft objectives; organisation
+  // settings only describe the actual operating hours.
   return {valid:true,value:{days:WEEKDAYS.map(d=>values.get(d.id)!)},issues:[]};
 }
 
