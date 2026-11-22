@@ -170,3 +170,28 @@ test("objetivo individual é independente de encerramentos e folgas fixas",()=>{
     (shift.memberId!==ids[0]||!["2026-11-02","2026-11-09","2026-11-16","2026-11-23"].includes(shift.date)) &&
     (shift.memberId!==ids[1]||!["2026-11-03","2026-11-10","2026-11-17","2026-11-24"].includes(shift.date))));
 });
+
+test("presença diária 60% funciona mesmo sem ativar rotação de fins de semana",()=>{
+  const config=scenario(60);
+  for(const member of config.team.members)
+    delete (member as {weekendRest?:unknown}).weekendRest;
+  const result=generateSchedule(config);
+  assert.equal(result.status,"valid",
+    JSON.stringify(result.certification.issues.slice(0,12)));
+  assert.equal(result.dailyStaffing?.desired,5);
+  assert.equal(result.dailyStaffing?.daysBelowTarget,0);
+  assert.ok(result.rotation?.weeks.every(week=>
+    week.fullWeekendOffMemberIds.length===0),
+    "não cria fins de semana completos para pessoas não elegíveis");
+});
+
+test("percentagem opcional sem regras de descanso completas não inventa folgas",()=>{
+  const config=scenario(60);
+  for(const member of config.team.members)
+    delete (member as {weekendRest?:unknown}).weekendRest;
+  delete (config.team.members[0] as {weeklyDaysOff?:number}).weeklyDaysOff;
+  const result=generateSchedule(config);
+  assert.equal(result.rotation,undefined);
+  assert.equal(result.dailyStaffing?.desired,5);
+  assert.ok(result.dailyStaffing!.days.length>0);
+});
