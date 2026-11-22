@@ -1,4 +1,4 @@
-import {validateTeamRoster} from "./team";
+import {validateTeamRoster,OPERATIONAL_ROLES} from "./team";
 import {validateWeeklyOpeningHours} from "./operatingHours";
 import {
   enumerateCivilDays,inRange,resolvePlanningPeriod,
@@ -264,7 +264,7 @@ export function certifySchedule(input:CertificationInput):CertificationReport {
   // Functional coverage is an independently checked HARD constraint in
   // opted-in V2 proposals. No legacy schedule is silently upgraded.
   if(input.functionalCoveragePolicy==="qualified50"){
-    const roles=[...new Set(active.flatMap(m=>m.qualifiedRoles??[]))].sort();
+    const roles=team.value.roles?.map(role=>role.id)??[...OPERATIONAL_ROLES];
     const requiredConcurrent=roles.reduce((sum,role)=>
       sum+Math.ceil(active.filter(m=>m.qualifiedRoles?.includes(role))
         .length/2),0);
