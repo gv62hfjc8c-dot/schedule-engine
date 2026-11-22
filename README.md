@@ -1055,11 +1055,39 @@ e nos domingos 5/5/6/5. Testes verificam minuto a minuto TODOS os dias
 da proposta: zero minutos sem cobertura ou com só uma pessoa ativa.
 Certificador independente sem novas violações: o estado
 `insufficient_context` deve-se exclusivamente a semanas de fronteira
-com outubro/dezembro desconhecidos. Resultado de teste anonimizado,
-ainda NÃO é aceite em Safari com dados reais.
+com outubro/dezembro desconhecidos. O teste anonimizado foi posteriormente CONFIRMADO em Safari com os dados
+reais (exportação de 22/11/2026 às 12:06 UTC); consulte a aceitação abaixo.
 
 **CI:** GitHub Actions
 https://github.com/gv62hfjc8c-dot/schedule-engine/actions/runs/45019031816
 — **317/317 testes PASS e build PASS**. PR92 permanece Draft, SEM merge.
 Cloudflare Pages foi configurado pelo utilizador para publicações de
 produção e preview manuais; não publicar o PR92 sem autorização.
+
+
+**Validação Safari real PR92 (22/11/2026, export 12:06 UTC):**
+- Fonte: `generated_preview` e `settingsMatchGeneratedPreview: true`, oito pessoas ativas.
+- 171 turnos, **8 jornadas >9h**; por pessoa, contagem agregada
+  **0, 0, 0, 0, 2, 2, 2, 2** (máximo 2). As oito jornadas têm 570
+  minutos efetivos; não há uma jornada acima de 9h30.
+- Em cada uma das quatro semanas completas 02–29/11, todas as pessoas
+  somam **160h em 28 dias**. As semanas individuais variam de 36h a 44h,
+  dentro da tolerância de otimização existente. Os totais por mês
+  variam de 165h a 173h, pois 01/11 e 30/11 estão fora desse ciclo.
+- Referência interna SOFT de 60%: **0 dias abaixo da meta**, pelo menos
+  cinco pessoas com turno em cada dia. Sábados 5/5/5/5; domingos
+  5/5/6/5. Verificado independentemente com os turnos exportados:
+  nenhum minuto de abertura sem cobertura ou com uma pessoa isolada,
+  **mínimo real de 2 pessoas simultâneas** em alguns períodos normais.
+  Portanto, 60% aqui significa escalados no dia, não simultaneamente.
+- Conferidas todas as folgas fixas e as folgas explicitamente planeadas
+  com os dias sem turno nas quatro semanas completas: **sem divergências**.
+  Todos têm 1 ou 2 fins de semana completos; existe um caso de
+  **dois fins de semana consecutivos**, cuja conveniência operacional
+  continua uma preferência de qualidade por discutir.
+- `insufficient_context` permanece estritamente nas semanas
+  26/10–01/11 e 30/11–06/12 (dados de outubro/dezembro incompletos).
+  Isto **não é certificação de validade mensal global**.
+- O ficheiro exportado contém nomes e horários individuais; **não foi
+  adicionado ao repositório**. Apenas estatísticas agregadas foram
+  documentadas. Manter a publicação Cloudflare manual.
