@@ -19,10 +19,31 @@ function roleInput(
 ):FunctionalCoverageInput{
   return {date,assignments:day,members,opening,roles,minimumPercent:50};
 }
-function functionalLoss(report:FunctionalCoverageReport):number {
-  return report.issues.filter(i=>i.code==="ROLE_COVERAGE_GAP")
-    .reduce((sum,i)=>sum+(i.missing??0)*
-      (clockMinutes(i.end!)-clockMinutes(i.start!)),0);
+interface FunctionalQuality {
+  /** SOFT: minutes when a qualified function has no active worker. */
+  absentRoleMinutes:number;
+  /** SOFT: total worker-minutes below the 50% distribution target. */
+  missingTargetMinutes:number;
+}
+function functionalLoss(report:FunctionalCoverageReport):FunctionalQuality {
+  let absentRoleMinutes=0,missingTargetMinutes=0;
+  for(const slot of report.slots){
+    const duration=clockMinutes(slot.end)-clockMinutes(slot.start);
+    for(const [role,target] of Object.entries(report.targets)){
+      const actual=slot.counts[role]??0;
+      if(target>0 && actual===0)absentRoleMinutes+=duration;
+      missingTargetMinutes+=Math.max(0,target-actual)*duration;
+    }
+  }
+  return {absentRoleMinutes,missingTargetMinutes};
+}
+function betterQuality(a:FunctionalQuality,b:FunctionalQuality):boolean {
+  return a.absentRoleMinutes<b.absentRoleMinutes ||
+    (a.absentRoleMinutes===b.absentRoleMinutes &&
+      a.missingTargetMinutes<b.missingTargetMinutes);
+}
+function hasGap(q:FunctionalQuality):boolean{
+  return q.absentRoleMinutes>0||q.missingTargetMinutes>0;
 }
 function movement(now:readonly WorkAssignment[],baseline:readonly WorkAssignment[]):number {
   return now.reduce((sum,shift,i)=>sum+
@@ -41,16 +62,16 @@ function optimizeDay(
   let shifts=day.map(shift=>({...shift}));
   let chosen=baseline;
   let loss=functionalLoss(chosen.certification);
-  if(loss===0)return applyRoles(shifts,chosen.allocations);
-  // The soft 50% goal exceeds available worker-minutes in this day.
-  // Retiming cannot reach the goal; preserve all HARD constraints and
-  // return the best deterministic role allocation without inventing hours.
+  if(!hasGap(loss))return applyRoles(shifts,chosen.allocations);
+  // An unreachable 50% SOFT target must NOT disable partial improvements:
+  // a lunch can often be staggered to avoid leaving one function unstaffed
+  // even when the available total person-hours cannot achieve the target.
   const demand=Object.values(chosen.certification.targets)
     .reduce((sum,n)=>sum+n,0)*
     opening.reduce((sum,w)=>sum+clockMinutes(w.end)-clockMinutes(w.start),0);
   const capacity=shifts.flatMap(effectiveWorkIntervals)
     .reduce((sum,w)=>sum+w.end-w.start,0);
-  if(capacity<demand)return applyRoles(shifts,chosen.allocations);
+  const limited=capacity<demand;
 
   const baselineShifts=[...shifts];
   const numericOpen=opening.map(w=>({
@@ -59,14 +80,16 @@ function optimizeDay(
   // Preserve the existing HARD minimum of at least one worker actively
   // covering the business opening. A soft percentage improvement must
   // never create new uncovered opening minutes.
-  const baselineUncovered=measureSimultaneousCoverage(
-    shifts,numericOpen).uncoveredMinutes;
+  const hardBaseline=measureSimultaneousCoverage(shifts,numericOpen);
+  // Both zero-person gaps (HARD) and one-person gaps (existing SOFT
+  // presence priority) may only improve, not worsen for a functional
+  // improvement. No new operational minimum per function is introduced.
   const ordered=[...shifts.keys()].sort((a,b)=>
     shifts[a].memberId.localeCompare(shifts[b].memberId));
   // Bounded deterministic coordinate descent: preserves each person's
   // effective minutes, existing workdays and ONE-shift identity. It may
   // fail to find a feasible solution; the certifier never hides that.
-  for(let pass=0;pass<3&&loss>0;pass++){
+  for(let pass=0;pass<(limited?1:3)&&hasGap(loss);pass++){
     let improved=false;
     for(const index of ordered){
       const original=shifts[index];
@@ -78,13 +101,15 @@ function optimizeDay(
       const tryVariant=(candidate:WorkAssignment)=>{
         shifts[index]=candidate;
         const hard=measureSimultaneousCoverage(shifts,numericOpen);
-        if(hard.uncoveredMinutes>baselineUncovered)return;
+        if(hard.uncoveredMinutes>hardBaseline.uncoveredMinutes ||
+          hard.soloMinutes>hardBaseline.soloMinutes)return;
         const trial=allocateFunctionalCoverage(roleInput(
           date,shifts,members,opening,roles));
         const trialLoss=functionalLoss(trial.certification);
         const trialMotion=movement(shifts,baselineShifts);
-        if(trialLoss<bestLoss ||
-          (trialLoss===bestLoss&&trialMotion<bestMotion)){
+        if(betterQuality(trialLoss,bestLoss) ||
+          (!betterQuality(bestLoss,trialLoss) &&
+            trialMotion<bestMotion)){
           bestShift=candidate;
           bestAllocation=trial;
           bestLoss=trialLoss;
@@ -95,7 +120,7 @@ function optimizeDay(
         const open=clockMinutes(window.start),close=clockMinutes(window.end);
         if(close-open<span)continue;
         const starts=new Set<number>([bestAtStart,open,close-span]);
-        for(let step=-4;step<=4;step++)
+        for(let step=-(limited?2:4);step<=(limited?2:4);step++)
           starts.add(bestAtStart+step*30);
         for(const start of [...starts].sort((a,b)=>a-b)){
           if(start<open||start+span>close)continue;
@@ -110,7 +135,7 @@ function optimizeDay(
             firstMeal+(start-bestAtStart),start+180,
             end-duration-30,
           ]);
-          for(let step=-3;step<=3;step++)
+          for(let step=-(limited?2:3);step<=(limited?2:3);step++)
             meals.add(firstMeal+(start-bestAtStart)+step*30);
           for(const meal of [...meals].sort((a,b)=>a-b)){
             if(meal<start+180||meal+duration>=end)continue;
@@ -120,9 +145,9 @@ function optimizeDay(
         }
       }
       shifts[index]=bestShift;
-      if(bestLoss<loss){improved=true;}
+      if(betterQuality(bestLoss,loss)){improved=true;}
       loss=bestLoss;chosen=bestAllocation;
-      if(loss===0)break;
+      if(!hasGap(loss))break;
     }
     if(!improved)break;
   }
