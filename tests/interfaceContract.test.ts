@@ -158,17 +158,17 @@ test("PR94: ficha da equipa distingue capacidade de função de posto escalado",
 });
 
 
-test("PR94: mês distingue capacidade estrutural, simultaneidade e distribuição",()=>{
+test("PR94: o mês mostra os 50% como objetivo SOFT e não como cobertura HARD",()=>{
   assert.match(calendarScheduler,/import \{analyzeFunctionalCapacity\}/);
   assert.match(calendarScheduler,/minimumPercent:50/);
-  assert.match(calendarScheduler,/Viabilidade matemática do mês/);
-  assert.match(calendarScheduler,/Horas-pessoa necessárias/);
-  assert.match(calendarScheduler,/Horas-pessoa escaladas na abertura/);
-  assert.match(calendarScheduler,/Défice global mínimo de capacidade/);
-  assert.match(calendarScheduler,/Falta com dias de trabalho inalterados/);
+  assert.match(calendarScheduler,/Distância à meta no mês completo/);
+  assert.match(calendarScheduler,/Horas-pessoa da meta teórica/);
+  assert.match(calendarScheduler,/Horas efetivas escaladas na abertura/);
+  assert.match(calendarScheduler,/Diferença mínima para atingir a meta/);
+  assert.match(calendarScheduler,/Diferença com os dias atuais/);
   assert.match(calendarScheduler,/simultaneousDeficitMinutes/);
   assert.match(calendarScheduler,/observedRoleGapMinutes/);
-  assert.match(calendarScheduler,/não é uma quantidade garantidamente recuperável/);
-  assert.match(calendarScheduler,/Acrescentar colaboradores pode aumentar também o mínimo/);
+  assert.match(calendarScheduler,/não torna o horário inválido/);
+  assert.match(calendarScheduler,/não significa falta obrigatória/);
   assert.match(calendarScheduler,/activeFunctionalPolicy==="qualified50"/);
 });
