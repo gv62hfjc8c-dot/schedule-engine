@@ -183,3 +183,33 @@ test("diagnóstico distingue presença simultânea de turnos escalados sem novo 
   assert.ok(report.analysis.quality.soloMinutes!>=780);
   assert.ok(report.analysis.quality.uncoveredMinutes!>=150);
 });
+
+
+test("PR94: exportação mensal separa falta global de horas e falhas nos postos",()=>{
+  const input=example();
+  const [first,second]=input.team!.members;
+  first.qualifiedRoles=["checkout"];
+  second.qualifiedRoles=["sales"];
+  input.assignments=[
+    {...input.assignments[0],role:"checkout"},
+    {...input.assignments[1],role:"sales"},
+  ];
+  input.functionalCoveragePolicy="qualified50";
+  const before=JSON.stringify(input);
+  const file=buildScheduleDiagnostic(input);
+  const capacity=file.analysis.functionalCapacity;
+  assert.ok(capacity);
+  assert.equal(capacity.status,"complete");
+  assert.deepEqual(capacity.roleTargets.map(r=>r.minimumConcurrent),[1,1]);
+  assert.ok(capacity.requiredMinutes>capacity.scheduledInsideOpeningMinutes);
+  assert.ok(capacity.periodCapacityDeficitMinutes>0);
+  assert.ok(capacity.observedRoleGapMinutes>0);
+  assert.equal(typeof capacity.simultaneousDeficitMinutes,"number");
+  assert.equal(file.interpretation.capacity.includes("não corresponde automaticamente"),true);
+  assert.equal(JSON.stringify(input),before);
+});
+
+test("PR94: os diagnósticos legados não inventam política funcional",()=>{
+  const file=buildScheduleDiagnostic(example());
+  assert.equal(file.analysis.functionalCapacity,null);
+});
