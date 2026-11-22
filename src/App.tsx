@@ -96,6 +96,8 @@ function WelcomePage() {
 
 function Shell({ children }: { children: ReactNode }) {
   const page = pageForPath(window.location.pathname);
+  const inConfiguration=page==="settings"||page==="setup"||
+    page==="operatingHours"||page==="team";
   return (
     <div className="workspace-page">
       <header className="workspace-header">
@@ -105,7 +107,9 @@ function Shell({ children }: { children: ReactNode }) {
           </a>
           <nav className="workspace-nav" aria-label="Navegação principal">
             <a href="/horarios" aria-current={page === "calendar" ? "page" : undefined}>Calendário</a>
-            <a href="/configuracao" aria-current={page === "settings" ? "page" : undefined}>Configuração</a>
+            <a href="/configuracao" aria-current={
+              page==="settings"?"page":inConfiguration?"location":undefined
+            }>Configuração</a>
             <a href="/" className="home-link">Início</a>
           </nav>
         </div>
