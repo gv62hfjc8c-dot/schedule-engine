@@ -172,3 +172,12 @@ test("PR94: o mês mostra os 50% como objetivo SOFT e não como cobertura HARD",
   assert.match(calendarScheduler,/não significa falta obrigatória/);
   assert.match(calendarScheduler,/activeFunctionalPolicy==="qualified50"/);
 });
+
+
+test("PR94: zero pessoas numa função aparece como prioridade SOFT mensal",()=>{
+  assert.match(calendarScheduler,/capacityAnalysis\.emptyRoleMinutes/);
+  assert.match(calendarScheduler,/role\.emptyMinutes/);
+  assert.match(calendarScheduler,/Dias com alguma função sem ninguém/);
+  assert.match(calendarScheduler,/sem qualquer\s+colaborador efetivamente ao serviço/);
+  assert.match(calendarScheduler,/não um novo erro HARD/);
+});
