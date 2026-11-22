@@ -67,12 +67,25 @@ export function compareDailyWorkload(
   // preference for repeatable shifts with an unnecessary preference for
   // flatter sub-8h days.
   if(a.beyondEightMinutes===0)return 0;
-  // If the SAME unavoidable excess minutes can be contained in fewer
-  // long shifts (without adding hours), prefer more days <=9h. This
-  // is still soft and cannot raise the legal/contractual workload.
-  if(a.daysBeyondNine!==b.daysBeyondNine)
-    return a.daysBeyondNine-b.daysBeyondNine;
   return a.excessConcentration-b.excessConcentration ||
+    a.longestMinutes-b.longestMinutes;
+}
+
+/**
+ * Opt-in V2 quality experiment: fewer days above 9h when total excess
+ * minutes above 9h and 8h remain equal. The default comparator retains
+ * earlier V1 and legacy schedule choices for backwards compatibility.
+ */
+export function compareDailyWorkloadWithLongDayCount(
+  a:DailyWorkloadQuality,b:DailyWorkloadQuality,
+):number {
+  const aboveNine=a.beyondNineMinutes-b.beyondNineMinutes;
+  if(aboveNine!==0)return aboveNine;
+  const aboveEight=a.beyondEightMinutes-b.beyondEightMinutes;
+  if(aboveEight!==0)return aboveEight;
+  if(aboveEight===0)return 0;
+  return a.daysBeyondNine-b.daysBeyondNine ||
+    a.excessConcentration-b.excessConcentration ||
     a.longestMinutes-b.longestMinutes;
 }
 
@@ -87,7 +100,10 @@ export function compareDailyWorkload(
  */
 export function balanceLongWorkdays(
   plans:DailyWorkloadPlan[],
+  reduceLongDayCount=false,
 ):void {
+  const compare=reduceLongDayCount
+    ?compareDailyWorkloadWithLongDayCount:compareDailyWorkload;
   const normal=plans.filter(plan=>
     !plan.shortOpening && plan.allocated>0 && plan.capacity>0);
   if(normal.length<2)return;
@@ -105,8 +121,8 @@ export function balanceLongWorkdays(
           (index===from?-DAILY_BALANCING_STEP_MINUTES:0)+
           (index===to?DAILY_BALANCING_STEP_MINUTES:0));
         const quality=dailyWorkloadQuality(durations);
-        if(compareDailyWorkload(quality,before)>=0)continue;
-        if(!best || compareDailyWorkload(quality,best.quality)<0)
+        if(compare(quality,before)>=0)continue;
+        if(!best || compare(quality,best.quality)<0)
           best={from,to,quality};
       }
     }
