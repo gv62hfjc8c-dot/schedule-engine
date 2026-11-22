@@ -675,6 +675,18 @@ function MonthWorkspace({
                 em cada função e intervalo de trabalho.
                 Isto <strong>não significa falta obrigatória de
                   pessoal</strong>.</p>
+              <p className={capacityAnalysis.emptyRoleMinutes>0
+                ?"schedule-functional-warning":"schedule-functional-success"}>
+                {capacityAnalysis.emptyRoleMinutes>0
+                  ?<>Prioridade de otimização: existem
+                    {" "}{formatHours(capacityAnalysis.emptyRoleMinutes)}
+                    {" "}em que pelo menos uma função fica sem qualquer
+                    colaborador efetivamente ao serviço, incluindo pausas
+                    e entradas/saídas. Isto é um alerta de qualidade
+                    <strong> SOFT</strong>, não um novo erro HARD.</>
+                  :<>Nenhuma função ficou totalmente sem colaboradores
+                    durante a abertura do mês.</>}
+              </p>
               <p>Se mantivermos os horários e pausas atuais, a diferença
                 mínima por falta de simultaneidade é
                 {" "}{formatHours(capacityAnalysis.simultaneousDeficitMinutes)}.
@@ -689,8 +701,22 @@ function MonthWorkspace({
                     <span>{role.qualifiedPeople} habilitados</span>
                     <span>Meta: {role.minimumConcurrent} simultâneos</span>
                     <span>Distância: {formatHours(role.observedGapMinutes)}</span>
+                    <span>Sem ninguém: {formatHours(role.emptyMinutes)}</span>
                   </div>)}
               </div>
+              <details>
+                <summary>Dias com alguma função sem ninguém ({
+                  capacityAnalysis.days.filter(d=>d.emptyRoleMinutes>0).length
+                })</summary>
+                <ul>
+                  {capacityAnalysis.days.filter(d=>d.emptyRoleMinutes>0)
+                    .map(day=><li key={day.date}>
+                      {day.date}:{" "}
+                      {formatHours(day.emptyRoleMinutes)} sem serviço
+                      numa das funções
+                    </li>)}
+                </ul>
+              </details>
               <details>
                 <summary>Dias abaixo da meta de 50% ({
                   capacityAnalysis.days.filter(d=>d.observedRoleGapMinutes>0).length
