@@ -10,6 +10,7 @@ import {
 import {generateSchedule} from "../src/generateSchedule";
 import {certifySchedule} from "../src/certifySchedule";
 import {suggestedWeeklyOpeningHours} from "../src/operatingHours";
+import {civilDayOfWeek} from "../src/schedulePeriods";
 import {balanceLongWorkdays,compareDailyWorkloadWithLongDayCount,dailyWorkloadQuality}
   from "../src/dailyWorkloadBalance";
 
@@ -202,6 +203,63 @@ test("regressão real anonimizada: 8 pessoas, 160h em 28 dias, sem novos conflit
     candidateAssignments:result.candidateAssignments});
   assert.equal(independently.status,"insufficient_context");
   assert.ok(independently.issues.every(i=>i.code==="CONTEXT_INCOMPLETE"));
+});
+
+test("PR92: rotação sensível à carga reduz e reparte jornadas longas antes das horas",()=>{
+  const config=realScenarioAnonymized();
+  const input=JSON.stringify(config);
+  const result=generateSchedule(config);
+  const cycle=result.candidateAssignments.filter(a=>
+    a.date>="2026-11-02"&&a.date<="2026-11-29");
+  const longs=new Map(config.team.members.map(m=>[
+    m.id,cycle.filter(a=>a.memberId===m.id &&
+      assignmentMinutes(a)>540).length,
+  ]));
+  const totalLong=[...longs.values()].reduce((sum,n)=>sum+n,0);
+  assert.ok(totalLong<20,
+    "a nova rotação deve superar as 20 jornadas longas do PR91: "+totalLong);
+  assert.ok(Math.max(...longs.values())<12,
+    "não concentrar novamente doze jornadas numa pessoa: "+JSON.stringify([...longs]));
+  const weeks=result.rotation?.weeks??[];
+  assert.equal(weeks.length,4);
+  for(let i=1;i<weeks.length;i++){
+    const before=new Set(weeks[i-1].fullWeekendOffMemberIds);
+    assert.ok(weeks[i].fullWeekendOffMemberIds.every(id=>!before.has(id)),
+      "não repetir descansos completos em semanas consecutivas: "+weeks[i].weekStart);
+  }
+  assert.ok(result.rotation?.weekendCounts.every(m=>m.planned>=1),
+    "nenhuma pessoa deve ser excluída do descanso de fim de semana");
+  for(const member of config.team.members)
+    assert.equal(cycle.filter(a=>a.memberId===member.id)
+      .reduce((sum,a)=>sum+assignmentMinutes(a),0),9600);
+  assert.equal(result.dailyStaffing?.daysBelowTarget,0);
+  // Recheck minute-by-minute presence across the WHOLE month, not only
+  // the four Saturdays that prompted the preceding regressions.
+  for(const date of new Set(result.candidateAssignments.map(a=>a.date))){
+    const intervals=config.openingHours.days[civilDayOfWeek(date)].intervals
+      .map(window=>({
+        start:clockMinutes(window.start),end:clockMinutes(window.end),
+      }));
+    if(intervals.length===0)continue;
+    const quality=measureSimultaneousCoverage(
+      result.candidateAssignments.filter(a=>a.date===date),intervals);
+    assert.deepEqual(quality,{uncoveredMinutes:0,soloMinutes:0},
+      "presença simultânea insuficiente em "+date);
+  }
+  assert.equal(result.status,"insufficient_context");
+  assert.ok(result.certification.issues.every(i=>i.code==="CONTEXT_INCOMPLETE"));
+  for(const date of ["2026-11-07","2026-11-14",
+    "2026-11-21","2026-11-28"]){
+    const quality=measureSimultaneousCoverage(
+      result.candidateAssignments.filter(a=>a.date===date),OPEN);
+    assert.deepEqual(quality,{uncoveredMinutes:0,soloMinutes:0});
+  }
+  assert.equal(JSON.stringify(config),input,"não altera os dados de origem");
+  assert.deepEqual(result,generateSchedule(config),"determinismo");
+  console.log("PR92_ANONYMIZED_28DAY "+JSON.stringify({
+    previousLongDays:20,newLongDays:totalLong,
+    byMember:[...longs.values()],shifts:result.candidateAssignments.length,
+  }));
 });
 
 test("PR91: ciclo de 28 dias reduz jornadas >9h sem prejudicar a cobertura real",()=>{

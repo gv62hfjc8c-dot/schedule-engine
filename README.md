@@ -1026,3 +1026,123 @@ diagnóstico com `settingsMatchGeneratedPreview=true`. Verificar
 as oito datas de fim de semana, 160h por pessoa, jornadas >9h,
 cobertura e `CONTEXT_INCOMPLETE` nas fronteiras sem histórico.
 PR91 continua Draft; não integrar sem aceite funcional.
+
+
+### PR92 — Ciclo de 28 dias com rotação sensível à concentração de jornadas >9h (22/11/2026)
+
+**Motivação observada no Safari:** em novembro de 2026, a proposta real do PR91
+cumpre 160h/colaborador e os 60% de presença por dia, mas concentra 12 das 20
+jornadas >9h num só colaborador que recebeu dois fins de semana completos.
+A redistribuição de minutos dentro de dias já escalados não consegue resolver
+esta concentração quando os dias disponíveis no ciclo são insuficientes.
+
+**Alteração experimental e genérica:** `src/weekendRotation.ts` passou a comparar
+a margem de capacidade efetiva preferida até 9h numa janela de 4 semanas
+ANTES de conceder um novo fim de semana completo a candidatos com a mesma
+frequência histórica. Quando o domingo é uma abertura curta e está disponível,
+a previsão conservadora considera o custo de nele trabalhar, em vez de
+presumir gratuitamente folgas ao domingo. Não é limite legal, não garante
+ótimo global e não acrescenta opções de configuração. Histórico explícito
+de descansos, quantidade de fins de semana já recebidos, folgas fixas e
+viabilidade HARD continuam prioritários. Ciclos parciais e equipas sem
+referência de 28 dias preservam a precedência anterior.
+
+**Regressão de novembro anonimizada:** jornadas >9h: **20 → 8**
+(−60%). Máximo por colaborador: **12 → 2**. As oito pessoas mantêm 160h
+efetivas em 02–29/11; **171** turnos no mês; todos os dias têm pelo
+menos 5 pessoas escaladas; nos sábados, as presenças são 5/5/5/5
+e nos domingos 5/5/6/5. Testes verificam minuto a minuto TODOS os dias
+da proposta: zero minutos sem cobertura ou com só uma pessoa ativa.
+Certificador independente sem novas violações: o estado
+`insufficient_context` deve-se exclusivamente a semanas de fronteira
+com outubro/dezembro desconhecidos. O teste anonimizado foi posteriormente CONFIRMADO em Safari com os dados
+reais (exportação de 22/11/2026 às 12:06 UTC); consulte a aceitação abaixo.
+
+**CI:** GitHub Actions
+https://github.com/gv62hfjc8c-dot/schedule-engine/actions/runs/45019031816
+— **317/317 testes PASS e build PASS**. PR92 permanece Draft, SEM merge.
+Cloudflare Pages foi configurado pelo utilizador para publicações de
+produção e preview manuais; não publicar o PR92 sem autorização.
+
+
+**Validação Safari real PR92 (22/11/2026, export 12:06 UTC):**
+- Fonte: `generated_preview` e `settingsMatchGeneratedPreview: true`, oito pessoas ativas.
+- 171 turnos, **8 jornadas >9h**; por pessoa, contagem agregada
+  **0, 0, 0, 0, 2, 2, 2, 2** (máximo 2). As oito jornadas têm 570
+  minutos efetivos; não há uma jornada acima de 9h30.
+- No conjunto das quatro semanas completas 02–29/11, todas as pessoas
+  somam **160h em 28 dias**. As semanas individuais variam de 36h a 44h,
+  dentro da tolerância de otimização existente. Os totais por mês
+  variam de 165h a 173h, pois 01/11 e 30/11 estão fora desse ciclo.
+- Referência interna SOFT de 60%: **0 dias abaixo da meta**, pelo menos
+  cinco pessoas com turno em cada dia. Sábados 5/5/5/5; domingos
+  5/5/6/5. Verificado independentemente com os turnos exportados:
+  nenhum minuto de abertura sem cobertura ou com uma pessoa isolada,
+  **mínimo real de 2 pessoas simultâneas** em alguns períodos normais.
+  Portanto, 60% aqui significa escalados no dia, não simultaneamente.
+- Conferidas todas as folgas fixas e as folgas explicitamente planeadas
+  com os dias sem turno nas quatro semanas completas: **sem divergências**.
+  Todos têm 1 ou 2 fins de semana completos; existe um caso de
+  **dois fins de semana consecutivos**, cuja conveniência operacional
+  continua uma preferência de qualidade por discutir.
+- `insufficient_context` permanece estritamente nas semanas
+  26/10–01/11 e 30/11–06/12 (dados de outubro/dezembro incompletos).
+  Isto **não é certificação de validade mensal global**.
+- O ficheiro exportado contém nomes e horários individuais; **não foi
+  adicionado ao repositório**. Apenas estatísticas agregadas foram
+  documentadas. Manter a publicação Cloudflare manual.
+
+
+### PR92 — Espaçamento SOFT de fins de semana completos (22/11/2026)
+
+**Defeito residual identificado no Safari real:** embora o planeamento
+PR92 distribua equitativamente as jornadas >9h, uma pessoa recebeu
+dois fins de semana completos consecutivos em 07–08/11 e 14–15/11.
+O objetivo é evitar essa sensação de injustiça sem transformar uma
+preferência em regra HARD.
+
+**Correção em `src/weekendRotation.ts`:** antes de atribuir um
+descanso completo opcional, consultar a última semana de descanso
+explicitamente planeada (ou registada num histórico anterior
+confirmado). Se o candidato descansou no fim de semana imediatamente
+anterior **e houver outro colaborador elegível**, não atribuir
+novamente o descanso consecutivo; é preferível reduzir os
+descansos opcionais dessa semana a repetir automaticamente.
+Se não existe outro elegível, a repetição continua permitida
+pela heurística SOFT; períodos estruturalmente encerrados
+ou descansos obrigatórios nunca são alterados. O limite de
+presença por dia permanece SOFT; não se assume histórico de
+descansos desconhecido a partir de dias sem turno.
+
+**Regressões:** adicionados testes para quatro semanas com oito
+pessoas e folga fixa ao sábado, continuação entre meses com histórico
+confirmado, e exceção com apenas uma pessoa elegível.
+O gerador anonimizado preserva **8 jornadas >9h**, máximo **2**
+por pessoa, 160h/pessoa em 28 dias, cobertura efetiva, 60%
+de pessoas escaladas, e agora **zero descansos completos consecutivos**.
+Atribui pelo menos um fim de semana completo a cada colaborador
+no cenário de teste. CI final após implementação:
+https://github.com/gv62hfjc8c-dot/schedule-engine/actions/runs/45021165252
+— **320/320 testes PASS; build PASS**.
+
+**Validação Safari REAL confirmada (22/11/2026 12:16 UTC):**
+exportação `generated_preview`, `settingsMatchGeneratedPreview=true`;
+8 pessoas, 171 turnos. Nas semanas 02–29/11, **zero fins de semana
+completos consecutivos**: dois membros recebem dois descansos
+completos não consecutivos, seis recebem um; 3/2/3/2 descansos
+completos nas quatro semanas. **8 jornadas >9h**, todas com 9h30
+efetivas, máximo 2 por membro; 160h/pessoa em 28 dias. Todos os dias
+têm pelo menos 5/8 escalados (sábados 5/5/5/5; domingos 5/6/5/5).
+Recontagem independente minuto a minuto de todo o mês: zero minutos
+descobertos ou com somente uma pessoa. Verificados 32/32 descansos
+explícitos semanais sem divergências entre planeamento e turnos,
+e nenhuma violação de folgas fixas. O estado `insufficient_context`
+continua a dever-se exclusivamente ao histórico incompleto das
+semanas de fronteira, sem certificação do mês completo. O
+`historyProvided=false` deste teste não permite validar justiça de
+rotação para períodos anteriores, desconhecidos. O diagnóstico real
+contém dados pessoais e NÃO foi guardado no repositório.
+PR92 permanece DRAFT, sem merge nem publicação Cloudflare.
+Última CI verificada:
+https://github.com/gv62hfjc8c-dot/schedule-engine/actions/runs/45021264014
+— 320/320 testes PASS e build PASS.

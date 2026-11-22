@@ -172,6 +172,111 @@ test("60% ao fim de semana considera sábado fixo antes de atribuir descansos co
   assert.equal(JSON.stringify(scenario),original,"imutabilidade");
 });
 
+test("PR92: o ciclo atribui as folgas completas extra a quem tem mais margem horária",()=>{
+  const fixed:Weekday[]=[
+    "wednesday","saturday","monday","friday",
+    "tuesday","monday","friday","tuesday",
+  ];
+  const scenario:WeekendRotationInput={
+    startWeek:"2026-11-02",weeks:4,
+    members:fixed.map((day,i)=>({
+      id:"P"+(i+1),weeklyDaysOff:i<3?1:2,fixedDaysOff:[day],
+      minimumWeekdayDaysOffOnFullWeekend:1,
+    })),
+    minimumPresentByWeekday:minimums(2,2,1),
+    maximumEffectiveMinutesByWeekday:cap(570,570,300),
+    workloadPreference:{
+      cycleReferenceMinutes:9600,preferredUpperDailyMinutes:540,cycleWeeks:4,
+    },
+  };
+  const result=planWeekendRotation(scenario);
+  assert.equal(result.status,"planned",JSON.stringify(result.issues));
+  const counts=new Map(result.weekendCounts.map(x=>[x.memberId,x.planned]));
+  const oneRest=Array.from({length:3},(_,i)=>counts.get("P"+(i+1))!);
+  const twoRest=Array.from({length:5},(_,i)=>counts.get("P"+(i+4))!);
+  assert.ok(oneRest.filter(n=>n>=2).length>=2,
+    "o planeamento deve usar a margem dos regimes com uma folga: "+oneRest);
+  assert.ok(result.weekendCounts.every(m=>m.planned>=1&&m.planned<=2),
+    "manter uma distribuição de fins de semana equilibrada: "+
+      JSON.stringify(result.weekendCounts));
+  assert.ok(twoRest.every(n=>n<=2),
+    "os regimes com duas folgas não perdem limites de frequência: "+twoRest);
+  assert.ok(result.weeks.every(w=>w.presentByWeekday.saturday>=5 &&
+    w.presentByWeekday.sunday>=5),"presença SOFT continua acima de 60%");
+  assert.deepEqual(planWeekendRotation(scenario),result,"previsibilidade");
+});
+
+test("PR92: fins de semana voluntários não se repetem consecutivamente na equipa de oito",()=>{
+  const fixed:Weekday[]=[
+    "wednesday","saturday","monday","friday",
+    "tuesday","monday","friday","tuesday",
+  ];
+  const scenario:WeekendRotationInput={
+    startWeek:"2026-11-02",weeks:4,
+    members:fixed.map((day,index)=>({
+      id:"P"+(index+1),weeklyDaysOff:index<3?1:2,
+      fixedDaysOff:[day],minimumWeekdayDaysOffOnFullWeekend:1,
+    })),
+    minimumPresentByWeekday:minimums(2,2,1),
+    maximumEffectiveMinutesByWeekday:cap(570,570,300),
+    workloadPreference:{
+      cycleReferenceMinutes:9600,preferredUpperDailyMinutes:540,cycleWeeks:4,
+    },
+  };
+  const result=planWeekendRotation(scenario);
+  assert.equal(result.status,"planned",JSON.stringify(result.issues));
+  for(let i=1;i<result.weeks.length;i++){
+    const prior=new Set(result.weeks[i-1].fullWeekendOffMemberIds);
+    const overlapping=result.weeks[i].fullWeekendOffMemberIds
+      .filter(id=>prior.has(id));
+    assert.deepEqual(overlapping,[],
+      "o mesmo colaborador não pode receber dois fins de semana completos seguidos");
+  }
+  assert.ok(result.weekendCounts.every(entry=>entry.planned>=1),
+    "o espaçamento não deve excluir ninguém da rotação de quatro semanas");
+  assert.ok(result.weeks.every(week=>
+    week.presentByWeekday.saturday>=5&&week.presentByWeekday.sunday>=5));
+  assert.deepEqual(planWeekendRotation(scenario),result,"determinismo");
+});
+
+test("PR92: o último fim de semana confirmado conta na transição entre meses",()=>{
+  const scenario=input(3,minimums(1,2,2));
+  scenario.weeks=2;
+  scenario.previousFullWeekends=[
+    {memberId:"A",weekStart:"2026-10-26"},
+    {memberId:"B",weekStart:"2026-10-19"},
+    {memberId:"B",weekStart:"2026-10-12"},
+    {memberId:"C",weekStart:"2026-10-19"},
+    {memberId:"C",weekStart:"2026-10-12"},
+  ];
+  const result=planWeekendRotation(scenario);
+  assert.equal(result.status,"planned",JSON.stringify(result.issues));
+  assert.ok(!result.weeks[0].fullWeekendOffMemberIds.includes("A"),
+    "não repetir o descanso completo de 31/10–01/11 na semana seguinte");
+  assert.ok(!result.weeks[1].fullWeekendOffMemberIds.some(id=>
+    result.weeks[0].fullWeekendOffMemberIds.includes(id)));
+  assert.equal(result.historyProvided,true);
+  assert.deepEqual(planWeekendRotation(scenario),result);
+});
+
+test("PR92: descanso estrutural ou único elegível pode repetir-se; nunca é erro HARD",()=>{
+  const closed=input(4,minimums(4,0,0));
+  closed.closedWeekdays=["saturday","sunday"];
+  closed.maximumEffectiveMinutesByWeekday=cap(480,0,0);
+  assert.equal(planWeekendRotation(closed).status,"planned");
+
+  const unavoidable=input(3,minimums(1,2,2));
+  unavoidable.weeks=2;
+  unavoidable.members=unavoidable.members.map((person,index)=>({
+    ...person,eligibleFullWeekend:index===0,
+  }));
+  const result=planWeekendRotation(unavoidable);
+  assert.equal(result.status,"planned",JSON.stringify(result.issues));
+  assert.deepEqual(result.weeks.map(w=>w.fullWeekendOffMemberIds),[
+    ["A"],["A"],
+  ],"sem outros candidatos, o descanso consecutivo continua permitido");
+});
+
 test("exigir toda a equipa ao domingo impede fins de semana completos",()=>{
   const scenario=input(4,minimums(2,3,4));
   const result=planWeekendRotation(scenario);
