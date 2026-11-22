@@ -22,6 +22,8 @@ import {
 } from "./cycleWorkloadOptimization";
 import {measureSimultaneousCoverage} from "./simultaneousCoverage";
 import {allocateFunctionalMonth} from "./functionalScheduling";
+import {allocateFunctionalCoverage} from "./functionalCoverage";
+import type {TeamMember} from "./team";
 import {validateFullWeekendHistory} from "./plannedRest";
 import {
   evaluateDailyStaffing,type DailyStaffingReport,
@@ -374,9 +376,35 @@ function allocateBalancedWeek(plans:DayPlan[],targetMinutes:number):void {
  * weeklyUnassigned is reset for every civil week and counts days without work
  * among colleagues already scheduled. It never stores a fixed weekday rule.
  */
+interface RoleWorkdayPressure {
+  member:TeamMember;
+  active:readonly TeamMember[];
+  prior:ReadonlyMap<string,readonly TeamMember[]>;
+  roles:readonly string[];
+}
+function potentialRoleGain(
+  date:string,workers:readonly TeamMember[],incoming:TeamMember,
+  active:readonly TeamMember[],roles:readonly string[],
+):number {
+  const deficit=(group:readonly TeamMember[])=>{
+    const report=allocateFunctionalCoverage({
+      date,members:active,roles,minimumPercent:50,
+      opening:[{start:"09:00",end:"10:00"}],
+      assignments:group.map(m=>({
+        memberId:m.id,date,start:"09:00",end:"10:00",
+      })),
+    }).certification;
+    return report.issues.filter(i=>i.code==="ROLE_COVERAGE_GAP")
+      .reduce((sum,i)=>sum+(i.missing??0),0);
+  };
+  const before=deficit(workers);
+  const after=deficit([...workers,incoming]);
+  return before-after;
+}
 function allocateConfiguredDays(
   plans:DayPlan[],targetMinutes:number,editableWorkdays:number,
   weeklyUnassigned:ReadonlyMap<string,number>,
+  rolePressure?:RoleWorkdayPressure,
 ):void {
   const open=plans.filter(plan=>plan.capacity>0);
   if(targetMinutes<=0 || editableWorkdays<=0)return;
@@ -386,12 +414,18 @@ function allocateConfiguredDays(
   interface Option {
     days:DayPlan[];
     shortUse:number;
+    roleGain:number;
     unassignedConcentration:number;
     consistency:number;
     quality:DailyWorkloadQuality;
     minShift:number;
     distance:number;
   }
+  const roleGains=rolePressure?new Map(open.map(plan=>[
+    plan.date,potentialRoleGain(plan.date,
+      rolePressure.prior.get(plan.date)??[],
+      rolePressure.member,rolePressure.active,rolePressure.roles),
+  ] as const)):new Map<string,number>();
   let best:Option|null=null;
   const choose=(start:number,selected:DayPlan[]):void=>{
     if(selected.length===slots){
@@ -422,13 +456,18 @@ function allocateConfiguredDays(
       const minShift=Math.min(...candidate.map(plan=>plan.allocated));
       const distance=candidate.reduce((sum,plan)=>
         sum+Math.abs(plan.allocated-Math.min(480,plan.capacity)),0);
+      const roleGain=candidate.reduce((sum,plan)=>
+        sum+(roleGains.get(plan.date)??0),0);
       const next={
-        days:candidate,shortUse,unassignedConcentration,
+        days:candidate,shortUse,roleGain,unassignedConcentration,
         consistency,quality:dailyWorkloadQuality(
           candidate.map(plan=>plan.allocated)),
         minShift,distance,
       };
       function better(a:Option,b:Option):boolean {
+        // Functional coverage is HARD: favor workdays that can close
+        // qualification deficits before optimizing soft shift quality.
+        if(a.roleGain!==b.roleGain)return a.roleGain>b.roleGain;
         // Short opening windows stay available to everybody if feasible.
         if(a.shortUse!==b.shortUse)return a.shortUse>b.shortUse;
         // Spread remaining days without work across longer windows.
@@ -689,6 +728,9 @@ export function generateSchedule(input:GenerationInput):GenerationResult {
     // Only this civil week's editable, open days participate in the soft
     // distribution. Adjacent-month assignments remain read-only context.
     const weeklyUnassigned=new Map<string,number>();
+    const roleWorkdays=new Map<string,TeamMember[]>();
+    const functionalRoles=[...new Set(activeMembers.flatMap(m=>
+      m.qualifiedRoles??[]))].sort();
     const unknownExternalDays=enumerateCivilDays(week)
       .filter(date=>!inRange(date,period) && !completeDates.has(date));
     const contextComplete=unknownExternalDays.length===0;
@@ -726,7 +768,11 @@ export function generateSchedule(input:GenerationInput):GenerationResult {
             inRange(entry.date,week)).map(entry=>entry.date));
         const editableWorkdays=7-member.weeklyDaysOff-knownWorkedDates.size;
         allocateConfiguredDays(
-          plans,target,editableWorkdays,weeklyUnassigned
+          plans,target,editableWorkdays,weeklyUnassigned,
+          roleConfigured?{
+            member,active:activeMembers,prior:roleWorkdays,
+            roles:functionalRoles,
+          }:undefined
         );
       }else{
         allocateWeek(plans,target,contextComplete);
@@ -741,6 +787,11 @@ export function generateSchedule(input:GenerationInput):GenerationResult {
       // members without a configured days-off count. Closed dates are not
       // eligible and therefore cannot distort the choice of open days.
       for(const plan of plans){
+        if(roleConfigured && plan.allocated>0){
+          const previous=roleWorkdays.get(plan.date)??[];
+          previous.push(member);
+          roleWorkdays.set(plan.date,previous);
+        }
         if(plan.capacity>0 && plan.allocated===0)
           weeklyUnassigned.set(plan.date,
             (weeklyUnassigned.get(plan.date)??0)+1);
