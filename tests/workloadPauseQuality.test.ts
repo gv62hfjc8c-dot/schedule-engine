@@ -232,13 +232,28 @@ test("PR91: ciclo de 28 dias reduz jornadas >9h sem prejudicar a cobertura real"
     candidateAssignments:result.candidateAssignments});
   assert.equal(independently.status,result.status);
   assert.deepEqual(independently.issues,result.certification.issues);
-  assert.equal(result.candidateAssignments.length,169);
+  // PR91 melhora horas sobre os dias já escalados. A correção da
+  // rotação pode modificar o número de turnos, não as 160h do ciclo.
+  assert.ok(long<=30,
+    "melhoria das 30 jornadas longas não deve regredir: "+long);
   assert.ok(long<56,
     "a otimização real de 28 dias deve superar as 56 jornadas >9h: "+long);
+  const staffedWeekends=result.dailyStaffing?.days.filter(day=>
+    (day.weekday==="saturday"||day.weekday==="sunday") &&
+    day.date>="2026-11-07" && day.date<="2026-11-30")??[];
+  assert.equal(staffedWeekends.length,8);
+  assert.ok(staffedWeekends.every(day=>day.present>=5),
+    "60% SOFT deve ser atingido quando viável: "+
+      JSON.stringify(staffedWeekends.map(d=>({
+        date:d.date,present:d.present,
+      }))));
+  assert.equal(result.dailyStaffing?.daysBelowTarget,0,
+    "não criar défices de presença nos restantes dias de novembro");
   console.log("PR91_ANONYMIZED_28DAY "+
     JSON.stringify({previousLongDays:56,newLongDays:long,
       soloSaturdayMinutes:soloDays.reduce((sum,q)=>sum+q.soloMinutes,0),
       totalShifts:result.candidateAssignments.length,
+      weekendStaffing:staffedWeekends.map(d=>d.present),
       contextStatus:result.status}));
   assert.equal(JSON.stringify(config),initial,"configuração não é mutada");
   assert.deepEqual(generateSchedule(config),result,"repetibilidade");
