@@ -189,3 +189,80 @@ export function measure28DayWorkload(
 ):CycleWorkloadQuality {
   return countQuality(days);
 }
+
+
+/**
+ * Mathematical LOWER BOUND for >9h workdays given the work dates already
+ * selected for ONE person in a complete 28-day cycle.
+ *
+ * It is not a proposal, solver or legality claim. It assumes all unlocked
+ * days can use any effective minutes up to their verified daily capacity
+ * and ignores cross-person coverage constraints; consequently the actual
+ * achievable minimum can be HIGHER, never lower, than this bound.
+ * Equality between the current count and this floor proves no optimizer
+ * that preserves these work dates could reduce the count.
+ */
+export interface FixedWorkdayLongDayBound {
+  targetMinutes:number;
+  observedMinutes:number;
+  workingDays:number;
+  observedLongDays:number;
+  /** Effective minutes attainable without creating another >9h day. */
+  minutesWithoutAdditionalLongDays:number;
+  /** Extra effective minutes needing >9h on one or more unlocked days. */
+  extraMinutesRequiringLongDays:number;
+  /** Provable floor, including existing long days locked by their policy. */
+  minimumLongDays:number;
+  /** Optimistic upper bound on removable long days; not a promise. */
+  potentiallyRemovableLongDays:number;
+}
+
+export function analyzeFixedWorkdayLongDayBound(
+  input:readonly CycleWorkday[],
+  cycleTargetMinutes=9600,
+):FixedWorkdayLongDayBound|null {
+  const weeks=[...new Set(input.map(d=>d.weekStart))].sort();
+  const uniqueDates=new Set(input.map(d=>d.date));
+  if(input.length===0 || weeks.length!==4 ||
+    uniqueDates.size!==input.length ||
+    !Number.isSafeInteger(cycleTargetMinutes) || cycleTargetMinutes<=0 ||
+    input.some(d=>!Number.isSafeInteger(d.minutes) ||
+      !Number.isSafeInteger(d.capacity) ||
+      d.minutes<=0 || d.capacity<d.minutes) ||
+    input.reduce((sum,d)=>sum+d.minutes,0)!==cycleTargetMinutes)
+    return null;
+  try{
+    if(weeks.some((week,i)=>i>0 &&
+      week!==addCivilDays(weeks[i-1],7)) ||
+      input.some(d=>d.date<d.weekStart ||
+        d.date>=addCivilDays(d.weekStart,7)))
+      return null;
+  }catch{return null;}
+
+  const observedLongDays=input.filter(d=>d.minutes>LONG).length;
+  const fixedLongDays=input.filter(d=>d.locked && d.minutes>LONG).length;
+  const minutesWithoutAdditionalLongDays=input.reduce((sum,d)=>
+    sum+(d.locked?d.minutes:Math.min(d.capacity,LONG)),0);
+  const extraMinutesRequiringLongDays=Math.max(
+    0,cycleTargetMinutes-minutesWithoutAdditionalLongDays);
+  let missing=extraMinutesRequiringLongDays;
+  let minimumLongDays=fixedLongDays;
+  const extras=input.filter(d=>!d.locked && d.capacity>LONG)
+    .map(d=>d.capacity-LONG).sort((a,b)=>b-a);
+  for(const extra of extras){
+    if(missing<=0)break;
+    missing-=extra;
+    minimumLongDays++;
+  }
+  if(missing>0)return null;
+  return {
+    targetMinutes:cycleTargetMinutes,
+    observedMinutes:cycleTargetMinutes,
+    workingDays:input.length,
+    observedLongDays,
+    minutesWithoutAdditionalLongDays,
+    extraMinutesRequiringLongDays,
+    minimumLongDays,
+    potentiallyRemovableLongDays:Math.max(0,observedLongDays-minimumLongDays),
+  };
+}
