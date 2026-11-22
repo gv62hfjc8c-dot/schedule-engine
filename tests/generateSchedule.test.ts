@@ -1091,7 +1091,7 @@ test("PR83: a proteção da janela curta é genérica, sem nome de dia",()=>{
 });
 
 
-test("PR94: dados legados não ativam regras funcionais; equipas classificadas ativam HARD coverage",()=>{
+test("PR94: dados legados não ativam funções; 50% não invalida horário",()=>{
   const baseline=week();
   baseline.team={members:[
     {id:ANA,name:"Ana",active:true},
@@ -1124,9 +1124,10 @@ test("PR94: dados legados não ativam regras funcionais; equipas classificadas a
   assert.ok(enabled.candidateAssignments.length>0);
   assert.ok(enabled.candidateAssignments.every(shift=>
     shift.role==="checkout"||shift.role==="sales"));
-  assert.equal(enabled.certification.status,"invalid",
-    "dois trabalhadores não podem cobrir duas funções durante 13h de abertura");
-  assert.ok(enabled.certification.issues.some(i=>
-    i.code==="FUNCTIONAL_COVERAGE_GAP"));
+  assert.equal(enabled.certification.status,"valid",
+    "a meta SOFT de 50% nunca invalida um horário que cumpre regras HARD");
+  assert.ok(!enabled.certification.issues.some(i=>
+    i.code==="FUNCTIONAL_COVERAGE_GAP"||
+    i.code==="FUNCTIONAL_CAPACITY_SHORTFALL"));
   assert.deepEqual(enabled,generateSchedule(qualified),"determinismo");
 });
