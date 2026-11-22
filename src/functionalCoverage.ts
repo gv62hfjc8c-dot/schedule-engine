@@ -22,8 +22,9 @@ export interface FunctionalCoverageInput {
   assignments:readonly WorkAssignment[];
   opening:readonly {start:string;end:string}[];
   roles:readonly string[];
-  /** Required simultaneous share of ALL active people qualified for a role.
+  /** SOFT simultaneous presence goal based on qualified active members.
    * Polyvalents count in each qualification pool, once in actual coverage.
+   * Hard operational minimums, if introduced, are a separate policy.
    */
   minimumPercent:number;
 }
@@ -49,6 +50,7 @@ export interface FunctionalCoverageSlot {
   counts:Record<string,number>;
 }
 export interface FunctionalCoverageReport {
+  /** "uncovered" means under the SOFT percentage target, not invalid. */
   status:"covered"|"uncovered"|"invalid_input";
   targets:Record<string,number>;
   qualified:Record<string,number>;
@@ -160,8 +162,9 @@ function coverageSlots(
   return slots;
 }
 
-/** Independent checker. Never trusts the planner's deficit score.
- * A valid person can cover only one functional team during a shift.
+/** Independent role-and-target evaluator. Never trusts the planner.
+ * INVALID_INPUT issues violate HARD role integrity.
+ * ROLE_COVERAGE_GAP is a SOFT objective shortfall only.
  */
 export function certifyFunctionalCoverage(
   input:FunctionalCoverageInput,
@@ -217,9 +220,9 @@ export function certifyFunctionalCoverage(
   };
 }
 
-/** A deterministic quality score for an INCOMPLETE allocation.
- * Hard role deficits dominate softer balancing of actual headcounts.
- * It never declares infeasibility: the independent certification decides.
+/** A deterministic SOFT quality score for an incomplete allocation.
+ * Deviation from the aspirational 50% goal precedes role balancing.
+ * A target shortfall never implies a hard scheduling violation.
  */
 function score(
   model:Validated,assigned:ReadonlyMap<string,string>,
