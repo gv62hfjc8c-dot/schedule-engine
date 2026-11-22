@@ -3,6 +3,7 @@ import {
   type FunctionalRoleAssignment,type FunctionalCoverageReport,
 } from "./functionalCoverage";
 import {clockMinutes,effectiveWorkIntervals,type WorkAssignment} from "./workAssignments";
+import {measureSimultaneousCoverage} from "./simultaneousCoverage";
 import {civilDayOfWeek,enumerateCivilDays,type PlanningPeriod} from "./schedulePeriods";
 import type {TeamMember} from "./team";
 import type {WeeklyOpeningHours} from "./operatingHours";
@@ -52,6 +53,14 @@ function optimizeDay(
   if(capacity<demand)return applyRoles(shifts,chosen.allocations);
 
   const baselineShifts=[...shifts];
+  const numericOpen=opening.map(w=>({
+    start:clockMinutes(w.start),end:clockMinutes(w.end),
+  }));
+  // Preserve the existing HARD minimum of at least one worker actively
+  // covering the business opening. A soft percentage improvement must
+  // never create new uncovered opening minutes.
+  const baselineUncovered=measureSimultaneousCoverage(
+    shifts,numericOpen).uncoveredMinutes;
   const ordered=[...shifts.keys()].sort((a,b)=>
     shifts[a].memberId.localeCompare(shifts[b].memberId));
   // Bounded deterministic coordinate descent: preserves each person's
@@ -68,6 +77,8 @@ function optimizeDay(
       let bestMotion=movement(shifts,baselineShifts);
       const tryVariant=(candidate:WorkAssignment)=>{
         shifts[index]=candidate;
+        const hard=measureSimultaneousCoverage(shifts,numericOpen);
+        if(hard.uncoveredMinutes>baselineUncovered)return;
         const trial=allocateFunctionalCoverage(roleInput(
           date,shifts,members,opening,roles));
         const trialLoss=functionalLoss(trial.certification);
