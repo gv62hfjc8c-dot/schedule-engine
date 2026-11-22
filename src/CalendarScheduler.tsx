@@ -3,6 +3,7 @@ import {monthCells,monthLabel,selectedDayLabel} from "./calendar";
 import {generateSchedule,type GenerationResult} from "./generateSchedule";
 import {certifySchedule,type CertificationReport} from "./certifySchedule";
 import {loadTeamDraftFromBrowser} from "./teamDraftRepository";
+import {DEFAULT_OPERATIONAL_ROLE_DEFINITIONS} from "./team";
 import {loadOpeningHoursDraftFromBrowser} from "./openingHoursDraftRepository";
 import {
   loadMonthlyDraftFromBrowser,saveMonthlyDraftToBrowser,
@@ -89,7 +90,10 @@ function stateText(report:CertificationReport|null,
 function memberLabel(memberId:string,names:Map<string,string>):string {
   return names.get(memberId)??"Colaborador não encontrado";
 }
-function functionalRoleLabel(role:string|undefined):string {
+function functionalRoleLabel(
+  role:string|undefined,labels?:ReadonlyMap<string,string>,
+):string {
+  if(role && labels?.has(role))return labels.get(role)!;
   if(role==="checkout")return "Caixa";
   if(role==="sales")return "Vendas";
   return role??"Sem função atribuída";
@@ -163,6 +167,13 @@ function MonthWorkspace({
     const team=loadTeamDraftFromBrowser();
     return new Map(team.status==="loaded"?
       team.value.members.map(member=>[member.id,member.name]):[]);
+  });
+  const [roleLabels,setRoleLabels]=useState<Map<string,string>>(()=>{
+    const team=loadTeamDraftFromBrowser();
+    const roles=team.status==="loaded"
+      ?team.value.roles??DEFAULT_OPERATIONAL_ROLE_DEFINITIONS
+      :DEFAULT_OPERATIONAL_ROLE_DEFINITIONS;
+    return new Map(roles.map(role=>[role.id,role.label]));
   });
   const [savedReport,setSavedReport]=useState<CertificationReport|null>(()=>{
     if(initial.status!=="loaded")return null;
@@ -351,6 +362,10 @@ function MonthWorkspace({
     setHoursHistory(sources.hoursHistory);
     setSourceSignature(JSON.stringify(sources));
     setNames(new Map(sources.team.value.members.map(member=>[member.id,member.name])));
+    setRoleLabels(new Map(
+      (sources.team.value.roles??DEFAULT_OPERATIONAL_ROLE_DEFINITIONS)
+        .map(role=>[role.id,role.label]),
+    ));
     setDailyOpening(sources.opening.value);
     setActiveMemberIds(sources.team.value.members.filter(member=>
       member.active).map(member=>member.id));
@@ -640,7 +655,7 @@ function MonthWorkspace({
               <ul>
                 {functionalProblems.slice(0,70).map((problem,i)=><li
                   key={problem.code+"-"+i}>
-                  {problem.date??"Mês"} — {functionalRoleLabel(problem.role)}
+                  {problem.date??"Mês"} — {functionalRoleLabel(problem.role,roleLabels)}
                   {problem.gapStart&&problem.gapEnd
                     ?" ("+problem.gapStart+"–"+problem.gapEnd+")":""}
                   {problem.missing?" · faltam "+problem.missing:""}
@@ -790,7 +805,7 @@ function MonthWorkspace({
                         <span key={shift.memberId+"-"+index}>
                           {shift.start}–{shift.end}
                           {shift.role&&<span className="calendar-meal-time">
-                            {functionalRoleLabel(shift.role)}
+                            {functionalRoleLabel(shift.role,roleLabels)}
                           </span>}
                           {shift.mealBreak&&
                             <span className="calendar-meal-time">
@@ -860,7 +875,7 @@ function MonthWorkspace({
                     <strong>{memberLabel(item.memberId,names)}</strong>
                     <span>Turno {item.assignment.start}–{item.assignment.end}</span>
                     {item.assignment.role&&<span className="schedule-functional-role">
-                      Função: {functionalRoleLabel(item.assignment.role)}
+                      Função: {functionalRoleLabel(item.assignment.role,roleLabels)}
                     </span>}
                     {item.assignment.mealBreak&&
                       <span className="meal-inline">
