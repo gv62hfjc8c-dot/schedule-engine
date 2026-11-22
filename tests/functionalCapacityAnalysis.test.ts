@@ -64,6 +64,8 @@ test("PR94: 50% mantém denominadores dos polivalentes sem duplicar presença",(
   assert.equal(report.dayLockedCapacityDeficitMinutes,0);
   assert.equal(report.simultaneousDeficitMinutes,0);
   assert.equal(report.observedRoleGapMinutes,0);
+  assert.equal(report.emptyRoleMinutes,0);
+  assert.ok(report.roleTargets.every(role=>role.emptyMinutes===0));
   assert.equal(report.roleAndAllocationGapMinutes,0);
   assert.equal(JSON.stringify(s),before);
   assert.deepEqual(report,analyzeFunctionalCapacity({...s,assignments:shifts}),
@@ -98,6 +100,9 @@ test("PR94: horas totais suficientes podem estar mal posicionadas",()=>{
   assert.equal(report.dayLockedCapacityDeficitMinutes,0);
   assert.equal(report.simultaneousDeficitMinutes,960);
   assert.equal(report.observedRoleGapMinutes,960);
+  assert.equal(report.emptyRoleMinutes,960,
+    "duas funções ficam vazias nas últimas duas horas de quatro segundas");
+  assert.deepEqual(report.roleTargets.map(r=>r.emptyMinutes),[480,480]);
   assert.equal(report.roleAndAllocationGapMinutes,0);
   assert.equal(report.status,"complete");
 });
@@ -129,6 +134,10 @@ test("PR94: pausas retiram capacidade e podem criar lacuna temporal",()=>{
   assert.equal(report.simultaneousDeficitMinutes,480,
     "no intervalo das pausas faltam duas pessoas, em quatro segundas");
   assert.equal(report.observedRoleGapMinutes,480);
+  assert.equal(report.emptyRoleMinutes,480,
+    "uma hora com ambas as funções vazias em quatro segundas");
+  assert.deepEqual(report.days.filter(day=>day.openingMinutes>0)
+    .map(day=>day.emptyRoleMinutes),[120,120,120,120]);
   assert.equal(report.dayLockedCapacityDeficitMinutes,0);
 });
 
@@ -157,6 +166,7 @@ test("PR94: três funções genéricas continuam sujeitas aos mesmos limites",()
   assert.equal(report.requiredMinutes,2880);
   assert.equal(report.scheduledInsideOpeningMinutes,2880);
   assert.equal(report.observedRoleGapMinutes,0);
+  assert.equal(report.emptyRoleMinutes,0);
 });
 
 test("PR94: entradas inválidas nunca produzem um relatório de viabilidade falso",()=>{
