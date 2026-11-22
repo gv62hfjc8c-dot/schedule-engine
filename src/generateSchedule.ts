@@ -2,7 +2,7 @@ import {
   certifySchedule,type CertificationInput,type CertificationReport,
   type CertificationIssueCode,
 } from "./certifySchedule";
-import {validateTeamRoster} from "./team";
+import {validateTeamRoster,OPERATIONAL_ROLES} from "./team";
 import {WEEKDAYS,validateWeeklyOpeningHours} from "./operatingHours";
 import {
   addCivilDays,civilDayOfWeek,daysBetween,enumerateCivilDays,inRange,type DateRange,
@@ -709,6 +709,7 @@ export function generateSchedule(input:GenerationInput):GenerationResult {
     ]},
   };
   const functionalCoveragePolicy=roleConfigured?"qualified50" as const:undefined;
+  const functionalRoles=team.value.roles?.map(role=>role.id)??[...OPERATIONAL_ROLES];
   const rotationPlan=prepareRotation(
     period,team.value,hours.value,confirmedRestHistory,
   );
@@ -729,8 +730,6 @@ export function generateSchedule(input:GenerationInput):GenerationResult {
     // distribution. Adjacent-month assignments remain read-only context.
     const weeklyUnassigned=new Map<string,number>();
     const roleWorkdays=new Map<string,TeamMember[]>();
-    const functionalRoles=[...new Set(activeMembers.flatMap(m=>
-      m.qualifiedRoles??[]))].sort();
     const unknownExternalDays=enumerateCivilDays(week)
       .filter(date=>!inRange(date,period) && !completeDates.has(date));
     const contextComplete=unknownExternalDays.length===0;
@@ -979,7 +978,7 @@ export function generateSchedule(input:GenerationInput):GenerationResult {
     }
   }
   const functionalCandidates=functionalCoveragePolicy
-    ?allocateFunctionalMonth(candidates,period,activeMembers,hours.value)
+    ?allocateFunctionalMonth(candidates,period,activeMembers,hours.value,functionalRoles)
     :candidates;
   functionalCandidates.sort((a,b)=>a.date.localeCompare(b.date) ||
     a.memberId.localeCompare(b.memberId) || a.start.localeCompare(b.start));
