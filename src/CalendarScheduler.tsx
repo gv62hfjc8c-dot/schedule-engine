@@ -207,10 +207,8 @@ function MonthWorkspace({
     preview?"rolling28":savedHoursPolicy;
   const activeFunctionalPolicy=manualEdit?manualEdit.functionalCoveragePolicy:
     preview?preview.functionalCoveragePolicy:savedFunctionalPolicy;
-  const functionalProblems=(report?.issues??[]).filter(issue=>
-    issue.code==="FUNCTIONAL_COVERAGE_GAP" ||
+  const functionalIntegrityIssues=(report?.issues??[]).filter(issue=>
     issue.code==="FUNCTIONAL_ASSIGNMENT_INVALID" ||
-    issue.code==="FUNCTIONAL_CAPACITY_SHORTFALL" ||
     issue.code==="INVALID_FUNCTIONAL_POLICY");
   const period=resolvePlanningPeriod({mode:"monthly",year,month});
   // Read-only quality diagnostic; no staffing preference in company settings.
@@ -649,99 +647,79 @@ function MonthWorkspace({
           </div>}
         </div>}
         {hasMonthProposal&&<section className="schedule-functional-overview"
-          aria-label="Cobertura funcional do mês">
-          <h3>Caixa e Vendas — distribuição mensal</h3>
+          aria-label="Objetivo de distribuição funcional do mês">
+          <h3>Distribuição por funções — objetivo de 50%</h3>
           {activeFunctionalPolicy==="qualified50"?<>
-            {capacityAnalysis&&<div className="schedule-functional-capacity"
-              aria-label="Viabilidade da cobertura por função">
-              <h4>Viabilidade matemática do mês</h4>
+            <p>Os 50% de presença simultânea por função são uma
+              <strong> meta de otimização (SOFT)</strong>, não uma
+              obrigação de cobertura. O não cumprimento desta meta
+              <strong> não torna o horário inválido</strong>. As regras
+              obrigatórias de trabalho, descanso, competências e
+              cobertura geral continuam certificadas separadamente.</p>
+            {capacityAnalysis?<div className="schedule-functional-capacity"
+              aria-label="Qualidade da distribuição funcional no mês">
+              <h4>Distância à meta no mês completo</h4>
               <div className="schedule-functional-capacity-stats">
-                <div><span>Horas-pessoa necessárias</span>
+                <div><span>Horas-pessoa da meta teórica</span>
                   <strong>{formatHours(capacityAnalysis.requiredMinutes)}</strong></div>
-                <div><span>Horas-pessoa escaladas na abertura</span>
+                <div><span>Horas efetivas escaladas na abertura</span>
                   <strong>{formatHours(capacityAnalysis.scheduledInsideOpeningMinutes)}</strong></div>
-                <div><span>Défice global mínimo de capacidade</span>
+                <div><span>Diferença mínima para atingir a meta</span>
                   <strong>{formatHours(capacityAnalysis.periodCapacityDeficitMinutes)}</strong></div>
-                <div><span>Falta com dias de trabalho inalterados</span>
+                <div><span>Diferença com os dias atuais</span>
                   <strong>{formatHours(capacityAnalysis.dayLockedCapacityDeficitMinutes)}</strong></div>
               </div>
-              {capacityAnalysis.periodCapacityDeficitMinutes>0
-                ?<p className="schedule-functional-warning">
-                  O mínimo de 50% por função exige mais horas de trabalho
-                  do que as disponíveis neste horário. Só mudar postos ou
-                  pausas NÃO resolve esta diferença estrutural.
-                </p>
-                :<p>As horas totais são suficientes em teoria.
-                  Isso não garante que a cobertura seja possível com
-                  as competências, folgas e turnos existentes.</p>}
-              <p>Com os turnos e pausas nas posições atuais, existem pelo
-                menos {formatHours(capacityAnalysis.simultaneousDeficitMinutes)}
-                {" "}de cobertura em falta por falta de pessoas simultâneas.
-                As lacunas efetivamente verificadas nas funções somam
-                {" "}{formatHours(capacityAnalysis.observedRoleGapMinutes)}.</p>
-              {capacityAnalysis.status==="complete"
-                ?<p>A diferença restante entre estas duas medidas é
-                  {" "}{formatHours(capacityAnalysis.roleAndAllocationGapMinutes??0)}.
-                  Pode dever-se às qualificações ou à escolha de postos;
-                  <strong> não é uma quantidade garantidamente recuperável
-                    por otimização.</strong></p>
-                :<p className="schedule-functional-warning">Existem postos
-                  sem atribuição válida. Os totais de lacunas por função
-                  podem estar incompletos.</p>}
+              <p>A distribuição atual fica
+                {" "}{formatHours(capacityAnalysis.observedRoleGapMinutes)}
+                {" "}abaixo da meta de 50%, somando pessoas em falta
+                em cada função e intervalo de trabalho.
+                Isto <strong>não significa falta obrigatória de
+                  pessoal</strong>.</p>
+              <p>Se mantivermos os horários e pausas atuais, a diferença
+                mínima por falta de simultaneidade é
+                {" "}{formatHours(capacityAnalysis.simultaneousDeficitMinutes)}.
+                {capacityAnalysis.status==="complete"
+                  ?" A parte restante pode relacionar-se com competências ou postos, sem garantia de recuperação por otimização."
+                  :" Existem turnos com postos sem atribuição válida; os indicadores podem estar incompletos."}
+              </p>
               <div className="schedule-functional-capacity-roles">
                 {capacityAnalysis.roleTargets.map(role=>
                   <div key={role.role}>
                     <strong>{functionalRoleLabel(role.role,roleLabels)}</strong>
                     <span>{role.qualifiedPeople} habilitados</span>
-                    <span>Mínimo: {role.minimumConcurrent} simultâneos</span>
-                    <span>Falhas: {formatHours(role.observedGapMinutes)}</span>
+                    <span>Meta: {role.minimumConcurrent} simultâneos</span>
+                    <span>Distância: {formatHours(role.observedGapMinutes)}</span>
                   </div>)}
               </div>
+              <details>
+                <summary>Dias abaixo da meta de 50% ({
+                  capacityAnalysis.days.filter(d=>d.observedRoleGapMinutes>0).length
+                })</summary>
+                <ul>
+                  {capacityAnalysis.days.filter(d=>d.observedRoleGapMinutes>0)
+                    .map(day=><li key={day.date}>
+                      {day.date}:{" "}
+                      {formatHours(day.observedRoleGapMinutes)} abaixo da meta
+                    </li>)}
+                </ul>
+              </details>
               <p className="schedule-functional-capacity-note">
-                Acrescentar colaboradores pode aumentar também o mínimo
-                exigido, pois os 50% são calculados sobre os habilitados.
-                Este relatório não calcula automaticamente contratações
-                necessárias e não altera nenhuma regra.
+                Esta comparação é informativa e não obriga a contratar
+                nem a aumentar horas. Acrescentar habilitados também pode
+                aumentar a referência de 50%. O certificador continua
+                responsável pelas regras HARD reais.
               </p>
-            </div>}
-            <p>Funções atribuídas nos turnos do mês. O mínimo de 50%
-              aplica-se a colaboradores ativos habilitados para cada
-              função, efetivamente a trabalhar em simultâneo, incluindo
-              os períodos das refeições.</p>
-            <p className={functionalProblems.length
-              ?"schedule-functional-warning":"schedule-functional-success"}>
-              {functionalProblems.length
-                ?functionalProblems.length+
-                  " conflitos funcionais detetados. O horário NÃO cumpre ainda a cobertura por função."
-                :"Sem lacunas funcionais detetadas na proposta mensal."}
-            </p>
-            {functionalProblems.length>0&&<details>
-              <summary>Consultar lacunas por função ({functionalProblems.length})</summary>
-              <ul>
-                {functionalProblems.slice(0,70).map((problem,i)=><li
-                  key={problem.code+"-"+i}>
-                  {problem.date??"Mês"} — {functionalRoleLabel(problem.role,roleLabels)}
-                  {problem.gapStart&&problem.gapEnd
-                    ?" ("+problem.gapStart+"–"+problem.gapEnd+")":""}
-                  {problem.missing?" · faltam "+problem.missing:""}
-                  {problem.code==="FUNCTIONAL_CAPACITY_SHORTFALL" &&
-                    problem.requiredMinutes!==undefined &&
-                    problem.actualMinutes!==undefined
-                    ?" · necessários "+
-                      (problem.requiredMinutes/60).toLocaleString("pt-PT")+
-                      " h; escalados "+
-                      (problem.actualMinutes/60).toLocaleString("pt-PT")+" h":""}
-                </li>)}
-              </ul>
-              {functionalProblems.length>70&&<p>
-                Existem mais {functionalProblems.length-70} ocorrências
-                no diagnóstico exportável.</p>}
-            </details>}
-          </>:<p>Esta proposta não inclui certificação funcional.
-            Para a ativar, define Caixa, Vendas ou ambas para todos os
-            colaboradores ativos em Configuração → Equipa e gera
-            novamente o horário mensal. Horários anteriores mantêm-se
-            sem validação de cobertura por função.</p>}
+            </div>:<p>Não foi possível calcular a qualidade funcional
+              para esta proposta. Verifica os dados de equipa e turnos.</p>}
+            {functionalIntegrityIssues.length>0&&
+              <p className="schedule-functional-warning">
+                Existem {functionalIntegrityIssues.length} problemas
+                obrigatórios na atribuição de funções. Estes são
+                distintos da meta SOFT de 50%.</p>}
+          </>:<p>Esta proposta não inclui distribuição funcional.
+            Para otimizar funções, define as competências dos colaboradores
+            ativos em Configuração → Equipa e gera novamente o mês.
+            Os horários anteriores mantêm as respetivas regras.</p>}
         </section>}
         {preview?.rotation&&<div className="schedule-rotation-overview"
           aria-label="Rotação de fins de semana na proposta">
