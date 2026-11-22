@@ -1,5 +1,5 @@
 import {
-  allocateFunctionalCoverage,type FunctionalCoverageInput,
+  allocateFunctionalCoverage,certifyFunctionalCoverage,type FunctionalCoverageInput,
   type FunctionalRoleAssignment,type FunctionalCoverageReport,
 } from "./functionalCoverage";
 import {clockMinutes,effectiveWorkIntervals,type WorkAssignment} from "./workAssignments";
@@ -155,6 +155,37 @@ function optimizeDay(
       if(!hasGap(loss))break;
     }
     if(!improved)break;
+  }
+  // Cleanup: once the role allocation is chosen, undo unnecessary shift
+  // and meal movements. A functional improvement must not keep a meal at
+  // the end of a long day when the original midday meal works equally
+  // well. This is a SOFT tie-break, not a newly invented HARD meal rule.
+  // Keep the SAME chosen roles to avoid reintroducing empty functions
+  // through an unrelated role reallocation during the cleanup.
+  for(const index of ordered){
+    const original=baselineShifts[index];
+    const current=shifts[index];
+    if(original.start===current.start && original.end===current.end &&
+      original.mealBreak?.start===current.mealBreak?.start &&
+      original.mealBreak?.end===current.mealBreak?.end)continue;
+    const referenceHard=measureSimultaneousCoverage(shifts,numericOpen);
+    const trialShifts=[...shifts];
+    trialShifts[index]=original;
+    const trialHard=measureSimultaneousCoverage(trialShifts,numericOpen);
+    if(trialHard.uncoveredMinutes>referenceHard.uncoveredMinutes ||
+      (trialHard.uncoveredMinutes===referenceHard.uncoveredMinutes &&
+        trialHard.soloMinutes>referenceHard.soloMinutes))continue;
+    const certified=certifyFunctionalCoverage(
+      roleInput(date,trialShifts,members,opening,roles),chosen.allocations);
+    if(certified.status==="invalid_input")continue;
+    const trialLoss=functionalLoss(certified);
+    if(betterQuality(trialLoss,loss) ||
+      (!betterQuality(loss,trialLoss) &&
+        movement(trialShifts,baselineShifts)<
+          movement(shifts,baselineShifts))){
+      shifts[index]=original;
+      loss=trialLoss;
+    }
   }
   return applyRoles(shifts,chosen.allocations);
 }
