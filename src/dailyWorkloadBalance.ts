@@ -83,7 +83,7 @@ export function compareDailyWorkloadWithLongDayCount(
   if(aboveNine!==0)return aboveNine;
   const aboveEight=a.beyondEightMinutes-b.beyondEightMinutes;
   if(aboveEight!==0)return aboveEight;
-  if(aboveEight===0)return 0;
+  if(a.beyondEightMinutes===0)return 0;
   return a.daysBeyondNine-b.daysBeyondNine ||
     a.excessConcentration-b.excessConcentration ||
     a.longestMinutes-b.longestMinutes;
