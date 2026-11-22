@@ -618,6 +618,10 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 .text-link {
   -webkit-tap-highlight-color: transparent;
 }
+.workspace-nav a[aria-current="location"] {
+  color: #f3fdff;
+  background: #2d5869;
+}
 .workspace-nav a:focus-visible,
 .text-link:focus-visible,
 select:focus-visible,
