@@ -624,3 +624,108 @@
   font-size: 12px;
   line-height: 1.5;
 }
+
+
+/* PR94: explicit, read-only functional coverage trial for the actual selected
+ * day. This remains separate from approved/generated schedule certification. */
+.functional-preview {
+  margin-top: 18px;
+  padding: 14px 16px;
+  background: #20364a;
+  border: 1px solid #426277;
+  border-radius: 12px;
+  min-width: 0;
+}
+.functional-preview summary {
+  cursor: pointer;
+  color: #e2f5f6;
+  font-size: 14px;
+  font-weight: 750;
+  line-height: 1.5;
+  padding: 6px 2px;
+}
+.functional-preview summary:focus-visible,
+.functional-preview-run:focus-visible {
+  outline: 3px solid #85d9de;
+  outline-offset: 3px;
+}
+.functional-preview > p {
+  margin: 12px 0;
+  color: #b5ccdb;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.functional-preview .functional-preview-notice {
+  color: #f0d9a9;
+}
+.functional-preview-run {
+  width: auto;
+  min-height: 44px;
+  margin: 5px 0 0;
+  padding: 9px 15px;
+}
+.functional-preview-results {
+  margin-top: 17px;
+  padding-top: 15px;
+  border-top: 1px solid #3b586a;
+}
+.functional-preview-results h4 {
+  font-size: 14px;
+  margin: 19px 0 9px;
+}
+.functional-preview-ok { color: #bfe9d8; }
+.functional-preview-warning { color: #f3d3a7; }
+.functional-preview-targets {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit,minmax(min(100%,195px),1fr));
+}
+.functional-preview-targets > div {
+  border: 1px solid #4c677b;
+  border-radius: 10px;
+  padding: 12px;
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+}
+.functional-preview-targets strong { font-size: 14px; }
+.functional-preview-targets span {
+  color: #c2d5df;
+  overflow-wrap: anywhere;
+}
+.functional-preview-targets .functional-preview-warning { color: #f3d3a7; }
+.functional-preview-allocations {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 6px;
+}
+.functional-preview-allocations li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 12px;
+  padding: 9px 12px;
+  border: 1px solid #405b6f;
+  border-radius: 9px;
+  background: #1b3043;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.functional-preview-allocations strong {
+  color: #a9e1df;
+  font-size: 12px;
+}
+.functional-preview-results > small {
+  display: block;
+  margin-top: 14px;
+  color: #b6cedd;
+  line-height: 1.6;
+}
+@media (max-width: 460px) {
+  .functional-preview { padding: 12px; }
+  .functional-preview-run { width: 100%; }
+  .functional-preview-allocations li { align-items: flex-start; }
+}
