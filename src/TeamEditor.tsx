@@ -1,11 +1,27 @@
 import { useState, type FormEvent } from "react";
-import { countActiveMembers, type TeamRoster } from "./team";
+import { countActiveMembers, type OperationalRole, type TeamRoster } from "./team";
 import {WEEKDAYS,type Weekday} from "./operatingHours";
 import {
   loadTeamDraftFromBrowser, saveTeamDraftToBrowser,
 } from "./teamDraftRepository";
 
 type Feedback = {kind:"error"|"success";message:string};
+type RoleChoice=""|"checkout"|"sales"|"both";
+
+function roleChoiceFor(roles:readonly OperationalRole[]|undefined):RoleChoice {
+  if(!roles)return "";
+  if(roles.includes("checkout") && roles.includes("sales"))return "both";
+  return roles.includes("checkout")?"checkout":"sales";
+}
+function roleDescription(roles:readonly OperationalRole[]|undefined):string {
+  if(!roles)return "Por definir";
+  if(roles.includes("checkout") && roles.includes("sales"))return "Caixa e Vendas";
+  return roles.includes("checkout")?"Caixa":"Vendas";
+}
+function qualifiedRolesFor(choice:RoleChoice):OperationalRole[]|undefined {
+  if(!choice)return undefined;
+  return choice==="both"?["checkout","sales"]:[choice];
+}
 
 export function TeamEditor() {
   const [initial] = useState(loadTeamDraftFromBrowser);
@@ -16,6 +32,7 @@ export function TeamEditor() {
     initial.status==="empty" || initial.status==="loaded"
   );
   const [name,setName] = useState("");
+  const [roleChoice,setRoleChoice] = useState<RoleChoice>("");
   const [weeklyDaysOff,setWeeklyDaysOff] = useState<number|null>(null);
   const [fixedDayOff,setFixedDayOff] = useState<Weekday|null>(null);
   const [weekendRotation,setWeekendRotation] = useState(false);
@@ -65,6 +82,9 @@ export function TeamEditor() {
       id,
       name,
       active:current?.active??true,
+      ...(qualifiedRolesFor(roleChoice)===undefined?{}:{
+        qualifiedRoles:qualifiedRolesFor(roleChoice)!,
+      }),
       ...(weeklyDaysOff===null?{}:{weeklyDaysOff}),
       ...(fixedDayOff===null?{}:{fixedDaysOff:[fixedDayOff]}),
       ...(weekendRotation?{weekendRest:{
@@ -78,6 +98,7 @@ export function TeamEditor() {
     };
     if(persist(next,editingId ? "Dados do colaborador atualizados." : "Colaborador adicionado.")){
       setName("");
+      setRoleChoice("");
       setWeeklyDaysOff(null);
       setFixedDayOff(null);
       setWeekendRotation(false);
@@ -91,6 +112,7 @@ export function TeamEditor() {
     if(!member)return;
     setEditingId(id);
     setName(member.name);
+    setRoleChoice(roleChoiceFor(member.qualifiedRoles));
     setWeeklyDaysOff(member.weeklyDaysOff??null);
     setFixedDayOff(member.fixedDaysOff?.[0]??null);
     setWeekendRotation(member.weekendRest!==undefined);
@@ -103,6 +125,7 @@ export function TeamEditor() {
   function cancelEdit(){
     setEditingId(null);
     setName("");
+    setRoleChoice("");
     setWeeklyDaysOff(null);
     setFixedDayOff(null);
     setWeekendRotation(false);
@@ -172,6 +195,9 @@ export function TeamEditor() {
                   </span>
                   <div className="team-person-info">
                     <strong>{member.name}</strong>
+                    <span className="team-days-off-summary">
+                      Funções: {roleDescription(member.qualifiedRoles)}
+                    </span>
                     <span className={member.active
                       ? "team-status team-status-active"
                       : "team-status team-status-inactive"}>
@@ -218,6 +244,26 @@ export function TeamEditor() {
                 setName(event.target.value);
                 setFeedback(null);
               }}/>
+            <label htmlFor="team-qualified-roles">
+              Funções que pode desempenhar
+            </label>
+            <select id="team-qualified-roles" name="qualifiedRoles"
+              value={roleChoice}
+              onChange={event=>{
+                setRoleChoice(event.target.value as RoleChoice);
+                setFeedback(null);
+              }}>
+              <option value="">Por definir (sem presumir competências)</option>
+              <option value="checkout">Caixa</option>
+              <option value="sales">Vendas</option>
+              <option value="both">Caixa e Vendas</option>
+            </select>
+            <p className="team-field-help">
+              Identifica as funções que o colaborador está habilitado a desempenhar.
+              Esta informação ainda não atribui postos durante os turnos nem
+              garante cobertura funcional. A distribuição por função será
+              validada numa etapa posterior.
+            </p>
             <label htmlFor="team-weekly-days-off">Dias de folga por semana</label>
             <select id="team-weekly-days-off" name="weeklyDaysOff"
               value={weeklyDaysOff===null?"":weeklyDaysOff}
