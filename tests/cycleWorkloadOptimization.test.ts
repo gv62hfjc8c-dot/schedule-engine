@@ -77,3 +77,21 @@ test("com todos os dias no limite de capacidade, não inventa horas nem altera 1
   const result=optimize28DayWorkload(all);
   assert.deepEqual(result,all);
 });
+
+test("otimizador não confunde quatro semanas quaisquer com um ciclo contíguo",()=>{
+  const initial=scenario();
+  const invalid=initial.map(day=>({
+    ...day,
+    ...(day.weekStart===weeks[3]?{
+      weekStart:addCivilDays(day.weekStart,7),
+      date:addCivilDays(day.date,7),
+    }:{}),
+  }));
+  assert.deepEqual(optimize28DayWorkload(invalid),invalid);
+  const repeated=initial.map(day=>({...day}));
+  repeated[1].date=repeated[0].date;
+  assert.deepEqual(optimize28DayWorkload(repeated),repeated);
+  const wrongWeek=initial.map(day=>({...day}));
+  wrongWeek[1].weekStart=weeks[1];
+  assert.deepEqual(optimize28DayWorkload(wrongWeek),wrongWeek);
+});
