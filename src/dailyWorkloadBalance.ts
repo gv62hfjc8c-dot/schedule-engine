@@ -6,7 +6,8 @@
  * Use lexicographic comparisons rather than arbitrary multipliers:
  * 1. avoid time above 9h;
  * 2. reduce the total time above 8h;
- * 3. spread unavoidable excess instead of concentrating it on one day.
+ * 3. reduce the number of >9h days when the excess is unavoidable;
+ * 4. spread any remaining excess without increasing its total.
  *
  * This module must not alter active workdays, short-opening assignments,
  * weekly hours or other workers' schedules.
@@ -18,6 +19,7 @@ export const DAILY_BALANCING_STEP_MINUTES=15;
 export interface DailyWorkloadQuality {
   beyondNineMinutes:number;
   beyondEightMinutes:number;
+  daysBeyondNine:number;
   excessConcentration:number;
   longestMinutes:number;
 }
@@ -34,6 +36,7 @@ export function dailyWorkloadQuality(
 ):DailyWorkloadQuality {
   let beyondNineMinutes=0;
   let beyondEightMinutes=0;
+  let daysBeyondNine=0;
   let excessConcentration=0;
   let longestMinutes=0;
   for(const minutes of durations){
@@ -42,11 +45,12 @@ export function dailyWorkloadQuality(
     const extra=Math.max(0,minutes-DAILY_PREFERRED_WORK_MINUTES);
     beyondEightMinutes+=extra;
     beyondNineMinutes+=Math.max(0,minutes-DAILY_STRONG_AVOID_MINUTES);
+    if(minutes>DAILY_STRONG_AVOID_MINUTES)daysBeyondNine++;
     excessConcentration+=extra*extra;
     longestMinutes=Math.max(longestMinutes,minutes);
   }
   return {
-    beyondNineMinutes,beyondEightMinutes,
+    beyondNineMinutes,beyondEightMinutes,daysBeyondNine,
     excessConcentration,longestMinutes,
   };
 }
@@ -68,6 +72,24 @@ export function compareDailyWorkload(
 }
 
 /**
+ * Opt-in V2 quality experiment: fewer days above 9h when total excess
+ * minutes above 9h and 8h remain equal. The default comparator retains
+ * earlier V1 and legacy schedule choices for backwards compatibility.
+ */
+export function compareDailyWorkloadWithLongDayCount(
+  a:DailyWorkloadQuality,b:DailyWorkloadQuality,
+):number {
+  const aboveNine=a.beyondNineMinutes-b.beyondNineMinutes;
+  if(aboveNine!==0)return aboveNine;
+  const aboveEight=a.beyondEightMinutes-b.beyondEightMinutes;
+  if(aboveEight!==0)return aboveEight;
+  if(a.beyondEightMinutes===0)return 0;
+  return a.daysBeyondNine-b.daysBeyondNine ||
+    a.excessConcentration-b.excessConcentration ||
+    a.longestMinutes-b.longestMinutes;
+}
+
+/**
  * Smooth only already-assigned normal working days. Never create/remove
  * a working day, increase weekly minutes, split a shift, or modify any
  * short-opening day (where everyone assigned must work the whole opening).
@@ -78,7 +100,10 @@ export function compareDailyWorkload(
  */
 export function balanceLongWorkdays(
   plans:DailyWorkloadPlan[],
+  reduceLongDayCount=false,
 ):void {
+  const compare=reduceLongDayCount
+    ?compareDailyWorkloadWithLongDayCount:compareDailyWorkload;
   const normal=plans.filter(plan=>
     !plan.shortOpening && plan.allocated>0 && plan.capacity>0);
   if(normal.length<2)return;
@@ -96,8 +121,8 @@ export function balanceLongWorkdays(
           (index===from?-DAILY_BALANCING_STEP_MINUTES:0)+
           (index===to?DAILY_BALANCING_STEP_MINUTES:0));
         const quality=dailyWorkloadQuality(durations);
-        if(compareDailyWorkload(quality,before)>=0)continue;
-        if(!best || compareDailyWorkload(quality,best.quality)<0)
+        if(compare(quality,before)>=0)continue;
+        if(!best || compare(quality,best.quality)<0)
           best={from,to,quality};
       }
     }

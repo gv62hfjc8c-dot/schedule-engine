@@ -854,3 +854,68 @@ Abrir o ficheiro JSON, verificar que contém os colaboradores, folgas,
 turnos e eventuais alertas esperados. Enviar esse JSON para a
 conversa apenas se for apropriado partilhar os dados da equipa.
 **Não é necessário guardar nem aprovar a proposta** para exportar.
+
+
+### PR90 — Jornadas longas e presença simultânea nas pausas (22/11/2026)
+
+**Baseline de diagnóstico real, novembro de 2026:** oito pessoas,
+160h efetivas por pessoa nas quatro semanas completas, 169 turnos;
+64 jornadas acima de 9h e 210 minutos de sábados com apenas um
+colaborador efetivamente a trabalhar (07:105, 14:30, 21:30, 28:45).
+Não confundir escala diária com presença simultânea. A certificação
+global continua a aguardar os dados de outubro/dezembro.
+
+- `src/dailyWorkloadBalance.ts` e `src/generateSchedule.ts`: no V2
+  com `rolling28`, quando o **excesso total de minutos acima de
+  8h e 9h é igual**, preferir menos jornadas acima de 9h. Só se
+  redistribuem blocos de 15min entre dias de trabalho já existentes
+  da mesma semana. Dias livres, domingos curtos, 160h de referência,
+  capacidade diária e contexto externo permanecem intactos. O
+  comparador legado não mudou.
+- `src/simultaneousCoverage.ts` e `src/mealCoveragePlanner.ts`:
+  só quando a cobertura obrigatória já está integralmente garantida,
+  procurar diminuir os minutos com **exatamente uma pessoa a trabalhar**.
+  Primeiro alterar pausas dentro dos mesmos turnos e depois, se
+  necessário, deslocar entradas/saídas de turnos existentes sem mudar
+  horas efetivas. Cada movimento tem melhoria estrita; nenhuma
+  preferência de duas pessoas se torna uma regra obrigatória. A
+  pesquisa é determinística e limitada para proteger a performance.
+- `src/diagnosticExport.ts`: acrescenta `soloMinutes` e
+  `uncoveredMinutes` a cada dia do JSON, além do resumo mensal. O
+  formato permanece compatível (campos adicionais na versão 1).
+  Não existe novo separador, ecrã, campo ou configuração.
+- `tests/workloadPauseQuality.test.ts`: quatro sábados reais
+  anonimizados, com entradas, saídas e pausas originais, teste
+  end-to-end com oito pessoas e mesmas regras (sem nomes nem IDs
+  reais no repositório), imutabilidade, determinismo e preservação
+  da certificação. A suite de escala com 200 colaboradores continua.
+
+**Resultado do teste anónimo reproduzível:** 64 → **56** jornadas
+acima de 9h e 210 → **0 minutos** de presença solitária nos quatro
+sábados; 169 turnos e 160h por pessoa mantidos, sem violação de
+hard constraints nas quatro semanas completas. Este resultado é
+do cenário de teste: só o novo diagnóstico do Safari confirma o
+caso real, que não é atualizado automaticamente.
+
+**Estado:** PR90 em Draft, não integrado. Reexecutar novembro no Safari
+e exportar o novo JSON; comparar `analysis.quality` com o diagnóstico
+anterior. Se o resultado real piorar noutra dimensão, não fazer merge.
+
+**Validação funcional adicional com o diagnóstico real do Safari
+(22/11/2026, exportado às 10:30:05 UTC):** confirmado o mesmo
+resultado de **56** jornadas acima de 9h, **0 minutos** com apenas
+uma pessoa em trabalho efetivo, **0 minutos** sem cobertura em
+**todo o mês**, **169** turnos, oito colaboradores e **160h efetivas
+por pessoa entre 2 e 29/11**. Verificação independente minuto a
+minuto confirmou o mínimo de **duas** pessoas a trabalhar durante
+todos os intervalos abertos, sem turnos duplicados, pausas inválidas
+ou trabalho em folgas fixas. A melhoria do número de jornadas longas
+ocorre especialmente em duas pessoas, com 16 → 12 jornadas acima
+de 9h cada. As restantes distribuições mantiveram-se.
+
+**Limitação preservada:** o certificador sinaliza
+`insufficient_context` exclusivamente para a falta de histórico
+confirmado de 26–31/10 e 1–6/12. Não declarar novembro
+globalmente certificado até existirem dados das semanas vizinhas;
+não converter ausência de histórico em folga ou aprovação. A
+pré-visualização testada não alterou a proposta anteriormente guardada.
