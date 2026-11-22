@@ -24,6 +24,8 @@ test("PR93: seis páginas reais partilham navegação e base responsiva",()=>{
   for(const [path,page] of routes)assert.equal(pageForPath(path),page);
   assert.match(app,/className="workspace-header-inner"/);
   assert.match(app,/className="workspace-nav"/);
+  assert.match(app,/inConfiguration\?"location":undefined/);
+  assert.match(base,/\.workspace-nav a\[aria-current="location"\]/);
   assert.match(base,/\.workspace-header-inner\s*\{/);
   assert.match(base,/@media \(max-width: 620px\)/);
   assert.match(base,/@media \(min-width: 621px\) and \(max-width: 880px\)/);
@@ -83,6 +85,7 @@ test("PR93: equipa e funcionamento quebram colunas antes de transbordar",()=>{
   assert.match(base,/\.opening-day\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)/s);
   assert.match(base,/\.settings-panel\s*\{[^}]*max-width:\s*100%/s);
   assert.match(base,/@media \(hover: none\) and \(pointer: coarse\)/);
+  assert.match(base,/\.opening-times input \{ min-height: 44px; \}/);
 });
 
 
