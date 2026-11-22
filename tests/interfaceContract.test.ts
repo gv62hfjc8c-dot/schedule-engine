@@ -156,3 +156,19 @@ test("PR94: ficha da equipa distingue capacidade de função de posto escalado",
   assert.match(teamEditor,/apenas um posto durante cada turno/);
   assert.match(teamEditor,/setSelectedRoles\(\[\.\.\.\(member\.qualifiedRoles\?\?\[\]\)\]\)/); 
 });
+
+
+test("PR94: mês distingue capacidade estrutural, simultaneidade e distribuição",()=>{
+  assert.match(calendarScheduler,/import \{analyzeFunctionalCapacity\}/);
+  assert.match(calendarScheduler,/minimumPercent:50/);
+  assert.match(calendarScheduler,/Viabilidade matemática do mês/);
+  assert.match(calendarScheduler,/Horas-pessoa necessárias/);
+  assert.match(calendarScheduler,/Horas-pessoa escaladas na abertura/);
+  assert.match(calendarScheduler,/Défice global mínimo de capacidade/);
+  assert.match(calendarScheduler,/Falta com dias de trabalho inalterados/);
+  assert.match(calendarScheduler,/simultaneousDeficitMinutes/);
+  assert.match(calendarScheduler,/observedRoleGapMinutes/);
+  assert.match(calendarScheduler,/não é uma quantidade garantidamente recuperável/);
+  assert.match(calendarScheduler,/Acrescentar colaboradores pode aumentar também o mínimo/);
+  assert.match(calendarScheduler,/activeFunctionalPolicy==="qualified50"/);
+});
