@@ -706,6 +706,12 @@ export function generateSchedule(input:GenerationInput):GenerationResult {
       }else{
         allocateWeek(plans,target,contextComplete);
       }
+      // V2 rolling quality: after the existing exact-minute allocation,
+      // reduce the count of >9h workdays only when unavoidable excess
+      // minutes stay equal. This does not touch rest days, Sundays, 160h,
+      // external context or the unchanged legacy allocator.
+      if(input.mealBreakPolicy==="v2" && input.hoursPolicy==="rolling28")
+        balanceLongWorkdays(plans,true);
       // Include every colleague in the distribution, including legacy
       // members without a configured days-off count. Closed dates are not
       // eligible and therefore cannot distort the choice of open days.
