@@ -16,6 +16,7 @@ import {calculateRolling28Day} from "./rolling28Day";
 import {enumerateCivilDays,resolvePlanningPeriod} from "./schedulePeriods";
 import {buildDailyTimeline} from "./dailyTimeline";
 import {DayScheduleTimeline} from "./DayScheduleTimeline";
+import {FunctionalCoveragePreview} from "./FunctionalCoveragePreview";
 import type {WeeklyOpeningHours} from "./operatingHours";
 import {moveTimelineAssignment,type TimelineMove} from "./timelineEditing";
 import {restRecordsFromRotation,type PlannedRestWeekMember} from "./plannedRest";
@@ -765,6 +766,12 @@ function MonthWorkspace({
               editable={timelineEditable}
               onPreviewMove={previewTimelineMove}
               onCommitMove={commitTimelineMove}/>}
+          {selectedDate&&hasMonthProposal&&
+            <FunctionalCoveragePreview key={selectedDate}
+              date={selectedDate}
+              assignments={dayAssignments}
+              opening={dailyOpening}
+              legacy={legacyDraft}/>}
           {manualEdit && !dragCandidate && report?.status==="invalid" &&
             <div className="daily-edit-conflicts" role="alert">
               <strong>Alteração com conflitos</strong>
