@@ -512,6 +512,15 @@ export function planWeekendRotation(
       ?Math.max(forced.size,input.members.length-weekendTarget)
       :input.members.length;
     const weeklyGrantBudget=Math.min(perWeekBudget,optionalWeekendBudget);
+    // Optional full-weekend grants must not worsen the INTERNAL 60%
+    // day-level staffing goal. Fixed Saturday/Sunday rest already uses
+    // headcount even when its holder is not awarded a full weekend.
+    // This remains SOFT: an infeasible target is not a certification error.
+    const weekendShortfall=(pattern:Extract<Patterns,{status:"feasible"}>):number=>
+      (closures.has("saturday")?0:
+        Math.max(0,weekendTarget-pattern.present[5])**2)+
+      (closures.has("sunday")?0:
+        Math.max(0,weekendTarget-pattern.present[6])**2);
     const candidates=input.members.filter(member=>
       !forced.has(member.id)&&member.eligibleFullWeekend!==false &&
       (!pref || (used.get(member.id)??0)<(quota.get(member.id)??0)))
@@ -532,6 +541,16 @@ export function planWeekendRotation(
       const proposed=new Set([...forced,candidate.id]);
       const trial=findRestPatterns(input,proposed,closures);
       if(trial.status==="feasible"){
+        // A third full weekend may take Saturday from five to four
+        // workers if another member already has Saturday fixed off.
+        // Prefer fewer grants instead of silently missing the soft goal.
+        if(pref && weekendOpen &&
+          input.members.some(member=>member.fixedDaysOff.some(day=>
+            (day==="saturday"&&!closures.has(day)) ||
+            (day==="sunday"&&!closures.has(day)))) &&
+          accepted.status==="feasible" &&
+          weekendShortfall(trial)>weekendShortfall(accepted))
+          continue;
         forced.add(candidate.id);
         accepted=trial;
       }else if(trial.status==="not_proven"){

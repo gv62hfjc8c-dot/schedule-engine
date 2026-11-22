@@ -17,6 +17,10 @@ import {scheduleMealDay,type MealDayRequest} from "./mealCoveragePlanner";
 import {shortOpeningDays} from "./shortOpenings";
 import {rollingWeekGuidance} from "./rollingHoursPlan";
 import {prepareRotation} from "./rotationIntegration";
+import {
+  optimize28DayWorkload,type CycleWorkday,
+} from "./cycleWorkloadOptimization";
+import {measureSimultaneousCoverage} from "./simultaneousCoverage";
 import {validateFullWeekendHistory} from "./plannedRest";
 import {
   evaluateDailyStaffing,type DailyStaffingReport,
@@ -642,6 +646,11 @@ export function generateSchedule(input:GenerationInput):GenerationResult {
   const requestsByDate=new Map<string,{
     intervals:DayPlan["intervals"];requests:MealDayRequest[];
   }>();
+  // Request allocations are created before shift positioning; retain
+  // only the effective capacity, never new working days or extra data.
+  const cycleDayCapacities=new Map<string,{
+    capacity:number;locked:boolean;
+  }>();
 
   const shortDays=shortOpeningDays(hours.value);
   const activeMembers=team.value.members.filter(member=>member.active);
@@ -729,6 +738,13 @@ export function generateSchedule(input:GenerationInput):GenerationResult {
       for(const plan of plans){
         if(plan.allocated<=0)continue;
         if(input.mealBreakPolicy==="v2"){
+          cycleDayCapacities.set(member.id+"|"+plan.date,{
+            capacity:plan.capacity,
+            // A short opening is indivisible. Preserve full 5h Sundays
+            // and similar narrow openings already allocated in full.
+            locked:plan.shortOpening ||
+              (plan.capacity<=540 && plan.allocated===plan.capacity),
+          });
           const day=requestsByDate.get(plan.date)??{
             intervals:plan.intervals,requests:[],
           };
@@ -762,28 +778,114 @@ export function generateSchedule(input:GenerationInput):GenerationResult {
       if(inRange(date,period))knownHourDates.add(date);
   }
   if(input.mealBreakPolicy==="v2"){
-    // Schedule all colleagues TOGETHER on each day. A meal is an embedded
-    // interval in one shift, and coverage always outweighs soft preferences.
-    const preferredStarts=new Map<string,number>();
-    for(const date of [...requestsByDate.keys()].sort()){
-      const day=requestsByDate.get(date)!;
-      const requests=day.requests.map(r=>({
-        ...r,preferredStart:preferredStarts.get(
-          r.memberId+"|"+r.weekIndex
-        ),
-      }));
-      const planned=scheduleMealDay(requests,day.intervals);
-      candidates.push(...planned.assignments);
-      for(const shift of planned.assignments){
-        const weekIndex=Math.floor(daysBetween(
-          "1970-01-05",shift.date)/7);
-        const key=shift.memberId+"|"+weekIndex;
-        if(!preferredStarts.has(key))
-          preferredStarts.set(key,clockMinutes(shift.start));
+    // All existing workdays are positioned together; an embedded meal
+    // interval is never split into two separate shifts.
+    const scheduleRequests=(requests:typeof requestsByDate):WorkAssignment[]=>{
+      const assigned:WorkAssignment[]=[];
+      const preferredStarts=new Map<string,number>();
+      for(const date of [...requests.keys()].sort()){
+        const day=requests.get(date)!;
+        const planned=scheduleMealDay(day.requests.map(r=>({
+          ...r,preferredStart:preferredStarts.get(
+            r.memberId+"|"+r.weekIndex
+          ),
+        })),day.intervals);
+        assigned.push(...planned.assignments);
+        for(const shift of planned.assignments){
+          const weekIndex=Math.floor(daysBetween(
+            "1970-01-05",shift.date)/7);
+          const key=shift.memberId+"|"+weekIndex;
+          if(!preferredStarts.has(key))
+            preferredStarts.set(key,clockMinutes(shift.start));
+        }
       }
-      // Missing coverage cannot be repaired by silently changing the
-      // compulsory 40h or adding workers; the certifier reports the gap.
+      return assigned;
+    };
+    // The old proven proposal is the control case. The 28-day experiment
+    // must improve long days AND retain its independent certification and
+    // actual simultaneous coverage, otherwise keep that control untouched.
+    const baseline=scheduleRequests(requestsByDate);
+    let selected=baseline;
+    if(input.hoursPolicy==="rolling28" && rotationPlan?.rotation.weeks){
+      const adjusted=new Map<string,{
+        intervals:DayPlan["intervals"];requests:MealDayRequest[];
+      }>();
+      for(const [date,day] of requestsByDate)
+        adjusted.set(date,{
+          intervals:day.intervals,
+          requests:day.requests.map(request=>({...request})),
+        });
+      let changed=false;
+      const allWeeks=rotationPlan.rotation.weeks;
+      for(let offset=0;offset+4<=allWeeks.length;offset+=4){
+        const cycle=allWeeks.slice(offset,offset+4);
+        const starts=new Set(cycle.map(week=>week.weekStart));
+        for(const member of activeMembers){
+          const workdays:CycleWorkday[]=[];
+          for(const [,day] of adjusted){
+            for(const request of day.requests){
+              if(request.memberId!==member.id)continue;
+              const weekStart=cycle.find(week=>
+                request.date>=week.weekStart &&
+                request.date<addCivilDays(week.weekStart,7))?.weekStart;
+              if(!weekStart || !starts.has(weekStart))continue;
+              const limit=cycleDayCapacities.get(
+                member.id+"|"+request.date);
+              if(!limit)continue;
+              workdays.push({
+                date:request.date,weekStart,
+                minutes:request.workMinutes,
+                capacity:limit.capacity,locked:limit.locked,
+              });
+            }
+          }
+          const optimized=optimize28DayWorkload(workdays);
+          const minutesByDate=new Map(optimized.map(day=>
+            [day.date,day.minutes] as const));
+          for(const [,day] of adjusted){
+            for(const request of day.requests){
+              if(request.memberId!==member.id)continue;
+              const next=minutesByDate.get(request.date);
+              if(next===undefined || next===request.workMinutes)continue;
+              request.workMinutes=next;
+              changed=true;
+            }
+          }
+        }
+      }
+      if(changed){
+        const proposed=scheduleRequests(adjusted);
+        const beforeCert=certifySchedule({
+          ...input,candidateAssignments:baseline,
+        });
+        const afterCert=certifySchedule({
+          ...input,candidateAssignments:proposed,
+        });
+        const longDays=(shifts:readonly WorkAssignment[])=>
+          shifts.filter(shift=>assignmentMinutes(shift)>540).length;
+        const simultaneous=(shifts:readonly WorkAssignment[])=>{
+          let uncovered=0,solo=0;
+          for(const [date,day] of requestsByDate){
+            const quality=measureSimultaneousCoverage(
+              shifts.filter(s=>s.date===date),day.intervals);
+            uncovered+=quality.uncoveredMinutes;
+            solo+=quality.soloMinutes;
+          }
+          return {uncovered,solo};
+        };
+        const beforeCoverage=simultaneous(baseline);
+        const afterCoverage=simultaneous(proposed);
+        if(longDays(proposed)<longDays(baseline) &&
+          afterCoverage.uncovered<=beforeCoverage.uncovered &&
+          afterCoverage.solo<=beforeCoverage.solo &&
+          afterCert.status===beforeCert.status &&
+          JSON.stringify(afterCert.issues)===
+            JSON.stringify(beforeCert.issues)){
+          selected=proposed;
+        }
+      }
     }
+    candidates.push(...selected);
     // Report actual generated effective hours, not just requested allocation.
     shortfalls.length=0;
     for(const week of period.weeks){
