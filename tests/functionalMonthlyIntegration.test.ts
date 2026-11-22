@@ -225,3 +225,60 @@ test("PR94: o planeador corrige pausas simultâneas em ambos os postos sem mudar
   assert.deepEqual(allocateFunctionalMonth(shifts,period,members,input.openingHours,["checkout","sales"]),
     plan,"determinismo");
 });
+
+
+test("PR94: meta SOFT inalcançável não bloqueia melhoria parcial das pausas",()=>{
+  const input=sample(3,3,0,"28d");
+  const date="2026-11-02";
+  const selected=input.team.members.filter((_,i)=>i===0||i===1||i===3||i===4);
+  const shifts=selected.map((m,i)=>({
+    memberId:m.id,date,start:"09:00",end:"18:00",
+    mealBreak:i<2
+      ?{start:"12:00",end:"13:00"}
+      :i===2?{start:"14:00",end:"15:00"}
+        :{start:"15:00",end:"16:00"},
+  }));
+  for(const day of input.openingHours.days)day.intervals=[
+    {start:"09:00",end:"18:00"},
+  ];
+  const opening=[{start:"09:00",end:"18:00"}];
+  const roles=["checkout","sales"];
+  const quality=(planned:WorkAssignment[])=>certifyFunctionalCoverage({
+    date,members:input.team.members,assignments:planned,
+    opening,roles,minimumPercent:50,
+  },planned.map(a=>({memberId:a.memberId,role:a.role!})));
+  const before=quality(shifts.map(s=>({
+    ...s,role:input.team.members.find(m=>m.id===s.memberId)!.qualifiedRoles[0],
+  })));
+  const absent=(report:ReturnType<typeof quality>)=>
+    report.slots.reduce((n,slot)=>n+
+      (slot.counts.checkout===0?assignmentMinutes({
+        memberId:selected[0].id,date,start:slot.start,end:slot.end,
+      }):0)+
+      (slot.counts.sales===0?assignmentMinutes({
+        memberId:selected[0].id,date,start:slot.start,end:slot.end,
+      }):0),0);
+  assert.equal(absent(before),60,"os dois Caixas param em simultâneo");
+  // 3 habilitados por função => alvo 2+2 pessoas por minuto.
+  // Trabalham só 4 pessoas com 8h efetivas num dia aberto por 9h:
+  // 32 horas disponíveis < 36h da meta. Mesmo assim deve evitar
+  // que um dos postos fique inteiramente vazio durante uma hora.
+  const originalMinutes=shifts.reduce((sum,s)=>sum+assignmentMinutes(s),0);
+  assert.equal(originalMinutes,32*60);
+  const optimized=allocateFunctionalMonth(
+    shifts,resolvePlanningPeriod(input.period),
+    input.team.members,input.openingHours,roles);
+  assert.equal(optimized.reduce((sum,s)=>sum+assignmentMinutes(s),0),
+    originalMinutes,"nunca inventar horas para atingir a meta");
+  assert.equal(optimized.length,4);
+  const report=quality(optimized);
+  assert.equal(absent(report),0,
+    "alternar refeições deve evitar o posto sem ninguém mesmo abaixo dos 50%");
+  assert.equal(report.status,"uncovered",
+    "a impossibilidade dos 50% continua visível como qualidade SOFT");
+  assert.ok(optimized.some(a=>a.mealBreak?.start!=="12:00"));
+  assert.deepEqual(
+    allocateFunctionalMonth(shifts,resolvePlanningPeriod(input.period),
+      input.team.members,input.openingHours,roles),
+    optimized,"resultado determinístico");
+});
