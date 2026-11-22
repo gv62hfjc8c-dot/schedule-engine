@@ -141,3 +141,17 @@ test("Exportação de diagnóstico fica no calendário e nunca altera a proposta
   assert.match(calendarScheduler,/Inclui nomes e horários/);
   assert.doesNotMatch(app,/exportDiagnostic/);
 });
+
+
+test("PR94: ficha da equipa distingue capacidade de função de posto escalado",()=>{
+  assert.match(teamEditor,/id="team-qualified-roles"/);
+  assert.match(teamEditor,/name="qualifiedRoles"/);
+  assert.match(teamEditor,/<option value="checkout">Caixa<\/option>/);
+  assert.match(teamEditor,/<option value="sales">Vendas<\/option>/);
+  assert.match(teamEditor,/<option value="both">Caixa e Vendas<\/option>/);
+  assert.match(teamEditor,/Funções: \{roleDescription\(member\.qualifiedRoles\)\}/);
+  assert.match(teamEditor,/sem presumir competências/);
+  assert.match(teamEditor,/não atribui postos durante os turnos/);
+  assert.match(teamEditor,/setRoleChoice\(roleChoiceFor\(member\.qualifiedRoles\)\)/);
+  assert.match(teamEditor,/setRoleChoice\(" "\)/); 
+});
