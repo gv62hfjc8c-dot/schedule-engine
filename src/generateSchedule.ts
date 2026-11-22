@@ -465,8 +465,8 @@ function allocateConfiguredDays(
         minShift,distance,
       };
       function better(a:Option,b:Option):boolean {
-        // Functional coverage is HARD: favor workdays that can close
-        // qualification deficits before optimizing soft shift quality.
+        // The 50% functional presence goal is SOFT: favor workdays
+        // that improve qualified role coverage, never break HARD rules.
         if(a.roleGain!==b.roleGain)return a.roleGain>b.roleGain;
         // Short opening windows stay available to everybody if feasible.
         if(a.shortUse!==b.shortUse)return a.shortUse>b.shortUse;
@@ -705,7 +705,7 @@ export function generateSchedule(input:GenerationInput):GenerationResult {
     certification:{...emptyCertification,status:"invalid",issues:[
       ...emptyCertification.issues,
       {code:"INVALID_FUNCTIONAL_POLICY",message:
-        "Para gerar com equipas funcionais configura Caixa/Vendas para todos os colaboradores ativos e turnos com pausa V2."},
+        "Para atribuir funções na proposta, define as competências de todos os colaboradores ativos e utiliza turnos com pausa V2."},
     ]},
   };
   const functionalCoveragePolicy=roleConfigured?"qualified50" as const:undefined;
