@@ -1190,3 +1190,59 @@ PR: https://github.com/gv62hfjc8c-dot/schedule-engine/pull/94
 https://github.com/gv62hfjc8c-dot/schedule-engine/actions/runs/45029002133
 — 326/326 testes PASS e build PASS. PR93 responsivo
 ainda aberto separadamente. Cloudflare não publicado.
+
+
+### PR94 — Alocação genérica diária dos polivalentes (22/11/2026)
+
+O cenário real clarificou o significado de uma pessoa qualificada
+para várias funções. O colaborador pertence a todos os conjuntos
+de **competências**, mas é escalado numa **única função** para
+todo o turno. A regra inicial de cobertura por função é de pelo
+menos **50% dos colaboradores ATIVOS QUALIFICADOS** nessa
+função, arredondados para cima; os polivalentes entram em
+ambos os denominadores, mas contam como uma só pessoa
+ativa na função escolhida.
+
+Casos de aceitação:
+- 1 Caixa + 3 Vendas + 2 polivalentes → 3 Caixa / 3 Vendas:
+  ambos os polivalentes reforçam Caixa.
+- 3 Caixa + 1 Vendas + 2 polivalentes → 3 Caixa / 3 Vendas:
+  ambos reforçam Vendas.
+
+**Módulo novo e independente:**
+`src/functionalCoverage.ts`. Aceita identificadores
+GENÉRICOS de funções, pessoas qualificadas, turnos com
+pausas, janelas de abertura e percentagem-alvo.
+`allocateFunctionalCoverage` primeiro coloca especialistas
+na sua única função e depois distribui polivalentes,
+dando prioridade à redução de lacunas de cobertura e
+depois ao equilíbrio das equipas. É uma heurística
+determinística, não um solver de ótimo global.
+`certifyFunctionalCoverage` verifica a distribuição
+INDEPENDENTEMENTE do planeador, em cada intervalo
+efetivo durante a abertura. Assinala falta de cobertura,
+pessoas sem função conhecida, função sem qualificação
+e dupla afetação. Pausas não são tempo de cobertura.
+
+**Sem falsas garantias:** as novas regras estão testadas
+como domínio puro, mas ainda NÃO ligadas à geração
+mensal `generateSchedule` nem ao certificador de
+horários `certifySchedule`. A geração atualmente publicada
+continua sem departamentos funcionais. Uma proposta
+marcada válida pelo motor antigo NÃO prova cobertura
+de Caixa/Vendas. A futura integração deverá reajustar
+dias, turnos e pausas ANTES de otimizar horas; não basta
+atribuir uma etiqueta após gerar um horário.
+
+**Regressões:** `tests/functionalCoverage.test.ts` cobre
+os dois exemplos, 50% arredondados, polivalência sem
+dupla contagem, dias com apenas cinco pessoas quando
+são precisas seis, entradas/saídas, pausas, competências
+desconhecidas do legado, validação independente,
+três funções genéricas, determinismo e inputs inválidos.
+CI https://github.com/gv62hfjc8c-dot/schedule-engine/actions/runs/45071826475
+— **339/339 testes PASS; build PASS** antes da última
+atualização documental.
+
+PR94 continua **OPEN/DRAFT**, separado do PR93 de
+responsividade. Nenhum merge ou deploy Cloudflare.
