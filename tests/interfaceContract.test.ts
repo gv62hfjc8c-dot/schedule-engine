@@ -144,14 +144,15 @@ test("Exportação de diagnóstico fica no calendário e nunca altera a proposta
 
 
 test("PR94: ficha da equipa distingue capacidade de função de posto escalado",()=>{
-  assert.match(teamEditor,/id="team-qualified-roles"/);
+  assert.match(teamEditor,/className="team-role-catalog"/);
+  assert.match(teamEditor,/id="team-new-role"/);
+  assert.match(teamEditor,/addOperationalRole/);
+  assert.match(teamEditor,/removeOperationalRole/);
+  assert.match(teamEditor,/className="team-qualified-roles"/);
   assert.match(teamEditor,/name="qualifiedRoles"/);
-  assert.match(teamEditor,/<option value="checkout">Caixa<\/option>/);
-  assert.match(teamEditor,/<option value="sales">Vendas<\/option>/);
-  assert.match(teamEditor,/<option value="both">Caixa e Vendas<\/option>/);
-  assert.match(teamEditor,/Funções: \{roleDescription\(member\.qualifiedRoles\)\}/);
+  assert.match(teamEditor,/type="checkbox"/);
+  assert.match(teamEditor,/Funções: \{roleDescription\(member\.qualifiedRoles,roleCatalog\)\}/);
   assert.match(teamEditor,/sem presumir competências/);
-  assert.match(teamEditor,/não atribui postos durante os turnos/);
-  assert.match(teamEditor,/setRoleChoice\(roleChoiceFor\(member\.qualifiedRoles\)\)/);
-  assert.match(teamEditor,/setRoleChoice\(""\)/); 
+  assert.match(teamEditor,/apenas um posto durante cada turno/);
+  assert.match(teamEditor,/setSelectedRoles\(\[\.\.\.\(member\.qualifiedRoles\?\?\[\]\)\]\)/); 
 });
