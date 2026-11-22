@@ -1146,3 +1146,47 @@ PR92 permanece DRAFT, sem merge nem publicação Cloudflare.
 Última CI verificada:
 https://github.com/gv62hfjc8c-dot/schedule-engine/actions/runs/45021264014
 — 320/320 testes PASS e build PASS.
+
+
+### PR94 — Qualificações operacionais: Caixa e Vendas (22/11/2026)
+
+O motor distingue colaboradores de funções para as quais estão
+qualificados, sem fragmentar a equipa nem duplicar turnos.
+
+- `TeamMember.qualifiedRoles?: ("checkout"|"sales")[]` representa
+  competências explicitamente confirmadas: só Caixa, só Vendas
+  ou ambas. Ausência do campo em registos antigos significa
+  DESCONHECIDO, nunca se presume polivalência.
+- O validador rejeita funções desconhecidas, duplicações e listas
+  vazias; o armazenamento não substitui dados válidos em caso
+  de erro. O campo é opcional e preserva os rascunhos `team:v1`.
+- `isQualifiedForRole` é uma consulta pura de habilitação;
+  não representa trabalho ativo, atribuição de função ou
+  cobertura simultânea.
+- Em Configuração → Equipa existe um seletor de qualificação
+  `Por definir` / `Caixa` / `Vendas` /
+  `Caixa e Vendas`, com resumo no cartão do colaborador.
+- Regressão comprova que os horários e a certificação são
+  idênticos com e sem o novo campo, até existirem requisitos
+  operacionais de cobertura por função. Não alteramos o
+  gerador, a repartição dos turnos, as folgas ou as pausas.
+
+**Próxima decisão:** quantos colaboradores devem estar
+EFETIVAMENTE a trabalhar em cada função ao longo da abertura?
+A exigência poderá variar por dia e intervalo quando demonstrado
+pelo cenário real. Só depois implementar atribuição funcional
+por segmentos DENTRO de um turno único, sem contar um
+polivalente simultaneamente em Caixa e Vendas. Qualificação
+e cobertura exigida são HARD; preferências de repartição
+e de mudança de função poderão ser SOFT.
+
+O primeiro conjunto Caixa/Vendas é um preset operacional
+de teste; a arquitetura de longo prazo deve permitir um
+catálogo de funções sem dependência exclusiva de retalho.
+Não foi criado qualquer parâmetro empresarial adicional.
+
+PR: https://github.com/gv62hfjc8c-dot/schedule-engine/pull/94
+(OPEN/DRAFT, sem merge). Primeiro CI:
+https://github.com/gv62hfjc8c-dot/schedule-engine/actions/runs/45029002133
+— 326/326 testes PASS e build PASS. PR93 responsivo
+ainda aberto separadamente. Cloudflare não publicado.
