@@ -117,6 +117,8 @@ export function prepareRotation(
     closedWeekdays:closed,
     maximumEffectiveMinutesByWeekday:Object.fromEntries(
       WEEKDAYS.map((d,index)=>[d.id,capacities[index]])) as WeekdayNumbers,
+    ...(opening.dailyStaffingTargetPercent===undefined?{}:
+      {dailyStaffingTargetPercent:opening.dailyStaffingTargetPercent}),
     // 160h/28d is a SOFT reference; 9h is a workload-quality threshold,
     // NOT a hard daily limit. Weekend frequency follows from both.
     workloadPreference:{
