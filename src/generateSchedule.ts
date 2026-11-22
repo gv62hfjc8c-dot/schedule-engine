@@ -807,9 +807,10 @@ export function generateSchedule(input:GenerationInput):GenerationResult {
     const baseline=scheduleRequests(requestsByDate);
     let selected=baseline;
     if(input.hoursPolicy==="rolling28" && rotationPlan?.rotation.weeks){
-      const adjusted=new Map([...requestsByDate].map(([date,day])=>
+      const adjusted=new Map([...requestsByDate].map(([date,day])=>(
         [date,{intervals:day.intervals,requests:day.requests.map(r=>({...r}))}]
-        as const));
+        as const
+      )));
       let changed=false;
       const allWeeks=rotationPlan.rotation.weeks;
       for(let offset=0;offset+4<=allWeeks.length;offset+=4){
