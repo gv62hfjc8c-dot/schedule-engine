@@ -1,5 +1,8 @@
 import {WEEKDAYS,type Weekday} from "./operatingHours";
 import {
+  desiredDailyHeadcount,compareDailyStaffing,scoreDailyStaffing,
+} from "./dailyStaffingBalance";
+import {
   addCivilDays,civilDayOfWeek,parseCivilDate,
 } from "./schedulePeriods";
 
@@ -47,6 +50,8 @@ export interface WeekendRotationInput {
   closedWeekdays?:readonly Weekday[];
   /** Optional V2 effective work capacity per weekday (not a target). */
   maximumEffectiveMinutesByWeekday?:WeekdayNumbers;
+  /** SOFT target for people scheduled per OPEN day, not per minute. */
+  dailyStaffingTargetPercent?:number;
   /**
    * SOFT optimization budget. Unlike minimum staffing, this does NOT
    * certify hours or set a contractual daily maximum. With all three
@@ -200,6 +205,11 @@ function validate(input:WeekendRotationInput):RotationIssue[] {
         invalid("A capacidade de trabalho de "+day+" é inválida.");
     }
   }
+  if(input.dailyStaffingTargetPercent!==undefined &&
+    (!Number.isInteger(input.dailyStaffingTargetPercent) ||
+      input.dailyStaffingTargetPercent<1 ||
+      input.dailyStaffingTargetPercent>100))
+    invalid("O objetivo diário de presença deve ser entre 1% e 100%.");
   if(input.workloadPreference!==undefined){
     const pref=input.workloadPreference;
     if(!pref || !Number.isSafeInteger(pref.cycleReferenceMinutes) ||
@@ -331,7 +341,45 @@ function findRestPatterns(
     }
     return false;
   }
-  if(solve(0))return {status:"feasible",masks:chosen,present};
+  if(solve(0)){
+    // The first feasible allocation maximizes HARD constraints, not
+    // necessarily staffing. Improve it with strict, deterministic local
+    // swaps of a single person's off-days, preserving each person's
+    // mandatory/fixed days and total rest exactly.
+    if(input.dailyStaffingTargetPercent!==undefined){
+      const target=desiredDailyHeadcount(input.members.length,
+        input.dailyStaffingTargetPercent);
+      const targets=IDS.map(day=>closures.has(day)?0:target);
+      const open=IDS.map(day=>!closures.has(day));
+      const rank=()=>scoreDailyStaffing(present,targets,open);
+      // A strict improvement at each step guarantees termination.
+      // At most 16 rounds keep the experiment bounded and predictable.
+      for(let round=0;round<16;round++){
+        const initial=rank();
+        let best:{id:string;mask:number;old:number;
+          present:number[];score:ReturnType<typeof scoreDailyStaffing>}|null=null;
+        for(const person of persons){
+          const old=chosen.get(person.id)!;
+          for(const mask of person.options){
+            if(mask===old)continue;
+            const proposed=present.map((count,index)=>
+              count+(has(old,index)?1:0)-(has(mask,index)?1:0));
+            if(proposed.some((count,index)=>
+              count<input.minimumPresentByWeekday[IDS[index]]))continue;
+            const score=scoreDailyStaffing(proposed,targets,open);
+            if(compareDailyStaffing(score,initial)>=0)continue;
+            if(!best||compareDailyStaffing(score,best.score)<0)
+              best={id:person.id,mask,old,present:proposed,score};
+          }
+        }
+        if(!best)break;
+        chosen.set(best.id,best.mask);
+        for(let index=0;index<7;index++)
+          present[index]=best.present[index];
+      }
+    }
+    return {status:"feasible",masks:chosen,present};
+  }
   return {status:truncated?"not_proven":"infeasible"};
 }
 
@@ -456,9 +504,23 @@ export function planWeekendRotation(
       sum+Math.max(0,count-(used.get(id)??0)),0);
     // Spread the possible grants across the calendar instead of giving
     // nearly everybody the same Saturday/Sunday and starving the store.
-    const weeklyGrantBudget=pref
+    const perWeekBudget=pref
       ?Math.ceil(leftBudget/remainingWeeks)
       :input.members.length;
+    // Reserving at least the desired number of people on BOTH weekend
+    // days is a soft preference. If fixed rest already leaves fewer,
+    // we preserve the hard rules and report the remaining shortfall.
+    const weekendTarget=input.dailyStaffingTargetPercent===undefined
+      ?input.members.length
+      :desiredDailyHeadcount(input.members.length,
+        input.dailyStaffingTargetPercent);
+    const weekendOpen=!closures.has("saturday")||
+      !closures.has("sunday");
+    const optionalWeekendBudget=weekendOpen &&
+      input.dailyStaffingTargetPercent!==undefined
+      ?Math.max(forced.size,input.members.length-weekendTarget)
+      :input.members.length;
+    const weeklyGrantBudget=Math.min(perWeekBudget,optionalWeekendBudget);
     const candidates=input.members.filter(member=>
       !forced.has(member.id)&&member.eligibleFullWeekend!==false &&
       (!pref || (used.get(member.id)??0)<(quota.get(member.id)??0)))
