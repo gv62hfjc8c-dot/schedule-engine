@@ -732,4 +732,13 @@ summary:focus-visible {
   .icon-button, .today-button,
   .team-action, .text-link { min-height: 44px; }
   .opening-toggle { min-height: 44px; }
+  .login-fields input,
+  .company-form input,
+  .opening-times input,
+  .team-form input,
+  .team-form select,
+  .schedule-member-filter select {
+    font-size: 16px;
+  }
+  .opening-times input { min-height: 44px; }
 }
