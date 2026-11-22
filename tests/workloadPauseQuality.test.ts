@@ -318,7 +318,7 @@ test("PR91: ciclo de 28 dias reduz jornadas >9h sem prejudicar a cobertura real"
 });
 
 
-test("PR94: novembro real anonimizado preserva 160h e expõe limite funcional impossível",()=>{
+test("PR94: novembro real preserva 160h e não invalida por objetivo funcional inalcançável",()=>{
   const old=realScenarioAnonymized();
   const input={
     ...old,
@@ -331,13 +331,13 @@ test("PR94: novembro real anonimizado preserva 160h e expõe limite funcional im
   const baseline=generateSchedule(old);
   const result=generateSchedule(input);
   assert.equal(result.functionalCoveragePolicy,"qualified50");
-  assert.equal(result.certification.status,"invalid",
-    "50% de ambas as equipas durante toda a abertura não cabe em 8x160h");
-  const shortage=result.certification.issues.find(i=>
-    i.code==="FUNCTIONAL_CAPACITY_SHORTFALL");
-  assert.ok(shortage);
-  assert.ok(shortage.requiredMinutes!>shortage.actualMinutes!);
-  assert.ok(result.certification.issues.some(i=>
+  assert.equal(result.certification.status,"insufficient_context",
+    "as únicas pendências devem ser as semanas externas sem histórico");
+  assert.ok(result.certification.issues.every(i=>i.code==="CONTEXT_INCOMPLETE"),
+    JSON.stringify(result.certification.issues.slice(0,8)));
+  assert.equal(result.status,"insufficient_context");
+  assert.ok(!result.certification.issues.some(i=>
+    i.code==="FUNCTIONAL_CAPACITY_SHORTFALL"||
     i.code==="FUNCTIONAL_COVERAGE_GAP"));
   assert.equal(result.candidateAssignments.length,
     baseline.candidateAssignments.length);
