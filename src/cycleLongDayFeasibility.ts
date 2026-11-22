@@ -62,8 +62,10 @@ export function analyzeMonthlyFixedWorkdayLongDayFloor(input:{
         :effectiveMealDayCapacity(windows),
     };
   });
+  const active=input.team.members.filter(m=>m.active);
+  if(active.length===0)return null;
   const byMember:CycleLongDayFeasibility["byMember"]=[];
-  for(const member of input.team.members.filter(m=>m.active)){
+  for(const member of active){
     const shifts=input.assignments.filter(shift=>
       shift.memberId.toLowerCase()===member.id.toLowerCase() &&
       shift.date>=cycleStart && shift.date<cycleEndExclusive);
