@@ -19,6 +19,8 @@ export interface FunctionalCapacityByRole {
   minimumConcurrent:number;
   monthlyDemandMinutes:number;
   observedGapMinutes:number;
+  /** SOFT: minutes with zero workers effectively assigned to this role. */
+  emptyMinutes:number;
 }
 export interface FunctionalCapacityDay {
   date:string;
@@ -31,6 +33,8 @@ export interface FunctionalCapacityDay {
   simultaneousDeficitMinutes:number;
   /** Exact SOFT-target deviations of this proposal if posts are valid. */
   observedRoleGapMinutes:number;
+  /** SOFT: sum over roles with no worker during open minutes. */
+  emptyRoleMinutes:number;
 }
 export interface FunctionalCapacityAnalysis {
   /** A missing/invalid role makes the observed gaps non-exhaustive. */
@@ -49,6 +53,8 @@ export interface FunctionalCapacityAnalysis {
   simultaneousDeficitMinutes:number;
   /** SOFT goal deviation for the existing assignment of functions. */
   observedRoleGapMinutes:number;
+  /** SOFT: total zero-staffed-role minutes across the whole month. */
+  emptyRoleMinutes:number;
   /** Observed minus unavoidable active-headcount deficit at those times.
    * Not necessarily recoverable: skill scarcity/fixed role prevents it.
    */
@@ -125,7 +131,7 @@ export function analyzeFunctionalCapacity(input:{
       m.qualifiedRoles?.includes(role.id)).length;
     return {role:role.id,qualifiedPeople,
       minimumConcurrent:Math.ceil(qualifiedPeople*input.minimumPercent/100),
-      monthlyDemandMinutes:0,observedGapMinutes:0};
+      monthlyDemandMinutes:0,observedGapMinutes:0,emptyMinutes:0};
   });
   const totalConcurrent=roleTargets.reduce((sum,r)=>
     sum+r.minimumConcurrent,0);
@@ -161,7 +167,16 @@ export function analyzeFunctionalCapacity(input:{
     if(coverage?.status==="invalid_input" ||
       coverage?.issues.some(i=>i.code==="NO_QUALIFIED_MEMBERS"))
       incomplete=true;
-    let observedRoleGapMinutes=0;
+    let observedRoleGapMinutes=0,emptyRoleMinutes=0;
+    for(const slot of coverage?.slots??[]){
+      const minutes=clockMinutes(slot.end)-clockMinutes(slot.start);
+      for(const target of roleTargets){
+        if(target.minimumConcurrent>0 && (slot.counts[target.role]??0)===0){
+          emptyRoleMinutes+=minutes;
+          target.emptyMinutes+=minutes;
+        }
+      }
+    }
     for(const i of coverage?.issues??[]){
       if(i.code!=="ROLE_COVERAGE_GAP" || !i.role ||
         !i.start || !i.end || !i.missing)continue;
@@ -177,7 +192,8 @@ export function analyzeFunctionalCapacity(input:{
       scheduledInsideOpeningMinutes,
       dailyCapacityDeficitMinutes:Math.max(0,
         requiredMinutes-scheduledInsideOpeningMinutes),
-      simultaneousDeficitMinutes,observedRoleGapMinutes};
+      simultaneousDeficitMinutes,observedRoleGapMinutes,
+      emptyRoleMinutes};
   });
   const sum=(key:keyof FunctionalCapacityDay)=>
     daily.reduce((total,day)=>total+Number(day[key]??0),0);
@@ -185,6 +201,7 @@ export function analyzeFunctionalCapacity(input:{
   const scheduledInsideOpeningMinutes=sum("scheduledInsideOpeningMinutes");
   const simultaneousDeficitMinutes=sum("simultaneousDeficitMinutes");
   const observedRoleGapMinutes=sum("observedRoleGapMinutes");
+  const emptyRoleMinutes=sum("emptyRoleMinutes");
   return {
     status:incomplete?"incomplete_assignments":"complete",
     minimumPercent:input.minimumPercent,roleTargets,days:daily,
@@ -193,7 +210,7 @@ export function analyzeFunctionalCapacity(input:{
     periodCapacityDeficitMinutes:Math.max(0,
       requiredMinutes-scheduledInsideOpeningMinutes),
     dayLockedCapacityDeficitMinutes:sum("dailyCapacityDeficitMinutes"),
-    simultaneousDeficitMinutes,observedRoleGapMinutes,
+    simultaneousDeficitMinutes,observedRoleGapMinutes,emptyRoleMinutes,
     roleAndAllocationGapMinutes:incomplete?null:Math.max(0,
       observedRoleGapMinutes-simultaneousDeficitMinutes),
   };
