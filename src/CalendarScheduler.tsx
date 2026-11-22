@@ -40,6 +40,7 @@ interface ManualEdit {
   sources:SourceSnapshot;
   sourceSignature:string;
   hoursPolicy:"rolling28"|undefined;
+  functionalCoveragePolicy:"qualified50"|undefined;
 }
 function loadSources(year:number,month:number):SourceSnapshot {
   return {
@@ -62,7 +63,8 @@ function certificationForSaved(
   sources:SourceSnapshot,year:number,month:number,
   assignments:WorkAssignment[],
   mealBreaks:MealBreak[]=[],mealBreakPolicy:"v1"|"v2"|undefined=undefined,
-  hoursPolicy:"rolling28"|undefined=undefined
+  hoursPolicy:"rolling28"|undefined=undefined,
+  functionalCoveragePolicy:"qualified50"|undefined=undefined
 ):CertificationReport|null {
   if(sources.team.status!=="loaded"||
     sources.opening.status!=="loaded"||!sources.context.ok)return null;
@@ -70,7 +72,7 @@ function certificationForSaved(
     period:{mode:"monthly",year,month},
     team:sources.team.value,openingHours:sources.opening.value,
     externalContext:sources.context.context,candidateAssignments:assignments,
-    mealBreaks,mealBreakPolicy,hoursPolicy,
+    mealBreaks,mealBreakPolicy,hoursPolicy,functionalCoveragePolicy,
   });
 }
 function stateText(report:CertificationReport|null,
@@ -86,6 +88,11 @@ function stateText(report:CertificationReport|null,
 }
 function memberLabel(memberId:string,names:Map<string,string>):string {
   return names.get(memberId)??"Colaborador não encontrado";
+}
+function functionalRoleLabel(role:string|undefined):string {
+  if(role==="checkout")return "Caixa";
+  if(role==="sales")return "Vendas";
+  return role??"Sem função atribuída";
 }
 
 function MonthWorkspace({
@@ -108,6 +115,9 @@ function MonthWorkspace({
   );
   const [savedHoursPolicy,setSavedHoursPolicy]=useState<"rolling28"|undefined>(
     ()=>initial.status==="loaded"?initial.hoursPolicy:undefined
+  );
+  const [savedFunctionalPolicy,setSavedFunctionalPolicy]=useState<"qualified50"|undefined>(
+    ()=>initial.status==="loaded"?initial.functionalCoveragePolicy:undefined
   );
   const [savedRotationRest,setSavedRotationRest]=useState<PlannedRestWeekMember[]|null>(
     ()=>initial.status==="loaded"&&initial.rotationRest!==undefined
@@ -158,7 +168,8 @@ function MonthWorkspace({
     if(initial.status!=="loaded")return null;
     return certificationForSaved(loadSources(year,month),year,month,
       initial.assignments,initial.mealBreaks,
-      initial.mealBreakPolicy,initial.hoursPolicy);
+      initial.mealBreakPolicy,initial.hoursPolicy,
+      initial.functionalCoveragePolicy);
   });
   const data=dragCandidate??manualEdit?.assignments??
     preview?.candidateAssignments??saved??[];
@@ -168,7 +179,8 @@ function MonthWorkspace({
   const legacyDraft=saved!==null&&preview===null&&savedPolicy!=="v2";
   const manualReport=useMemo(()=>manualEdit
     ?certificationForSaved(manualEdit.sources,year,month,
-      manualEdit.assignments,[],"v2",manualEdit.hoursPolicy)
+      manualEdit.assignments,[],"v2",manualEdit.hoursPolicy,
+      manualEdit.functionalCoveragePolicy)
     :null,[manualEdit,year,month]);
   const report=manualEdit?manualReport:
     preview?.certification??(legacyDraft?null:savedReport);
@@ -177,6 +189,12 @@ function MonthWorkspace({
   const byDay=view.byDay;
   const activeHoursPolicy=manualEdit?manualEdit.hoursPolicy:
     preview?"rolling28":savedHoursPolicy;
+  const activeFunctionalPolicy=manualEdit?manualEdit.functionalCoveragePolicy:
+    preview?preview.functionalCoveragePolicy:savedFunctionalPolicy;
+  const functionalProblems=(report?.issues??[]).filter(issue=>
+    issue.code==="FUNCTIONAL_COVERAGE_GAP" ||
+    issue.code==="FUNCTIONAL_ASSIGNMENT_INVALID" ||
+    issue.code==="INVALID_FUNCTIONAL_POLICY");
   const period=resolvePlanningPeriod({mode:"monthly",year,month});
   // Read-only quality diagnostic; no staffing preference in company settings.
   const staffingReport=dailyOpening &&
@@ -279,6 +297,8 @@ function MonthWorkspace({
         sourceSignature:previous?.sourceSignature??signature,
         hoursPolicy:previous?previous.hoursPolicy:
           preview?"rolling28":savedHoursPolicy,
+        functionalCoveragePolicy:previous?previous.functionalCoveragePolicy:
+          preview?preview.functionalCoveragePolicy:savedFunctionalPolicy,
       };
     });
     setFeedback(null);
@@ -338,9 +358,9 @@ function MonthWorkspace({
       !result.candidateAssignments.some(a=>a.memberId===selectedMemberId))
       onSelectMember(null);
     setFeedback(result.status==="invalid_input"?
-      {kind:"error",message:"Os dados de entrada não permitem gerar uma proposta."}:
+      {kind:"error",message:"Os dados não permitem gerar uma proposta. Se configuraste funções, verifica que todos os colaboradores ativos têm competências definidas."}:
       result.status==="invalid"?
-      {kind:"error",message:"A proposta não cumpre alguma regra obrigatória de horas, folgas, pausas ou cobertura. Consulta os problemas encontrados."}:
+      {kind:"error",message:"A proposta não cumpre alguma regra obrigatória de horas, folgas, pausas ou cobertura funcional. Consulta os problemas encontrados."}:
       {kind:"success",message:"Proposta gerada. Revê o resultado e guarda-a apenas se estiver correta."});
   }
 
@@ -371,7 +391,8 @@ function MonthWorkspace({
       const currentReport=monthAssignments.length>0
         ?certificationForSaved(currentSources,year,month,
           monthAssignments,legacyMealBreaks,
-          mealBreakPolicy??undefined,hoursPolicy??undefined)
+          mealBreakPolicy??undefined,hoursPolicy??undefined,
+          activeFunctionalPolicy)
         :null;
       const snapshot=buildScheduleDiagnostic({
         exportedAt:new Date().toISOString(),
@@ -385,6 +406,7 @@ function MonthWorkspace({
           ?currentSaved.assignments:null,
         mealBreaks:legacyMealBreaks,
         mealBreakPolicy,hoursPolicy,
+        functionalCoveragePolicy:activeFunctionalPolicy??null,
         plannedRest:visibleRestRecords,
         externalContext:currentSources.context.ok
           ?currentSources.context.context:null,
@@ -461,7 +483,7 @@ function MonthWorkspace({
     }
     // Always certify the FULL edited month again, not only the selected day.
     const currentReport=certificationForSaved(currentSources,year,month,
-      candidates,[],"v2",hoursPolicy);
+      candidates,[],"v2",hoursPolicy,activeFunctionalPolicy);
     if(!currentReport || currentReport.status==="invalid"){
       setFeedback({kind:"error",message:
         "A edição contém conflitos obrigatórios. Corrige-os antes de guardar a proposta."});
@@ -474,7 +496,7 @@ function MonthWorkspace({
       :preview===null?savedRotationRest??undefined:undefined;
     const result=saveMonthlyDraftToBrowser(
       year,month,candidates,revision,
-      undefined,"v2",hoursPolicy,rest
+      undefined,"v2",hoursPolicy,rest,activeFunctionalPolicy
     );
     if(!result.ok){
       setFeedback({kind:"error",message:result.message});
@@ -484,6 +506,7 @@ function MonthWorkspace({
     setSavedMealBreaks(result.mealBreaks);
     setSavedPolicy(result.mealBreakPolicy);
     setSavedHoursPolicy(result.hoursPolicy);
+    setSavedFunctionalPolicy(result.functionalCoveragePolicy);
     setSavedRotationRest(result.rotationRest??null);
     setRevision(result.revision);
     setSavedReport(currentReport);
