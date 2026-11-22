@@ -18,6 +18,9 @@ import {shortOpeningDays} from "./shortOpenings";
 import {rollingWeekGuidance} from "./rollingHoursPlan";
 import {prepareRotation} from "./rotationIntegration";
 import {validateFullWeekendHistory} from "./plannedRest";
+import {
+  evaluateDailyStaffing,type DailyStaffingReport,
+} from "./dailyStaffingBalance";
 import type {WeekendRotationResult} from "./weekendRotation";
 import {
   balanceLongWorkdays,compareDailyWorkload,dailyWorkloadQuality,
@@ -53,6 +56,8 @@ export interface GenerationResult {
   shortfalls:GenerationShortfall[];
   /** Present only when the roster has opted into complete-weekend rotation. */
   rotation?:WeekendRotationResult;
+  /** Soft diagnostic from actual assigned workdays, not promised rest. */
+  dailyStaffing?:DailyStaffingReport;
   rotationTargetShortfalls?:readonly {
     memberId:string;startWeek:string;missingMinutes:number;
   }[];
@@ -804,6 +809,13 @@ export function generateSchedule(input:GenerationInput):GenerationResult {
   return {
     status:certification.status,
     candidateAssignments:candidates,certification,shortfalls,
+    ...(hours.value.dailyStaffingTargetPercent===undefined?{}:{
+      dailyStaffing:evaluateDailyStaffing(
+        candidates,period,hours.value,
+        activeMembers.map(member=>member.id),
+        hours.value.dailyStaffingTargetPercent,
+      ),
+    }),
     ...(rotationPlan?{
       rotation:rotationPlan.rotation,
       rotationTargetShortfalls:rotationPlan.fourWeekTargetShortfalls,
