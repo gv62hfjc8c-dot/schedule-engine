@@ -20,6 +20,9 @@ import type {WeeklyOpeningHours} from "./operatingHours";
 import {moveTimelineAssignment,type TimelineMove} from "./timelineEditing";
 import {restRecordsFromRotation,type PlannedRestWeekMember} from "./plannedRest";
 import {evaluateDailyStaffing} from "./dailyStaffingBalance";
+import {
+  buildScheduleDiagnostic,diagnosticFileName,type DiagnosticMode,
+} from "./diagnosticExport";
 
 const WEEKDAYS=["Seg","Ter","Qua","Qui","Sex","Sáb","Dom"];
 
@@ -341,6 +344,89 @@ function MonthWorkspace({
       {kind:"success",message:"Proposta gerada. Revê o resultado e guarda-a apenas se estiver correta."});
   }
 
+  function exportDiagnostic(){
+    // Export is read-only: never generate, approve, save or alter a proposal.
+    // Always capture the current company sources, not an old React snapshot.
+    if(dragCandidate!==null){
+      setFeedback({kind:"error",message:
+        "Termina o movimento do turno antes de exportar o diagnóstico."});
+      return;
+    }
+    try {
+      const currentSources=loadSources(year,month);
+      const currentSaved=loadMonthlyDraftFromBrowser(year,month);
+      const monthAssignments=[...data];
+      const sourceMatches=manualEdit?.sourceSignature??
+        (preview!==null?sourceSignature:null);
+      const currentSignature=JSON.stringify(currentSources);
+      const mode:DiagnosticMode=manualEdit!==null
+        ?"manual_edits":preview!==null
+          ?"generated_preview":saved!==null
+            ?"saved_proposal":"configuration_only";
+      const hoursPolicy=activeHoursPolicy??null;
+      const mealBreakPolicy=manualEdit!==null||preview!==null
+        ?"v2":savedPolicy??null;
+      const currentReport=monthAssignments.length>0
+        ?certificationForSaved(currentSources,year,month,
+          monthAssignments,legacyMealBreaks,
+          mealBreakPolicy??undefined,hoursPolicy??undefined)
+        :null;
+      const snapshot=buildScheduleDiagnostic({
+        exportedAt:new Date().toISOString(),
+        year,month,mode,
+        team:currentSources.team.status==="loaded"
+          ?currentSources.team.value:null,
+        openingHours:currentSources.opening.status==="loaded"
+          ?currentSources.opening.value:null,
+        assignments:monthAssignments,
+        savedAssignments:currentSaved.status==="loaded"
+          ?currentSaved.assignments:null,
+        mealBreaks:legacyMealBreaks,
+        mealBreakPolicy,hoursPolicy,
+        plannedRest:visibleRestRecords,
+        externalContext:currentSources.context.ok
+          ?currentSources.context.context:null,
+        rollingHistory:currentSources.hoursHistory.ok
+          ?currentSources.hoursHistory.context:null,
+        sourceStatuses:{
+          team:currentSources.team.status,
+          openingHours:currentSources.opening.status,
+          adjacentMonths:currentSources.context.ok
+            ?"loaded":currentSources.context.status,
+          rollingHistory:currentSources.hoursHistory.ok
+            ?"loaded":currentSources.hoursHistory.status,
+          savedMonth:currentSaved.status,
+        },
+        generation:preview,
+        displayedCertification:report,
+        currentConfigurationCertification:currentReport,
+        settingsMatchGeneratedPreview:sourceMatches===null?null:
+          sourceMatches===currentSignature,
+      });
+      const contents=JSON.stringify(snapshot,null,2);
+      const blob=new Blob([contents],{
+        type:"application/json;charset=utf-8",
+      });
+      const url=URL.createObjectURL(blob);
+      try {
+        const link=document.createElement("a");
+        link.href=url;
+        link.download=diagnosticFileName(year,month);
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+      }finally{
+        // Revoking synchronously can cancel downloads on some Safari builds.
+        window.setTimeout(()=>URL.revokeObjectURL(url),1000);
+      }
+      setFeedback({kind:"success",message:
+        "Exportação de diagnóstico solicitada. O ficheiro JSON contém nomes, regras, turnos e resultados de certificação; revê-o antes de o partilhares."});
+    }catch{
+      setFeedback({kind:"error",message:
+        "Não foi possível preparar o diagnóstico. Os horários e os dados guardados não foram alterados."});
+    }
+  }
+
   function save(){
     if(isBlocked || dragCandidate!==null)return;
     const candidates=manualEdit?.assignments??preview?.candidateAssignments;
@@ -416,6 +502,12 @@ function MonthWorkspace({
           <div className="schedule-buttons">
             <button type="button" className="button button-primary"
               disabled={isBlocked} onClick={generate}>Gerar horário</button>
+            <button type="button" className="button schedule-diagnostic"
+              disabled={dragCandidate!==null}
+              onClick={exportDiagnostic}
+              title="Exporta a configuração, a equipa, a proposta visível e os resultados de validação. Inclui nomes e horários, nunca palavras-passe.">
+              Exportar diagnóstico
+            </button>
             {(manualEdit!==null || (preview!==null &&
               (preview.status==="valid"||preview.status==="insufficient_context"))) &&
               <button type="button" className="button schedule-save" onClick={save}
