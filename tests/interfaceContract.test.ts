@@ -96,7 +96,7 @@ test("O calendário pode filtrar por colaborador sem alterar geração ou grava�
   assert.match(calendarScheduler,/O filtro mostra apenas este colaborador/);
   // Both certification and persistence must still receive ALL assignments.
   assert.match(calendarScheduler,/year,month,candidates,revision/);
-  assert.match(calendarScheduler,/certificationForSaved\(currentSources,year,month,\s*candidates,\[\],"v2",hoursPolicy\)/);
+  assert.match(calendarScheduler,/certificationForSaved\(currentSources,year,month,\s*candidates,\[\],"v2",hoursPolicy,activeFunctionalPolicy\)/);
   assert.match(calendarScheduler,/hoursPolicy:"rolling28"/);
   assert.match(calendarScheduler,/calculateRolling28Day\(/);
   assert.match(calendarScheduler,/manualEdit\?\.assignments\?\?preview\?\.candidateAssignments/);
