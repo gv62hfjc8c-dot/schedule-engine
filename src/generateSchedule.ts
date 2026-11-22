@@ -21,6 +21,7 @@ import {
   optimize28DayWorkload,type CycleWorkday,
 } from "./cycleWorkloadOptimization";
 import {measureSimultaneousCoverage} from "./simultaneousCoverage";
+import {allocateFunctionalMonth} from "./functionalScheduling";
 import {validateFullWeekendHistory} from "./plannedRest";
 import {
   evaluateDailyStaffing,type DailyStaffingReport,
@@ -55,6 +56,8 @@ export interface GenerationResult {
   /** Never saved automatically. Even an invalid result can contain a proposal. */
   candidateAssignments:WorkAssignment[];
   certification:CertificationReport;
+  /** V2 generated month explicitly certifies real coverage by function. */
+  functionalCoveragePolicy?:"qualified50";
   /** "invalid_input" means the generator refused to plan from corrupt input. */
   status:"valid"|"invalid"|"insufficient_context"|"invalid_input";
   shortfalls:GenerationShortfall[];
@@ -69,7 +72,7 @@ export interface GenerationResult {
 
 const FATAL_INPUT_CODES=new Set<CertificationIssueCode>([
   "INVALID_PERIOD","INVALID_TEAM","NO_ACTIVE_MEMBERS",
-  "INVALID_REST_POLICY",
+  "INVALID_REST_POLICY","INVALID_FUNCTIONAL_POLICY",
   "INVALID_OPENING_HOURS","INVALID_ASSIGNMENT","UNKNOWN_MEMBER",
   "INACTIVE_MEMBER","OUTSIDE_EDITABLE_PERIOD","OUTSIDE_CONTEXT_RANGE",
   "CONTEXT_IN_EDITABLE_PERIOD","INVALID_CONTEXT_DAY",
@@ -654,6 +657,19 @@ export function generateSchedule(input:GenerationInput):GenerationResult {
 
   const shortDays=shortOpeningDays(hours.value);
   const activeMembers=team.value.members.filter(member=>member.active);
+  const roleConfigured=activeMembers.some(m=>m.qualifiedRoles!==undefined);
+  if(roleConfigured && (
+    input.mealBreakPolicy!=="v2" ||
+    activeMembers.some(m=>!m.qualifiedRoles?.length)
+  ))return {
+    status:"invalid_input",candidateAssignments:[],shortfalls:[],
+    certification:{...emptyCertification,status:"invalid",issues:[
+      ...emptyCertification.issues,
+      {code:"INVALID_FUNCTIONAL_POLICY",message:
+        "Para gerar com equipas funcionais configura Caixa/Vendas para todos os colaboradores ativos e turnos com pausa V2."},
+    ]},
+  };
+  const functionalCoveragePolicy=roleConfigured?"qualified50" as const:undefined;
   const rotationPlan=prepareRotation(
     period,team.value,hours.value,confirmedRestHistory,
   );
@@ -911,15 +927,22 @@ export function generateSchedule(input:GenerationInput):GenerationResult {
       }
     }
   }
-  candidates.sort((a,b)=>a.date.localeCompare(b.date) ||
+  const functionalCandidates=functionalCoveragePolicy
+    ?allocateFunctionalMonth(candidates,period,activeMembers,hours.value)
+    :candidates;
+  functionalCandidates.sort((a,b)=>a.date.localeCompare(b.date) ||
     a.memberId.localeCompare(b.memberId) || a.start.localeCompare(b.start));
-  const certification=certifySchedule({...input,candidateAssignments:candidates});
+  const certification=certifySchedule({
+    ...input,candidateAssignments:functionalCandidates,
+    ...(functionalCoveragePolicy?{functionalCoveragePolicy}:{}),
+  });
   return {
     status:certification.status,
-    candidateAssignments:candidates,certification,shortfalls,
+    candidateAssignments:functionalCandidates,certification,shortfalls,
+    ...(functionalCoveragePolicy?{functionalCoveragePolicy}:{}),
     ...(rotationPlan?{
       dailyStaffing:evaluateDailyStaffing(
-        candidates,period,hours.value,
+        functionalCandidates,period,hours.value,
         activeMembers.map(member=>member.id),
       ),
     }:{}),
