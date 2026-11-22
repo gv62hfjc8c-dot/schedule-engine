@@ -221,10 +221,6 @@ function OperatingHoursPage() {
     }));
   });
   const [saved,setSaved] = useState(initial.status==="loaded");
-  const [staffingPercent,setStaffingPercent]=useState<number|null>(
-    initial.status==="loaded"?
-      initial.value.dailyStaffingTargetPercent??null:null
-  );
   const [showSuggestion,setShowSuggestion] = useState(initial.status==="empty");
   const [feedback,setFeedback] = useState<{
     type:"error"|"success";message:string;
@@ -250,8 +246,6 @@ function OperatingHoursPage() {
         day:d.day,
         intervals:d.open?[{start:d.start,end:d.end}]:[],
       })),
-      ...(staffingPercent===null?{}:
-        {dailyStaffingTargetPercent:staffingPercent}),
     };
     const result=saveOpeningHoursDraftToBrowser(weeklyHours);
     if(!result.ok){
@@ -320,39 +314,6 @@ function OperatingHoursPage() {
                 </div>
               );
             })}
-          </div>
-          <div className="opening-staffing-preference">
-            <label className="opening-staffing-toggle" htmlFor="opening-staffing-enabled">
-              <input id="opening-staffing-enabled" type="checkbox"
-                checked={staffingPercent!==null}
-                onChange={event=>{
-                  setStaffingPercent(event.target.checked?60:null);
-                  setSaved(false);
-                  setFeedback(null);
-                }}/>
-              <span>Preferir uma equipa equilibrada todos os dias</span>
-            </label>
-            {staffingPercent!==null&&<div className="opening-staffing-value">
-              <label htmlFor="opening-staffing-percent">
-                Objetivo de colaboradores escalados por dia aberto (%)
-              </label>
-              <input id="opening-staffing-percent" type="number"
-                min="1" max="100" step="1" required
-                value={staffingPercent}
-                onChange={event=>{
-                  setStaffingPercent(event.target.value===""?0:
-                    Number(event.target.value));
-                  setSaved(false);
-                  setFeedback(null);
-                }}/>
-            </div>}
-            <p className="company-field-help">
-              Objetivo opcional e negociável, não um mínimo obrigatório.
-              Com oito colaboradores, 60% significa preferir pelo menos
-              cinco escalados em cada dia de funcionamento. Não significa
-              cinco pessoas simultaneamente presentes a cada minuto.
-              Nunca ultrapassa folgas fixas ou outras regras obrigatórias.
-            </p>
           </div>
           {feedback && (
             <p className={feedback.type==="error" ? "form-error" : "form-success"}
