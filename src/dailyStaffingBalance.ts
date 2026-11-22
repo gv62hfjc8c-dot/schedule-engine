@@ -82,8 +82,8 @@ export function evaluateDailyStaffing(
   period:PlanningPeriod,
   opening:WeeklyOpeningHours,
   activeMemberIds:readonly string[],
-  targetPercent=DAILY_STAFFING_REFERENCE_PERCENT,
 ):DailyStaffingReport {
+  const targetPercent=DAILY_STAFFING_REFERENCE_PERCENT;
   const desired=desiredDailyHeadcount(activeMemberIds.length,targetPercent);
   const active=new Set(activeMemberIds);
   const dates=new Map<string,Set<string>>();
