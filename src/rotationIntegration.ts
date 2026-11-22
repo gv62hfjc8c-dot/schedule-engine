@@ -75,11 +75,10 @@ export function prepareRotation(
   confirmedFullWeekends:readonly RotationHistoryEntry[]=[],
 ):RotationPreparation|null {
   const active=team.members.filter(person=>person.active);
-  // A daily staffing preference is a separate, optional objective.
-  // It can improve ordinary weekly rest patterns even if nobody opted
-  // into full-weekend rotation. Never assume missing weekly rest rules.
-  if(!active.some(person=>person.weekendRest) &&
-    opening.dailyStaffingTargetPercent===undefined)return null;
+  // Only opt-in weekend rotation uses this pre-planner in V1.
+  // Balance staffing internally alongside rest and hours; do not add
+  // new organisation settings or change legacy non-rotation schedules.
+  if(!active.some(person=>person.weekendRest))return null;
   if(active.some(person=>person.weeklyDaysOff===undefined))return null;
 
   const weeks=period.weeks.filter(week=>
@@ -122,8 +121,6 @@ export function prepareRotation(
     closedWeekdays:closed,
     maximumEffectiveMinutesByWeekday:Object.fromEntries(
       WEEKDAYS.map((d,index)=>[d.id,capacities[index]])) as WeekdayNumbers,
-    ...(opening.dailyStaffingTargetPercent===undefined?{}:
-      {dailyStaffingTargetPercent:opening.dailyStaffingTargetPercent}),
     // 160h/28d is a SOFT reference; 9h is a workload-quality threshold,
     // NOT a hard daily limit. Weekend frequency follows from both.
     workloadPreference:{
