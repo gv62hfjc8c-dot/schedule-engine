@@ -659,7 +659,7 @@ function MonthWorkspace({
           </div>}
       </section>
       <div className="calendar-layout">
-        <section className="surface calendar-panel" aria-label="Calendário mensal">
+        <section className="surface calendar-panel" id="schedule-month-calendar" aria-label="Calendário mensal">
           <header className="calendar-header">
             <div>
               <p className="surface-kicker">Calendário</p>
@@ -711,11 +711,29 @@ function MonthWorkspace({
                   (cell.date===todayString?" is-today":"")+
                   (cell.date===selectedDate?" is-selected":"")+
                   ((byDay.get(cell.date!)?.length??0)>0?" has-assignments":"")}
-                onClick={()=>setSelectedDate(cell.date)}
+                onClick={()=>{
+                  setSelectedDate(cell.date);
+                  // On narrow screens the full day is below the month grid.
+                  // Take the user to the existing detail without changing data.
+                  if(window.matchMedia?.("(max-width: 620px)").matches){
+                    const reduced=window.matchMedia(
+                      "(prefers-reduced-motion: reduce)").matches;
+                    document.getElementById("schedule-day-details")
+                      ?.scrollIntoView({behavior:reduced?"auto":"smooth",block:"start"});
+                  }
+                }}
                 aria-label={selectedDayLabel(cell.date!)+", "+
-                  (byDay.get(cell.date!)?.length??0)+" intervalos de trabalho"}
-                aria-pressed={selectedDate===cell.date}>
-                <span>{cell.day}</span>
+                  (byDay.get(cell.date!)?.length??0)+" intervalos de trabalho"+
+                  (selectedMemberId!==null
+                    ?(byDay.get(cell.date!)?.length
+                      ?": "+byDay.get(cell.date!)!.map(shift=>
+                        shift.start+" a "+shift.end).join("; ")
+                      :previewRestDays.has(cell.date!)
+                        ?", descanso planeado":", sem turno")
+                    :"")}
+                aria-pressed={selectedDate===cell.date}
+                aria-controls="schedule-day-details">
+                <span className="calendar-day-number">{cell.day}</span>
                 {(byDay.get(cell.date!)?.length??0)>0
                   ?(selectedMemberId!==null
                     ?<span className="calendar-member-shifts">
@@ -733,14 +751,24 @@ function MonthWorkspace({
                           key={"meal-"+i}>
                           Pausa {meal.start}–{meal.end}
                         </span>)}
+                      <span className="calendar-mobile-shift" aria-hidden="true">
+                        Turno
+                      </span>
                     </span>
                     :<span className="calendar-assignment-count">
-                      {byDay.get(cell.date!)!.length} turnos
+                      <span>{byDay.get(cell.date!)!.length}</span>
+                      <span className="calendar-count-word"> turnos</span>
                     </span>)
                   :selectedMemberId!==null && data.length>0 &&
                     <span className="calendar-member-empty">
-                      {previewRestDays.has(cell.date!)
-                        ?"Descanso planeado":"Sem turno"}
+                      <span className="calendar-member-empty-full">
+                        {previewRestDays.has(cell.date!)
+                          ?"Descanso planeado":"Sem turno"}
+                      </span>
+                      <span className="calendar-member-empty-short"
+                        aria-hidden="true">
+                        {previewRestDays.has(cell.date!)?"Folga":"—"}
+                      </span>
                     </span>}
               </button>)}
           </div>
@@ -755,9 +783,13 @@ function MonthWorkspace({
               " O filtro mostra apenas este colaborador no calendário e não altera o horário; o detalhe do dia mostra toda a equipa."}
           </p>
         </section>
-        <section className="surface detail-panel" aria-label="Detalhe do dia" aria-live="polite">
+        <section className="surface detail-panel" id="schedule-day-details"
+          aria-label="Detalhe do dia" aria-live="polite">
           <p className="surface-kicker">Detalhe do dia</p>
           <h2>{selectedDate?selectedDayLabel(selectedDate):"Seleciona uma data"}</h2>
+          <a href="#schedule-month-calendar" className="calendar-back-link">
+            Voltar ao calendário
+          </a>
           {selectedDate&&dailyTimeline&&
             <DayScheduleTimeline timeline={dailyTimeline}
               names={names} selectedMemberId={selectedMemberId}

@@ -583,3 +583,166 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   .button, .login-fields input { transition: none; }
   .button:hover { transform: none; }
 }
+
+
+/* PR93 — cross-page responsive foundations. Existing route and form
+ * structure is retained; presentation must never change stored data. */
+:root {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+.workspace-main,
+.workspace-header-inner,
+.entry-card,
+.entry-access,
+.settings-stack,
+.settings-copy,
+.opening-panel,
+.team-panel,
+.calendar-panel,
+.detail-panel {
+  min-width: 0;
+}
+.page-heading h1,
+.settings-copy h2,
+.entry-copy h1,
+.access-content h2,
+.calendar-header h2,
+.opening-header h2,
+.form-error,
+.form-success,
+.local-storage-note {
+  overflow-wrap: anywhere;
+}
+.workspace-nav a,
+.text-link {
+  -webkit-tap-highlight-color: transparent;
+}
+.workspace-nav a[aria-current="location"] {
+  color: #f3fdff;
+  background: #2d5869;
+}
+.workspace-nav a:focus-visible,
+.text-link:focus-visible,
+select:focus-visible,
+summary:focus-visible {
+  outline: 3px solid #85d9de;
+  outline-offset: 3px;
+}
+
+/* In-between tablets: retain navigation without clipping brand or links. */
+@media (min-width: 621px) and (max-width: 880px) {
+  .workspace-header-inner { gap: 12px; }
+  .workspace-nav { flex-wrap: wrap; }
+  .workspace-nav a { padding-inline: 10px; }
+  .workspace-main { padding-inline: 22px; }
+  .settings-stack, .settings-panel { max-width: 100%; }
+}
+
+/* Touch-size navigation, fluid panels, safe areas and iOS input zoom fix. */
+@media (max-width: 620px) {
+  .workspace-header-inner {
+    padding-left: max(16px, env(safe-area-inset-left));
+    padding-right: max(16px, env(safe-area-inset-right));
+    gap: 12px;
+  }
+  .brand-compact { font-size: 15px; }
+  .workspace-nav a {
+    min-width: 0;
+    min-height: 44px;
+    padding: 9px 5px;
+    white-space: normal;
+    text-align: center;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+    font-size: clamp(11px, 2.9vw, 13px);
+  }
+  .workspace-main {
+    padding-top: 22px;
+    padding-bottom: max(36px, env(safe-area-inset-bottom));
+    padding-left: max(12px, env(safe-area-inset-left));
+    padding-right: max(12px, env(safe-area-inset-right));
+  }
+  .page-heading h1 { font-size: clamp(27px, 8vw, 35px); }
+  .page-heading p:not(.eyebrow) { font-size: 13px; }
+  .settings-panel { max-width: 100%; padding: 19px 17px; }
+  .opening-panel { max-width: 100%; }
+  .opening-times input,
+  .company-form input,
+  .login-fields input,
+  .team-form input,
+  .team-form select,
+  .schedule-member-filter select {
+    font-size: 16px;
+  }
+  .opening-times label { min-width: 0; }
+  .month-actions .icon-button,
+  .month-actions .today-button { min-height: 44px; }
+  .month-actions .icon-button { width: 44px; }
+  .calendar-day, .empty-day { min-height: 54px; }
+  .calendar-day {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-start;
+    gap: 4px;
+    font-size: 13px;
+  }
+  .calendar-day-number { font-variant-numeric: tabular-nums; }
+  .calendar-header { margin-bottom: 15px; }
+  .detail-panel { padding: 18px 14px; }
+  .detail-panel h2 { overflow-wrap: anywhere; }
+  .calendar-footnote { align-items: flex-start; }
+}
+@media (max-width: 460px) {
+  .entry-intro { padding-bottom: 21px; }
+  .entry-copy { margin-top: 23px; }
+  .entry-copy h1 {
+    font-size: clamp(29px, 8.5vw, 37px);
+    line-height: 1.13;
+  }
+  .entry-benefits { margin-top: 20px; }
+  .entry-access { padding-top: 27px; }
+  .calendar-header { gap: 9px; }
+  .calendar-panel { padding: 14px 8px; }
+  .calendar-grid { gap: 3px; }
+  .calendar-day, .empty-day { min-height: 52px; }
+  .calendar-day { padding: 6px 4px; }
+  .weekday { font-size: 10px; }
+  .schedule-month-navigation { margin-bottom: 12px; }
+  .settings-panel { padding: 17px 14px; }
+  .opening-day { padding: 12px; }
+  .opening-times { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 360px) {
+  .workspace-header-inner { padding-top: 12px; }
+  .workspace-nav { gap: 4px; }
+  .calendar-grid { gap: 2px; }
+  .calendar-day, .empty-day { min-height: 48px; }
+  .calendar-day { padding: 5px 3px; }
+  .calendar-day-number { font-size: 12px; }
+  .opening-times { grid-template-columns: minmax(0, 1fr); }
+  .opening-times input { min-height: 44px; }
+  .team-person { padding-inline: 10px; }
+}
+@media (max-height: 520px) and (orientation: landscape) {
+  .entry-page { min-height: 0; }
+  .entry-card { min-height: 0; }
+  .workspace-main { padding-top: 16px; }
+  .workspace-header-inner { padding-block: 10px; }
+}
+@media (hover: none) and (pointer: coarse) {
+  .button:hover { transform: none; }
+  .icon-button, .today-button,
+  .team-action, .text-link { min-height: 44px; }
+  .opening-toggle { min-height: 44px; }
+  .login-fields input,
+  .company-form input,
+  .opening-times input,
+  .team-form input,
+  .team-form select,
+  .schedule-member-filter select {
+    font-size: 16px;
+  }
+  .opening-times input { min-height: 44px; }
+}
