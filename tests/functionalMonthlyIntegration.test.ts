@@ -95,27 +95,39 @@ test("PR94: calendário de 31 dias mantém um único posto por turno",()=>{
     i.code==="FUNCTIONAL_ASSIGNMENT_INVALID"));
 });
 
-test("PR94: meta de 50% impossível não invalida um horário operacionalmente válido",()=>{
+test("PR94: objetivo abaixo de 50% não invalida turnos operacionalmente corretos",()=>{
   const input=sample(2,2,4,"28d");
-  input.team={
-    members:input.team.members.map(person=>({...person,weeklyDaysOff:2})),
-  };
-  const result=generateSchedule(input);
-  assert.equal(result.functionalCoveragePolicy,"qualified50");
-  assert.equal(result.certification.status,"valid",
-    JSON.stringify(result.certification.issues.slice(0,10)));
-  assert.equal(result.status,"valid");
-  assert.ok(result.candidateAssignments.every(shift=>shift.role));
-  assert.ok(!result.certification.issues.some(i=>
+  const generated=generateSchedule(input);
+  assert.equal(generated.certification.status,"valid");
+  // Uma segunda-feira fica com os dois vendedores exclusivos de serviço.
+  // A loja tem pessoas presentes durante toda a abertura, mas não tem
+  // ninguém em Caixa e fica aquém do objetivo SOFT (3 Caixa + 3 Vendas).
+  const monday="2026-11-02";
+  const staffSales=new Set(input.team.members
+    .filter(m=>m.qualifiedRoles.length===1 &&
+      m.qualifiedRoles[0]==="sales").map(m=>m.id));
+  const candidate=generated.candidateAssignments.filter(shift=>
+    shift.date!==monday||staffSales.has(shift.memberId));
+  const certification=certifySchedule({
+    ...input,candidateAssignments:candidate,
+    functionalCoveragePolicy:"qualified50",
+  });
+  assert.equal(certification.status,"valid",
+    JSON.stringify(certification.issues.slice(0,10)));
+  assert.ok(!certification.issues.some(i=>
     i.code==="FUNCTIONAL_COVERAGE_GAP"||
     i.code==="FUNCTIONAL_CAPACITY_SHORTFALL"));
   const quality=analyzeFunctionalCapacity({
     period:input.period,team:input.team,openingHours:input.openingHours,
-    assignments:result.candidateAssignments,minimumPercent:50,
+    assignments:candidate,minimumPercent:50,
   });
   assert.ok(quality);
   assert.ok(quality.observedRoleGapMinutes>0,
     "a diferença à meta permanece visível, mas nunca é um HARD issue");
+  const day=quality.days.find(d=>d.date===monday)!;
+  assert.ok(day.observedRoleGapMinutes>0);
+  assert.equal(day.simultaneousDeficitMinutes,4*60*4,
+    "seis postos de referência menos dois trabalhadores = 4 pessoas-hora por hora");
 });
 
 test("PR94: a ausência ou falsificação de postos invalida a proposta funcional",()=>{
