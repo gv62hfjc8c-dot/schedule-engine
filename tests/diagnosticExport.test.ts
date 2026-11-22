@@ -167,3 +167,19 @@ test("diagnóstico preserva as entradas de geração quando configuração atual
     diagnostic.generationInputsAtCreation?.rollingHoursHistory?.completeDates,
     ["2026-10-25"]);
 });
+
+test("diagnóstico distingue presença simultânea de turnos escalados sem novo painel",()=>{
+  const report=buildScheduleDiagnostic(example());
+  const monday=report.analysis.byDay.find(day=>day.date==="2026-11-02")!;
+  assert.equal(monday.employeesWithShifts,1);
+  assert.equal(monday.soloMinutes,480,
+    "os 60 minutos de pausa não contam como trabalho simultâneo");
+  assert.equal(monday.uncoveredMinutes,150,
+    "a abertura 08h30–19h00 tem 630 minutos");
+  const sunday=report.analysis.byDay.find(day=>day.date==="2026-11-01")!;
+  assert.equal(sunday.soloMinutes,300);
+  assert.equal(sunday.uncoveredMinutes,0);
+  assert.equal(report.analysis.quality.shiftsOverNineHours,0);
+  assert.ok(report.analysis.quality.soloMinutes!>=780);
+  assert.ok(report.analysis.quality.uncoveredMinutes!>=150);
+});
