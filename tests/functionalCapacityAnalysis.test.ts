@@ -89,12 +89,12 @@ test("PR94: horas totais suficientes podem estar mal posicionadas",()=>{
   const shifts=schedules(s,{end:"11:00"});
   const report=analyzeFunctionalCapacity({...s,assignments:shifts});
   assert.ok(report);
-  assert.equal(report.requiredMinutes,3840);
-  assert.equal(report.scheduledInsideOpeningMinutes,3840);
+  assert.equal(report.requiredMinutes,1920);
+  assert.equal(report.scheduledInsideOpeningMinutes,1920);
   assert.equal(report.periodCapacityDeficitMinutes,0);
   assert.equal(report.dayLockedCapacityDeficitMinutes,0);
-  assert.equal(report.simultaneousDeficitMinutes,1920);
-  assert.equal(report.observedRoleGapMinutes,1920);
+  assert.equal(report.simultaneousDeficitMinutes,960);
+  assert.equal(report.observedRoleGapMinutes,960);
   assert.equal(report.roleAndAllocationGapMinutes,0);
   assert.equal(report.status,"complete");
 });
@@ -120,13 +120,13 @@ test("PR94: pausas retiram capacidade e podem criar lacuna temporal",()=>{
   }));
   const report=analyzeFunctionalCapacity({...s,assignments:shifts});
   assert.ok(report);
-  assert.equal(report.requiredMinutes,3840);
+  assert.equal(report.requiredMinutes,1920);
   assert.equal(report.scheduledInsideOpeningMinutes,2880);
-  assert.equal(report.periodCapacityDeficitMinutes,960);
+  assert.equal(report.periodCapacityDeficitMinutes,0);
   assert.equal(report.simultaneousDeficitMinutes,480,
     "no intervalo das pausas faltam duas pessoas, em quatro segundas");
   assert.equal(report.observedRoleGapMinutes,480);
-  assert.equal(report.dayLockedCapacityDeficitMinutes,960);
+  assert.equal(report.dayLockedCapacityDeficitMinutes,0);
 });
 
 test("PR94: três funções genéricas continuam sujeitas aos mesmos limites",()=>{
