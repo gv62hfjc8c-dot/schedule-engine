@@ -35,7 +35,7 @@ export type CertificationIssueCode=
   | "FIXED_DAY_OFF_VIOLATED"|"WEEKEND_WEEKDAY_REST_MISSING"
   | "INVALID_REST_POLICY"
   | "INVALID_FUNCTIONAL_POLICY"|"FUNCTIONAL_ASSIGNMENT_INVALID"
-  | "FUNCTIONAL_COVERAGE_GAP";
+  | "FUNCTIONAL_COVERAGE_GAP"|"FUNCTIONAL_CAPACITY_SHORTFALL";
 
 export interface CertificationIssue {
   code:CertificationIssueCode;
@@ -265,6 +265,21 @@ export function certifySchedule(input:CertificationInput):CertificationReport {
   // opted-in V2 proposals. No legacy schedule is silently upgraded.
   if(input.functionalCoveragePolicy==="qualified50"){
     const roles=[...new Set(active.flatMap(m=>m.qualifiedRoles??[]))].sort();
+    const requiredConcurrent=roles.reduce((sum,role)=>
+      sum+Math.ceil(active.filter(m=>m.qualifiedRoles?.includes(role))
+        .length/2),0);
+    const minutesOpen=enumerateCivilDays(period).reduce((sum,date)=>
+      sum+validatedOpeningHours.days[civilDayOfWeek(date)].intervals
+        .reduce((subtotal,window)=>subtotal+
+          clockMinutes(window.end)-clockMinutes(window.start),0),0);
+    const requiredMinutes=requiredConcurrent*minutesOpen;
+    const actualMinutes=assignments.filter(a=>inRange(a.date,period))
+      .reduce((sum,a)=>sum+assignmentMinutes(a),0);
+    if(actualMinutes<requiredMinutes)
+      problems.push(issue("FUNCTIONAL_CAPACITY_SHORTFALL",
+        "As horas efetivas disponíveis não chegam para a cobertura simultânea mínima das funções.",{
+          requiredMinutes,actualMinutes,
+        }));
     for(const date of enumerateCivilDays(period)){
       const dayWork=assignments.filter(assignment=>assignment.date===date);
       const opening=validatedOpeningHours.days[civilDayOfWeek(date)].intervals;
