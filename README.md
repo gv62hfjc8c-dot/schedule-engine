@@ -1146,3 +1146,136 @@ PR92 permanece DRAFT, sem merge nem publicação Cloudflare.
 Última CI verificada:
 https://github.com/gv62hfjc8c-dot/schedule-engine/actions/runs/45021264014
 — 320/320 testes PASS e build PASS.
+
+
+### PR94 — Equipas funcionais e meta de 50% SOFT (22/11/2026)
+
+**Correção de requisito após validação real:** os **50% por equipa
+funcional sempre foram um objetivo de otimização (SOFT)**. Não são
+nem nunca deveriam ter sido um mínimo obrigatório de presença
+simultânea (HARD). A primeira implementação do PR94 tratou
+incorretamente essa meta como regra obrigatória, criando falsos
+`FUNCTIONAL_COVERAGE_GAP` e `FUNCTIONAL_CAPACITY_SHORTFALL` no
+certificador. Este erro de interpretação foi corrigido no PR94
+ANTES de qualquer merge. Nunca converter um objetivo SOFT em HARD
+sem decisão explícita.
+
+**Regras que permanecem obrigatórias (HARD):**
+- Cada colaborador tem uma única pessoa/identidade, um turno por dia,
+  pausa integrada e uma única função por turno.
+- Função escolhida deve constar das qualificações explícitas da pessoa.
+  A política funcional em horários novos exige qualificações
+  definidas para todos os membros ativos; não presumir polivalência
+  em registos legados.
+- O certificador mensal independente preserva integralmente as
+  regras anteriores: cobertura global durante abertura, folgas fixas,
+  descanso, turnos e pausas válidos e as demais regras de horas
+  e contexto. Não é introduzido qualquer mínimo HARD novo por função:
+  esse mínimo **não foi especificado** pelo utilizador.
+- A falta de qualificação ou a dupla/ausente atribuição de função
+  invalida um horário; não atingir 50% **não invalida**.
+
+**Otimização SOFT:**
+- Para cada equipa funcional, a meta é que pelo menos
+  `ceil(0.5 × número de pessoas ativas habilitadas na função)`
+  estejam nessa função efetivamente ao mesmo tempo, dentro da
+  abertura e excluindo pausas. Polivalentes contam na população
+  habilitada de todas as funções que desempenham, mas só cobrem
+  uma função durante cada turno.
+- `allocateFunctionalMonth` integra atribuição de funções em
+  todos os dias do mês, favorece postos mais carenciados e
+  tenta reajustar horas e pausas quando viável. É heurístico,
+  determinístico e não é solver global. Uma melhoria SOFT
+  nunca pode aumentar os minutos sem cobertura global HARD.
+- Os cenários 1 Caixa/3 Vendas/2 polivalentes e o inverso
+  continuam testes de aceitação: os dois polivalentes reforçam
+  a equipa com menos pessoas (3 Caixa / 3 Vendas).
+- O catálogo de funções do `TeamRoster` é genérico e editável;
+  Caixa e Vendas são presets, não condições do core.
+
+**Mês e diagnóstico:**
+- `/horarios` apresenta **Distribuição por funções — objetivo
+  de 50%** com distância à meta em horas-pessoa ao longo do
+  mês inteiro, por função e por dia. As diferenças NÃO são
+  apresentadas como violações obrigatórias nem inferem
+  necessidade automática de contratações.
+- `analysis.functionalCapacity` do diagnóstico mantém os nomes
+  de campos históricos para compatibilidade, mas os minutos
+  `*DeficitMinutes` e `observedRoleGapMinutes` dizem respeito
+  **exclusivamente à meta SOFT**. `validation.displayed.issues`
+  só inclui violações HARD e lacunas de contexto independente.
+- `functionalCoveragePolicy:"qualified50"` persiste por
+  retrocompatibilidade nos rascunhos V2. Identifica a meta SOFT
+  e a verificação HARD de integridade de funções; o identificador
+  não passa a significar mínimo operacional obrigatório.
+- No teste real de novembro de 2026, 357h de distância matemática
+  ao objetivo global e 367h de distância com dias/horas fixos
+  **NÃO provam falta obrigatória de pessoal**. Os 50% não
+  são uma obrigação. Os 160h por pessoa no ciclo 28 dias,
+  8 jornadas >9h, fins de semana/folgas e cobertura geral
+  devem continuar a ser verificados nos regressions.
+
+**Regressões e aceitação:** testes de 28/30/31 dias,
+polivalência, pausas, qualificação/duplicações HARD,
+qualidade funcional SOFT e preservação de cobertura
+global obrigatória. Depois de CI verde, o utilizador
+volta a gerar e analisar o **mês completo no Safari**
+com o JSON exportado. Não criar simuladores isolados
+por dia. PR94 permanece OPEN/DRAFT, sem merge; o PR93
+de UI responsiva é separado. Não publicar no Cloudflare
+sem autorização posterior.
+
+
+### PR94 — Regressão real novembro: ausência completa temporária de uma função
+
+No diagnóstico de teste `schedule-engine-diagnostico-2026-11-9.json`
+(exportado em 22/11/2026, 22:23 UTC, não armazenar no GitHub por
+conter dados pessoais), a geração mensal passou corretamente a
+`insufficient_context`, com **apenas dois CONTEXT_INCOMPLETE**
+referentes a 26–31 de outubro e 1–6 de dezembro. Não existem
+`FUNCTIONAL_COVERAGE_GAP` como violações HARD; os 50% são SOFT.
+Mantêm-se 160h efetivas por cada pessoa no ciclo 2–29/11, 8
+jornadas acima de 9h, 0 minutos de abertura sem trabalhadores ou
+com apenas um, e pelo menos 5 escalados/dia.
+
+A análise independente dos postos revelou uma falha SOFT mais
+importante do que a distância global aos 50%: **300 minutos sem
+qualquer Caixa efetivamente ao serviço e 150 minutos sem
+qualquer pessoa em Vendas**, distribuídos por 10 dias.
+A empresa não fica sem pessoas no total, mas uma função fica
+temporalmente deserta. Exemplos: 03/11 Caixa 08:30–09:00 e
+12:30–13:00; 20/11 Vendas 08:30–09:00 e 12:30–13:00.
+Não converter esta ocorrência em HARD sem requisito explícito.
+
+**Causa técnica identificada:** `src/functionalScheduling.ts`
+interrompia a otimização de pausas de um dia assim que a
+capacidade efetiva total era inferior à meta teórica de 50%.
+Isto confundia «não é possível satisfazer integralmente a
+meta SOFT» com «não vale a pena melhorar parcialmente».
+Correção no PR94: continuar uma busca local determinística e
+LIMITADA mesmo quando o total da meta é impossível,
+privilegiando primeiro minutos sem ninguém numa função
+(SOFT prioritária), depois a distância agregada aos 50%
+(SOFT), e por último a menor alteração de horários. Respeitar
+sempre a prioridade HARD: não piorar minutos sem qualquer
+trabalhador a operar, e não reintroduzir faltas já resolvidas.
+Com empate na cobertura HARD, não piorar minutos com apenas
+uma pessoa em operação. As jornadas, horas efetivas e
+dias de descanso mantêm-se intocados.
+
+**Observabilidade:** a análise/exportação adiciona os campos
+`emptyRoleMinutes` por função, por dia e no total mensal.
+O calendário apresenta alerta SOFT e dias concretos com
+funções desertas, separado dos erros obrigatórios e da meta
+global dos 50%. Os campos existentes mantêm-se para
+compatibilidade. Há regressão automática com uma meta
+de 36 horas-pessoa e apenas 32 disponíveis, mas pausas
+que podem ser alternadas para evitar ausência total
+de uma função, sem acrescentar horas nem afetar a
+cobertura geral.
+
+**Estado:** melhorias implementadas e sujeitas a CI; não
+declarar que os 450 minutos do JSON anterior já foram
+eliminados sem **nova geração real no Safari e exportação
+de novo diagnóstico**. PR94 permanece Draft, sem merge
+nem publicação Cloudflare.

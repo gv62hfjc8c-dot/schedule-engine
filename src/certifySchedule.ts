@@ -1,4 +1,4 @@
-import {validateTeamRoster} from "./team";
+import {validateTeamRoster,OPERATIONAL_ROLES} from "./team";
 import {validateWeeklyOpeningHours} from "./operatingHours";
 import {
   enumerateCivilDays,inRange,resolvePlanningPeriod,
@@ -16,6 +16,7 @@ import {clockMinutes} from "./workAssignments";
 import {shortOpeningDays} from "./shortOpenings";
 import {requiredRestDayCount} from "./weekendRotation";
 import {addCivilDays,civilDayOfWeek} from "./schedulePeriods";
+import {certifyFunctionalCoverage} from "./functionalCoverage";
 
 export type CertificationStatus="valid"|"invalid"|"insufficient_context";
 export type CertificationIssueCode=
@@ -32,7 +33,9 @@ export type CertificationIssueCode=
   | "MEAL_BREAK_OVERLAP"|"MULTIPLE_SHIFTS_SAME_DAY"|"OPENING_UNCOVERED"
   | "SHORT_OPENING_INCOMPLETE" | "INVALID_HOURS_POLICY"
   | "FIXED_DAY_OFF_VIOLATED"|"WEEKEND_WEEKDAY_REST_MISSING"
-  | "INVALID_REST_POLICY";
+  | "INVALID_REST_POLICY"
+  | "INVALID_FUNCTIONAL_POLICY"|"FUNCTIONAL_ASSIGNMENT_INVALID"
+  | "FUNCTIONAL_COVERAGE_GAP"|"FUNCTIONAL_CAPACITY_SHORTFALL";
 
 export interface CertificationIssue {
   code:CertificationIssueCode;
@@ -47,6 +50,8 @@ export interface CertificationIssue {
   actualDaysOff?:number;
   gapStart?:string;
   gapEnd?:string;
+  role?:string;
+  missing?:number;
 }
 
 export interface WeeklyWorkSummary {
@@ -84,6 +89,11 @@ export interface CertificationInput {
   mealBreakPolicy?:"v1"|"v2";
   /** Rolling 28 days is an optimization target, not an exact weekly debt. */
   hoursPolicy?:"rolling28";
+  /** Explicit opt-in for per-shift role integrity (HARD) and the 50%
+   * simultaneous qualified-staff distribution objective (SOFT).
+   * Existing stored "qualified50" drafts retain the identifier but the
+   * target never causes an invalid scheduling certification by itself. */
+  functionalCoveragePolicy?:"qualified50";
   mealBreaks?:unknown;
   externalContext?:ExternalScheduleContext;
 }
@@ -156,6 +166,14 @@ export function certifySchedule(input:CertificationInput):CertificationReport {
   const validatedOpeningHours=hours.value;
   const shortDays=shortOpeningDays(validatedOpeningHours);
   const problems:CertificationIssue[]=[];
+  if(input.functionalCoveragePolicy!==undefined &&
+    (input.functionalCoveragePolicy!=="qualified50" ||
+      input.mealBreakPolicy!=="v2" ||
+      active.some(member=>!member.qualifiedRoles?.length)))
+    return report("invalid",period,[
+      issue("INVALID_FUNCTIONAL_POLICY",
+        "A distribuição funcional exige turnos V2 e funções explícitas para toda a equipa ativa."),
+    ]);
   const contextProblems:CertificationIssue[]=[];
   const rawCandidate=input.candidateAssignments;
   const rawExternal=input.externalContext?.assignments??[];
@@ -240,6 +258,41 @@ export function certifySchedule(input:CertificationInput):CertificationReport {
   }
   rawCandidate.forEach(value=>consume(value,"candidate"));
   rawExternal.forEach(value=>consume(value,"external"));
+  if(input.functionalCoveragePolicy===undefined &&
+    assignments.some(entry=>inRange(entry.date,period)&&entry.role!==undefined))
+    problems.push(issue("INVALID_FUNCTIONAL_POLICY",
+      "Uma proposta com funções atribuídas exige a política funcional explícita."));
+
+  // Functional qualifications and ONE exclusive role per shift are HARD.
+  // The 50%-of-qualified simultaneous coverage target is exclusively SOFT:
+  // report progress in functionalCapacityAnalysis, NOT as certification
+  // violations. This corrects the original PR94 policy misinterpretation.
+  if(input.functionalCoveragePolicy==="qualified50"){
+    const roles=team.value.roles?.map(role=>role.id)??[...OPERATIONAL_ROLES];
+    for(const date of enumerateCivilDays(period)){
+      const dayWork=assignments.filter(assignment=>assignment.date===date);
+      const opening=validatedOpeningHours.days[civilDayOfWeek(date)].intervals;
+      if(opening.length===0 && dayWork.length===0)continue;
+      const functional=certifyFunctionalCoverage({
+        date,roles,minimumPercent:50,
+        members:active.map(m=>({
+          id:m.id,active:true,qualifiedRoles:m.qualifiedRoles,
+        })),opening,assignments:dayWork,
+      },dayWork.filter(shift=>shift.role!==undefined).map(shift=>({
+        memberId:shift.memberId,role:shift.role!,
+      })));
+      for(const failure of functional.issues){
+        // Role-target deficits and roles with zero qualified staff affect
+        // optimization quality only; never invalidate the schedule.
+        if(failure.code==="ROLE_COVERAGE_GAP" ||
+          failure.code==="NO_QUALIFIED_MEMBERS")continue;
+        problems.push(issue("FUNCTIONAL_ASSIGNMENT_INVALID",
+          "A afetação de função está ausente, duplicada ou não corresponde às competências.",{
+            date,role:failure.role,memberId:failure.memberId,
+          }));
+      }
+    }
+  }
 
   // Fixed weekly rest is independent of the particular rotation selected.
   // Never reinterpret immutable external assignments against new team rules.

@@ -624,3 +624,89 @@
   font-size: 12px;
   line-height: 1.5;
 }
+
+
+/* PR94 — whole-month functional coverage status, not a single-day trial. */
+.schedule-functional-overview {
+  margin-top: 16px;
+  padding: 17px;
+  border: 1px solid #476477;
+  border-radius: 12px;
+  background: #1c3547;
+  min-width: 0;
+}
+.schedule-functional-overview h3 { margin: 0 0 10px; font-size: 17px; }
+.schedule-functional-overview p { margin: 8px 0; color: #c7d9e3; line-height: 1.6; font-size: 13px; }
+.schedule-functional-overview .schedule-functional-warning { color: #f8ca9d; font-weight: 700; }
+.schedule-functional-overview .schedule-functional-success { color: #b6f1dc; font-weight: 700; }
+.schedule-functional-overview details { margin-top: 12px; min-width: 0; }
+.schedule-functional-overview summary { cursor: pointer; font-weight: 700; min-height: 44px; padding: 8px 0; }
+.schedule-functional-overview ul {
+  max-height: 270px;
+  overflow: auto;
+  margin: 5px 0;
+  padding: 10px 14px 10px 32px;
+  border: 1px solid #547389;
+  border-radius: 9px;
+  background: #162d3c;
+  color: #e9d4b2;
+  font-size: 12px;
+  line-height: 1.7;
+}
+.schedule-functional-overview li { overflow-wrap: anywhere; }
+.schedule-functional-role { color: #a8e4e4; font-weight: 700; font-size: 12px; }
+
+
+/* PR94 — explain monthly capacity feasibility before the long conflict log. */
+.schedule-functional-capacity {
+  margin: 15px 0;
+  padding: 15px;
+  background: #172d3e;
+  border: 1px solid #536f7e;
+  border-radius: 10px;
+  min-width: 0;
+}
+.schedule-functional-capacity h4 { margin: 0 0 12px; font-size: 15px; }
+.schedule-functional-capacity-stats,
+.schedule-functional-capacity-roles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit,minmax(min(100%,190px),1fr));
+  gap: 9px;
+}
+.schedule-functional-capacity-stats > div,
+.schedule-functional-capacity-roles > div {
+  min-width: 0;
+  display: grid;
+  align-content: start;
+  gap: 5px;
+  padding: 10px;
+  border: 1px solid #48677a;
+  border-radius: 8px;
+}
+.schedule-functional-capacity-stats span,
+.schedule-functional-capacity-roles span {
+  font-size: 12px;
+  color: #bbd0db;
+  overflow-wrap: anywhere;
+}
+.schedule-functional-capacity-stats strong {
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+}
+.schedule-functional-capacity-roles strong { font-size: 13px; }
+.schedule-functional-capacity .schedule-functional-capacity-note {
+  font-size: 12px;
+  color: #dfd0b2;
+}
+@media (max-width: 460px) {
+  .schedule-functional-capacity { padding: 11px; }
+  .schedule-functional-capacity-stats {
+    grid-template-columns: repeat(2,minmax(0,1fr));
+  }
+  .schedule-functional-capacity-stats strong { font-size: 17px; }
+}
+@media (max-width: 340px) {
+  .schedule-functional-capacity-stats {
+    grid-template-columns: minmax(0,1fr);
+  }
+}

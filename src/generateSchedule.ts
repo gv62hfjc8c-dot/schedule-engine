@@ -2,7 +2,7 @@ import {
   certifySchedule,type CertificationInput,type CertificationReport,
   type CertificationIssueCode,
 } from "./certifySchedule";
-import {validateTeamRoster} from "./team";
+import {validateTeamRoster,OPERATIONAL_ROLES} from "./team";
 import {WEEKDAYS,validateWeeklyOpeningHours} from "./operatingHours";
 import {
   addCivilDays,civilDayOfWeek,daysBetween,enumerateCivilDays,inRange,type DateRange,
@@ -21,6 +21,9 @@ import {
   optimize28DayWorkload,type CycleWorkday,
 } from "./cycleWorkloadOptimization";
 import {measureSimultaneousCoverage} from "./simultaneousCoverage";
+import {allocateFunctionalMonth} from "./functionalScheduling";
+import {allocateFunctionalCoverage} from "./functionalCoverage";
+import type {TeamMember} from "./team";
 import {validateFullWeekendHistory} from "./plannedRest";
 import {
   evaluateDailyStaffing,type DailyStaffingReport,
@@ -55,6 +58,8 @@ export interface GenerationResult {
   /** Never saved automatically. Even an invalid result can contain a proposal. */
   candidateAssignments:WorkAssignment[];
   certification:CertificationReport;
+  /** V2 generated month explicitly certifies real coverage by function. */
+  functionalCoveragePolicy?:"qualified50";
   /** "invalid_input" means the generator refused to plan from corrupt input. */
   status:"valid"|"invalid"|"insufficient_context"|"invalid_input";
   shortfalls:GenerationShortfall[];
@@ -69,7 +74,7 @@ export interface GenerationResult {
 
 const FATAL_INPUT_CODES=new Set<CertificationIssueCode>([
   "INVALID_PERIOD","INVALID_TEAM","NO_ACTIVE_MEMBERS",
-  "INVALID_REST_POLICY",
+  "INVALID_REST_POLICY","INVALID_FUNCTIONAL_POLICY",
   "INVALID_OPENING_HOURS","INVALID_ASSIGNMENT","UNKNOWN_MEMBER",
   "INACTIVE_MEMBER","OUTSIDE_EDITABLE_PERIOD","OUTSIDE_CONTEXT_RANGE",
   "CONTEXT_IN_EDITABLE_PERIOD","INVALID_CONTEXT_DAY",
@@ -371,9 +376,35 @@ function allocateBalancedWeek(plans:DayPlan[],targetMinutes:number):void {
  * weeklyUnassigned is reset for every civil week and counts days without work
  * among colleagues already scheduled. It never stores a fixed weekday rule.
  */
+interface RoleWorkdayPressure {
+  member:TeamMember;
+  active:readonly TeamMember[];
+  prior:ReadonlyMap<string,readonly TeamMember[]>;
+  roles:readonly string[];
+}
+function potentialRoleGain(
+  date:string,workers:readonly TeamMember[],incoming:TeamMember,
+  active:readonly TeamMember[],roles:readonly string[],
+):number {
+  const deficit=(group:readonly TeamMember[])=>{
+    const report=allocateFunctionalCoverage({
+      date,members:active,roles,minimumPercent:50,
+      opening:[{start:"09:00",end:"10:00"}],
+      assignments:group.map(m=>({
+        memberId:m.id,date,start:"09:00",end:"10:00",
+      })),
+    }).certification;
+    return report.issues.filter(i=>i.code==="ROLE_COVERAGE_GAP")
+      .reduce((sum,i)=>sum+(i.missing??0),0);
+  };
+  const before=deficit(workers);
+  const after=deficit([...workers,incoming]);
+  return before-after;
+}
 function allocateConfiguredDays(
   plans:DayPlan[],targetMinutes:number,editableWorkdays:number,
   weeklyUnassigned:ReadonlyMap<string,number>,
+  rolePressure?:RoleWorkdayPressure,
 ):void {
   const open=plans.filter(plan=>plan.capacity>0);
   if(targetMinutes<=0 || editableWorkdays<=0)return;
@@ -383,12 +414,18 @@ function allocateConfiguredDays(
   interface Option {
     days:DayPlan[];
     shortUse:number;
+    roleGain:number;
     unassignedConcentration:number;
     consistency:number;
     quality:DailyWorkloadQuality;
     minShift:number;
     distance:number;
   }
+  const roleGains=rolePressure?new Map(open.map(plan=>[
+    plan.date,potentialRoleGain(plan.date,
+      rolePressure.prior.get(plan.date)??[],
+      rolePressure.member,rolePressure.active,rolePressure.roles),
+  ] as const)):new Map<string,number>();
   let best:Option|null=null;
   const choose=(start:number,selected:DayPlan[]):void=>{
     if(selected.length===slots){
@@ -419,13 +456,18 @@ function allocateConfiguredDays(
       const minShift=Math.min(...candidate.map(plan=>plan.allocated));
       const distance=candidate.reduce((sum,plan)=>
         sum+Math.abs(plan.allocated-Math.min(480,plan.capacity)),0);
+      const roleGain=candidate.reduce((sum,plan)=>
+        sum+(roleGains.get(plan.date)??0),0);
       const next={
-        days:candidate,shortUse,unassignedConcentration,
+        days:candidate,shortUse,roleGain,unassignedConcentration,
         consistency,quality:dailyWorkloadQuality(
           candidate.map(plan=>plan.allocated)),
         minShift,distance,
       };
       function better(a:Option,b:Option):boolean {
+        // The 50% functional presence goal is SOFT: favor workdays
+        // that improve qualified role coverage, never break HARD rules.
+        if(a.roleGain!==b.roleGain)return a.roleGain>b.roleGain;
         // Short opening windows stay available to everybody if feasible.
         if(a.shortUse!==b.shortUse)return a.shortUse>b.shortUse;
         // Spread remaining days without work across longer windows.
@@ -654,6 +696,20 @@ export function generateSchedule(input:GenerationInput):GenerationResult {
 
   const shortDays=shortOpeningDays(hours.value);
   const activeMembers=team.value.members.filter(member=>member.active);
+  const roleConfigured=activeMembers.some(m=>m.qualifiedRoles!==undefined);
+  if(roleConfigured && (
+    input.mealBreakPolicy!=="v2" ||
+    activeMembers.some(m=>!m.qualifiedRoles?.length)
+  ))return {
+    status:"invalid_input",candidateAssignments:[],shortfalls:[],
+    certification:{...emptyCertification,status:"invalid",issues:[
+      ...emptyCertification.issues,
+      {code:"INVALID_FUNCTIONAL_POLICY",message:
+        "Para atribuir funções na proposta, define as competências de todos os colaboradores ativos e utiliza turnos com pausa V2."},
+    ]},
+  };
+  const functionalCoveragePolicy=roleConfigured?"qualified50" as const:undefined;
+  const functionalRoles=team.value.roles?.map(role=>role.id)??[...OPERATIONAL_ROLES];
   const rotationPlan=prepareRotation(
     period,team.value,hours.value,confirmedRestHistory,
   );
@@ -673,6 +729,7 @@ export function generateSchedule(input:GenerationInput):GenerationResult {
     // Only this civil week's editable, open days participate in the soft
     // distribution. Adjacent-month assignments remain read-only context.
     const weeklyUnassigned=new Map<string,number>();
+    const roleWorkdays=new Map<string,TeamMember[]>();
     const unknownExternalDays=enumerateCivilDays(week)
       .filter(date=>!inRange(date,period) && !completeDates.has(date));
     const contextComplete=unknownExternalDays.length===0;
@@ -710,7 +767,11 @@ export function generateSchedule(input:GenerationInput):GenerationResult {
             inRange(entry.date,week)).map(entry=>entry.date));
         const editableWorkdays=7-member.weeklyDaysOff-knownWorkedDates.size;
         allocateConfiguredDays(
-          plans,target,editableWorkdays,weeklyUnassigned
+          plans,target,editableWorkdays,weeklyUnassigned,
+          roleConfigured?{
+            member,active:activeMembers,prior:roleWorkdays,
+            roles:functionalRoles,
+          }:undefined
         );
       }else{
         allocateWeek(plans,target,contextComplete);
@@ -725,6 +786,11 @@ export function generateSchedule(input:GenerationInput):GenerationResult {
       // members without a configured days-off count. Closed dates are not
       // eligible and therefore cannot distort the choice of open days.
       for(const plan of plans){
+        if(roleConfigured && plan.allocated>0){
+          const previous=roleWorkdays.get(plan.date)??[];
+          previous.push(member);
+          roleWorkdays.set(plan.date,previous);
+        }
         if(plan.capacity>0 && plan.allocated===0)
           weeklyUnassigned.set(plan.date,
             (weeklyUnassigned.get(plan.date)??0)+1);
@@ -911,15 +977,22 @@ export function generateSchedule(input:GenerationInput):GenerationResult {
       }
     }
   }
-  candidates.sort((a,b)=>a.date.localeCompare(b.date) ||
+  const functionalCandidates=functionalCoveragePolicy
+    ?allocateFunctionalMonth(candidates,period,activeMembers,hours.value,functionalRoles)
+    :candidates;
+  functionalCandidates.sort((a,b)=>a.date.localeCompare(b.date) ||
     a.memberId.localeCompare(b.memberId) || a.start.localeCompare(b.start));
-  const certification=certifySchedule({...input,candidateAssignments:candidates});
+  const certification=certifySchedule({
+    ...input,candidateAssignments:functionalCandidates,
+    ...(functionalCoveragePolicy?{functionalCoveragePolicy}:{}),
+  });
   return {
     status:certification.status,
-    candidateAssignments:candidates,certification,shortfalls,
+    candidateAssignments:functionalCandidates,certification,shortfalls,
+    ...(functionalCoveragePolicy?{functionalCoveragePolicy}:{}),
     ...(rotationPlan?{
       dailyStaffing:evaluateDailyStaffing(
-        candidates,period,hours.value,
+        functionalCandidates,period,hours.value,
         activeMembers.map(member=>member.id),
       ),
     }:{}),

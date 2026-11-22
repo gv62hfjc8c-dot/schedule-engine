@@ -96,7 +96,7 @@ test("O calendário pode filtrar por colaborador sem alterar geração ou grava�
   assert.match(calendarScheduler,/O filtro mostra apenas este colaborador/);
   // Both certification and persistence must still receive ALL assignments.
   assert.match(calendarScheduler,/year,month,candidates,revision/);
-  assert.match(calendarScheduler,/certificationForSaved\(currentSources,year,month,\s*candidates,\[\],"v2",hoursPolicy\)/);
+  assert.match(calendarScheduler,/certificationForSaved\(currentSources,year,month,\s*candidates,\[\],"v2",hoursPolicy,activeFunctionalPolicy\)/);
   assert.match(calendarScheduler,/hoursPolicy:"rolling28"/);
   assert.match(calendarScheduler,/calculateRolling28Day\(/);
   assert.match(calendarScheduler,/manualEdit\?\.assignments\?\?preview\?\.candidateAssignments/);
@@ -140,4 +140,44 @@ test("Exportação de diagnóstico fica no calendário e nunca altera a proposta
   assert.match(calendarScheduler,/generationInputSnapshot:/);
   assert.match(calendarScheduler,/Inclui nomes e horários/);
   assert.doesNotMatch(app,/exportDiagnostic/);
+});
+
+
+test("PR94: ficha da equipa distingue capacidade de função de posto escalado",()=>{
+  assert.match(teamEditor,/className="team-role-catalog"/);
+  assert.match(teamEditor,/id="team-new-role"/);
+  assert.match(teamEditor,/addOperationalRole/);
+  assert.match(teamEditor,/removeOperationalRole/);
+  assert.match(teamEditor,/className="team-qualified-roles"/);
+  assert.match(teamEditor,/name="qualifiedRoles"/);
+  assert.match(teamEditor,/type="checkbox"/);
+  assert.match(teamEditor,/Funções: \{roleDescription\(member\.qualifiedRoles,roleCatalog\)\}/);
+  assert.match(teamEditor,/sem presumir competências/);
+  assert.match(teamEditor,/apenas um posto durante cada turno/);
+  assert.match(teamEditor,/setSelectedRoles\(\[\.\.\.\(member\.qualifiedRoles\?\?\[\]\)\]\)/); 
+});
+
+
+test("PR94: o mês mostra os 50% como objetivo SOFT e não como cobertura HARD",()=>{
+  assert.match(calendarScheduler,/import \{analyzeFunctionalCapacity\}/);
+  assert.match(calendarScheduler,/minimumPercent:50/);
+  assert.match(calendarScheduler,/Distância à meta no mês completo/);
+  assert.match(calendarScheduler,/Horas-pessoa da meta teórica/);
+  assert.match(calendarScheduler,/Horas efetivas escaladas na abertura/);
+  assert.match(calendarScheduler,/Diferença mínima para atingir a meta/);
+  assert.match(calendarScheduler,/Diferença com os dias atuais/);
+  assert.match(calendarScheduler,/simultaneousDeficitMinutes/);
+  assert.match(calendarScheduler,/observedRoleGapMinutes/);
+  assert.match(calendarScheduler,/não torna o horário inválido/);
+  assert.match(calendarScheduler,/não significa falta obrigatória/);
+  assert.match(calendarScheduler,/activeFunctionalPolicy==="qualified50"/);
+});
+
+
+test("PR94: zero pessoas numa função aparece como prioridade SOFT mensal",()=>{
+  assert.match(calendarScheduler,/capacityAnalysis\.emptyRoleMinutes/);
+  assert.match(calendarScheduler,/role\.emptyMinutes/);
+  assert.match(calendarScheduler,/Dias com alguma função sem ninguém/);
+  assert.match(calendarScheduler,/sem qualquer\s+colaborador efetivamente ao serviço/);
+  assert.match(calendarScheduler,/não um novo erro HARD/);
 });

@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   countActiveMembers,teamIsReady,validateTeamName,validateTeamRoster,
+  isQualifiedForRole,
   type TeamMember,type TeamRoster,
 } from "../src/team";
 import {
@@ -177,4 +178,127 @@ test("Folgas inválidas não substituem uma equipa guardada",()=>{
   const loaded=loadTeamDraft(s);
   assert.equal(loaded.status,"loaded");
   if(loaded.status==="loaded")assert.equal(loaded.value.members[0].weeklyDaysOff,2);
+});
+
+
+test("PR94: funções qualificadas distinguem Caixa, Vendas e ambas",()=>{
+  const inputs=[
+    {qualifiedRoles:["checkout"]},
+    {qualifiedRoles:["sales"]},
+    {qualifiedRoles:["sales","checkout"]},
+  ];
+  const expected=[["checkout"],["sales"],["checkout","sales"]];
+  inputs.forEach((input,index)=>{
+    const checked=validateTeamRoster({members:[{
+      ...person(ID_A,"Ana Silva"),...input,
+    }]});
+    assert.equal(checked.valid,true,JSON.stringify(input));
+    if(!checked.valid)return;
+    const member=checked.value.members[0];
+    assert.deepEqual(member.qualifiedRoles,expected[index]);
+    assert.equal(isQualifiedForRole(member,"checkout"),
+      expected[index].includes("checkout"));
+    assert.equal(isQualifiedForRole(member,"sales"),
+      expected[index].includes("sales"));
+  });
+});
+
+test("PR94: função ausente em equipa antiga é desconhecida, não polivalente",()=>{
+  const legacy=validateTeamRoster({members:[person(ID_A,"Ana Silva")]});
+  assert.equal(legacy.valid,true);
+  if(!legacy.valid)return;
+  const member=legacy.value.members[0];
+  assert.equal(member.qualifiedRoles,undefined);
+  assert.equal(isQualifiedForRole(member,"checkout"),false);
+  assert.equal(isQualifiedForRole(member,"sales"),false);
+  const storage=store();
+  assert.equal(saveTeamDraft(storage,{members:[member]}).ok,true);
+  assert.deepEqual(loadTeamDraft(storage),{
+    status:"loaded",value:{members:[person(ID_A,"Ana Silva")]},
+  });
+});
+
+test("PR94: funções são persistentes com ID e folgas inalterados",()=>{
+  const storage=store();
+  const member={...person(ID_A,"Ana Silva"),weeklyDaysOff:2,
+    fixedDaysOff:["monday"],qualifiedRoles:["checkout","sales"]};
+  const result=saveTeamDraft(storage,{members:[member]});
+  assert.equal(result.ok,true);
+  const loaded=loadTeamDraft(storage);
+  assert.equal(loaded.status,"loaded");
+  if(loaded.status!=="loaded")return;
+  assert.deepEqual(loaded.value.members[0],member);
+  const change={...loaded.value.members[0],qualifiedRoles:["sales"]};
+  assert.equal(saveTeamDraft(storage,{members:[change]}).ok,true);
+  const updated=loadTeamDraft(storage);
+  assert.equal(updated.status,"loaded");
+  if(updated.status==="loaded"){
+    assert.deepEqual(updated.value.members[0],change);
+    assert.equal(updated.value.members[0].id,ID_A);
+  }
+});
+
+test("PR94: funções desconhecidas, vazias e duplicadas não corrompem a equipa",()=>{
+  const storage=store();
+  const original={...person(ID_A,"Ana Silva"),qualifiedRoles:["checkout"]};
+  assert.equal(saveTeamDraft(storage,{members:[original]}).ok,true);
+  for(const invalid of [
+    [],["checkout","checkout"],["sales","sales"],
+    ["checkout","service"],["both"],"checkout",null,42,
+    ["checkout",null],
+  ]){
+    const supplied={members:[{...original,qualifiedRoles:invalid}]};
+    assert.equal(validateTeamRoster(supplied).valid,false,
+      JSON.stringify(invalid));
+    assert.equal(saveTeamDraft(storage,supplied).ok,false,
+      JSON.stringify(invalid));
+  }
+  const loaded=loadTeamDraft(storage);
+  assert.equal(loaded.status,"loaded");
+  if(loaded.status==="loaded")assert.deepEqual(loaded.value.members[0],original);
+});
+
+
+test("PR94: catálogo personalizado mantém o engine independente de Caixa e Vendas",()=>{
+  const team={
+    roles:[
+      {id:"kitchen",label:"Cozinha"},
+      {id:"frontdesk",label:"Receção"},
+      {id:"maintenance",label:"Manutenção"},
+    ],
+    members:[
+      {...person(ID_A,"Ana"),qualifiedRoles:["kitchen","frontdesk"]},
+      {...person(ID_B,"Rui"),qualifiedRoles:["maintenance"]},
+    ],
+  };
+  const validated=validateTeamRoster(team);
+  assert.equal(validated.valid,true,JSON.stringify(validated));
+  if(!validated.valid)return;
+  assert.deepEqual(validated.value,team);
+  assert.equal(isQualifiedForRole(validated.value.members[0],"frontdesk"),true);
+  assert.equal(isQualifiedForRole(validated.value.members[0],"maintenance"),false);
+  const storage=store();
+  assert.equal(saveTeamDraft(storage,team).ok,true);
+  assert.deepEqual(loadTeamDraft(storage),{status:"loaded",value:team});
+});
+
+test("PR94: funções desconhecidas e catálogo inválido não substituem a equipa",()=>{
+  const storage=store();
+  const valid={roles:[{id:"kitchen",label:"Cozinha"}],
+    members:[{...person(ID_A,"Ana"),qualifiedRoles:["kitchen"]}]};
+  assert.equal(saveTeamDraft(storage,valid).ok,true);
+  const attacks=[
+    {roles:[],members:valid.members},
+    {roles:[{id:"kitchen",label:"Cozinha"},{id:"kitchen",label:"Duplicado"}],
+      members:valid.members},
+    {roles:[{id:"__proto__",label:"Insegura"}],members:valid.members},
+    {roles:[{id:"room service",label:"Serviço"}],members:valid.members},
+    {roles:valid.roles,members:[{...person(ID_A,"Ana"),
+      qualifiedRoles:["checkout"]}]},
+    {roles:valid.roles,members:[{...person(ID_A,"Ana"),
+      qualifiedRoles:["kitchen","kitchen"]}]},
+  ];
+  for(const attack of attacks)
+    assert.equal(saveTeamDraft(storage,attack).ok,false,JSON.stringify(attack));
+  assert.deepEqual(loadTeamDraft(storage),{status:"loaded",value:valid});
 });

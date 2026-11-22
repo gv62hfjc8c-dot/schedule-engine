@@ -11,9 +11,12 @@ export interface WorkAssignment {
   start:string;
   end:string;
   mealBreak?:{start:string;end:string};
+  /** Exclusive functional post for the entire shift. Absent in legacy shifts. */
+  role?:string;
 }
 
 const TIME=/^(?:[01]\d|2[0-3]):[0-5]\d$/;
+const ROLE_ID=/^[a-z][a-z0-9_-]*$/;
 export function clockMinutes(time:string):number {
   if(!TIME.test(time))throw new Error("Hora HH:MM inválida.");
   const [hour,minute]=time.split(":").map(Number);
@@ -31,6 +34,9 @@ export function validateWorkAssignment(raw:unknown):WorkAssignment|null {
     parseCivilDate(value.date);
     const start=clockMinutes(value.start),end=clockMinutes(value.end);
     if(end<=start)return null;
+    if(value.role!==undefined &&
+      (typeof value.role!=="string" || !ROLE_ID.test(value.role)))
+      return null;
     let mealBreak:WorkAssignment["mealBreak"];
     if(value.mealBreak!==undefined){
       const meal=value.mealBreak;
@@ -44,6 +50,7 @@ export function validateWorkAssignment(raw:unknown):WorkAssignment|null {
     return {
       memberId:value.memberId,date:value.date,start:value.start,end:value.end,
       ...(mealBreak?{mealBreak}:{}),
+      ...(value.role!==undefined?{role:value.role}:{}),
     };
   }catch{return null;}
 }

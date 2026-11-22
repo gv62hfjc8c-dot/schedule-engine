@@ -238,3 +238,66 @@
   font-size: 13px;
   line-height: 1.4;
 }
+
+
+/* PR94: company-specific operational role catalog with accessible inputs. */
+.team-role-catalog {
+  padding: 16px;
+  margin: 0 0 20px;
+  border: 1px solid #486477;
+  border-radius: 12px;
+  background: #1e3546;
+}
+.team-role-catalog h3 { margin: 0 0 7px; font-size: 17px; }
+.team-role-catalog p { color: #bfcfdc; font-size: 12px; line-height: 1.6; }
+.team-role-tags { display: flex; flex-wrap: wrap; gap: 8px; }
+.team-role-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  max-width: 100%;
+  padding: 6px 8px 6px 12px;
+  border: 1px solid #567588;
+  border-radius: 9px;
+  overflow-wrap: anywhere;
+}
+.team-role-tag .team-action { min-height: 40px; }
+.team-role-form { display: grid; gap: 6px; margin-top: 15px; }
+.team-role-form label { font-size: 12px; font-weight: 700; }
+.team-role-form > div { display: flex; flex-wrap: wrap; gap: 9px; }
+.team-role-form input {
+  min-width: min(100%,190px);
+  flex: 1 1 190px;
+  padding: 11px 12px;
+  border-radius: 9px;
+  border: 1px solid #526b7d;
+  background: #182d3e;
+  color: #f7fcff;
+}
+.team-role-form button { min-height: 44px; }
+.team-qualified-roles {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+  margin: 3px 0 12px;
+  padding: 12px;
+  border: 1px solid #4f7182;
+  border-radius: 10px;
+}
+.team-qualified-roles legend { font-size: 13px; font-weight: 750; padding: 0 6px; }
+.team-qualified-roles p { margin: 0 0 4px; }
+.team-role-choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  font-size: 13px;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.team-role-choice input { flex: 0 0 auto; width: 18px; height: 18px; }
+@media (max-width: 620px) {
+  .team-role-catalog { padding: 13px; }
+  .team-role-form input { font-size: 16px; }
+  .team-role-tag { flex: 1 1 auto; justify-content: space-between; }
+}

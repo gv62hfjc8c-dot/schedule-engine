@@ -3,6 +3,8 @@ import {monthCells,monthLabel,selectedDayLabel} from "./calendar";
 import {generateSchedule,type GenerationResult} from "./generateSchedule";
 import {certifySchedule,type CertificationReport} from "./certifySchedule";
 import {loadTeamDraftFromBrowser} from "./teamDraftRepository";
+import {DEFAULT_OPERATIONAL_ROLE_DEFINITIONS,type TeamRoster} from "./team";
+import {analyzeFunctionalCapacity} from "./functionalCapacityAnalysis";
 import {loadOpeningHoursDraftFromBrowser} from "./openingHoursDraftRepository";
 import {
   loadMonthlyDraftFromBrowser,saveMonthlyDraftToBrowser,
@@ -40,6 +42,7 @@ interface ManualEdit {
   sources:SourceSnapshot;
   sourceSignature:string;
   hoursPolicy:"rolling28"|undefined;
+  functionalCoveragePolicy:"qualified50"|undefined;
 }
 function loadSources(year:number,month:number):SourceSnapshot {
   return {
@@ -62,7 +65,8 @@ function certificationForSaved(
   sources:SourceSnapshot,year:number,month:number,
   assignments:WorkAssignment[],
   mealBreaks:MealBreak[]=[],mealBreakPolicy:"v1"|"v2"|undefined=undefined,
-  hoursPolicy:"rolling28"|undefined=undefined
+  hoursPolicy:"rolling28"|undefined=undefined,
+  functionalCoveragePolicy:"qualified50"|undefined=undefined
 ):CertificationReport|null {
   if(sources.team.status!=="loaded"||
     sources.opening.status!=="loaded"||!sources.context.ok)return null;
@@ -70,7 +74,7 @@ function certificationForSaved(
     period:{mode:"monthly",year,month},
     team:sources.team.value,openingHours:sources.opening.value,
     externalContext:sources.context.context,candidateAssignments:assignments,
-    mealBreaks,mealBreakPolicy,hoursPolicy,
+    mealBreaks,mealBreakPolicy,hoursPolicy,functionalCoveragePolicy,
   });
 }
 function stateText(report:CertificationReport|null,
@@ -86,6 +90,14 @@ function stateText(report:CertificationReport|null,
 }
 function memberLabel(memberId:string,names:Map<string,string>):string {
   return names.get(memberId)??"Colaborador não encontrado";
+}
+function functionalRoleLabel(
+  role:string|undefined,labels?:ReadonlyMap<string,string>,
+):string {
+  if(role && labels?.has(role))return labels.get(role)!;
+  if(role==="checkout")return "Caixa";
+  if(role==="sales")return "Vendas";
+  return role??"Sem função atribuída";
 }
 
 function MonthWorkspace({
@@ -108,6 +120,9 @@ function MonthWorkspace({
   );
   const [savedHoursPolicy,setSavedHoursPolicy]=useState<"rolling28"|undefined>(
     ()=>initial.status==="loaded"?initial.hoursPolicy:undefined
+  );
+  const [savedFunctionalPolicy,setSavedFunctionalPolicy]=useState<"qualified50"|undefined>(
+    ()=>initial.status==="loaded"?initial.functionalCoveragePolicy:undefined
   );
   const [savedRotationRest,setSavedRotationRest]=useState<PlannedRestWeekMember[]|null>(
     ()=>initial.status==="loaded"&&initial.rotationRest!==undefined
@@ -154,11 +169,23 @@ function MonthWorkspace({
     return new Map(team.status==="loaded"?
       team.value.members.map(member=>[member.id,member.name]):[]);
   });
+  const [capacityTeam,setCapacityTeam]=useState<TeamRoster|null>(()=>{
+    const team=loadTeamDraftFromBrowser();
+    return team.status==="loaded"?team.value:null;
+  });
+  const [roleLabels,setRoleLabels]=useState<Map<string,string>>(()=>{
+    const team=loadTeamDraftFromBrowser();
+    const roles=team.status==="loaded"
+      ?team.value.roles??DEFAULT_OPERATIONAL_ROLE_DEFINITIONS
+      :DEFAULT_OPERATIONAL_ROLE_DEFINITIONS;
+    return new Map(roles.map(role=>[role.id,role.label]));
+  });
   const [savedReport,setSavedReport]=useState<CertificationReport|null>(()=>{
     if(initial.status!=="loaded")return null;
     return certificationForSaved(loadSources(year,month),year,month,
       initial.assignments,initial.mealBreaks,
-      initial.mealBreakPolicy,initial.hoursPolicy);
+      initial.mealBreakPolicy,initial.hoursPolicy,
+      initial.functionalCoveragePolicy);
   });
   const data=dragCandidate??manualEdit?.assignments??
     preview?.candidateAssignments??saved??[];
@@ -168,7 +195,8 @@ function MonthWorkspace({
   const legacyDraft=saved!==null&&preview===null&&savedPolicy!=="v2";
   const manualReport=useMemo(()=>manualEdit
     ?certificationForSaved(manualEdit.sources,year,month,
-      manualEdit.assignments,[],"v2",manualEdit.hoursPolicy)
+      manualEdit.assignments,[],"v2",manualEdit.hoursPolicy,
+      manualEdit.functionalCoveragePolicy)
     :null,[manualEdit,year,month]);
   const report=manualEdit?manualReport:
     preview?.certification??(legacyDraft?null:savedReport);
@@ -177,6 +205,11 @@ function MonthWorkspace({
   const byDay=view.byDay;
   const activeHoursPolicy=manualEdit?manualEdit.hoursPolicy:
     preview?"rolling28":savedHoursPolicy;
+  const activeFunctionalPolicy=manualEdit?manualEdit.functionalCoveragePolicy:
+    preview?preview.functionalCoveragePolicy:savedFunctionalPolicy;
+  const functionalIntegrityIssues=(report?.issues??[]).filter(issue=>
+    issue.code==="FUNCTIONAL_ASSIGNMENT_INVALID" ||
+    issue.code==="INVALID_FUNCTIONAL_POLICY");
   const period=resolvePlanningPeriod({mode:"monthly",year,month});
   // Read-only quality diagnostic; no staffing preference in company settings.
   const staffingReport=dailyOpening &&
@@ -186,6 +219,13 @@ function MonthWorkspace({
   const throughDate=selectedDate??
     enumerateCivilDays(period).at(-1)!;
   const hasMonthProposal=preview!==null||saved!==null;
+  const capacityAnalysis=useMemo(()=>activeFunctionalPolicy==="qualified50"&&
+    hasMonthProposal&&capacityTeam&&dailyOpening
+    ?analyzeFunctionalCapacity({
+      period:{mode:"monthly",year,month},team:capacityTeam,
+      openingHours:dailyOpening,assignments:data,minimumPercent:50,
+    }):null,[activeFunctionalPolicy,hasMonthProposal,capacityTeam,dailyOpening,
+      data,year,month]);
   const rolling=selectedMemberId!==null&&hasMonthProposal&&hoursHistory.ok
     ?calculateRolling28Day({
       memberId:selectedMemberId,throughDate,
@@ -279,6 +319,8 @@ function MonthWorkspace({
         sourceSignature:previous?.sourceSignature??signature,
         hoursPolicy:previous?previous.hoursPolicy:
           preview?"rolling28":savedHoursPolicy,
+        functionalCoveragePolicy:previous?previous.functionalCoveragePolicy:
+          preview?preview.functionalCoveragePolicy:savedFunctionalPolicy,
       };
     });
     setFeedback(null);
@@ -330,6 +372,11 @@ function MonthWorkspace({
     setHoursHistory(sources.hoursHistory);
     setSourceSignature(JSON.stringify(sources));
     setNames(new Map(sources.team.value.members.map(member=>[member.id,member.name])));
+    setCapacityTeam(sources.team.value);
+    setRoleLabels(new Map(
+      (sources.team.value.roles??DEFAULT_OPERATIONAL_ROLE_DEFINITIONS)
+        .map(role=>[role.id,role.label]),
+    ));
     setDailyOpening(sources.opening.value);
     setActiveMemberIds(sources.team.value.members.filter(member=>
       member.active).map(member=>member.id));
@@ -338,9 +385,9 @@ function MonthWorkspace({
       !result.candidateAssignments.some(a=>a.memberId===selectedMemberId))
       onSelectMember(null);
     setFeedback(result.status==="invalid_input"?
-      {kind:"error",message:"Os dados de entrada não permitem gerar uma proposta."}:
+      {kind:"error",message:"Os dados não permitem gerar uma proposta. Se configuraste funções, verifica que todos os colaboradores ativos têm competências definidas."}:
       result.status==="invalid"?
-      {kind:"error",message:"A proposta não cumpre alguma regra obrigatória de horas, folgas, pausas ou cobertura. Consulta os problemas encontrados."}:
+      {kind:"error",message:"A proposta não cumpre alguma regra obrigatória de horas, folgas, pausas ou cobertura funcional. Consulta os problemas encontrados."}:
       {kind:"success",message:"Proposta gerada. Revê o resultado e guarda-a apenas se estiver correta."});
   }
 
@@ -371,7 +418,8 @@ function MonthWorkspace({
       const currentReport=monthAssignments.length>0
         ?certificationForSaved(currentSources,year,month,
           monthAssignments,legacyMealBreaks,
-          mealBreakPolicy??undefined,hoursPolicy??undefined)
+          mealBreakPolicy??undefined,hoursPolicy??undefined,
+          activeFunctionalPolicy)
         :null;
       const snapshot=buildScheduleDiagnostic({
         exportedAt:new Date().toISOString(),
@@ -385,6 +433,7 @@ function MonthWorkspace({
           ?currentSaved.assignments:null,
         mealBreaks:legacyMealBreaks,
         mealBreakPolicy,hoursPolicy,
+        functionalCoveragePolicy:activeFunctionalPolicy??null,
         plannedRest:visibleRestRecords,
         externalContext:currentSources.context.ok
           ?currentSources.context.context:null,
@@ -461,7 +510,7 @@ function MonthWorkspace({
     }
     // Always certify the FULL edited month again, not only the selected day.
     const currentReport=certificationForSaved(currentSources,year,month,
-      candidates,[],"v2",hoursPolicy);
+      candidates,[],"v2",hoursPolicy,activeFunctionalPolicy);
     if(!currentReport || currentReport.status==="invalid"){
       setFeedback({kind:"error",message:
         "A edição contém conflitos obrigatórios. Corrige-os antes de guardar a proposta."});
@@ -474,7 +523,7 @@ function MonthWorkspace({
       :preview===null?savedRotationRest??undefined:undefined;
     const result=saveMonthlyDraftToBrowser(
       year,month,candidates,revision,
-      undefined,"v2",hoursPolicy,rest
+      undefined,"v2",hoursPolicy,rest,activeFunctionalPolicy
     );
     if(!result.ok){
       setFeedback({kind:"error",message:result.message});
@@ -484,6 +533,7 @@ function MonthWorkspace({
     setSavedMealBreaks(result.mealBreaks);
     setSavedPolicy(result.mealBreakPolicy);
     setSavedHoursPolicy(result.hoursPolicy);
+    setSavedFunctionalPolicy(result.functionalCoveragePolicy);
     setSavedRotationRest(result.rotationRest??null);
     setRevision(result.revision);
     setSavedReport(currentReport);
@@ -596,6 +646,107 @@ function MonthWorkspace({
               Existem mais {report.issues.length-5} problemas no resultado.</p>}
           </div>}
         </div>}
+        {hasMonthProposal&&<section className="schedule-functional-overview"
+          aria-label="Objetivo de distribuição funcional do mês">
+          <h3>Distribuição por funções — objetivo de 50%</h3>
+          {activeFunctionalPolicy==="qualified50"?<>
+            <p>Os 50% de presença simultânea por função são uma
+              <strong> meta de otimização (SOFT)</strong>, não uma
+              obrigação de cobertura. O não cumprimento desta meta
+              <strong> não torna o horário inválido</strong>. As regras
+              obrigatórias de trabalho, descanso, competências e
+              cobertura geral continuam certificadas separadamente.</p>
+            {capacityAnalysis?<div className="schedule-functional-capacity"
+              aria-label="Qualidade da distribuição funcional no mês">
+              <h4>Distância à meta no mês completo</h4>
+              <div className="schedule-functional-capacity-stats">
+                <div><span>Horas-pessoa da meta teórica</span>
+                  <strong>{formatHours(capacityAnalysis.requiredMinutes)}</strong></div>
+                <div><span>Horas efetivas escaladas na abertura</span>
+                  <strong>{formatHours(capacityAnalysis.scheduledInsideOpeningMinutes)}</strong></div>
+                <div><span>Diferença mínima para atingir a meta</span>
+                  <strong>{formatHours(capacityAnalysis.periodCapacityDeficitMinutes)}</strong></div>
+                <div><span>Diferença com os dias atuais</span>
+                  <strong>{formatHours(capacityAnalysis.dayLockedCapacityDeficitMinutes)}</strong></div>
+              </div>
+              <p>A distribuição atual fica
+                {" "}{formatHours(capacityAnalysis.observedRoleGapMinutes)}
+                {" "}abaixo da meta de 50%, somando pessoas em falta
+                em cada função e intervalo de trabalho.
+                Isto <strong>não significa falta obrigatória de
+                  pessoal</strong>.</p>
+              <p className={capacityAnalysis.emptyRoleMinutes>0
+                ?"schedule-functional-warning":"schedule-functional-success"}>
+                {capacityAnalysis.emptyRoleMinutes>0
+                  ?<>Prioridade de otimização: existem
+                    {" "}{formatHours(capacityAnalysis.emptyRoleMinutes)}
+                    {" "}em que pelo menos uma função fica sem qualquer
+                    colaborador efetivamente ao serviço, incluindo pausas
+                    e entradas/saídas. Isto é um alerta de qualidade
+                    <strong> SOFT</strong>, não um novo erro HARD.</>
+                  :<>Nenhuma função ficou totalmente sem colaboradores
+                    durante a abertura do mês.</>}
+              </p>
+              <p>Se mantivermos os horários e pausas atuais, a diferença
+                mínima por falta de simultaneidade é
+                {" "}{formatHours(capacityAnalysis.simultaneousDeficitMinutes)}.
+                {capacityAnalysis.status==="complete"
+                  ?" A parte restante pode relacionar-se com competências ou postos, sem garantia de recuperação por otimização."
+                  :" Existem turnos com postos sem atribuição válida; os indicadores podem estar incompletos."}
+              </p>
+              <div className="schedule-functional-capacity-roles">
+                {capacityAnalysis.roleTargets.map(role=>
+                  <div key={role.role}>
+                    <strong>{functionalRoleLabel(role.role,roleLabels)}</strong>
+                    <span>{role.qualifiedPeople} habilitados</span>
+                    <span>Meta: {role.minimumConcurrent} simultâneos</span>
+                    <span>Distância: {formatHours(role.observedGapMinutes)}</span>
+                    <span>Sem ninguém: {formatHours(role.emptyMinutes)}</span>
+                  </div>)}
+              </div>
+              <details>
+                <summary>Dias com alguma função sem ninguém ({
+                  capacityAnalysis.days.filter(d=>d.emptyRoleMinutes>0).length
+                })</summary>
+                <ul>
+                  {capacityAnalysis.days.filter(d=>d.emptyRoleMinutes>0)
+                    .map(day=><li key={day.date}>
+                      {day.date}:{" "}
+                      {formatHours(day.emptyRoleMinutes)} sem serviço
+                      numa das funções
+                    </li>)}
+                </ul>
+              </details>
+              <details>
+                <summary>Dias abaixo da meta de 50% ({
+                  capacityAnalysis.days.filter(d=>d.observedRoleGapMinutes>0).length
+                })</summary>
+                <ul>
+                  {capacityAnalysis.days.filter(d=>d.observedRoleGapMinutes>0)
+                    .map(day=><li key={day.date}>
+                      {day.date}:{" "}
+                      {formatHours(day.observedRoleGapMinutes)} abaixo da meta
+                    </li>)}
+                </ul>
+              </details>
+              <p className="schedule-functional-capacity-note">
+                Esta comparação é informativa e não obriga a contratar
+                nem a aumentar horas. Acrescentar habilitados também pode
+                aumentar a referência de 50%. O certificador continua
+                responsável pelas regras HARD reais.
+              </p>
+            </div>:<p>Não foi possível calcular a qualidade funcional
+              para esta proposta. Verifica os dados de equipa e turnos.</p>}
+            {functionalIntegrityIssues.length>0&&
+              <p className="schedule-functional-warning">
+                Existem {functionalIntegrityIssues.length} problemas
+                obrigatórios na atribuição de funções. Estes são
+                distintos da meta SOFT de 50%.</p>}
+          </>:<p>Esta proposta não inclui distribuição funcional.
+            Para otimizar funções, define as competências dos colaboradores
+            ativos em Configuração → Equipa e gera novamente o mês.
+            Os horários anteriores mantêm as respetivas regras.</p>}
+        </section>}
         {preview?.rotation&&<div className="schedule-rotation-overview"
           aria-label="Rotação de fins de semana na proposta">
           <h3>Fins de semana completos — rotação proposta</h3>
@@ -722,6 +873,9 @@ function MonthWorkspace({
                       {byDay.get(cell.date!)!.map((shift,index)=>
                         <span key={shift.memberId+"-"+index}>
                           {shift.start}–{shift.end}
+                          {shift.role&&<span className="calendar-meal-time">
+                            {functionalRoleLabel(shift.role,roleLabels)}
+                          </span>}
                           {shift.mealBreak&&
                             <span className="calendar-meal-time">
                               Pausa {shift.mealBreak.start}–{shift.mealBreak.end}
@@ -789,6 +943,9 @@ function MonthWorkspace({
 
                     <strong>{memberLabel(item.memberId,names)}</strong>
                     <span>Turno {item.assignment.start}–{item.assignment.end}</span>
+                    {item.assignment.role&&<span className="schedule-functional-role">
+                      Função: {functionalRoleLabel(item.assignment.role,roleLabels)}
+                    </span>}
                     {item.assignment.mealBreak&&
                       <span className="meal-inline">
                         Pausa para refeição:

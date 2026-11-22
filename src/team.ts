@@ -7,12 +7,33 @@ import {WEEKDAYS,type Weekday} from "./operatingHours";
  *
  * A weekly days-off COUNT is optional until configured. No weekday is fixed;
  * a day without a shift is not automatically labeled an official day off.
- * No contract, role, personal contact or legal identifiers at this stage.
+ * No contract, personal contact or legal identifiers at this stage.
+ * Explicit role qualifications are capabilities, never simultaneous work
+ * assignments or an implicit guarantee of functional coverage.
  */
+/** Default retail role names are just a preset. Core scheduling accepts
+ * user-defined functional roles through TeamRoster.roles.
+ */
+export const OPERATIONAL_ROLES=["checkout","sales"] as const;
+export type OperationalRole=string;
+export interface OperationalRoleDefinition {
+  id:string;
+  label:string;
+}
+export const DEFAULT_OPERATIONAL_ROLE_DEFINITIONS:readonly OperationalRoleDefinition[]=[
+  {id:"checkout",label:"Caixa"},
+  {id:"sales",label:"Vendas"},
+];
+
 export interface TeamMember {
   id: string;
   name: string;
   active: boolean;
+  /** Which functions this person is qualified to cover.
+   * Omitted means UNKNOWN on legacy rosters, never "both".
+   * A dual-qualified person still counts as ONE person at any instant.
+   */
+  qualifiedRoles?: OperationalRole[];
   /** Exact number of non-working calendar days per Monday-Sunday week (0..6).
    * Omitted for legacy rosters: no days-off constraint is implied. */
   weeklyDaysOff?: number;
@@ -23,6 +44,8 @@ export interface TeamMember {
 }
 export interface TeamRoster {
   members: TeamMember[];
+  /** Explicit company-specific roles; omitted for legacy retail defaults. */
+  roles?:OperationalRoleDefinition[];
 }
 
 export type TeamValidation =
@@ -31,6 +54,8 @@ export type TeamValidation =
 
 const UUID_V4=/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MAX_MEMBERS=500;
+const MAX_ROLES=24;
+const ROLE_ID=/^[a-z][a-z0-9_-]{0,39}$/;
 export const EMPTY_TEAM:TeamRoster={members:[]};
 
 export function validateTeamName(input:unknown):string|null {
@@ -49,6 +74,34 @@ export function validateTeamName(input:unknown):string|null {
 export function validateTeamRoster(input:unknown):TeamValidation {
   if(!input || typeof input!=="object" || Array.isArray(input))
     return {valid:false,value:null,issues:["Os dados da equipa são inválidos."]};
+  const rolesValue=(input as {roles?:unknown}).roles;
+  let roleDefinitions:OperationalRoleDefinition[]|undefined;
+  if(rolesValue!==undefined){
+    if(!Array.isArray(rolesValue)||rolesValue.length<1||
+      rolesValue.length>MAX_ROLES)
+      return {valid:false,value:null,issues:[
+        "A lista de funções da empresa deve ter entre 1 e 24 funções.",
+      ]};
+    const seenRoles=new Set<string>();
+    roleDefinitions=[];
+    for(const value of rolesValue){
+      if(!value||typeof value!=="object"||Array.isArray(value))
+        return {valid:false,value:null,issues:[
+          "Existe uma função com dados inválidos.",
+        ]};
+      const {id,label}=value as {id?:unknown;label?:unknown};
+      const normalizedLabel=validateTeamName(label);
+      if(typeof id!=="string"||!ROLE_ID.test(id)||
+        !normalizedLabel || normalizedLabel.length>60 ||seenRoles.has(id))
+        return {valid:false,value:null,issues:[
+          "Cada função deve ter identificador único e nome válido.",
+        ]};
+      seenRoles.add(id);
+      roleDefinitions.push({id,label:normalizedLabel});
+    }
+  }
+  const allowedRoles=(roleDefinitions??
+    DEFAULT_OPERATIONAL_ROLE_DEFINITIONS).map(role=>role.id);
   const members=(input as {members?:unknown}).members;
   if(!Array.isArray(members) || members.length>MAX_MEMBERS)
     return {valid:false,value:null,issues:["A lista de colaboradores é inválida."]};
@@ -58,7 +111,8 @@ export function validateTeamRoster(input:unknown):TeamValidation {
     if(!item || typeof item!=="object" || Array.isArray(item))
       return {valid:false,value:null,issues:["Existe um colaborador com dados inválidos."]};
     const member=item as {id?:unknown;name?:unknown;active?:unknown;
-      weeklyDaysOff?:unknown;fixedDaysOff?:unknown;weekendRest?:unknown};
+      weeklyDaysOff?:unknown;fixedDaysOff?:unknown;weekendRest?:unknown;
+      qualifiedRoles?:unknown};
     const name=validateTeamName(member.name);
     if(!name)return {valid:false,value:null,
       issues:["O nome deve conter entre 2 e 120 caracteres válidos."]};
@@ -77,6 +131,18 @@ export function validateTeamRoster(input:unknown):TeamValidation {
       return {valid:false,value:null,issues:[
         "As folgas semanais devem ser um número inteiro entre 0 e 6.",
       ]};
+    const roles=member.qualifiedRoles;
+    let qualifiedRoles:OperationalRole[]|undefined;
+    if(roles!==undefined){
+      if(!Array.isArray(roles) || roles.length<1 ||
+        roles.length>allowedRoles.length ||
+        roles.some(role=>!allowedRoles.includes(role)) ||
+        new Set(roles).size!==roles.length)
+        return {valid:false,value:null,issues:[
+          "As funções de cada colaborador devem existir no catálogo da empresa, sem repetições.",
+        ]};
+      qualifiedRoles=allowedRoles.filter(role=>roles.includes(role));
+    }
     const fixedDays=member.fixedDaysOff??[];
     if(!Array.isArray(fixedDays) ||
       fixedDays.some(day=>!WEEKDAYS.some(weekday=>weekday.id===day)) ||
@@ -106,13 +172,27 @@ export function validateTeamRoster(input:unknown):TeamValidation {
     seen.add(id);
     checked.push({
       id,name,active:member.active,
+      ...(qualifiedRoles===undefined?{}:{qualifiedRoles}),
       ...(member.weeklyDaysOff===undefined ? {} :
         {weeklyDaysOff:member.weeklyDaysOff}),
       ...(member.fixedDaysOff===undefined?{}:{fixedDaysOff:[...fixedDays] as Weekday[]}),
       ...(weekendRest===undefined?{}:{weekendRest}),
     });
   }
-  return {valid:true,value:{members:checked},issues:[]};
+  return {valid:true,value:{
+    members:checked,
+    ...(roleDefinitions===undefined?{}:{roles:roleDefinitions}),
+  },issues:[]};
+}
+
+/** Unknown roles do not imply qualification, even for legacy staff.
+ * This is NOT a function-level coverage report: assignments are still
+ * unlabelled until the functional allocation phase is implemented.
+ */
+export function isQualifiedForRole(
+  member:TeamMember,role:OperationalRole,
+):boolean {
+  return member.qualifiedRoles?.includes(role)??false;
 }
 
 /** Distinct names can be identical; only the stable ID must be unique. */

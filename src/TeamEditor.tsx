@@ -1,11 +1,26 @@
 import { useState, type FormEvent } from "react";
-import { countActiveMembers, type TeamRoster } from "./team";
+import {
+  countActiveMembers,DEFAULT_OPERATIONAL_ROLE_DEFINITIONS,
+  type OperationalRoleDefinition,type TeamRoster,
+} from "./team";
 import {WEEKDAYS,type Weekday} from "./operatingHours";
 import {
   loadTeamDraftFromBrowser, saveTeamDraftToBrowser,
 } from "./teamDraftRepository";
 
 type Feedback = {kind:"error"|"success";message:string};
+function roleDescription(
+  roles:readonly string[]|undefined,
+  catalog:readonly OperationalRoleDefinition[],
+):string {
+  if(!roles?.length)return "Por definir";
+  return roles.map(id=>catalog.find(role=>role.id===id)?.label??id).join(" e ");
+}
+function slugForRole(label:string):string {
+  return label.normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+    .toLowerCase().trim().replace(/[^a-z0-9]+/g,"_")
+    .replace(/^_+|_+$/g,"").slice(0,40);
+}
 
 export function TeamEditor() {
   const [initial] = useState(loadTeamDraftFromBrowser);
@@ -16,6 +31,8 @@ export function TeamEditor() {
     initial.status==="empty" || initial.status==="loaded"
   );
   const [name,setName] = useState("");
+  const [selectedRoles,setSelectedRoles] = useState<string[]>([]);
+  const [newRoleName,setNewRoleName] = useState("");
   const [weeklyDaysOff,setWeeklyDaysOff] = useState<number|null>(null);
   const [fixedDayOff,setFixedDayOff] = useState<Weekday|null>(null);
   const [weekendRotation,setWeekendRotation] = useState(false);
@@ -30,6 +47,7 @@ export function TeamEditor() {
   );
 
   const activeCount=countActiveMembers(roster);
+  const roleCatalog=roster.roles??DEFAULT_OPERATIONAL_ROLE_DEFINITIONS;
 
   function persist(next:TeamRoster, successMessage:string):boolean {
     const saved=saveTeamDraftToBrowser(next);
@@ -61,10 +79,12 @@ export function TeamEditor() {
       setFeedback({kind:"error",message:"O colaborador já não está disponível para edição."});
       return;
     }
+    const qualifiedRoles=selectedRoles.length?selectedRoles:undefined;
     const changed={
       id,
       name,
       active:current?.active??true,
+      ...(qualifiedRoles===undefined?{}:{qualifiedRoles}),
       ...(weeklyDaysOff===null?{}:{weeklyDaysOff}),
       ...(fixedDayOff===null?{}:{fixedDaysOff:[fixedDayOff]}),
       ...(weekendRotation?{weekendRest:{
@@ -72,12 +92,14 @@ export function TeamEditor() {
       }}:{}),
     };
     const next:TeamRoster={
+      ...roster,
       members:editingId
         ? roster.members.map(member=>member.id===editingId ? changed : member)
         : [...roster.members,changed],
     };
     if(persist(next,editingId ? "Dados do colaborador atualizados." : "Colaborador adicionado.")){
       setName("");
+      setSelectedRoles([]);
       setWeeklyDaysOff(null);
       setFixedDayOff(null);
       setWeekendRotation(false);
@@ -91,6 +113,7 @@ export function TeamEditor() {
     if(!member)return;
     setEditingId(id);
     setName(member.name);
+    setSelectedRoles([...(member.qualifiedRoles??[])]);
     setWeeklyDaysOff(member.weeklyDaysOff??null);
     setFixedDayOff(member.fixedDaysOff?.[0]??null);
     setWeekendRotation(member.weekendRest!==undefined);
@@ -103,6 +126,7 @@ export function TeamEditor() {
   function cancelEdit(){
     setEditingId(null);
     setName("");
+    setSelectedRoles([]);
     setWeeklyDaysOff(null);
     setFixedDayOff(null);
     setWeekendRotation(false);
@@ -115,6 +139,7 @@ export function TeamEditor() {
     const member=roster.members.find(item=>item.id===id);
     if(!member)return;
     const next:TeamRoster={
+      ...roster,
       members:roster.members.map(item=>
         item.id===id ? {...item,active:!item.active} : item
       ),
@@ -122,6 +147,39 @@ export function TeamEditor() {
     persist(next,member.active
       ? "Colaborador marcado como inativo."
       : "Colaborador marcado como ativo.");
+  }
+
+  function addOperationalRole(event:FormEvent<HTMLFormElement>){
+    event.preventDefault();
+    if(!canEdit)return;
+    const label=newRoleName.trim().replace(/\s+/g," ");
+    const id=slugForRole(label);
+    if(label.length<2||label.length>60||!id||
+      roleCatalog.some(role=>role.id===id)){
+      setFeedback({kind:"error",message:
+        "Indica um nome de função válido e diferente dos existentes."});
+      return;
+    }
+    if(persist({...roster,roles:[...roleCatalog,{id,label}]},
+      "Função operacional adicionada."))setNewRoleName("");
+  }
+
+  function removeOperationalRole(roleId:string){
+    if(!canEdit)return;
+    if(roleCatalog.length<=1){
+      setFeedback({kind:"error",message:
+        "A empresa precisa de pelo menos uma função operacional."});
+      return;
+    }
+    if(roster.members.some(member=>member.qualifiedRoles?.includes(roleId))){
+      setFeedback({kind:"error",message:
+        "Antes de retirar esta função, atualiza os colaboradores que a desempenham."});
+      return;
+    }
+    if(!window.confirm("Retirar esta função do catálogo da empresa?"))return;
+    if(persist({...roster,roles:roleCatalog.filter(role=>role.id!==roleId)},
+      "Função operacional retirada."))
+      setSelectedRoles(previous=>previous.filter(id=>id!==roleId));
   }
 
   return (
@@ -159,6 +217,32 @@ export function TeamEditor() {
 
       {canEdit && (
         <>
+          <section className="team-role-catalog" aria-label="Funções operacionais">
+            <h3>Funções operacionais</h3>
+            <p>Define os postos da empresa. Caixa e Vendas são apenas
+              nomes iniciais, podes adicionar funções para qualquer atividade.</p>
+            <div className="team-role-tags">
+              {roleCatalog.map(role=><div key={role.id}
+                className="team-role-tag">
+                <span>{role.label}</span>
+                <button type="button" className="team-action"
+                  aria-label={"Retirar função "+role.label}
+                  onClick={()=>removeOperationalRole(role.id)}>Retirar</button>
+              </div>)}
+            </div>
+            <form className="team-role-form" onSubmit={addOperationalRole}>
+              <label htmlFor="team-new-role">Adicionar função operacional</label>
+              <div>
+                <input id="team-new-role" name="newOperationalRole"
+                  maxLength={60} placeholder="Ex.: Armazém"
+                  value={newRoleName}
+                  onChange={event=>setNewRoleName(event.target.value)}/>
+                <button type="submit" className="team-action">
+                  Adicionar função
+                </button>
+              </div>
+            </form>
+          </section>
           <div className="team-list" aria-label="Lista de colaboradores">
             {roster.members.length===0
               ? <div className="team-empty">
@@ -172,6 +256,9 @@ export function TeamEditor() {
                   </span>
                   <div className="team-person-info">
                     <strong>{member.name}</strong>
+                    <span className="team-days-off-summary">
+                      Funções: {roleDescription(member.qualifiedRoles,roleCatalog)}
+                    </span>
                     <span className={member.active
                       ? "team-status team-status-active"
                       : "team-status team-status-inactive"}>
@@ -218,6 +305,29 @@ export function TeamEditor() {
                 setName(event.target.value);
                 setFeedback(null);
               }}/>
+            <fieldset className="team-qualified-roles">
+              <legend>Funções que pode desempenhar</legend>
+              <p className="team-field-help">Marca todas as funções para as
+                quais este colaborador está habilitado. Se não marcares
+                nenhuma, ficará Por definir (sem presumir competências).</p>
+              {roleCatalog.map(role=><label key={role.id}
+                className="team-role-choice">
+                <input type="checkbox" name="qualifiedRoles"
+                  value={role.id} checked={selectedRoles.includes(role.id)}
+                  onChange={event=>{
+                    setSelectedRoles(previous=>event.target.checked
+                      ?[...previous,role.id]
+                      :previous.filter(id=>id!==role.id));
+                    setFeedback(null);
+                  }}/>
+                <span>{role.label}</span>
+              </label>)}
+            </fieldset>
+            <p className="team-field-help">
+              Um colaborador pode desempenhar várias funções, mas ocupa
+              apenas um posto durante cada turno. O motor mensal distribui
+              automaticamente as pessoas por função e verifica a cobertura.
+            </p>
             <label htmlFor="team-weekly-days-off">Dias de folga por semana</label>
             <select id="team-weekly-days-off" name="weeklyDaysOff"
               value={weeklyDaysOff===null?"":weeklyDaysOff}
