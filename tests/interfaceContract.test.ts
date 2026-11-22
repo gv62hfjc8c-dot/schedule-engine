@@ -153,5 +153,5 @@ test("PR94: ficha da equipa distingue capacidade de função de posto escalado",
   assert.match(teamEditor,/sem presumir competências/);
   assert.match(teamEditor,/não atribui postos durante os turnos/);
   assert.match(teamEditor,/setRoleChoice\(roleChoiceFor\(member\.qualifiedRoles\)\)/);
-  assert.match(teamEditor,/setRoleChoice\(" "\)/); 
+  assert.match(teamEditor,/setRoleChoice\(""\)/); 
 });
