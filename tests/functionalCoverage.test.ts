@@ -178,3 +178,37 @@ test("PR94: configuração inválida não é aceite como cobertura válida",()=>
   assert.equal(allocateFunctionalCoverage(duplicate).certification.status,
     "invalid_input");
 });
+
+
+test("PR94: cinco escalados não satisfazem duas equipas que exigem três cada",()=>{
+  const input=scenario(2,2,4);
+  // Cada função tem seis qualificados, incluindo os quatro
+  // polivalentes. São três pessoas EFETIVAS por função, não seis tags.
+  input.assignments=input.assignments.filter(a=>
+    a.memberId==="caixa-0"||a.memberId==="caixa-1"||
+    a.memberId==="vendas-0"||a.memberId==="vendas-1"||
+    a.memberId==="polivalente-0");
+  const out=allocateFunctionalCoverage(input);
+  assert.deepEqual(out.certification.targets,{checkout:3,sales:3});
+  assert.equal(out.allocations.length,5);
+  assert.equal(out.certification.status,"uncovered");
+  assert.ok(out.certification.issues.some(issue=>
+    issue.code==="ROLE_COVERAGE_GAP"&&issue.missing===1));
+  assert.ok(out.certification.slots.every(slot=>
+    slot.counts.checkout+slot.counts.sales===5),
+    "uma pessoa não pode ser contada nas duas equipas");
+});
+
+test("PR94: cobertura de função é avaliada nas horas reais, não só na escala diária",()=>{
+  const input=scenario(1,1,2);
+  input.assignments=input.assignments.map(a=>
+    a.memberId==="polivalente-0"?{...a,start:"10:00"}:
+    a.memberId==="polivalente-1"?{...a,end:"16:00"}:a);
+  const out=allocateFunctionalCoverage(input);
+  assert.equal(out.certification.status,"uncovered");
+  assert.ok(out.certification.issues.some(issue=>
+    issue.code==="ROLE_COVERAGE_GAP"&&
+    (issue.start==="09:00"||issue.end==="17:00")));
+  assert.deepEqual(certifyFunctionalCoverage(input,out.allocations),
+    out.certification);
+});
