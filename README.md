@@ -1279,3 +1279,44 @@ declarar que os 450 minutos do JSON anterior já foram
 eliminados sem **nova geração real no Safari e exportação
 de novo diagnóstico**. PR94 permanece Draft, sem merge
 nem publicação Cloudflare.
+
+
+## PR95 — Limite matemático das jornadas longas no ciclo de 28 dias
+
+**Investigação, não alteração do gerador.** A otimização de 28 dias já
+redistribui minutos entre jornadas existentes. O diagnóstico real de
+novembro de 2026 (`schedule-engine-diagnostico-2026-11-11.json`,
+não armazenado no repositório devido a dados pessoais) contém **8
+jornadas de 9h30** e 160 horas efetivas por pessoa no ciclo de
+02–29 de novembro.
+
+Quatro pessoas têm **19 dias de trabalho**, incluindo **três domingos
+de 5 horas**. Permanecem 16 dias normais. Com jornadas de no
+máximo 9 horas, caberiam apenas
+`16 × 9h + 3 × 5h = 159h` por pessoa. É obrigatório
+distribuir uma hora adicional por pessoa. Como cada dia normal
+suporta no máximo 9h30 efetivas, são necessárias **pelo menos
+duas jornadas >9h por pessoa**. Quatro pessoas × 2 = **oito
+jornadas**, exatamente o número observado.
+
+O novo cálculo read-only `analyzeFixedWorkdayLongDayBound`
+compara o total exigido no ciclo com as capacidades efetivas diárias,
+incluindo dias de abertura curta indivisíveis. Retorna um **limite
+inferior matemático**, não um certificado de que uma redistribuição
+é operacionalmente possível. A análise mensal
+`analysis.cycleLongDays` só é produzida quando existem quatro
+semanas civis completas dentro do mês e cada pessoa ativa tem
+exatamente 160h efetivas na janela. Nos restantes casos retorna
+`null`, evitando falsas garantias ou suposições sobre datas
+de meses adjacentes.
+
+**Decisão:** nenhum ajuste de horas dentro dos **mesmos** dias de
+trabalho consegue reduzir as oito jornadas longas de novembro.
+Para explorar uma redução efetiva, será necessário estudar alternativas
+para os dias de trabalho e para a rotação dos fins de semana e dos
+domingos, conservando todas as hard constraints, cobertura operacional,
+qualificações, pausas e 160h. O objetivo de 60% de presença diária
+permanece SOFT, tal como a meta de 50% por função.
+**Este PR não modifica a geração de horários.** Toda a mudança de
+rotação deve ter testes de casos reais e certificação independente
+antes de ser proposta.
