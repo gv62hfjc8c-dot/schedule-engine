@@ -1026,3 +1026,40 @@ diagnóstico com `settingsMatchGeneratedPreview=true`. Verificar
 as oito datas de fim de semana, 160h por pessoa, jornadas >9h,
 cobertura e `CONTEXT_INCOMPLETE` nas fronteiras sem histórico.
 PR91 continua Draft; não integrar sem aceite funcional.
+
+
+### PR92 — Ciclo de 28 dias com rotação sensível à concentração de jornadas >9h (22/11/2026)
+
+**Motivação observada no Safari:** em novembro de 2026, a proposta real do PR91
+cumpre 160h/colaborador e os 60% de presença por dia, mas concentra 12 das 20
+jornadas >9h num só colaborador que recebeu dois fins de semana completos.
+A redistribuição de minutos dentro de dias já escalados não consegue resolver
+esta concentração quando os dias disponíveis no ciclo são insuficientes.
+
+**Alteração experimental e genérica:** `src/weekendRotation.ts` passou a comparar
+a margem de capacidade efetiva preferida até 9h numa janela de 4 semanas
+ANTES de conceder um novo fim de semana completo a candidatos com a mesma
+frequência histórica. Quando o domingo é uma abertura curta e está disponível,
+a previsão conservadora considera o custo de nele trabalhar, em vez de
+presumir gratuitamente folgas ao domingo. Não é limite legal, não garante
+ótimo global e não acrescenta opções de configuração. Histórico explícito
+de descansos, quantidade de fins de semana já recebidos, folgas fixas e
+viabilidade HARD continuam prioritários. Ciclos parciais e equipas sem
+referência de 28 dias preservam a precedência anterior.
+
+**Regressão de novembro anonimizada:** jornadas >9h: **20 → 8**
+(−60%). Máximo por colaborador: **12 → 2**. As oito pessoas mantêm 160h
+efetivas em 02–29/11; **171** turnos no mês; todos os dias têm pelo
+menos 5 pessoas escaladas; nos sábados, as presenças são 5/5/5/5
+e nos domingos 5/5/6/5. Testes verificam minuto a minuto TODOS os dias
+da proposta: zero minutos sem cobertura ou com só uma pessoa ativa.
+Certificador independente sem novas violações: o estado
+`insufficient_context` deve-se exclusivamente a semanas de fronteira
+com outubro/dezembro desconhecidos. Resultado de teste anonimizado,
+ainda NÃO é aceite em Safari com dados reais.
+
+**CI:** GitHub Actions
+https://github.com/gv62hfjc8c-dot/schedule-engine/actions/runs/45019031816
+— **317/317 testes PASS e build PASS**. PR92 permanece Draft, SEM merge.
+Cloudflare Pages foi configurado pelo utilizador para publicações de
+produção e preview manuais; não publicar o PR92 sem autorização.
