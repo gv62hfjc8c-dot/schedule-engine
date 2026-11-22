@@ -1091,3 +1091,42 @@ produção e preview manuais; não publicar o PR92 sem autorização.
 - O ficheiro exportado contém nomes e horários individuais; **não foi
   adicionado ao repositório**. Apenas estatísticas agregadas foram
   documentadas. Manter a publicação Cloudflare manual.
+
+
+### PR92 — Espaçamento SOFT de fins de semana completos (22/11/2026)
+
+**Defeito residual identificado no Safari real:** embora o planeamento
+PR92 distribua equitativamente as jornadas >9h, uma pessoa recebeu
+dois fins de semana completos consecutivos em 07–08/11 e 14–15/11.
+O objetivo é evitar essa sensação de injustiça sem transformar uma
+preferência em regra HARD.
+
+**Correção em `src/weekendRotation.ts`:** antes de atribuir um
+descanso completo opcional, consultar a última semana de descanso
+explicitamente planeada (ou registada num histórico anterior
+confirmado). Se o candidato descansou no fim de semana imediatamente
+anterior **e houver outro colaborador elegível**, não atribuir
+novamente o descanso consecutivo; é preferível reduzir os
+descansos opcionais dessa semana a repetir automaticamente.
+Se não existe outro elegível, a repetição continua permitida
+pela heurística SOFT; períodos estruturalmente encerrados
+ou descansos obrigatórios nunca são alterados. O limite de
+presença por dia permanece SOFT; não se assume histórico de
+descansos desconhecido a partir de dias sem turno.
+
+**Regressões:** adicionados testes para quatro semanas com oito
+pessoas e folga fixa ao sábado, continuação entre meses com histórico
+confirmado, e exceção com apenas uma pessoa elegível.
+O gerador anonimizado preserva **8 jornadas >9h**, máximo **2**
+por pessoa, 160h/pessoa em 28 dias, cobertura efetiva, 60%
+de pessoas escaladas, e agora **zero descansos completos consecutivos**.
+Atribui pelo menos um fim de semana completo a cada colaborador
+no cenário de teste. CI final após implementação:
+https://github.com/gv62hfjc8c-dot/schedule-engine/actions/runs/45021165252
+— **320/320 testes PASS; build PASS**.
+
+**Pendente:** gerar novo horário em Safari REAL com a branch atual,
+exportar diagnóstico e verificar todos os fins de semana, equidade
+e métricas. O ficheiro real anterior de 12:06 UTC foi produzido
+ANTES desta correção, e não comprova o novo espaçamento.
+PR92 permanece DRAFT, sem merge ou publicação Cloudflare.
