@@ -6,6 +6,8 @@
  * ALREADY selected normal workdays of the same employee, across weeks.
  * The day scheduler and independent certifier remain authoritative.
  */
+import {addCivilDays} from "./schedulePeriods";
+
 export interface CycleWorkday {
   date:string;
   weekStart:string;
@@ -52,10 +54,14 @@ export function optimize28DayWorkload(
 ):CycleWorkday[] {
   const days=input.map(e=>({...e}));
   const weeks=[...new Set(days.map(d=>d.weekStart))].sort();
+  const dates=new Set(days.map(d=>d.date));
   if(weeks.length!==4 || days.length===0 ||
+    dates.size!==days.length ||
+    weeks.some((week,i)=>i>0&&week!==addCivilDays(weeks[i-1],7)) ||
     days.some(d=>!Number.isSafeInteger(d.minutes) ||
       !Number.isSafeInteger(d.capacity) ||
-      d.minutes<0 || d.capacity<d.minutes ||
+      d.minutes<=0 || d.capacity<d.minutes ||
+      d.date<d.weekStart || d.date>=addCivilDays(d.weekStart,7) ||
       !Number.isSafeInteger(d.minutes/STEP) ||
       !Number.isSafeInteger(d.capacity/STEP)) ||
     days.reduce((sum,d)=>sum+d.minutes,0)!==cycleTargetMinutes)
