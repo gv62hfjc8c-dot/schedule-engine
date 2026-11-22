@@ -809,13 +809,12 @@ export function generateSchedule(input:GenerationInput):GenerationResult {
   return {
     status:certification.status,
     candidateAssignments:candidates,certification,shortfalls,
-    ...(hours.value.dailyStaffingTargetPercent===undefined?{}:{
+    ...(rotationPlan?{
       dailyStaffing:evaluateDailyStaffing(
         candidates,period,hours.value,
         activeMembers.map(member=>member.id),
-        hours.value.dailyStaffingTargetPercent,
       ),
-    }),
+    }:{}),
     ...(rotationPlan?{
       rotation:rotationPlan.rotation,
       rotationTargetShortfalls:rotationPlan.fourWeekTargetShortfalls,
