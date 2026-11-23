@@ -12,7 +12,7 @@
 import {certifySchedule,type CertificationReport} from "./certifySchedule";
 import {validateTeamRoster,type TeamRoster} from "./team";
 import {validateWeeklyOpeningHours,type WeeklyOpeningHours} from "./operatingHours";
-import {addCivilDays,civilDayOfWeek,enumerateCivilDays,resolvePlanningPeriod} from "./schedulePeriods";
+import {addCivilDays,civilDayOfWeek,daysBetween,enumerateCivilDays,resolvePlanningPeriod} from "./schedulePeriods";
 import {assignmentMinutes,clockMinutes,type WorkAssignment} from "./workAssignments";
 import {effectiveMealDayCapacity,mealDayOptions} from "./mealBreaks";
 import {shortOpeningDays} from "./shortOpenings";
@@ -24,6 +24,7 @@ import {
   type RestDayExchangeOpportunity,
 } from "./rotationDayExchangeResearch";
 import type {WeekendRotationResult} from "./weekendRotation";
+import {searchBalancedFunctionalDay} from "./functionalDaySearch";
 
 const TARGET_MINUTES=9600;
 const NINE_HOURS=540;
@@ -214,6 +215,85 @@ function construct(input:{
 }
 
 /**
+ * Optional two-person improvement, never part of the standard generator.
+ * The exchange worker keeps the replaced 28-day work/rest pattern; a second,
+ * already-working polyvalent transfers 30/60 minutes between two existing
+ * normal workdays. Neither gains a day of work nor loses a rest day.
+ *
+ * The day repair jointly searches shift positions, meal times AND roles.
+ * Only complete variants returned here may be independently certified.
+ */
+function jointFunctionalRepairs(input:{
+  candidate:readonly WorkAssignment[];
+  opportunity:RestDayExchangeOpportunity;
+  team:TeamRoster;
+  opening:WeeklyOpeningHours;
+}):WorkAssignment[][] {
+  const {candidate,opportunity,team,opening}=input;
+  const movedDate=opportunity.workInsteadOfRest;
+  const today=candidate.filter(s=>s.date===movedDate);
+  const roles=team.roles?.map(role=>role.id)??["checkout","sales"];
+  const staff=team.members.filter(member=>member.active);
+  const byId=new Map(staff.map(member=>[member.id,member]));
+  const potential=today.filter(s=>
+    s.memberId!==opportunity.memberId &&
+    (byId.get(s.memberId)?.qualifiedRoles?.length??0)>1 &&
+    assignmentMinutes(s)>300
+  ).sort((a,b)=>assignmentMinutes(a)-assignmentMinutes(b)||
+    a.memberId.localeCompare(b.memberId));
+  const cycleWeekStart=opportunity.weekStart;
+  const cycleWeekEnd=addCivilDays(cycleWeekStart,7);
+  const baselineSolo=(date:string)=>measureSimultaneousCoverage(
+    candidate.filter(s=>s.date===date),dailyOpening(opening,date)
+  ).soloMinutes;
+  const alternatives:WorkAssignment[][]=[];
+  for(const colleague of potential){
+    const originals=candidate.filter(s=>
+      s.memberId===colleague.memberId &&
+      s.date>=cycleWeekStart && s.date<cycleWeekEnd &&
+      s.date!==movedDate &&
+      assignmentMinutes(s)<540 &&
+      !shortOpeningDays(opening).has(civilDayOfWeek(s.date)))
+      .sort((a,b)=>Math.abs(daysBetween(a.date,movedDate))-
+        Math.abs(daysBetween(b.date,movedDate))||
+        a.date.localeCompare(b.date));
+    for(const delta of [30,60]){
+      const remaining=assignmentMinutes(colleague)-delta;
+      if(remaining<=240)continue;
+      const changedDay=searchBalancedFunctionalDay({
+        date:movedDate,shifts:today,opening:dailyOpening(opening,movedDate),
+        members:staff,roles,
+        minutesOverride:new Map([[colleague.memberId,remaining]]),
+        maxSoloMinutes:baselineSolo(movedDate),
+      });
+      if(!changedDay)continue;
+      for(const receiving of originals.slice(0,4)){
+        if(assignmentMinutes(receiving)+delta>540)continue;
+        const recipientDay=candidate.filter(s=>s.date===receiving.date);
+        const newRecipient=searchBalancedFunctionalDay({
+          date:receiving.date,shifts:recipientDay,
+          opening:dailyOpening(opening,receiving.date),
+          members:staff,roles,
+          minutesOverride:new Map([[colleague.memberId,
+            assignmentMinutes(receiving)+delta]]),
+          maxSoloMinutes:baselineSolo(receiving.date),
+        });
+        if(!newRecipient)continue;
+        const changed=new Set([movedDate,receiving.date]);
+        const updated=[
+          ...candidate.filter(s=>!changed.has(s.date)),
+          ...changedDay,...newRecipient,
+        ].sort((a,b)=>a.date.localeCompare(b.date)||
+          a.memberId.localeCompare(b.memberId));
+        alternatives.push(updated);
+        if(alternatives.length>=8)return alternatives;
+      }
+    }
+  }
+  return alternatives;
+}
+
+/**
  * Explicitly invoked research; never called by generateSchedule.
  * At most four structurally promising opportunities and three normal-day
  * work-minute variants each are evaluated. A failed attempt is not proof
@@ -276,23 +356,36 @@ export function evaluateRestDayExchangeCandidates(input:{
           opportunity,newMinutes:target,
         });
         if(!candidate)continue;
+        // Avoid a global search when the ordinary construction already
+        // satisfies all objectives or cannot reduce the long-day count.
+        const firstQuality=quality(candidate,hours.value,input.cycleStart);
+        const candidateRole=hasRoles?roleQuality(proposalCandidate,team.value,
+          hours.value,input.cycleStart):null;
+        const repaired=hasRoles && target<=390 &&
+          firstQuality.longDays<baselineQ.longDays &&
+          candidateRole!==null && baselineRole!==null &&
+          candidateRole>baselineRole
+          ?jointFunctionalRepairs({
+            candidate,opportunity,team:team.value,opening:hours.value,
+          }):[];
+        for(const proposalCandidate of [candidate,...repaired]){
         // Every employee's cycle total is checked explicitly: rolling28
         // is SOFT in the existing certifier and cannot prove 160h itself.
         const active=team.value.members.filter(m=>m.active);
-        if(active.some(member=>candidate.reduce((sum,s)=>
+        if(active.some(member=>proposalCandidate.reduce((sum,s)=>
           sum+(s.memberId===member.id?assignmentMinutes(s):0),0)
           !==TARGET_MINUTES))continue;
         const certificate=certifySchedule({
-          ...certificationInput,candidateAssignments:candidate,
+          ...certificationInput,candidateAssignments:proposalCandidate,
         });
         if(certificate.status!=="valid"){
           reason="O certificador independente rejeitou os turnos candidatos.";
           continue;
         }
-        const q=quality(candidate,hours.value,input.cycleStart);
+        const q=quality(proposalCandidate,hours.value,input.cycleStart);
         const role=hasRoles?roleQuality(candidate,team.value,
           hours.value,input.cycleStart):null;
-        const staff=staffingScore(candidate,team.value,
+        const staff=staffingScore(proposalCandidate,team.value,
           hours.value,input.cycleStart);
         if(q.uncovered>0 || q.longDays>=baselineQ.longDays ||
           q.aboveNineMinutes>baselineQ.aboveNineMinutes ||
@@ -309,7 +402,7 @@ export function evaluateRestDayExchangeCandidates(input:{
           continue;
         }
         const proposal={
-          opportunity,candidateAssignments:candidate,
+          opportunity,candidateAssignments:proposalCandidate,
           certification:certificate,longDays:q.longDays,
           soloMinutes:q.solo,roleGapMinutes:role,
         };
@@ -317,6 +410,10 @@ export function evaluateRestDayExchangeCandidates(input:{
           q.longDays<accepted.longDays ||
           (q.longDays===accepted.longDays && q.solo<accepted.soloMinutes))
           accepted=proposal;
+        }
+        if(accepted &&
+          accepted.longDays<=baselineQ.longDays-
+            opportunity.potentialLongDayReduction)break;
       }
     }
     trials.push({
