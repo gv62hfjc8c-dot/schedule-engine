@@ -182,7 +182,7 @@ function construct(input:{
   const remaining=before.filter(s=>s!==removed);
   const others=remaining.filter(s=>s.memberId===opportunity.memberId);
   const assigned=revisedMinutes(others,opportunity.workInsteadOfRest,
-    openingHours,newMinutes);
+    openingHours,input.newMinutes);
   if(!assigned)return null;
   const shortDays=shortOpeningDays(openingHours);
   const changes=[...assigned].filter(([date,minutes])=>
