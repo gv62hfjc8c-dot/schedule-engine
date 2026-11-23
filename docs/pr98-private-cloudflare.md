@@ -1,110 +1,119 @@
-# PR98 — Ambiente privado no Cloudflare
+# PR98 — Ambiente privado sem cartão: Workers Free + GitHub OAuth
 
-**Estado: preparado em código, ainda NÃO publicado.** PR99 tratará da persistência da configuração real, após demonstrar que a aplicação está privada.
+**Estado:** implementação preparada em código, ainda **não publicada nem testada num endereço real**. O objetivo continua a ser guardar o cenário atual só após proteger o acesso; a importação/cloud storage será tratada no PR99.
 
-## Invariantes de segurança
+## Decisão
 
-1. O Worker chama-se schedule-engine-private e nasce sem URL: workers_dev=false, preview_urls=false, nenhuma route definida.
-2. Todos os ficheiros (HTML, JS, CSS, imagens) passam pelo Worker ANTES de ser servidos: assets.run_worker_first=true. A opção normal sem isso deixaria ficheiros públicos.
-3. O Worker valida o JWT Cf-Access-Jwt-Assertion do Cloudflare Access: assinatura RS256, issuer exato, audience exata, validade temporal e email EXATO do único proprietário.
-4. Configuração ausente, outra identidade, token falso ou falha da consulta das chaves públicas => 403 ou 503; nunca fallback público.
-5. Segredos, emails pessoais, nomes de colaboradores e configurações reais não entram no repositório, no HTML nem nas variáveis VITE_. Os três valores de acesso são Secrets no Worker.
-6. O Cloudflare Access deve proteger o WORKER INTEIRO no modo All traffic, com política Allow para um único endereço de email, sem Bypass nem permissões amplas. Exigir MFA no fornecedor de identidade.
-7. Todos os URLs e projetos antigos Pages/Workers devem ser auditados. Esta aplicação privada não desativa automaticamente um eventual deployment público anterior.
+- Cloudflare Workers **Free**, já confirmado ativo na conta. Sem Cloudflare Zero Trust, Cloudflare Access ou subscrição paga.
+- Hospedagem inicial no domínio gratuito `*.workers.dev` do próprio Worker. **O endereço é público, mas o conteúdo não**: a rota de entrada mostra só o ecrã de autenticação, e o Worker recusa HTML, JS, CSS, APIs e demais recursos sem sessão autorizada.
+- Identidade verificada pelo OAuth do GitHub; o único utilizador permitido é o **ID numérico imutável** da tua conta GitHub, obtido da API autenticada do GitHub. Não basta conhecer o email ou nome de utilizador.
+- O OAuth usa `state` assinado, PKCE SHA-256, cookies Secure/HttpOnly/SameSite=Lax e sessões HMAC com 8h de validade. O token GitHub só é usado para consultar o ID e é descartado imediatamente.
+- O Worker recusa qualquer pedido se faltarem variáveis, houver erros de validação ou o pedido chegar através de outro hostname. Não existe senha pré-definida.
+- `assets.run_worker_first=true` é obrigatório. Sem esta opção os ficheiros estáticos poderiam contornar a autenticação.
+- `preview_urls=false` impede as URLs automáticas de preview. Qualquer outra publicação antiga (Pages, Workers, domínio pessoal) precisa de auditoria independente.
+- Não serão guardados dados reais no Git, em `VITE_*`, em variáveis públicas ou em HTML. Nada dos horários é enviado à cloud nesta fase.
 
-## 1. Preparação no Mac
+## 1 — Preparação no Mac
 
-Antes de mudar de branch, garantir que as alterações locais estão salvaguardadas.
+Confirmar primeiro que não existem alterações locais por guardar:
 
+    cd ~/schedule-engine
+    git status --short
     git fetch origin
     git switch feature/private-cloudflare-environment
     git pull --ff-only origin feature/private-cloudflare-environment
     npm ci
     npm test
     npm run build
-    npx wrangler@4 login
     npx wrangler@4 whoami
 
-Não configurar GitHub Actions para publicar automaticamente no PR98.
+Se o Wrangler ainda não reconhecer uma sessão, executar `npx wrangler@4 login` e autorizar no Safari. Não selecionar upgrades.
 
-## 2. Primeiro deploy sem URL pública
-
-O ficheiro wrangler.jsonc está deliberadamente sem rotas. Executar:
+## 2 — Criar o Worker Free (sem segredos e sem dados)
 
     npx wrangler@4 deploy
 
-Verificar no Dashboard: workers_dev continua desligado, previews desligados e nenhum hostname público configurado. Se o Wrangler pedir para ativar workers.dev, responder NÃO.
+A configuração `wrangler.jsonc` ativa `workers_dev:true`, porque precisamos de um domínio gratuito para o callback do GitHub. O deploy cria uma URL semelhante a:
 
-Esta implantação inicial existe apenas para criar o Worker necessário para configurar Access. Ainda não transporta dados reais. A app nega todos os pedidos por omissão, porque os segredos ainda não existem.
+    https://schedule-engine-private.<subdominio-da-conta>.workers.dev
 
-## 3. Cloudflare Access para o Worker completo
+**Antes de instalar os segredos, esse endereço deve responder 503 (serviço privado não configurado). Não deve revelar o Schedule Engine.** Se aparecer algum pedido de upgrade, cobrança ou cartão, parar e não o aceitar.
 
-No Dashboard, com Zero Trust ativo:
+Guardar só a URL do Worker, sem caracteres adicionais.
 
-**Workers & Pages → schedule-engine-private → Access → Protect this Worker behind Access**.
+## 3 — Criar a OAuth App gratuita no GitHub
 
-- Escolher **All traffic** (produção e previews), NÃO Previews only.
-- Criar política Allow que inclua **um só email exato**, o proprietário.
-- Não escolher Email domain, Everyone, Cloudflare account genérico nem Bypass.
-- Não autorizar service tokens adicionais.
-- Configurar autenticação multifator no fornecedor de identidade.
-- Guardar e ir a Zero Trust → Access → Applications; copiar o Application Audience (AUD) Tag e o Team Domain.
+1. Abrir https://github.com/settings/developers e selecionar **OAuth Apps → New OAuth App**.
+2. Application name: `Schedule Engine Private`.
+3. Homepage URL: a URL HTTPS exata devolvida pelo Wrangler.
+4. Authorization callback URL: a mesma URL seguida de `/auth/callback`.
+5. Registar a aplicação; copiar Client ID e gerar Client Secret.
+6. **Não selecionar nem conceder scopes adicionais**, nomeadamente acesso a repositórios. A app só necessita de ler o ID público autenticado no endpoint `GET /user`.
+7. O GitHub poderá pedir confirmação de identidade ou 2FA. Ativar 2FA na conta GitHub antes de avançar.
 
-O Access ao nível do Worker protege todos os domínios e rotas do próprio Worker, ao contrário de uma regra para um único hostname. A validação JWT na aplicação continua obrigatória, mesmo com Access ligado.
+A OAuth App é apenas para autenticar. Não concede ao Schedule Engine permissões de editar repositórios, nem substitui o GitHub ligado ao ChatGPT.
 
-Fontes oficiais:
-- https://developers.cloudflare.com/workers/configuration/cloudflare-access/
-- https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/validating-json/
-- https://developers.cloudflare.com/workers/static-assets/binding/
+## 4 — Identificar a conta autorizada
 
-## 4. Definir Secrets, nunca os enviar ao Git
+Precisamos do **ID numérico da conta pessoal** que faz login no GitHub, não do nome do repositório nem do endereço de email. Uma maneira prática é abrir:
 
-Executar individualmente no Mac e digitar cada valor apenas no prompt interativo:
+    https://api.github.com/users/TEU_USERNAME_GITHUB
 
-    npx wrangler@4 secret put ACCESS_TEAM_DOMAIN
-    npx wrangler@4 secret put ACCESS_APPLICATION_AUD
-    npx wrangler@4 secret put ACCESS_OWNER_EMAIL
+No JSON público, procurar o campo `"id"`. Outra opção, se o GitHub CLI já estiver autenticado:
 
-Valores:
-- ACCESS_TEAM_DOMAIN: https://TEU-TEAM.cloudflareaccess.com
-- ACCESS_APPLICATION_AUD: tag AUD da aplicação criada
-- ACCESS_OWNER_EMAIL: único email autorizado por Access
+    gh api user --jq .id
 
-Não usar ficheiros versionados, variáveis VITE_ ou ficheiros públicos para os segredos. O comando secret put pode publicar uma versão do Worker; permanece sem domínio público até ser adicionada uma rota.
+Este ID é guardado como um Secret do Worker, não é enviado ao chat. Não confiar apenas no username, que pode mudar.
 
-## 5. Associar um único endereço, depois de proteger
+## 5 — Configurar cinco Secrets no Worker
 
-Só após Access e Secrets confirmados, adicionar um domínio CONTROLADO pelo utilizador no Dashboard à aplicação protegida. Manter workers_dev=false e preview_urls=false. Nunca assumir que existe domínio disponível.
+O Wrangler pede cada valor interativamente. Não incluir valores reais em comandos, histórico Git, screenshots nem chat.
 
-A conta Cloudflare não está acessível através desta conversa para ações administrativas. A criação de Access/Secrets/rota requer sessão do proprietário. Este PR NÃO demonstra, sozinho, privacidade real na Cloudflare.
+    npx wrangler@4 secret put PUBLIC_ORIGIN
+    npx wrangler@4 secret put GITHUB_CLIENT_ID
+    npx wrangler@4 secret put GITHUB_CLIENT_SECRET
+    npx wrangler@4 secret put GITHUB_ALLOWED_USER_ID
+    npx wrangler@4 secret put SESSION_SECRET
 
-## 6. Aceitação funcional e de segurança
+- `PUBLIC_ORIGIN`: URL exata da etapa 2, com HTTPS e sem barra final.
+- `GITHUB_CLIENT_ID`: ID da OAuth App do GitHub.
+- `GITHUB_CLIENT_SECRET`: segredo da OAuth App (nunca partilhar).
+- `GITHUB_ALLOWED_USER_ID`: o ID numérico inteiro do proprietário.
+- `SESSION_SECRET`: pelo menos 32 bytes aleatórios **em base64url**. Podes gerar um valor novo no Mac com:
 
-Testes no Safari, com o domínio configurado:
+    node -e "console.log(require('node:crypto').randomBytes(32).toString('base64url'))"
 
-1. Visitante sem autenticação: /, /horarios e /assets/app.js devem ser bloqueados ou redirecionados para login Access, não revelar conteúdo do Schedule Engine.
-2. Email diferente: acesso negado.
-3. Proprietário com MFA: login permitido, /horarios funciona, configuração e PDF acessíveis.
-4. Token falso, expirado, sem assinatura ou destinado a outra aplicação: 403 pelo Worker; verificar sem servir CSS/JS.
-5. Falta de um Secret: 503, nunca fallback público.
-6. Verificar todos os domínios alternativos, eventuais deployments Pages antigos, workers.dev e previews.
-7. Confirmar que o próprio browser/PC não oferece o armazenamento local a terceiros: acesso físico ao perfil do navegador fica fora do âmbito Access.
-8. Confirmar que **a configuração atual ainda está no localStorage do browser de origem**. O PR98 não presume que ela está já guardada numa base de dados online.
+Copiar o valor gerado para o prompt de `npx wrangler@4 secret put SESSION_SECRET`. Depois limpar o Terminal se necessário. Não guardar esse valor no repositório.
 
-A aceitação depende de testes positivos e negativos comprovados; não basta a UI carregar numa sessão autorizada.
+Cada `secret put` pode atualizar uma versão do Worker; se faltar um só Secret, o site continuará a responder 503. No final, não deve existir qualquer palavra-passe embutida no JavaScript de frontend.
 
-## 7. Critérios de conclusão
+## 6 — Aceitação de segurança no Safari
 
-- CI: npm test e npm run build verdes.
-- Worker criado; proteção All traffic verificada.
-- Apenas um email real autorizado com MFA.
-- Segredos instalados na Worker Settings, sem valores no Git.
-- Teste anónimo e segundo-email negado; proprietário autorizado.
-- Endereços alternativos auditados, sem vias públicas.
-- Nenhuma configuração pessoal ou comercial transferida sem autorização e teste de restauro.
+Após instalar os cinco Secrets:
 
-## PR99 — Preservação definitiva do cenário
+1. Janela privada/anónima: abrir a URL do Worker. Deve mostrar apenas **Acesso privado / Entrar com GitHub**, e não o calendário.
+2. Ainda sem login, visitar `/horarios`, `/configuracao`, `/assets/<ficheiro-real>.js` e `/index.html`. O Worker tem de responder **401** sem entregar conteúdo.
+3. Clicar em Entrar com GitHub e entrar com a **conta pessoal autorizada**. O retorno deverá abrir `/horarios`.
+4. Usar um segundo utilizador GitHub distinto (se possível): o login deve devolver **403 Conta GitHub não autorizada**.
+5. Confirmar que os cookies são Secure/HttpOnly/SameSite=Lax e que o endereço da aplicação é o mesmo configurado em `PUBLIC_ORIGIN`.
+6. Testar janela privada novamente para confirmar que o conteúdo continua protegido sem sessão.
+7. Verificar qualquer projeto Pages/Workers anterior e desativar caminhos públicos alternativos que possam expor horários ou ficheiros.
+8. Confirmar que **nenhuma configuração foi importada automaticamente** do browser antigo: a persistência local no Mac continua separada da nova implantação.
 
-A configuração de novembro de 2026 (empresa, equipa, horários de funcionamento, regras, descansos e horários) continua a ser local. O PR99 tratará de importação consentida, armazenamento em servidor, snapshots imutáveis, exportação/backup e restauro. Access é só a porta de entrada: não é persistência nem autoriza sozinho operações no banco de dados.
+**Importante:** sem Cloudflare Access, a página de login é visível publicamente. Esta solução protege os **dados e ficheiros**, não oculta a existência do URL. Para um único utilizador é uma alternativa razoável, mas não é equivalente a um acesso de rede fechado. Não ativar qualquer API ou importação de dados antes de testar a autorização no servidor.
 
-**Nota técnica:** o router de Static Assets não propaga ctx.access ao código do Worker; por isso usamos validação criptográfica direta do JWT. A aplicação ainda tem um formulário de entrada fictício na rota raiz, que o Worker privado evita redirecionando sessões autenticadas para /horarios.
+## 7 — Critérios de conclusão
+
+-  Testes unitários e build de produção aprovados na CI.
+-  Bundle Wrangler compilado via `deploy --dry-run`, sem deployment pela CI.
+-  Login GitHub do proprietário autorizado, acesso anónimo a todos os recursos bloqueado.
+-  Outro GitHub ID recusado, ainda que autenticado.
+-  Secrets configurados no Worker e não expostos no Git.
+-  Nenhum deployment alternativo público acessível.
+-  Sem subscrição paga nem método de pagamento associado.
+
+**Não fazer merge do PR98 nem importar dados pessoais até a aceitação funcional e a auditoria de acesso no Safari.**
+
+## PR99
+
+Depois da autenticação validada, importar **com consentimento explícito** o cenário de novembro de 2026 (empresa, equipa, funcionamento, regras, descansos e turnos), com snapshots de referência imutáveis, autorização backend, exportação de backup, restauro e testes de integridade. O Cloudflare Workers Free não cria por si só persistência de horários nem fornece backups. A escolha de armazenamento deve ser verificada separadamente, sem serviços que exijam cartão.
