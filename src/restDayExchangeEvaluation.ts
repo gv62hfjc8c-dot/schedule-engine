@@ -226,7 +226,11 @@ export function evaluateRestDayExchangeCandidates(input:{
   const team=validateTeamRoster(input.team);
   const hours=validateWeeklyOpeningHours(input.openingHours);
   if(!research || !team.valid || !hours.valid)return null;
-  const source=input.assignments;
+  // A monthly diagnostic may also include 1 and 30 November, which are
+  // outside the complete Monday-Sunday cycle of 2–29 November. Never
+  // certify or optimize those boundary dates as part of this experiment.
+  const source=input.assignments.filter(s=>
+    s.date>=research.cycleStart&&s.date<research.cycleEndExclusive);
   const hasRoles=source.some(s=>s.role!==undefined);
   // A partial function model cannot be silently certified as an unqualified
   // proposal: hold off on these experiments until all posts are known.
