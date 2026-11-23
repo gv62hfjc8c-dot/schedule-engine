@@ -272,3 +272,21 @@ test("PR96 fase 2: recusa candidato se o horário inicial não estiver certifica
   const analysis=evaluateRestDayExchangeCandidates(input);
   assert.equal(analysis,null,"a fase 1 exige baseline com 160h por trabalhador");
 });
+
+test("PR96 fase 2: diagnóstico mensal não confunde 1/30 novembro com ciclo 02–29",async()=>{
+  const {evaluateRestDayExchangeCandidates}=await import("../src/restDayExchangeEvaluation");
+  const base=fixture();
+  const expected=evaluateRestDayExchangeCandidates(base);
+  assert.ok(expected);
+  const withBoundaries={
+    ...base,assignments:[
+      {memberId:B,date:"2026-11-01",start:"14:00",end:"19:00",role:"sales"},
+      ...base.assignments,
+      {memberId:A,date:"2026-11-30",start:"09:00",end:"18:00",
+        mealBreak:{start:"12:00",end:"13:00"},role:"sales"},
+    ],
+  };
+  const result=evaluateRestDayExchangeCandidates(withBoundaries);
+  assert.deepEqual(result,expected,
+    "dias fora das 4 semanas não podem bloquear os ensaios nem criar créditos fictícios");
+});
