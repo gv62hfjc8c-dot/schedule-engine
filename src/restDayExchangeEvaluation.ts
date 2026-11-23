@@ -41,6 +41,12 @@ export interface ExchangeTrial {
   candidateRoleGapMinutes:number|null;
   jointVariantsEvaluated:number;
   minimumJointRoleGapMinutes:number|null;
+  bestJointComparison?:{
+    status:CertificationReport["status"];
+    issueCodes:string[];longDays:number;aboveNineMinutes:number;
+    aboveEightMinutes:number;soloMinutes:number;
+    roleGapMinutes:number|null;
+  };
   reason:string;
 }
 
@@ -343,6 +349,7 @@ export function evaluateRestDayExchangeCandidates(input:{
     let accepted:ExchangeCandidateEvaluation["best"]=null;
     let jointVariantsEvaluated=0;
     let minimumJointRoleGapMinutes:number|null=null;
+    let bestJointComparison:ExchangeTrial["bestJointComparison"];
     let reason="Nenhum dos posicionamentos experimentados cumpriu todas as condições.";
     if(baseline.status!=="valid" || baselineQ.uncovered!==0){
       reason="O horário de partida não está tecnicamente certificado.";
@@ -384,6 +391,11 @@ export function evaluateRestDayExchangeCandidates(input:{
           ...certificationInput,candidateAssignments:proposalCandidate,
         });
         if(certificate.status!=="valid"){
+          if(proposalCandidate!==candidate)
+            bestJointComparison={status:certificate.status,
+              issueCodes:certificate.issues.map(x=>x.code),
+              longDays:-1,aboveNineMinutes:-1,aboveEightMinutes:-1,
+              soloMinutes:-1,roleGapMinutes:null};
           reason="O certificador independente rejeitou os turnos candidatos.";
           continue;
         }
@@ -393,6 +405,15 @@ export function evaluateRestDayExchangeCandidates(input:{
         if(proposalCandidate!==candidate && role!==null)
           minimumJointRoleGapMinutes=minimumJointRoleGapMinutes===null
             ?role:Math.min(minimumJointRoleGapMinutes,role);
+        if(proposalCandidate!==candidate &&
+          (!bestJointComparison || role!==null &&
+           (bestJointComparison.roleGapMinutes===null ||
+            role<bestJointComparison.roleGapMinutes)))
+          bestJointComparison={status:certificate.status,
+            issueCodes:certificate.issues.map(x=>x.code),
+            longDays:q.longDays,aboveNineMinutes:q.aboveNineMinutes,
+            aboveEightMinutes:q.aboveEightMinutes,
+            soloMinutes:q.solo,roleGapMinutes:role};
         const staff=staffingScore(proposalCandidate,team.value,
           hours.value,input.cycleStart);
         if(q.uncovered>0 || q.longDays>=baselineQ.longDays ||
@@ -431,6 +452,7 @@ export function evaluateRestDayExchangeCandidates(input:{
       candidateSoloMinutes:accepted?.soloMinutes??null,
       candidateRoleGapMinutes:accepted?.roleGapMinutes??null,
       jointVariantsEvaluated,minimumJointRoleGapMinutes,
+      ...(bestJointComparison?{bestJointComparison}:{}),
       reason:accepted?"Certificado para as constraints atuais; não é validação jurídica.":reason,
     });
     if(accepted && (!best||accepted.longDays<best.longDays ||
