@@ -34,6 +34,13 @@ import {
   type DailyWorkloadQuality,
 } from "./dailyWorkloadBalance";
 import type {ExternalScheduleContext} from "./certifySchedule";
+import {
+  applyCertifiedCycleExchanges,type AppliedCycleExchange,
+} from "./cycleExchangeIntegration";
+import {
+  improveMealBreakStaggering,type MealStaggerSummary,
+} from "./mealStaggerOptimization";
+import {analyzeFunctionalCapacity} from "./functionalCapacityAnalysis";
 
 export type GenerationInput=Omit<
   CertificationInput,"candidateAssignments"|"mealBreaks"|"mealBreakPolicy"
@@ -70,6 +77,10 @@ export interface GenerationResult {
   rotationTargetShortfalls?:readonly {
     memberId:string;startWeek:string;missingMinutes:number;
   }[];
+  /** Only independently certified changes applied to the generated proposal. */
+  cycleOptimizations?:readonly AppliedCycleExchange[];
+  /** Accepted 60-minute meal-break adjustments only; no shift hours change. */
+  mealStaggering?:MealStaggerSummary;
 }
 
 const FATAL_INPUT_CODES=new Set<CertificationIssueCode>([
@@ -982,22 +993,76 @@ export function generateSchedule(input:GenerationInput):GenerationResult {
     :candidates;
   functionalCandidates.sort((a,b)=>a.date.localeCompare(b.date) ||
     a.memberId.localeCompare(b.memberId) || a.start.localeCompare(b.start));
+  // PR96: run the bounded, independent 28-day exchange experiment only
+  // AFTER standard monthly generation, meal planning and role allocation.
+  // Any failed candidate leaves the original preview and rotation intact.
+  const integrated=applyCertifiedCycleExchanges({
+    period,team:team.value,openingHours:hours.value,
+    assignments:functionalCandidates,
+    rotation:rotationPlan?.rotation??null,
+    certificationInput:{
+      ...input,...(functionalCoveragePolicy?{functionalCoveragePolicy}:{}),
+    },
+  });
+  let finalAssignments=integrated.assignments;
+  let mealStaggering:MealStaggerSummary|undefined;
+  // PR96: improve effective coverage during meals AFTER cycle optimization.
+  // Both the previous and proposed schedules are certified independently;
+  // an absent role remains SOFT, not an unconfigured HARD minimum.
+  if(functionalCoveragePolicy && input.mealBreakPolicy==="v2"){
+    const staggered=improveMealBreakStaggering({
+      assignments:finalAssignments,period,openingHours:hours.value,
+      members:activeMembers,roles:functionalRoles,
+    });
+    if(staggered.summary){
+      const certificationInput={
+        ...input, ...(functionalCoveragePolicy?{functionalCoveragePolicy}:{}),
+      };
+      const before=certifySchedule({
+        ...certificationInput,candidateAssignments:finalAssignments,
+      });
+      const after=certifySchedule({
+        ...certificationInput,candidateAssignments:staggered.assignments,
+      });
+      const firstRoles=analyzeFunctionalCapacity({
+        period:input.period,team:team.value,openingHours:hours.value,
+        assignments:finalAssignments,minimumPercent:50,
+      });
+      const nextRoles=analyzeFunctionalCapacity({
+        period:input.period,team:team.value,openingHours:hours.value,
+        assignments:staggered.assignments,minimumPercent:50,
+      });
+      if(before.status!=="invalid" && after.status===before.status &&
+        JSON.stringify(after.issues)===JSON.stringify(before.issues) &&
+        firstRoles!==null && nextRoles!==null &&
+        nextRoles.observedRoleGapMinutes<=
+          firstRoles.observedRoleGapMinutes &&
+        nextRoles.emptyRoleMinutes<=firstRoles.emptyRoleMinutes){
+        finalAssignments=staggered.assignments;
+        mealStaggering=staggered.summary;
+      }
+    }
+  }
   const certification=certifySchedule({
-    ...input,candidateAssignments:functionalCandidates,
+    ...input,candidateAssignments:finalAssignments,
     ...(functionalCoveragePolicy?{functionalCoveragePolicy}:{}),
   });
   return {
     status:certification.status,
-    candidateAssignments:functionalCandidates,certification,shortfalls,
+    candidateAssignments:finalAssignments,certification,shortfalls,
+    ...(integrated.applied.length>0?{
+      cycleOptimizations:integrated.applied,
+    }:{}),
+    ...(mealStaggering?{mealStaggering}:{}),
     ...(functionalCoveragePolicy?{functionalCoveragePolicy}:{}),
     ...(rotationPlan?{
       dailyStaffing:evaluateDailyStaffing(
-        functionalCandidates,period,hours.value,
+        finalAssignments,period,hours.value,
         activeMembers.map(member=>member.id),
       ),
     }:{}),
     ...(rotationPlan?{
-      rotation:rotationPlan.rotation,
+      rotation:integrated.rotation??rotationPlan.rotation,
       rotationTargetShortfalls:rotationPlan.fourWeekTargetShortfalls,
     }:{}),
   };
