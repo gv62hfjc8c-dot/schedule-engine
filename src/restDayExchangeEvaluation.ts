@@ -359,7 +359,7 @@ export function evaluateRestDayExchangeCandidates(input:{
         // Avoid a global search when the ordinary construction already
         // satisfies all objectives or cannot reduce the long-day count.
         const firstQuality=quality(candidate,hours.value,input.cycleStart);
-        const candidateRole=hasRoles?roleQuality(proposalCandidate,team.value,
+        const candidateRole=hasRoles?roleQuality(candidate,team.value,
           hours.value,input.cycleStart):null;
         const repaired=hasRoles && target<=390 &&
           firstQuality.longDays<baselineQ.longDays &&
@@ -383,7 +383,7 @@ export function evaluateRestDayExchangeCandidates(input:{
           continue;
         }
         const q=quality(proposalCandidate,hours.value,input.cycleStart);
-        const role=hasRoles?roleQuality(candidate,team.value,
+        const role=hasRoles?roleQuality(proposalCandidate,team.value,
           hours.value,input.cycleStart):null;
         const staff=staffingScore(proposalCandidate,team.value,
           hours.value,input.cycleStart);
