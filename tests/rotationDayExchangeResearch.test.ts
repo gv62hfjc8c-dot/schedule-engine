@@ -415,3 +415,98 @@ test("PR96 fase 3: testemunho independente 8→6, com lacuna funcional e solo pr
   }
   assert.equal(solo,0);
 });
+
+test("PR96 fase 4: geração mensal apresenta as seis jornadas certificadas",async()=>{
+  const {readFileSync}=await import("node:fs");
+  const {generateSchedule}=await import("../src/generateSchedule");
+  const {assignmentMinutes}=await import("../src/workAssignments");
+  const {certifySchedule}=await import("../src/certifySchedule");
+  const {analyzeFunctionalCapacity}=await import("../src/functionalCapacityAnalysis");
+  const source=JSON.parse(readFileSync(
+    new URL("./fixtures/pr96-november-anonymized.json",import.meta.url),"utf8"
+  )) as Sample;
+  const unchanged=JSON.stringify(source);
+  const config={
+    period:{mode:"monthly" as const,year:2026,month:11},
+    team:source.team,openingHours:source.openingHours,
+    mealBreakPolicy:"v2" as const,hoursPolicy:"rolling28" as const,
+    functionalCoveragePolicy:"qualified50" as const,
+    externalContext:{assignments:[],completeDates:[]},
+    hoursHistory:{assignments:[],completeDates:[]},
+  };
+  const generated=generateSchedule(config);
+  const cycles=generated.cycleOptimizations??[];
+  assert.equal(cycles.length,1,
+    "a geração tem de aplicar uma melhoria certificada: "+JSON.stringify({
+      status:generated.status,cycleOptimizations:cycles,
+      longDays:generated.candidateAssignments.filter(s=>
+        s.date>="2026-11-02"&&s.date<"2026-11-30"&&
+        assignmentMinutes(s)>540).length,
+    }));
+  const applied=cycles[0];
+  assert.equal(applied.cycleStart,"2026-11-02");
+  assert.equal(applied.cycleEndExclusive,"2026-11-30");
+  assert.equal(applied.longDaysBefore,8);
+  assert.equal(applied.longDaysAfter,6);
+  assert.equal(applied.roleGapMinutesBefore,21120);
+  assert.equal(applied.roleGapMinutesAfter,21120);
+  assert.equal(applied.soloMinutesAfter,0);
+  const cycle=generated.candidateAssignments.filter(s=>
+    s.date>="2026-11-02"&&s.date<"2026-11-30");
+  assert.equal(cycle.filter(s=>assignmentMinutes(s)>540).length,6);
+  for(const member of source.team.members)
+    assert.equal(cycle.filter(s=>s.memberId===member.id)
+      .reduce((sum,s)=>sum+assignmentMinutes(s),0),9600);
+  const certification=certifySchedule({
+    ...config,period:{mode:"28d",start:"2026-11-02"},
+    candidateAssignments:cycle,
+  });
+  assert.equal(certification.status,"valid",JSON.stringify(certification.issues));
+  const roles=analyzeFunctionalCapacity({
+    period:{mode:"28d",start:"2026-11-02"},
+    team:source.team,openingHours:source.openingHours,
+    assignments:cycle,minimumPercent:50,
+  });
+  assert.equal(roles?.observedRoleGapMinutes,21120);
+  const weekly=generated.rotation?.weeks.find(w=>w.weekStart==="2026-11-09");
+  assert.ok(weekly);
+  const person=weekly.members.find(m=>m.memberId===applied.memberId);
+  assert.ok(person);
+  assert.ok(person.daysWithoutWork.includes("2026-11-15"));
+  assert.ok(!person.daysWithoutWork.includes("2026-11-12"));
+  assert.equal(weekly.presentByWeekday.sunday,5);
+  assert.equal(weekly.presentByWeekday.thursday,7);
+  assert.equal(generated.dailyStaffing?.days.find(d=>
+    d.date==="2026-11-15")?.present,5);
+  assert.equal(generated.dailyStaffing?.days.find(d=>
+    d.date==="2026-11-12")?.present,7);
+  assert.equal(generated.certification.status,"insufficient_context",
+    "a otimização não deve inventar histórico outubro/dezembro");
+  assert.equal(JSON.stringify(source),unchanged);
+});
+
+test("PR96 fase 4: sem rotação explícita não reescreve o calendário",async()=>{
+  const {readFileSync}=await import("node:fs");
+  const {applyCertifiedCycleExchanges}=await import("../src/cycleExchangeIntegration");
+  const {resolvePlanningPeriod}=await import("../src/schedulePeriods");
+  const source=JSON.parse(readFileSync(
+    new URL("./fixtures/pr96-november-anonymized.json",import.meta.url),"utf8"
+  )) as Sample;
+  const config={
+    period:{mode:"28d" as const,start:source.cycleStart},
+    team:source.team,openingHours:source.openingHours,
+    mealBreakPolicy:"v2" as const,hoursPolicy:"rolling28" as const,
+    functionalCoveragePolicy:"qualified50" as const,
+  };
+  const before=JSON.stringify(source.assignments);
+  const after=applyCertifiedCycleExchanges({
+    period:resolvePlanningPeriod(config.period),
+    team:source.team,openingHours:source.openingHours,
+    assignments:source.assignments,rotation:null,
+    certificationInput:config,
+  });
+  assert.equal(after.rotation,null);
+  assert.equal(after.applied.length,0);
+  assert.deepEqual(after.assignments,source.assignments);
+  assert.equal(JSON.stringify(source.assignments),before);
+});
