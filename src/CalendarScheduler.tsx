@@ -3,6 +3,8 @@ import {monthCells,monthLabel,selectedDayLabel} from "./calendar";
 import {generateSchedule,type GenerationResult} from "./generateSchedule";
 import {certifySchedule,type CertificationReport} from "./certifySchedule";
 import {loadTeamDraftFromBrowser} from "./teamDraftRepository";
+import {loadCompanyDraftFromBrowser} from "./companyDraftRepository";
+import {createSchedulePdf,schedulePdfFilename} from "./printableSchedulePdf";
 import {DEFAULT_OPERATIONAL_ROLE_DEFINITIONS,type TeamRoster} from "./team";
 import {analyzeFunctionalCapacity} from "./functionalCapacityAnalysis";
 import {loadOpeningHoursDraftFromBrowser} from "./openingHoursDraftRepository";
@@ -20,7 +22,7 @@ import {buildDailyTimeline} from "./dailyTimeline";
 import {DayScheduleTimeline} from "./DayScheduleTimeline";
 import type {WeeklyOpeningHours} from "./operatingHours";
 import {moveTimelineAssignment,type TimelineMove} from "./timelineEditing";
-import {restRecordsFromRotation,type PlannedRestWeekMember} from "./plannedRest";
+import {restRecordsFromRotation,validatePlannedRest,type PlannedRestWeekMember} from "./plannedRest";
 import {evaluateDailyStaffing} from "./dailyStaffingBalance";
 import {
   buildScheduleDiagnostic,diagnosticFileName,type DiagnosticMode,
@@ -410,6 +412,51 @@ function MonthWorkspace({
         :"Proposta gerada. Revê o resultado e guarda-a apenas se estiver correta."});
   }
 
+  function exportPdf(){
+    // Export the full VISIBLE schedule: unsaved manual edits > generated
+    // preview > saved draft. Do not call save(), generate(), or persist.
+    if(dragCandidate!==null)return;
+    const assignments=manualEdit?.assignments??
+      preview?.candidateAssignments??saved;
+    if(!assignments || assignments.length===0){
+      setFeedback({kind:"error",message:
+        "Gera primeiro um horário ou abre uma proposta para criar o PDF."});
+      return;
+    }
+    try{
+      const company=loadCompanyDraftFromBrowser();
+      // Do not print obsolete 'planned rest' metadata after manual changes.
+      const currentRest=validatePlannedRest(
+        visibleRestRecords,year,month,assignments)??[];
+      const bytes=createSchedulePdf({
+        year,month,
+        companyName:company.status==="loaded"?company.company.name:undefined,
+        members:[...memberOptions].map(([id,name])=>({id,name})),
+        assignments,plannedRest:currentRest,
+        roles:roleLabels,
+        state:manualEdit?"edited":preview?"generated":"saved",
+        certification:report?.status??"unknown",
+      });
+      const blob=new Blob([bytes],{type:"application/pdf"});
+      const url=window.URL.createObjectURL(blob);
+      const anchor=document.createElement("a");
+      anchor.href=url;
+      anchor.download=schedulePdfFilename(year,month);
+      document.body.appendChild(anchor);
+      try{anchor.click();}finally{
+        anchor.remove();
+        window.setTimeout(()=>window.URL.revokeObjectURL(url),60_000);
+      }
+      setFeedback({kind:"success",message:
+        "PDF preparado com o horário atualmente visível, mesmo que ainda "+
+        "não esteja guardado. Contém nomes de colaboradores e pode ser "+
+        "impresso em A4 horizontal. A exportação não guarda nem aprova o horário."});
+    }catch{
+      setFeedback({kind:"error",message:
+        "Não foi possível criar o PDF. O horário visível não foi alterado."});
+    }
+  }
+
   function exportDiagnostic(){
     // Export is read-only: never generate, approve, save or alter a proposal.
     // Always capture the current company sources, not an old React snapshot.
@@ -583,6 +630,12 @@ function MonthWorkspace({
           <div className="schedule-buttons">
             <button type="button" className="button button-primary"
               disabled={isBlocked} onClick={generate}>Gerar horário</button>
+            <button type="button" className="button schedule-print"
+              disabled={dragCandidate!==null || data.length===0}
+              onClick={exportPdf}
+              title="Descarrega o horário visível em PDF A4 horizontal, incluindo propostas não guardadas e alterações manuais.">
+              Exportar PDF
+            </button>
             <button type="button" className="button schedule-diagnostic"
               disabled={dragCandidate!==null}
               onClick={exportDiagnostic}
