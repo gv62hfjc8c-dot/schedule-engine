@@ -211,6 +211,13 @@ test("PR96: JSON expõe hipótese como investigação e não como horário valid
   assert.equal(diag.analysis.cycleRestExchange.certainty,
     "necessary_conditions_only");
   assert.ok(diag.analysis.cycleRestExchange.opportunities.length>0);
+  assert.ok(diag.analysis.cycleRestExchangeEvaluation,
+    "o diagnóstico expõe ensaios concretos sem alterar a proposta");
+  assert.equal(diag.analysis.cycleRestExchangeEvaluation.certainty,
+    "current_engine_constraints_only");
+  assert.equal("candidateAssignments" in
+    (diag.analysis.cycleRestExchangeEvaluation.best??{}),false,
+    "o diagnóstico não publica outro horário como se fosse o apresentado");
   assert.match(diag.interpretation.cycleRestExchange,/NÃO são horários/);
   const noRotation=buildScheduleDiagnostic({
     ...base,generation:null,
