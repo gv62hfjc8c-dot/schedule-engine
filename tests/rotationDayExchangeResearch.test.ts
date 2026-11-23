@@ -222,6 +222,13 @@ test("PR96: JSON expõe hipótese como investigação e não como horário valid
 test("PR96 fase 2: experimenta turnos reais sem alterar a proposta original",async()=>{
   const {evaluateRestDayExchangeCandidates}=await import("../src/restDayExchangeEvaluation");
   const input=fixture();
+  // Keep the sample fully covered even when one colleague has their fixed rest.
+  for(const shift of input.assignments){
+    if(shift.memberId===A && civilDayOfWeek(shift.date)===1 &&
+      shift.start==="09:00"){shift.start="08:30";shift.end="18:30";}
+    if(shift.memberId===A && civilDayOfWeek(shift.date)===2 &&
+      shift.mealBreak)shift.mealBreak={start:"13:00",end:"14:00"};
+  }
   const original=JSON.stringify(input);
   const analysis=evaluateRestDayExchangeCandidates(input);
   assert.ok(analysis);
