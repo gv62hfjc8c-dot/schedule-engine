@@ -263,7 +263,7 @@ export function buildScheduleDiagnostic(input:ScheduleDiagnosticInput) {
       rest:"somente descanso explicitamente planeado, nunca ausência de turno",
       context:"datas sem histórico confirmado permanecem desconhecidas",
       cycleLongDays:"limite inferior MATEMÁTICO de jornadas >9h conservando as datas já escaladas e a capacidade diária; não prova que os descansos possam ser redistribuídos nem garante melhoria possível sem alterar os dias de trabalho",
-      cycleRestExchange:"PR96 fase 1: hipóteses estruturais são apenas condições NECESSÁRIAS; não são horários gerados nem certificados.",
+      cycleRestExchange:"PR96 fase 1: hipóteses estruturais são apenas condições NECESSÁRIAS; NÃO são horários gerados nem certificados.",
       cycleRestExchangeEvaluation:"PR96 fase 2: os candidatos são reconstruídos e avaliados contra as HARD constraints atuais, 160h por trabalhador e métricas SOFT. Uma melhoria tecnicamente certificada continua a ser proposta experimental NÃO aplicada, e NÃO é garantia de conformidade laboral.",
     },
     privacy:{
