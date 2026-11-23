@@ -319,3 +319,73 @@ test("PR96 fase 3: novembro anonimizado — seis jornadas sem degradar função"
   assert.deepEqual(evaluateRestDayExchangeCandidates(source),result,
     "a investigação de jornadas longas deve ser determinística");
 });
+
+test("PR96 fase 3: testemunho independente 8→6, com lacuna funcional e solo preservados",async()=>{
+  const {readFileSync}=await import("node:fs");
+  const {certifySchedule}=await import("../src/certifySchedule");
+  const {analyzeFunctionalCapacity}=await import("../src/functionalCapacityAnalysis");
+  const {measureSimultaneousCoverage}=await import("../src/simultaneousCoverage");
+  const {assignmentMinutes}=await import("../src/workAssignments");
+  const source=JSON.parse(readFileSync(
+    new URL("./fixtures/pr96-november-anonymized.json",import.meta.url),"utf8"
+  )) as Sample;
+  const members=source.team.members.map(m=>m.id);
+  const [a,joao,diogo,lidio,sandro,,paula,floriberto]=members;
+  const copy=source.assignments.map(shift=>({...shift,
+    ...(shift.mealBreak?{mealBreak:{...shift.mealBreak}}:{})
+  }));
+  const updated=copy.filter(shift=>!(
+    shift.memberId===lidio && shift.date==="2026-11-15"
+  ));
+  const change=(memberId:string,date:string,start:string,end:string,
+    meal:string,role:string)=>{
+    const shift=updated.find(s=>s.memberId===memberId&&s.date===date);
+    assert.ok(shift,memberId+"|"+date);
+    const next=(minutes:number)=>String(Math.floor(minutes/60))
+      .padStart(2,"0")+":"+String(minutes%60).padStart(2,"0");
+    const begin=Number(meal.slice(0,2))*60+Number(meal.slice(3));
+    shift.start=start;shift.end=end;
+    shift.mealBreak={start:meal,end:next(begin+60)};
+    shift.role=role;
+  };
+  for(const date of ["2026-11-18","2026-11-19"])
+    change(lidio,date,"09:00","19:00","13:00","sales");
+  change(a,"2026-11-12","11:30","19:00","14:30","sales");
+  change(sandro,"2026-11-12","08:30","18:30","12:30","checkout");
+  change(joao,"2026-11-12","10:00","19:00","13:30","sales");
+  change(diogo,"2026-11-12","08:30","17:30","11:30","sales");
+  change(a,"2026-11-13","09:30","18:00","13:00","checkout");
+  updated.push({memberId:lidio,date:"2026-11-12",
+    start:"08:30",end:"15:30",
+    mealBreak:{start:"12:30",end:"13:30"},role:"sales"});
+  const cert=certifySchedule({
+    period:{mode:"28d",start:"2026-11-02"},
+    team:source.team,openingHours:source.openingHours,
+    candidateAssignments:updated,mealBreakPolicy:"v2",
+    hoursPolicy:"rolling28",functionalCoveragePolicy:"qualified50",
+  });
+  assert.equal(cert.status,"valid",JSON.stringify(cert.issues));
+  for(const member of members)
+    assert.equal(updated.filter(s=>s.memberId===member)
+      .reduce((sum,s)=>sum+assignmentMinutes(s),0),9600);
+  assert.equal(updated.filter(s=>assignmentMinutes(s)>540).length,6);
+  const functional=analyzeFunctionalCapacity({
+    period:{mode:"28d",start:"2026-11-02"},team:source.team,
+    openingHours:source.openingHours,assignments:updated,minimumPercent:50,
+  });
+  assert.equal(functional?.observedRoleGapMinutes,21120);
+  let solo=0;
+  for(let i=0;i<28;i++){
+    const date=addCivilDays("2026-11-02",i);
+    const opening=source.openingHours.days[civilDayOfWeek(date)].intervals
+      .map(w=>({
+        start:Number(w.start.slice(0,2))*60+Number(w.start.slice(3)),
+        end:Number(w.end.slice(0,2))*60+Number(w.end.slice(3)),
+      }));
+    const coverage=measureSimultaneousCoverage(
+      updated.filter(s=>s.date===date),opening);
+    assert.equal(coverage.uncoveredMinutes,0);
+    solo+=coverage.soloMinutes;
+  }
+  assert.equal(solo,0);
+});
