@@ -39,6 +39,8 @@ export interface ExchangeTrial {
   candidateLongDays:number|null;
   candidateSoloMinutes:number|null;
   candidateRoleGapMinutes:number|null;
+  jointVariantsEvaluated:number;
+  minimumJointRoleGapMinutes:number|null;
   reason:string;
 }
 
@@ -339,6 +341,8 @@ export function evaluateRestDayExchangeCandidates(input:{
   let best:ExchangeCandidateEvaluation["best"]=null;
   for(const opportunity of research.opportunities.slice(0,MAX_OPPORTUNITIES)){
     let accepted:ExchangeCandidateEvaluation["best"]=null;
+    let jointVariantsEvaluated=0;
+    let minimumJointRoleGapMinutes:number|null=null;
     let reason="Nenhum dos posicionamentos experimentados cumpriu todas as condições.";
     if(baseline.status!=="valid" || baselineQ.uncovered!==0){
       reason="O horário de partida não está tecnicamente certificado.";
@@ -368,6 +372,7 @@ export function evaluateRestDayExchangeCandidates(input:{
           ?jointFunctionalRepairs({
             candidate,opportunity,team:team.value,opening:hours.value,
           }):[];
+        jointVariantsEvaluated+=repaired.length;
         for(const proposalCandidate of [candidate,...repaired]){
         // Every employee's cycle total is checked explicitly: rolling28
         // is SOFT in the existing certifier and cannot prove 160h itself.
@@ -385,6 +390,9 @@ export function evaluateRestDayExchangeCandidates(input:{
         const q=quality(proposalCandidate,hours.value,input.cycleStart);
         const role=hasRoles?roleQuality(proposalCandidate,team.value,
           hours.value,input.cycleStart):null;
+        if(proposalCandidate!==candidate && role!==null)
+          minimumJointRoleGapMinutes=minimumJointRoleGapMinutes===null
+            ?role:Math.min(minimumJointRoleGapMinutes,role);
         const staff=staffingScore(proposalCandidate,team.value,
           hours.value,input.cycleStart);
         if(q.uncovered>0 || q.longDays>=baselineQ.longDays ||
@@ -422,6 +430,7 @@ export function evaluateRestDayExchangeCandidates(input:{
       candidateLongDays:accepted?.longDays??null,
       candidateSoloMinutes:accepted?.soloMinutes??null,
       candidateRoleGapMinutes:accepted?.roleGapMinutes??null,
+      jointVariantsEvaluated,minimumJointRoleGapMinutes,
       reason:accepted?"Certificado para as constraints atuais; não é validação jurídica.":reason,
     });
     if(accepted && (!best||accepted.longDays<best.longDays ||
