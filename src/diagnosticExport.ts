@@ -233,6 +233,8 @@ export function buildScheduleDiagnostic(input:ScheduleDiagnosticInput) {
       dailyStaffing:input.generation.dailyStaffing??null,
       // Auditable proof of what PR96 actually applied to this preview.
       cycleOptimizations:input.generation.cycleOptimizations??[],
+      // Verified, actually applied break-only adjustments to THIS preview.
+      mealStaggering:input.generation.mealStaggering??null,
     }:null,
     validation:{
       displayed:input.displayedCertification,
@@ -267,6 +269,7 @@ export function buildScheduleDiagnostic(input:ScheduleDiagnosticInput) {
       cycleLongDays:"limite inferior MATEMÁTICO de jornadas >9h conservando as datas já escaladas e a capacidade diária; não prova que os descansos possam ser redistribuídos nem garante melhoria possível sem alterar os dias de trabalho",
       cycleRestExchange:"PR96 fase 1: hipóteses estruturais são apenas condições NECESSÁRIAS; NÃO são horários gerados nem certificados.",
       cycleRestExchangeEvaluation:"PR96: os candidatos da análise são ensaios sobre o horário JÁ apresentado. A geração pode ter aplicado uma melhoria anteriormente, registada em generation.cycleOptimizations. A certificação das constraints atuais NÃO constitui validação jurídica.",
+      mealStaggering:"PR96: generation.mealStaggering documenta APENAS pausas de refeição efetivamente reposicionadas na proposta. Os minutos de cobertura, lacuna funcional e simultaneidade são calculados dentro do horário de funcionamento; a melhoria é SOFT e foi aceite apenas após recertificação independente do mês.",
     },
     privacy:{
       includesEmployeeNamesAndSchedules:true,
