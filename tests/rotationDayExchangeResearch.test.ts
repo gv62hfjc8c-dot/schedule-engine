@@ -218,3 +218,43 @@ test("PR96: JSON expõe hipótese como investigação e não como horário valid
   assert.equal(noRotation.analysis.cycleRestExchange,null,
     "dados históricos ou manuais sem rotação explícita não autorizam inferir folgas");
 });
+
+test("PR96 fase 2: experimenta turnos reais sem alterar a proposta original",async()=>{
+  const {evaluateRestDayExchangeCandidates}=await import("../src/restDayExchangeEvaluation");
+  const input=fixture();
+  const original=JSON.stringify(input);
+  const analysis=evaluateRestDayExchangeCandidates(input);
+  assert.ok(analysis);
+  assert.equal(analysis.certainty,"current_engine_constraints_only");
+  assert.equal(analysis.baselineCertificationStatus,"valid");
+  assert.ok(analysis.evaluatedOpportunities>0);
+  assert.equal(analysis.trials.length,analysis.evaluatedOpportunities);
+  assert.equal(JSON.stringify(input),original,"o estudo não pode modificar dados originais");
+  assert.deepEqual(evaluateRestDayExchangeCandidates(input),analysis,
+    "a exploração deve ser determinística");
+  if(analysis.best){
+    assert.equal(analysis.best.certification.status,"valid");
+    assert.ok(analysis.best.longDays<analysis.baselineLongDays);
+    assert.equal(analysis.best.candidateAssignments.filter(s=>
+      s.memberId===A&&s.date==="2026-11-15").length,0);
+    assert.equal(analysis.best.candidateAssignments.filter(s=>
+      s.memberId===A&&s.date==="2026-11-12").length,1);
+    for(const member of input.team.members){
+      const sum=analysis.best.candidateAssignments.filter(s=>
+        s.memberId===member.id).reduce((total,s)=>
+        total+(Number(s.end.slice(0,2))*60+Number(s.end.slice(3))-
+          Number(s.start.slice(0,2))*60-Number(s.start.slice(3))-
+          (s.mealBreak?60:0)),0);
+      assert.equal(sum,9600);
+    }
+  }
+});
+
+test("PR96 fase 2: recusa candidato se o horário inicial não estiver certificado",async()=>{
+  const {evaluateRestDayExchangeCandidates}=await import("../src/restDayExchangeEvaluation");
+  const input=fixture();
+  input.assignments=input.assignments.filter(s=>!
+    (s.memberId===B&&s.date==="2026-11-02"));
+  const analysis=evaluateRestDayExchangeCandidates(input);
+  assert.equal(analysis,null,"a fase 1 exige baseline com 160h por trabalhador");
+});
