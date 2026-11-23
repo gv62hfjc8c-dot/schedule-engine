@@ -183,7 +183,7 @@ test("PR96: não otimizar sem funções efetivamente atribuídas",()=>{
   assert.deepEqual(result.assignments,original);
 });
 
-test("PR96: diagnóstico real anonimizado mantém 6 jornadas e elimina os 11 dias com 4 pausas",()=>{
+test("PR96: diagnóstico real anonimizado mantém 6 jornadas e elimina pausas quádruplas",()=>{
   const source=JSON.parse(readFileSync(
     new URL("./fixtures/pr96-meals-november-28d-anonymized.json",import.meta.url),
     "utf8",
@@ -207,7 +207,8 @@ test("PR96: diagnóstico real anonimizado mantém 6 jornadas e elimina os 11 dia
   assert.equal(summary.assessedDays,28);
   assert.equal(summary.before.emptyRoleMinutes,30);
   assert.equal(summary.before.peakSimultaneousBreaks,4);
-  assert.ok(summary.before.minutesWithFourOrMoreBreaks>0);
+  assert.equal(summary.before.minutesWithFourOrMoreBreaks,360,
+    "são dez dias no ciclo de 28 dias (o 11.º é 30 de novembro)");
   assert.equal(summary.before.roleGapMinutes,21120);
   assert.equal(summary.after.emptyRoleMinutes,0);
   assert.equal(summary.after.minutesWithFourOrMoreBreaks,0);
