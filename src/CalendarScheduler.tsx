@@ -437,7 +437,9 @@ function MonthWorkspace({
         state:manualEdit?"edited":preview?"generated":"saved",
         certification:report?.status??"unknown",
       });
-      const blob=new Blob([bytes],{type:"application/pdf"});
+      const pdfBuffer=new ArrayBuffer(bytes.byteLength);
+      new Uint8Array(pdfBuffer).set(bytes);
+      const blob=new Blob([pdfBuffer],{type:"application/pdf"});
       const url=window.URL.createObjectURL(blob);
       const anchor=document.createElement("a");
       anchor.href=url;
