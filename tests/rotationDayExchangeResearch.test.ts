@@ -323,6 +323,17 @@ test("PR96 fase 3: novembro anonimizado — seis jornadas sem degradar função"
     maxSoloMinutes:0,
   });
   console.log("PR96_JOINT_DAY_FOUND",Boolean(foundDay));
+  const recipient=source.assignments.filter(s=>s.date==="2026-11-13");
+  const foundRecipient=searchBalancedFunctionalDay({
+    date:"2026-11-13",shifts:recipient,
+    opening:source.openingHours.days[4].intervals.map(w=>({
+      start:clockMinutes(w.start),end:clockMinutes(w.end),
+    })),members:source.team.members,roles:["checkout","sales"],
+    minutesOverride:new Map([[source.team.members[0].id,450]]),
+    maxSoloMinutes:0,
+  });
+  console.log("PR96_JOINT_RECIPIENT_FOUND",Boolean(foundRecipient));
+  assert.ok(foundRecipient,"a reposição da meia hora deve encontrar outro dia válido");
   assert.ok(foundDay,"o planeamento conjunto tem de encontrar um dia válido");
   assert.ok(result.best,JSON.stringify(result.trials));
   assert.equal(result.best.longDays,6);
