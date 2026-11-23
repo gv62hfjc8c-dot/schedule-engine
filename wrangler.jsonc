@@ -1,0 +1,16 @@
+{
+  // PR98: intentionally UNROUTED until Cloudflare Access is confirmed.
+  // Do not enable workers_dev or preview_urls without a protected Access app.
+  "name": "schedule-engine-private",
+  "main": "src/cloudflare/privateWorker.ts",
+  "compatibility_date": "2026-11-23",
+  "workers_dev": false,
+  "preview_urls": false,
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    // Without this, CSS, JS, index.html and images bypass authentication!
+    "run_worker_first": true,
+    "not_found_handling": "single-page-application"
+  }
+}
