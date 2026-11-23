@@ -7,6 +7,7 @@ import {
 import {certifySchedule} from "../src/certifySchedule";
 import {suggestedWeeklyOpeningHours} from "../src/operatingHours";
 import {assignmentMinutes} from "../src/workAssignments";
+import {addCivilDays} from "../src/schedulePeriods";
 import type {WorkAssignment} from "../src/workAssignments";
 
 const A="00000000-0000-4000-8000-000000000001";
@@ -213,4 +214,60 @@ test("PR94: exportação mensal separa falta global de horas e falhas nos postos
 test("PR94: os diagnósticos legados não inventam política funcional",()=>{
   const file=buildScheduleDiagnostic(example());
   assert.equal(file.analysis.functionalCapacity,null);
+});
+
+
+test("diagnóstico: piso matemático de 4 jornadas >9h para duas pessoas com 19 dias e três domingos",()=>{
+  const input=example();
+  const weeks=Array.from({length:4},(_,i)=>addCivilDays("2026-11-02",i*7));
+  const people=[A,B];
+  const assignments:WorkAssignment[]=[];
+  for(const memberId of people){
+    let normal=0;
+    for(let w=0;w<4;w++){
+      for(let d=0;d<4;d++){
+        const overNine=normal<2;
+        assignments.push({
+          memberId,date:addCivilDays(weeks[w],d),
+          start:overNine?"08:30":"09:00",end:"19:00",
+          mealBreak:{start:"12:00",end:"13:00"},
+        });
+        normal++;
+      }
+      if(w<3)assignments.push({
+        memberId,date:addCivilDays(weeks[w],6),
+        start:"14:00",end:"19:00",
+      });
+    }
+  }
+  input.assignments=assignments;
+  const before=JSON.stringify(input);
+  const report=buildScheduleDiagnostic(input);
+  const bounds=report.analysis.cycleLongDays;
+  assert.ok(bounds);
+  assert.equal(bounds.cycleStart,"2026-11-02");
+  assert.equal(bounds.cycleEndExclusive,"2026-11-30");
+  assert.equal(bounds.observedLongDays,4);
+  assert.equal(bounds.minimumLongDaysSameWorkdays,4);
+  assert.equal(bounds.potentiallyRemovableLongDays,0);
+  assert.deepEqual(bounds.byMember.map(m=>m.extraMinutesRequiringLongDays),
+    [60,60]);
+  assert.deepEqual(bounds.byMember.map(m=>m.shortOpeningDaysWorked),[3,3]);
+  assert.equal(report.interpretation.cycleLongDays.includes("MATEMÁTICO"),true);
+  assert.equal(JSON.stringify(input),before);
+  input.assignments=input.assignments.filter(s=>
+    !(s.memberId===B && s.date==="2026-11-22"));
+  assert.equal(buildScheduleDiagnostic(input).analysis.cycleLongDays,null,
+    "não inventar prova matemática quando faltam horas do ciclo");
+});
+
+test("diagnóstico sem ciclo completo mantém o limite desconhecido",()=>{
+  const input=example();
+  assert.equal(buildScheduleDiagnostic(input).analysis.cycleLongDays,null);
+  input.hoursPolicy=null;
+  assert.equal(buildScheduleDiagnostic(input).analysis.cycleLongDays,null);
+  input.hoursPolicy="rolling28";
+  input.year=2026;input.month=10;
+  assert.equal(buildScheduleDiagnostic(input).analysis.cycleLongDays,null,
+    "não inventar quatro semanas completas no mês de outubro");
 });

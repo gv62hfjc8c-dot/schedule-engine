@@ -1,7 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  optimize28DayWorkload,measure28DayWorkload,type CycleWorkday,
+  optimize28DayWorkload,measure28DayWorkload,
+  analyzeFixedWorkdayLongDayBound,type CycleWorkday,
 } from "../src/cycleWorkloadOptimization";
 import {addCivilDays} from "../src/schedulePeriods";
 
@@ -94,4 +95,86 @@ test("otimizador não confunde quatro semanas quaisquer com um ciclo contíguo",
   const wrongWeek=initial.map(day=>({...day}));
   wrongWeek[1].weekStart=weeks[1];
   assert.deepEqual(optimize28DayWorkload(wrongWeek),wrongWeek);
+});
+
+
+function fixedNineteenDayCycle():CycleWorkday[] {
+  const days:CycleWorkday[]=[];
+  for(let w=0;w<4;w++){
+    for(let day=0;day<4;day++)days.push({
+      weekStart:weeks[w],date:addCivilDays(weeks[w],day),
+      capacity:570,
+      minutes:days.length<2?570:540,
+      locked:false,
+    });
+    if(w<3)days.push({
+      weekStart:weeks[w],date:addCivilDays(weeks[w],6),
+      minutes:300,capacity:300,locked:true,
+    });
+  }
+  return days;
+}
+
+test("limite provado: 19 dias, três domingos de 5h, exigem duas jornadas >9h",()=>{
+  const input=fixedNineteenDayCycle();
+  const snapshot=JSON.stringify(input);
+  assert.equal(input.length,19);
+  assert.equal(input.reduce((sum,d)=>sum+d.minutes,0),9600);
+  const result=analyzeFixedWorkdayLongDayBound(input);
+  assert.ok(result);
+  assert.equal(result.observedLongDays,2);
+  assert.equal(result.workingDays,19);
+  assert.equal(result.minutesWithoutAdditionalLongDays,9540);
+  assert.equal(result.extraMinutesRequiringLongDays,60);
+  assert.equal(result.minimumLongDays,2,
+    "cada jornada pode adicionar apenas 30 minutos ao limite de 9h");
+  assert.equal(result.potentiallyRemovableLongDays,0);
+  assert.equal(JSON.stringify(input),snapshot);
+});
+
+test("com 20 dias e só dois domingos, zero jornadas >9h pode ser viável",()=>{
+  const days:CycleWorkday[]=[];
+  for(let w=0;w<4;w++){
+    for(let d=0;d<(w<2?5:4);d++)days.push({
+      weekStart:weeks[w],date:addCivilDays(weeks[w],d),
+      minutes:days.filter(x=>!x.locked).length<6?510:495,
+      capacity:570,locked:false,
+    });
+    if(w<2)days.push({
+      weekStart:weeks[w],date:addCivilDays(weeks[w],6),
+      minutes:300,capacity:300,locked:true,
+    });
+  }
+  assert.equal(days.length,20);
+  assert.equal(days.reduce((sum,d)=>sum+d.minutes,0),9600);
+  const result=analyzeFixedWorkdayLongDayBound(days);
+  assert.ok(result);
+  assert.equal(result.minimumLongDays,0);
+  assert.equal(result.observedLongDays,0);
+  assert.equal(result.potentiallyRemovableLongDays,0);
+});
+
+test("o limite só é conclusivo para um ciclo contíguo e 160h efetivas",()=>{
+  const original=fixedNineteenDayCycle();
+  const less=original.map(d=>({...d}));
+  less[0].minutes-=15;
+  assert.equal(analyzeFixedWorkdayLongDayBound(less),null);
+  const missingWeek=original.filter(d=>d.weekStart!==weeks[3]);
+  assert.equal(analyzeFixedWorkdayLongDayBound(missingWeek),null);
+  const duplicate=original.map(d=>({...d}));
+  duplicate[1].date=duplicate[0].date;
+  assert.equal(analyzeFixedWorkdayLongDayBound(duplicate),null);
+  const broken=original.map(d=>({...d}));
+  broken[0].capacity=broken[0].minutes-1;
+  assert.equal(analyzeFixedWorkdayLongDayBound(broken),null);
+});
+
+test("cenário anterior com oito jornadas longas mas 0 mínimo: distingue potencial de impossibilidade",()=>{
+  const original=scenario();
+  const lower=analyzeFixedWorkdayLongDayBound(original);
+  assert.ok(lower);
+  assert.equal(lower.observedLongDays,8);
+  assert.equal(lower.minimumLongDays,0);
+  assert.equal(lower.potentiallyRemovableLongDays,8);
+  assert.equal(measure28DayWorkload(optimize28DayWorkload(original)).longDays,0);
 });
