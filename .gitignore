@@ -5,3 +5,8 @@ dist/
 !.env.example
 *.log
 .DS_Store
+
+# Cloudflare local authentication and deployment state (never commit)
+.dev.vars
+.dev.vars.*
+.wrangler/
