@@ -293,7 +293,11 @@ export function evaluateRestDayExchangeCandidates(input:{
           compareDailyStaffing(staff,baselineStaff)>0 ||
           (hasRoles && (role===null || baselineRole===null ||
             role>baselineRole))){
-          reason="O candidato não melhora as jornadas longas sem piorar a cobertura ou os objetivos SOFT.";
+          reason="Comparação: jornadas "+baselineQ.longDays+"→"+q.longDays+
+            ", minutos >9h "+baselineQ.aboveNineMinutes+"→"+q.aboveNineMinutes+
+            ", minutos sozinho "+baselineQ.solo+"→"+q.solo+
+            ", lacunas funcionais "+baselineRole+"→"+role+
+            ", presença diária "+baselineStaff.shortfallPenalty+"→"+staff.shortfallPenalty+".";
           continue;
         }
         const proposal={
