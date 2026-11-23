@@ -26,7 +26,7 @@ function fixture():PrintableScheduleInput {
         mealBreak:{start:"13:30",end:"14:30"}},
       {memberId:"b",date:"2026-11-08",start:"14:00",end:"19:00",role:"sales"},
       // Outside month: must never appear on monthly printable pages.
-      {memberId:"a",date:"2026-12-01",start:"09:00",end:"19:00"},
+      {memberId:"a",date:"2026-12-01",start:"02:00",end:"03:00"},
     ],
     roles:new Map([["sales","Vendas"],["checkout","Caixa"]]),
     plannedRest:[{memberId:"a",weekStart:"2026-11-02",
@@ -72,7 +72,7 @@ test("PR97: PDF real de 6 páginas A4, legível e sem persistência",()=>{
   assert.match(extracted,/Descanso planeado/);
   assert.match(extracted,/Sem turno/);
   assert.match(extracted,/não significa folga/);
-  assert.doesNotMatch(extracted,/01\/12/);
+  assert.doesNotMatch(extracted,/02:00-03:00/);
   assert.match(extracted,/Não equivale a aprovação/);
   assert.equal(JSON.stringify({...input,roles:[...input.roles!]}),original);
   assert.deepEqual(createSchedulePdf(input),bytes,"exportação determinística");
