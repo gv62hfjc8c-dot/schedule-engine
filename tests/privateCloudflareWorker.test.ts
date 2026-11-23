@@ -184,10 +184,13 @@ test("PR98 B: sessões falsificadas, fracas ou expiradas nunca dão assets",asyn
   const forged=Buffer.from(JSON.stringify({
     sub:ownerId+1,issued:now(),expires:now()+28800,
   })).toString("base64url")+"."+split[1];
+  // A distinct signature byte is changed. Changing only the FINAL
+  // base64url character could alter unused pad bits but not decoded bytes.
   for(const cookie of [undefined,
     "__Host-se-session=foobar",
     "__Host-se-session="+forged,
-    "__Host-se-session="+session.slice(0,-1)+"x",
+    "__Host-se-session="+session.split(".")[0]+"."+
+      (split[1][0]==="A"?"B":"A")+split[1].slice(1),
   ]){
     assert.equal((await serve(req("/assets/app.js",cookie),env())).status,401);
   }
