@@ -456,7 +456,7 @@ test("PR96 fase 4: geração normal aplica uma melhoria real sem forçar um núm
       .reduce((sum,s)=>sum+assignmentMinutes(s),0),9600);
   assert.equal(certifySchedule({
     ...config,period:{mode:"28d",start:first.cycleStart},
-    candidateAssignments:cycle,
+    functionalCoveragePolicy:"qualified50",candidateAssignments:cycle,
   }).status,"valid");
   assert.equal(result.certification.status,"insufficient_context");
   const week=result.rotation?.weeks.find(w=>
