@@ -93,7 +93,11 @@ function roleQuality(assignments:readonly WorkAssignment[],
     period:{mode:"28d",start:cycleStart},team,openingHours:hours,
     assignments,minimumPercent:50,
   });
-  return report?.status==="complete"?report.observedRoleGapMinutes:null;
+  // A role with ZERO qualified people has a ZERO soft target. The
+  // analysis labels that catalog incomplete, but its observed gap for
+  // staffed roles remains measurable. HARD role validity is verified
+  // independently by certifySchedule before any proposal is accepted.
+  return report?.observedRoleGapMinutes??null;
 }
 function staffingScore(assignments:readonly WorkAssignment[],
   team:TeamRoster,hours:WeeklyOpeningHours,cycleStart:string) {
