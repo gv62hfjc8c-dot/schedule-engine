@@ -17,7 +17,7 @@ import {assignmentMinutes,clockMinutes,type WorkAssignment} from "./workAssignme
 import {effectiveMealDayCapacity,mealDayOptions} from "./mealBreaks";
 import {shortOpeningDays} from "./shortOpenings";
 import {measureSimultaneousCoverage} from "./simultaneousCoverage";
-import {evaluateDailyStaffing,scoreDailyStaffing,compareDailyStaffing} from "./dailyStaffingBalance";
+import {evaluateDailyStaffing,scoreDailyStaffing} from "./dailyStaffingBalance";
 import {analyzeFunctionalCapacity} from "./functionalCapacityAnalysis";
 import {
   analyzeRestDayExchangeOpportunities,
@@ -420,7 +420,13 @@ export function evaluateRestDayExchangeCandidates(input:{
           q.aboveNineMinutes>baselineQ.aboveNineMinutes ||
           q.aboveEightMinutes>baselineQ.aboveEightMinutes ||
           q.solo>baselineQ.solo ||
-          compareDailyStaffing(staff,baselineStaff)>0 ||
+          // The 60% staffing reference is a minimum SOFT aspiration.
+          // A seventh worker on Thursday is not a HARD violation when
+          // Sunday still meets five. Reject only worsened SHORTFALLS;
+          // a secondary over-target concentration preference must not
+          // veto an otherwise certified cycle-wide improvement.
+          staff.shortfallPenalty>baselineStaff.shortfallPenalty ||
+          staff.missingDays>baselineStaff.missingDays ||
           (hasRoles && (role===null || baselineRole===null ||
             role>baselineRole))){
           reason="Comparação: jornadas "+baselineQ.longDays+"→"+q.longDays+
