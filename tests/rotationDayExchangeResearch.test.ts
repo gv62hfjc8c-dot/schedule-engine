@@ -308,6 +308,22 @@ test("PR96 fase 3: novembro anonimizado — seis jornadas sem degradar função"
   assert.equal(result.baselineRoleGapMinutes,21120);
   assert.equal(result.evaluatedOpportunities,2);
   console.log("PR96_REAL_NOVEMBER_TRIALS",JSON.stringify(result.trials));
+  const {searchBalancedFunctionalDay}=await import("../src/functionalDaySearch");
+  const {clockMinutes}=await import("../src/workAssignments");
+  const day=source.assignments.filter(s=>s.date==="2026-11-12");
+  day.push({memberId:source.team.members[3].id,date:"2026-11-12",
+    start:"08:30",end:"15:30",
+    mealBreak:{start:"12:30",end:"13:30"},role:"sales"});
+  const foundDay=searchBalancedFunctionalDay({
+    date:"2026-11-12",shifts:day,
+    opening:source.openingHours.days[3].intervals.map(w=>({
+      start:clockMinutes(w.start),end:clockMinutes(w.end),
+    })),members:source.team.members,roles:["checkout","sales"],
+    minutesOverride:new Map([[source.team.members[0].id,390]]),
+    maxSoloMinutes:0,
+  });
+  console.log("PR96_JOINT_DAY_FOUND",Boolean(foundDay));
+  assert.ok(foundDay,"o planeamento conjunto tem de encontrar um dia válido");
   assert.ok(result.best,JSON.stringify(result.trials));
   assert.equal(result.best.longDays,6);
   assert.equal(result.best.certification.status,"valid");
