@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {analyzeRestDayExchangeOpportunities}
   from "../src/rotationDayExchangeResearch";
+import {buildScheduleDiagnostic,type ScheduleDiagnosticInput}
+  from "../src/diagnosticExport";
 import {suggestedWeeklyOpeningHours,WEEKDAYS}
   from "../src/operatingHours";
 import {addCivilDays,civilDayOfWeek}
@@ -175,4 +177,44 @@ test("PR96: candidato nunca é aplicado ao calendário nem marcado como certific
   assert.equal("candidateAssignments" in report,false);
   assert.equal("certification" in report,false);
   assert.equal("newShift" in report.opportunities[0],false);
+});
+
+
+test("PR96: JSON expõe hipótese como investigação e não como horário validado",()=>{
+  const research=fixture();
+  const base:ScheduleDiagnosticInput={
+    exportedAt:"2026-11-23T10:00:00Z",
+    year:2026,month:11,mode:"generated_preview",
+    team:research.team,openingHours:research.openingHours,
+    assignments:research.assignments,
+    savedAssignments:null,mealBreaks:[],
+    mealBreakPolicy:"v2",hoursPolicy:"rolling28",
+    functionalCoveragePolicy:null,plannedRest:[],
+    externalContext:null,rollingHistory:null,
+    sourceStatuses:{
+      team:"loaded",openingHours:"loaded",
+      adjacentMonths:"loaded",rollingHistory:"loaded",
+      savedMonth:"loaded",
+    },
+    generation:{
+      status:"valid",candidateAssignments:[...research.assignments],
+      certification:{status:"valid",period:null,issues:[],weeks:[]},
+      shortfalls:[],rotation:research.rotation!,
+    },
+    displayedCertification:null,
+    currentConfigurationCertification:null,
+    settingsMatchGeneratedPreview:true,
+  };
+  const diag=buildScheduleDiagnostic(base);
+  assert.ok(diag.analysis.cycleLongDays);
+  assert.ok(diag.analysis.cycleRestExchange);
+  assert.equal(diag.analysis.cycleRestExchange.certainty,
+    "necessary_conditions_only");
+  assert.ok(diag.analysis.cycleRestExchange.opportunities.length>0);
+  assert.match(diag.interpretation.cycleRestExchange,/NÃO são horários/);
+  const noRotation=buildScheduleDiagnostic({
+    ...base,generation:null,
+  });
+  assert.equal(noRotation.analysis.cycleRestExchange,null,
+    "dados históricos ou manuais sem rotação explícita não autorizam inferir folgas");
 });
