@@ -266,7 +266,10 @@ export function evaluateRestDayExchangeCandidates(input:{
       const weekday=opportunity.workInsteadOfRest;
       const windows=dailyOpening(hours.value,weekday);
       const maximum=effectiveMealDayCapacity(windows);
-      for(const target of [480,510,540]){
+      // A 5h short Sunday need not be replaced with an 8–9h weekday.
+      // Six hours can absorb both 30m excesses from two 9h30 workdays.
+      // Search shorter, less disruptive alternatives before long shifts.
+      for(const target of [300,330,360,390,420,450,480,510,540]){
         if(target>maximum)continue;
         const candidate=construct({
           openingHours:hours.value,assignments:source,
