@@ -1,10 +1,11 @@
 {
-  // PR98: intentionally UNROUTED until Cloudflare Access is confirmed.
-  // Do not enable workers_dev or preview_urls without a protected Access app.
+  // Workers Free: a workers.dev hostname is permitted but NEVER serves assets
+  // without a valid GitHub OAuth session for the one allowed numeric user ID.
+  // Missing Secrets => 503 (fail closed); no Cloudflare Access or billing.
   "name": "schedule-engine-private",
   "main": "src/cloudflare/privateWorker.ts",
   "compatibility_date": "2026-11-23",
-  "workers_dev": false,
+  "workers_dev": true,
   "preview_urls": false,
   "assets": {
     "directory": "./dist",
