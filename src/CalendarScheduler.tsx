@@ -388,7 +388,7 @@ function MonthWorkspace({
     const improvement=cycleChanges.length>0
       ?cycleChanges.map(item=>item.longDaysBefore+"→"+
         item.longDaysAfter+" jornadas acima de 9h no ciclo "+
-        item.cycleStart+" a "+item.cycleEndExclusive)
+        item.cycleStart+" (28 dias)")
         .join("; "):null;
     setFeedback(result.status==="invalid_input"?
       {kind:"error",message:"Os dados não permitem gerar uma proposta. Se configuraste funções, verifica que todos os colaboradores ativos têm competências definidas."}:
@@ -396,7 +396,7 @@ function MonthWorkspace({
       {kind:"error",message:"A proposta não cumpre alguma regra obrigatória de horas, folgas, pausas ou cobertura funcional. Consulta os problemas encontrados."}:
       {kind:"success",message:improvement
         ?"Proposta otimizada e certificada no ciclo de 28 dias: "+
-          improvement+". As semanas nas fronteiras do mês exigem histórico. Revê o calendário antes de guardar."
+          improvement+". Confirma também o histórico nas semanas de fronteira e revê o calendário antes de guardar."
         :"Proposta gerada. Revê o resultado e guarda-a apenas se estiver correta."});
   }
 
