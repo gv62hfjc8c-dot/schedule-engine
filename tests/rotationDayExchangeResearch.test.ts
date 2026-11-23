@@ -307,7 +307,8 @@ test("PR96 fase 3: novembro anonimizado — seis jornadas sem degradar função"
   assert.equal(result.baselineSoloMinutes,0);
   assert.equal(result.baselineRoleGapMinutes,21120);
   assert.equal(result.evaluatedOpportunities,2);
-  console.log("PR96_REAL_NOVEMBER_TRIALS",JSON.stringify(result.trials));
+  assert.ok(result.trials.every(t=>t.status==="certified_improvement"),
+    "ambas as trocas reais devem ser certificáveis sem comprometer funções");
   const {searchBalancedFunctionalDay}=await import("../src/functionalDaySearch");
   const {clockMinutes}=await import("../src/workAssignments");
   const day=source.assignments.filter(s=>s.date==="2026-11-12");
@@ -322,7 +323,6 @@ test("PR96 fase 3: novembro anonimizado — seis jornadas sem degradar função"
     minutesOverride:new Map([[source.team.members[0].id,390]]),
     maxSoloMinutes:0,
   });
-  console.log("PR96_JOINT_DAY_FOUND",Boolean(foundDay));
   const recipient=source.assignments.filter(s=>s.date==="2026-11-13");
   const foundRecipient=searchBalancedFunctionalDay({
     date:"2026-11-13",shifts:recipient,
@@ -332,7 +332,6 @@ test("PR96 fase 3: novembro anonimizado — seis jornadas sem degradar função"
     minutesOverride:new Map([[source.team.members[0].id,450]]),
     maxSoloMinutes:0,
   });
-  console.log("PR96_JOINT_RECIPIENT_FOUND",Boolean(foundRecipient));
   assert.ok(foundRecipient,"a reposição da meia hora deve encontrar outro dia válido");
   assert.ok(foundDay,"o planeamento conjunto tem de encontrar um dia válido");
   assert.ok(result.best,JSON.stringify(result.trials));
