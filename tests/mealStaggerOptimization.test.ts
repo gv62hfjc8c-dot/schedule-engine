@@ -182,3 +182,58 @@ test("PR96: não otimizar sem funções efetivamente atribuídas",()=>{
   assert.equal(result.summary,null);
   assert.deepEqual(result.assignments,original);
 });
+
+test("PR96: diagnóstico real anonimizado mantém 6 jornadas e elimina os 11 dias com 4 pausas",()=>{
+  const source=JSON.parse(readFileSync(
+    new URL("./fixtures/pr96-meals-november-28d-anonymized.json",import.meta.url),
+    "utf8",
+  )) as Omit<Sample,"rotation">;
+  const original=JSON.stringify(source);
+  const before=certifySchedule({
+    period:{mode:"28d",start:"2026-11-02"},
+    team:source.team,openingHours:source.openingHours,
+    mealBreakPolicy:"v2",hoursPolicy:"rolling28",
+    functionalCoveragePolicy:"qualified50",
+    candidateAssignments:source.assignments,
+  });
+  assert.equal(before.status,"valid",JSON.stringify(before.issues));
+  assert.equal(source.assignments.filter(s=>assignmentMinutes(s)>540).length,6);
+  const report=improveMealBreakStaggering({
+    assignments:source.assignments,period,
+    openingHours:source.openingHours,members:source.team.members,roles,
+  });
+  const summary=report.summary;
+  assert.ok(summary);
+  assert.equal(summary.assessedDays,28);
+  assert.equal(summary.before.emptyRoleMinutes,30);
+  assert.equal(summary.before.peakSimultaneousBreaks,4);
+  assert.ok(summary.before.minutesWithFourOrMoreBreaks>0);
+  assert.equal(summary.before.roleGapMinutes,21120);
+  assert.equal(summary.after.emptyRoleMinutes,0);
+  assert.equal(summary.after.minutesWithFourOrMoreBreaks,0);
+  assert.equal(summary.after.minutesWithThreeOrMoreBreaks,0);
+  assert.equal(summary.after.peakSimultaneousBreaks,2);
+  assert.equal(summary.after.roleGapMinutes,21120);
+  assert.equal(summary.after.uncoveredMinutes,0);
+  assert.equal(summary.after.soloMinutes,0);
+  assert.ok(summary.changedBreaks>0);
+  for(const member of source.team.members){
+    assert.equal(report.assignments.filter(s=>s.memberId===member.id)
+      .reduce((sum,s)=>sum+assignmentMinutes(s),0),9600);
+  }
+  assert.equal(report.assignments.filter(s=>assignmentMinutes(s)>540).length,6);
+  for(let i=0;i<source.assignments.length;i++){
+    const a=source.assignments[i],b=report.assignments[i];
+    assert.deepEqual([a.memberId,a.date,a.start,a.end,a.role],
+      [b.memberId,b.date,b.start,b.end,b.role]);
+  }
+  const certificate=certifySchedule({
+    period:{mode:"28d",start:"2026-11-02"},
+    team:source.team,openingHours:source.openingHours,
+    mealBreakPolicy:"v2",hoursPolicy:"rolling28",
+    functionalCoveragePolicy:"qualified50",
+    candidateAssignments:report.assignments,
+  });
+  assert.equal(certificate.status,"valid",JSON.stringify(certificate.issues));
+  assert.equal(JSON.stringify(source),original);
+});
