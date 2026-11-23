@@ -292,3 +292,30 @@ test("PR96 fase 2: diagnóstico mensal não confunde 1/30 novembro com ciclo 02�
   assert.deepEqual(result,expected,
     "dias fora das 4 semanas não podem bloquear os ensaios nem criar créditos fictícios");
 });
+
+test("PR96 fase 3: novembro anonimizado — seis jornadas sem degradar função",async()=>{
+  const {readFileSync}=await import("node:fs");
+  const {evaluateRestDayExchangeCandidates}=await import("../src/restDayExchangeEvaluation");
+  const source=JSON.parse(readFileSync(
+    new URL("./fixtures/pr96-november-anonymized.json",import.meta.url),"utf8"
+  )) as Sample;
+  const unchanged=JSON.stringify(source);
+  const result=evaluateRestDayExchangeCandidates(source);
+  assert.ok(result,"as 4 semanas e a rotação devem ser conhecidas");
+  assert.equal(result.baselineCertificationStatus,"valid");
+  assert.equal(result.baselineLongDays,8);
+  assert.equal(result.baselineSoloMinutes,0);
+  assert.equal(result.baselineRoleGapMinutes,21120);
+  assert.equal(result.evaluatedOpportunities,2);
+  console.log("PR96_REAL_NOVEMBER_TRIALS",JSON.stringify(result.trials));
+  assert.ok(result.best,JSON.stringify(result.trials));
+  assert.equal(result.best.longDays,6);
+  assert.equal(result.best.certification.status,"valid");
+  assert.equal(result.best.soloMinutes,0);
+  assert.ok(result.best.roleGapMinutes!==null &&
+    result.best.roleGapMinutes<=result.baselineRoleGapMinutes);
+  assert.equal(JSON.stringify(source),unchanged,
+    "nem as folgas, nem a rotação, nem os turnos podem sofrer mutação");
+  assert.deepEqual(evaluateRestDayExchangeCandidates(source),result,
+    "a investigação de jornadas longas deve ser determinística");
+});
