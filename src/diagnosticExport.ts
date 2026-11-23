@@ -8,6 +8,7 @@ import {measureSimultaneousCoverage} from "./simultaneousCoverage";
 import {analyzeFunctionalCapacity} from "./functionalCapacityAnalysis";
 import {analyzeMonthlyFixedWorkdayLongDayFloor}
   from "./cycleLongDayFeasibility";
+import {analyzeRestDayExchangeOpportunities} from "./rotationDayExchangeResearch";
 import type {MealBreak} from "./mealBreaks";
 import type {PlannedRestWeekMember} from "./plannedRest";
 import {enumerateCivilDays,resolvePlanningPeriod,civilDayOfWeek} from "./schedulePeriods";
@@ -165,6 +166,13 @@ export function buildScheduleDiagnostic(input:ScheduleDiagnosticInput) {
       team:input.team,openingHours:input.openingHours,
       assignments:input.assignments,
     }):null;
+  const cycleRestExchange=cycleLongDays && input.team &&
+    input.openingHours && input.generation?.rotation
+    ?analyzeRestDayExchangeOpportunities({
+      cycleStart:cycleLongDays.cycleStart,
+      team:input.team,openingHours:input.openingHours,
+      assignments:input.assignments,rotation:input.generation.rotation,
+    }):null;
   const functionalCapacity=input.functionalCoveragePolicy==="qualified50"&&
     input.team&&input.openingHours
     ?analyzeFunctionalCapacity({
@@ -212,7 +220,7 @@ export function buildScheduleDiagnostic(input:ScheduleDiagnosticInput) {
       rollingHoursHistory:input.rollingHistory,
     },
     analysis:{
-      byDay,byMember,functionalCapacity,cycleLongDays,
+      byDay,byMember,functionalCapacity,cycleLongDays,cycleRestExchange,
       quality:{
         shiftsOverNineHours:byMember.reduce((sum,member)=>
           sum+member.shiftsOverNineHours,0),
@@ -232,6 +240,7 @@ export function buildScheduleDiagnostic(input:ScheduleDiagnosticInput) {
       rest:"somente descanso explicitamente planeado, nunca ausência de turno",
       context:"datas sem histórico confirmado permanecem desconhecidas",
       cycleLongDays:"limite inferior MATEMÁTICO de jornadas >9h conservando as datas já escaladas e a capacidade diária; não prova que os descansos possam ser redistribuídos nem garante melhoria possível sem alterar os dias de trabalho",
+      cycleRestExchange:"PR96 investigação: trocas de domingo curto por descanso útil explícito que passam apenas condições NECESSÁRIAS; NÃO são horários gerados, nem certificados, nem alterações automáticas. Exigem posicionar turnos e pausas e certificar HARD antes de considerar uma melhoria.",
     },
     privacy:{
       includesEmployeeNamesAndSchedules:true,
