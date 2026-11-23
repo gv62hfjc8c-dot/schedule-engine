@@ -293,6 +293,7 @@ export function evaluateRestDayExchangeCandidates(input:{
           hours.value,input.cycleStart);
         if(q.uncovered>0 || q.longDays>=baselineQ.longDays ||
           q.aboveNineMinutes>baselineQ.aboveNineMinutes ||
+          q.aboveEightMinutes>baselineQ.aboveEightMinutes ||
           q.solo>baselineQ.solo ||
           compareDailyStaffing(staff,baselineStaff)>0 ||
           (hasRoles && (role===null || baselineRole===null ||
