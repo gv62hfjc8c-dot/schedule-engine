@@ -231,6 +231,8 @@ export function buildScheduleDiagnostic(input:ScheduleDiagnosticInput) {
       rotationTargetShortfalls:
         input.generation.rotationTargetShortfalls??[],
       dailyStaffing:input.generation.dailyStaffing??null,
+      // Auditable proof of what PR96 actually applied to this preview.
+      cycleOptimizations:input.generation.cycleOptimizations??[],
     }:null,
     validation:{
       displayed:input.displayedCertification,
@@ -264,7 +266,7 @@ export function buildScheduleDiagnostic(input:ScheduleDiagnosticInput) {
       context:"datas sem histórico confirmado permanecem desconhecidas",
       cycleLongDays:"limite inferior MATEMÁTICO de jornadas >9h conservando as datas já escaladas e a capacidade diária; não prova que os descansos possam ser redistribuídos nem garante melhoria possível sem alterar os dias de trabalho",
       cycleRestExchange:"PR96 fase 1: hipóteses estruturais são apenas condições NECESSÁRIAS; NÃO são horários gerados nem certificados.",
-      cycleRestExchangeEvaluation:"PR96 fase 2: os candidatos são reconstruídos e avaliados contra as HARD constraints atuais, 160h por trabalhador e métricas SOFT. Uma melhoria tecnicamente certificada continua a ser proposta experimental NÃO aplicada, e NÃO é garantia de conformidade laboral.",
+      cycleRestExchangeEvaluation:"PR96: os candidatos da análise são ensaios sobre o horário JÁ apresentado. A geração pode ter aplicado uma melhoria anteriormente, registada em generation.cycleOptimizations. A certificação das constraints atuais NÃO constitui validação jurídica.",
     },
     privacy:{
       includesEmployeeNamesAndSchedules:true,
