@@ -236,5 +236,5 @@ export function createSchedulePdf(input:PrintableScheduleInput):Uint8Array{
 export function schedulePdfFilename(year:number,month:number):string{
   resolvePlanningPeriod({mode:"monthly",year,month});
   return "horario-"+String(year).padStart(4,"0")+"-"+
-    String(month).padStart(2,"0")+".pdf";
+    String(month).padStart(2,"0")+"-proposta.pdf";
 }
