@@ -390,13 +390,23 @@ function MonthWorkspace({
         item.longDaysAfter+" jornadas acima de 9h no ciclo "+
         item.cycleStart+" (28 dias)")
         .join("; "):null;
+    const meals=result.mealStaggering;
+    const mealImprovement=meals
+      ?meals.changedBreaks+" pausas redistribuídas em "+
+        meals.improvedDays+" dias; pico de pausas simultâneas "+
+        meals.before.peakSimultaneousBreaks+"→"+
+        meals.after.peakSimultaneousBreaks+"; minutos sem função operacional "+
+        meals.before.emptyRoleMinutes+"→"+
+        meals.after.emptyRoleMinutes
+      :null;
     setFeedback(result.status==="invalid_input"?
       {kind:"error",message:"Os dados não permitem gerar uma proposta. Se configuraste funções, verifica que todos os colaboradores ativos têm competências definidas."}:
       result.status==="invalid"?
       {kind:"error",message:"A proposta não cumpre alguma regra obrigatória de horas, folgas, pausas ou cobertura funcional. Consulta os problemas encontrados."}:
-      {kind:"success",message:improvement
-        ?"Proposta otimizada e certificada no ciclo de 28 dias: "+
-          improvement+". Confirma também o histórico nas semanas de fronteira e revê o calendário antes de guardar."
+      {kind:"success",message:improvement||mealImprovement
+        ?"Proposta otimizada: "+[improvement,mealImprovement]
+          .filter(Boolean).join(". ")+
+          ". Confirma o histórico das semanas de fronteira e revê o calendário antes de guardar."
         :"Proposta gerada. Revê o resultado e guarda-a apenas se estiver correta."});
   }
 
