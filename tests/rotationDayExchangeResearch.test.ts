@@ -243,6 +243,8 @@ test("PR96 fase 2: experimenta turnos reais sem alterar a proposta original",asy
   assert.equal(analysis.baselineCertificationStatus,"valid");
   assert.ok(analysis.evaluatedOpportunities>0);
   assert.equal(analysis.trials.length,analysis.evaluatedOpportunities);
+  assert.ok(analysis.best,
+    "o cenário sintético de controlo deve demonstrar pelo menos uma melhoria concreta: "+JSON.stringify(analysis.trials));
   assert.equal(JSON.stringify(input),original,"o estudo não pode modificar dados originais");
   assert.deepEqual(evaluateRestDayExchangeCandidates(input),analysis,
     "a exploração deve ser determinística");
