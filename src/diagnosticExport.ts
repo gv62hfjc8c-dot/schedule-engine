@@ -9,6 +9,7 @@ import {analyzeFunctionalCapacity} from "./functionalCapacityAnalysis";
 import {analyzeMonthlyFixedWorkdayLongDayFloor}
   from "./cycleLongDayFeasibility";
 import {analyzeRestDayExchangeOpportunities} from "./rotationDayExchangeResearch";
+import {evaluateRestDayExchangeCandidates} from "./restDayExchangeEvaluation";
 import type {MealBreak} from "./mealBreaks";
 import type {PlannedRestWeekMember} from "./plannedRest";
 import {enumerateCivilDays,resolvePlanningPeriod,civilDayOfWeek} from "./schedulePeriods";
@@ -173,6 +174,27 @@ export function buildScheduleDiagnostic(input:ScheduleDiagnosticInput) {
       team:input.team,openingHours:input.openingHours,
       assignments:input.assignments,rotation:input.generation.rotation,
     }):null;
+  // PR96: bounded concrete candidates are evaluated ONLY when exporting a
+  // diagnostic. This has no effect on normal generation or the saved plan.
+  const exchangeEvaluation=cycleRestExchange && input.team &&
+    input.openingHours && input.generation?.rotation
+    ?evaluateRestDayExchangeCandidates({
+      cycleStart:cycleRestExchange.cycleStart,
+      team:input.team,openingHours:input.openingHours,
+      assignments:input.assignments,rotation:input.generation.rotation,
+    }):null;
+  // Export only the summary; never mistake an experimental proposal for
+  // the currently displayed schedule.
+  const cycleRestExchangeEvaluation=exchangeEvaluation?{
+    ...exchangeEvaluation,
+    best:exchangeEvaluation.best?{
+      opportunity:exchangeEvaluation.best.opportunity,
+      longDays:exchangeEvaluation.best.longDays,
+      soloMinutes:exchangeEvaluation.best.soloMinutes,
+      roleGapMinutes:exchangeEvaluation.best.roleGapMinutes,
+      certificationStatus:exchangeEvaluation.best.certification.status,
+    }:null,
+  }:null;
   const functionalCapacity=input.functionalCoveragePolicy==="qualified50"&&
     input.team&&input.openingHours
     ?analyzeFunctionalCapacity({
@@ -221,6 +243,7 @@ export function buildScheduleDiagnostic(input:ScheduleDiagnosticInput) {
     },
     analysis:{
       byDay,byMember,functionalCapacity,cycleLongDays,cycleRestExchange,
+      cycleRestExchangeEvaluation,
       quality:{
         shiftsOverNineHours:byMember.reduce((sum,member)=>
           sum+member.shiftsOverNineHours,0),
@@ -240,7 +263,8 @@ export function buildScheduleDiagnostic(input:ScheduleDiagnosticInput) {
       rest:"somente descanso explicitamente planeado, nunca ausência de turno",
       context:"datas sem histórico confirmado permanecem desconhecidas",
       cycleLongDays:"limite inferior MATEMÁTICO de jornadas >9h conservando as datas já escaladas e a capacidade diária; não prova que os descansos possam ser redistribuídos nem garante melhoria possível sem alterar os dias de trabalho",
-      cycleRestExchange:"PR96 investigação: trocas de domingo curto por descanso útil explícito que passam apenas condições NECESSÁRIAS; NÃO são horários gerados, nem certificados, nem alterações automáticas. Exigem posicionar turnos e pausas e certificar HARD antes de considerar uma melhoria.",
+      cycleRestExchange:"PR96 fase 1: hipóteses estruturais são apenas condições NECESSÁRIAS; não são horários gerados nem certificados.",
+      cycleRestExchangeEvaluation:"PR96 fase 2: os candidatos são reconstruídos e avaliados contra as HARD constraints atuais, 160h por trabalhador e métricas SOFT. Uma melhoria tecnicamente certificada continua a ser proposta experimental NÃO aplicada, e NÃO é garantia de conformidade laboral.",
     },
     privacy:{
       includesEmployeeNamesAndSchedules:true,
