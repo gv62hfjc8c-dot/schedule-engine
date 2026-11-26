@@ -1,0 +1,17 @@
+{
+  // Workers Free: a workers.dev hostname is permitted but NEVER serves assets
+  // without a valid GitHub OAuth session for the one allowed numeric user ID.
+  // Missing Secrets => 503 (fail closed); no Cloudflare Access or billing.
+  "name": "schedule-engine-private",
+  "main": "src/cloudflare/privateWorker.ts",
+  "compatibility_date": "2026-11-23",
+  "workers_dev": true,
+  "preview_urls": false,
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    // Without this, CSS, JS, index.html and images bypass authentication!
+    "run_worker_first": true,
+    "not_found_handling": "single-page-application"
+  }
+}

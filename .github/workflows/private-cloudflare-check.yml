@@ -1,0 +1,36 @@
+# PR98: validate the Cloudflare Worker bundle without deploying it.
+# This workflow intentionally has no Cloudflare API token and no deploy step.
+name: Private Cloudflare Worker — build only
+
+on:
+  pull_request:
+    paths:
+      - "wrangler.jsonc"
+      - "src/cloudflare/**"
+      - "src/**"
+      - "package.json"
+      - "package-lock.json"
+      - "vite.config.ts"
+      - ".github/workflows/private-cloudflare-check.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  worker-dry-run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Build React application and check TypeScript
+        run: npm run build
+      - name: Compile Cloudflare Worker WITHOUT deploying
+        run: npx --yes wrangler@4 deploy --dry-run --outdir .wrangler/private-dry-run
