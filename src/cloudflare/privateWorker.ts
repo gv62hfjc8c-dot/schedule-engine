@@ -221,8 +221,9 @@ async function callback(request:Request,config:Config,
     // GitHub may return HTTP 200 with a JSON "error" instead of a token.
     // Classify only allowlisted error codes; never show raw GitHub responses.
     const json:unknown=await exchange.json();
-    const payload=json && typeof json==="object"&&!Array.isArray(json)
-      ?json as {access_token?:unknown;error?:unknown}:{};
+    const payload:{access_token?:unknown;error?:unknown}=
+      json && typeof json==="object"&&!Array.isArray(json)
+        ?json as {access_token?:unknown;error?:unknown}:{};
     const token=payload.access_token;
     if(!exchange.ok || typeof token!=="string" ||
       token.length<8 || token.length>2048)
