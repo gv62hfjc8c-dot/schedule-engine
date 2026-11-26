@@ -184,6 +184,15 @@ async function start(config:Config):Promise<Response>{
   url.searchParams.set("scope","");
   return redirect(url.toString(),{"set-cookie":setCookie(COOKIE_STATE,state,STATE_SECONDS)});
 }
+/** Only publish known-safe OAuth diagnostics. Never echo provider responses,
+ * authorization codes, tokens, client credentials or exception messages. */
+function tokenExchangeFailure(error:unknown):string{
+  const prefix="Falha ao confirmar o login GitHub.";
+  if(error==="incorrect_client_credentials")return prefix+" (GH-CREDENTIALS)";
+  if(error==="bad_verification_code")return prefix+" (GH-CODE)";
+  if(error==="redirect_uri_mismatch")return prefix+" (GH-REDIRECT)";
+  return prefix+" (GH-TOKEN)";
+}
 async function callback(request:Request,config:Config,
   fetcher:HttpFetcher):Promise<Response>{
   const url=new URL(request.url);
@@ -209,13 +218,17 @@ async function callback(request:Request,config:Config,
         code_verifier:state.verifier,
       }).toString(),
     });
-    if(!exchange.ok)throw Error("GitHub code exchange failed");
+    // GitHub may return HTTP 200 with a JSON "error" instead of a token.
+    // Classify only allowlisted error codes; never show raw GitHub responses.
     const json:unknown=await exchange.json();
-    const token=(json as {access_token?:unknown})?.access_token;
-    if(typeof token!=="string"||token.length<8||token.length>2048)
-      throw Error("GitHub OAuth token missing");
+    const payload=json && typeof json==="object"&&!Array.isArray(json)
+      ?json as {access_token?:unknown;error?:unknown}:{};
+    const token=payload.access_token;
+    if(!exchange.ok || typeof token!=="string" ||
+      token.length<8 || token.length>2048)
+      return response(tokenExchangeFailure(payload.error),502,clear);
     bearer=token;
-  }catch{return response("Falha ao confirmar o login GitHub.",502,clear);}
+  }catch{return response("Falha ao confirmar o login GitHub. (GH-CONNECTION)",502,clear);}
   try{
     const profile=await fetcher("https://api.github.com/user",{
       method:"GET",redirect:"error",
