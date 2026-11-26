@@ -212,6 +212,39 @@ test("PR98 B: erro do GitHub ou APIs externas falham sem fallback público",asyn
     assert.equal(result.status,502);
   }
 });
+test("PR98: callback classifica erros GitHub sem expor segredos",async()=>{
+  const cases:[{error:string;error_description:string},string][]=[
+    [{error:"incorrect_client_credentials",error_description:"private-secret"},
+      "GH-CREDENTIALS"],
+    [{error:"bad_verification_code",error_description:"private-secret"},
+      "GH-CODE"],
+    [{error:"redirect_uri_mismatch",error_description:"private-secret"},
+      "GH-REDIRECT"],
+    [{error:"unexpected-secret",error_description:"private-secret"},
+      "GH-TOKEN"],
+  ];
+  for(const [payload,expected] of cases){
+    const serve=createPrivateAssetHandler(async()=>Response.json(payload));
+    const {state,csrfCookie}=await oauthStart(serve);
+    const result=await serve(req("/auth/callback?code=code123&state="+state,
+      "__Host-se-oauth="+csrfCookie),env());
+    assert.equal(result.status,502);
+    const body=await result.text();
+    assert.match(body,new RegExp(expected));
+    assert.doesNotMatch(body,/private-secret|unexpected-secret/);
+    assert.equal(result.headers.get("cache-control"),"private, no-store");
+    assert.doesNotMatch(result.headers.get("set-cookie")??"",
+      /__Host-se-session=/);
+  }
+  const serve=createPrivateAssetHandler(async()=>new Response("unavailable",{
+    status:503,
+  }));
+  const {state,csrfCookie}=await oauthStart(serve);
+  const failed=await serve(req("/auth/callback?code=code123&state="+state,
+    "__Host-se-oauth="+csrfCookie),env());
+  assert.equal(failed.status,502);
+  assert.match(await failed.text(),/GH-CONNECTION/);
+});
 test("PR98 B: logout POST requer origem e apaga a sessão",async()=>{
   const {client}=fakeGitHub();
   const serve=createPrivateAssetHandler(client);
